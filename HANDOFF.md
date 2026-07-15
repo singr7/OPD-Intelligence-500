@@ -71,10 +71,9 @@ Still no trees, no intake logic, no real UI — S4 starts the clinical content.
   `PriceUnit.CHAR` free). Not fixed: the docstring is wrong, not the schema. Backlogged.
 
 ## Decisions needed from the human
-- **Ratify the schema addition.** S3 added `PriceUnit.CHAR` and `usage_events.characters`, which
-  are not in doc 02 §4's enum list. Reason: both TTS vendors bill per character, so without it
-  TTS cost is an estimate and S18's "reconcile exactly to usage_events" AC cannot be met. If you
-  agree, doc 02 §4 line 67 should gain `char`. If you disagree, S3's TTS metering needs redoing.
+- ~~Ratify `PriceUnit.CHAR` + `usage_events.characters`.~~ **Ratified** ("bill per character is
+  fine"). Doc 02 §4 now lists `char` and `characters`, with a note on units/quanta. Settled — do
+  not reopen.
 - **The SMS pick is now unblocking but not urgent** (both vendors work; `fake` runs locally). One
   thing to weigh when you do pick: Exotel is already the telephony vendor, so choosing it for SMS
   means one outage takes down SMS *and* the phone intake channel together — MSG91 keeps those

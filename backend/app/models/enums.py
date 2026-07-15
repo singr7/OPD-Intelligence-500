@@ -120,14 +120,16 @@ class UsagePurpose(StrEnum):
 
 
 class PriceUnit(StrEnum):
-    """How a vendor bills. Extends doc 02 §4's list with `char` — see below.
+    """How a vendor bills — their unit, not our measurement (doc 02 §4).
 
-    `char` is not in doc 02 §4's enum, which predates pricing the actual vendors:
-    both TTS options (Sarvam Bulbul, Google) bill per character, not per second
-    of audio produced. Without it, TTS cost would be an estimate derived from
-    output duration, and S18's AC ("dashboard numbers reconcile to usage_events
-    exactly" + monthly invoice reconciliation) would be unmeetable by
-    construction. Added in S3 and flagged in HANDOFF for ratification.
+    `char` was added in S3 and ratified into doc 02 §4: both TTS options (Sarvam
+    Bulbul, Google) bill per character, not per second of audio produced. Without
+    it, TTS cost would be an estimate derived from output duration, and S18's AC
+    ("dashboard numbers reconcile to usage_events exactly" + monthly invoice
+    reconciliation) would be unmeetable by construction.
+
+    Quanta live in `app.providers.pricing.UNIT_QUANTUM`, not here: token_in,
+    token_out and char are priced per 1,000; the rest per single unit.
     """
 
     TOKEN_IN = "token_in"

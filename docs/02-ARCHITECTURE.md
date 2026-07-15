@@ -63,8 +63,8 @@ prescriptions(id, visit_id, dictation_id, meds JSONB, pdf_url, delivered_via JSO
 checkin_plans(id, patient_id, visit_id, protocol_key, schedule JSONB[{day_offset, channel, question_set}], approved_by, status)
 checkins(id, plan_id, due_at, channel, sent_at, responses JSONB, grade[green|amber|red], escalated_to, resolved_at)
 offline_token_blocks(kiosk_id, date, start_no, end_no, used_up_to)
-usage_events(id, at, minute_bucket, session_id, intake_id, visit_id, channel, tier, provider, model, purpose[intake_turn|summary|routing|dictation|checkin|other], tokens_in, tokens_out, cached_tokens, audio_seconds, unit_cost_ref, computed_cost_inr, latency_ms)
-price_book(provider, model, unit[token_in|token_out|audio_sec|call_min|msg], price_inr, effective_from)   -- editable in admin; costs recomputable
+usage_events(id, at, minute_bucket, session_id, intake_id, visit_id, channel, tier, provider, model, purpose[intake_turn|summary|routing|dictation|checkin|other], tokens_in, tokens_out, cached_tokens, audio_seconds, characters, unit_cost_ref, computed_cost_inr, latency_ms)
+price_book(provider, model, unit[token_in|token_out|audio_sec|call_min|msg|char], price_inr, effective_from)   -- editable in admin; costs recomputable
 audit_log(actor, action, entity, entity_id, at, meta JSONB)
 ```
 
@@ -72,6 +72,7 @@ Notes:
 - All patient free-text/audio in original language + English translation stored side by side.
 - `question_trees.tree` JSONB schema is defined in doc 03 §4 — versioned, published/draft, editable via admin.
 - Soft deletes only; `audit_log` on every clinical write.
+- `price_book.unit` is how the *vendor* bills, not how we measure: TTS is priced per `char` (both Sarvam Bulbul and Google bill per character, not per second of audio produced), telephony per `call_min`, STT per `audio_sec`. `token_in|token_out|char` prices are **per 1,000 units**; the rest are per single unit. A provider is priced by `audio_sec` **or** `call_min`, never both. See `backend/app/providers/pricing.py`.
 
 ## 5. Speech & LLM pipeline (shared engine, many channels)
 

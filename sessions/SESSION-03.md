@@ -67,13 +67,15 @@
   `REALTIME_PROVIDER=gemini-live` raises rather than promising a tier that cannot run.
 
 ## Deviations from spec
-- **Added `PriceUnit.CHAR` + `usage_events.characters`** (doc 02 §4 lists
-  `token_in|token_out|audio_sec|call_min|msg`). Both TTS vendors (Sarvam Bulbul,
-  Google) bill **per character**, not per second of audio produced. Without a
-  char unit, TTS cost is an estimate derived from output duration, and S18's AC
-  ("dashboard numbers reconcile to usage_events exactly" + monthly invoice
-  reconciliation) is unmeetable by construction. **Flagged in HANDOFF for the
-  human to ratify.** Migration `8d11748ba95e`; no DDL was needed for the enum.
+- **Added `PriceUnit.CHAR` + `usage_events.characters`** — **ratified by the human
+  at session end ("bill per character is fine"), and doc 02 §4 updated to match**,
+  so this is no longer a deviation. Both TTS vendors (Sarvam Bulbul, Google) bill
+  **per character**, not per second of audio produced. Without a char unit, TTS
+  cost is an estimate derived from output duration, and S18's AC ("dashboard
+  numbers reconcile to usage_events exactly" + monthly invoice reconciliation) is
+  unmeetable by construction. Migration `8d11748ba95e`; the enum itself needed no
+  DDL. Doc 02 §4 also gained a note on units vs. quanta (per-1,000 for
+  token/char; `audio_sec` xor `call_min`).
 - **Cached tokens are priced at the `token_in` rate.** Vendors discount them
   (~25% on Gemini), so this over-estimates — deliberately: a cost-guard that
   under-reports is the failure that hurts. A `token_cached` unit belongs with the
