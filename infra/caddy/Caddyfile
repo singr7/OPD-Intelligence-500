@@ -1,14 +1,15 @@
 # Local dev reverse proxy. Production swaps :80 for the real hostname so Caddy
-# auto-provisions TLS (doc 05 §2). Routing mirrors the component diagram:
+# auto-provisions TLS (doc 05 section 2). Routing mirrors the component diagram:
 # web PWAs at /, api under /api, telephony ws under /voice.
 :80 {
-	# API — strip the /api prefix before forwarding to FastAPI.
+	# API - strip the /api prefix before forwarding to FastAPI.
 	handle_path /api/* {
 		reverse_proxy api:8000
 	}
 
-	# Voice gateway websocket (Exotel bridge, wired in S14).
-	handle /voice/* {
+	# Voice gateway websocket (Exotel bridge, wired in S14). Strip /voice so the
+	# gateway sees unprefixed paths (/health now, /ws in S14).
+	handle_path /voice/* {
 		reverse_proxy voice-gw:8080
 	}
 

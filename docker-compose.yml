@@ -65,7 +65,9 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      # Host 8090 (container stays 8080) to avoid clashing with other local
+      # dev projects that commonly grab 8080; Caddy talks to voice-gw:8080.
+      - "8090:8080"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 10s
@@ -75,7 +77,7 @@ services:
   worker:
     build: ./backend
     <<: *restart
-    command: ["celery", "-A", "app.worker:make_celery", "worker", "--loglevel=info"]
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -86,7 +88,7 @@ services:
   beat:
     build: ./backend
     <<: *restart
-    command: ["celery", "-A", "app.worker:make_celery", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info"]
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -104,7 +106,14 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      # node is guaranteed present in node:22-slim; wget/curl are not.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 6
