@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+web/build/
+npm-debug.log*
+.pnpm-debug.log*
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/*.auto.tfvars
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Data / logs
+/data/
+*.log
