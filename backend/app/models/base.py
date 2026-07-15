@@ -1,0 +1,103 @@
+"""Declarative base, shared column types, and the mixins every table opts into.
+
+Two conventions from doc 02 §4 are enforced here rather than left to reviewers:
+
+- **Soft deletes only.** `SoftDeleteMixin` gives every clinical table a
+  `deleted_at`; feature code sets it instead of issuing DELETE.
+- **Audited clinical writes.** Subclassing `Clinical` is the *only* thing a model
+  needs to do to be audited — `app.audit` picks it up off the mapper registry at
+  flush time. A clinical table that forgets the mixin fails the audit-coverage
+  test in `tests/test_audit.py`.
+"""
+
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import DateTime, Enum, MetaData, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+def enum_type[E: enum.Enum](python_enum: type[E], name: str) -> Enum:
+    """VARCHAR + CHECK rather than a native Postgres ENUM — see `app.models.enums`.
+
+    `values_callable` stores the enum *value* ("in_queue"), not the member name
+    ("IN_QUEUE"), which is what the API and admin console speak.
+    """
+    return Enum(
+        python_enum,
+        name=name,
+        native_enum=False,
+        validate_strings=True,
+        values_callable=lambda members: [m.value for m in members],
+    )
+
+
+# Explicit constraint naming so Alembic autogenerate produces stable, revertible
+# names instead of Postgres-assigned ones.
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+    type_annotation_map = {
+        dict[str, Any]: JSONB,
+        list[Any]: JSONB,
+    }
+
+
+def uuid_pk() -> Mapped[uuid.UUID]:
+    return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+
+class UUIDPrimaryKey:
+    """Client-side UUID4 PKs.
+
+    Client-side generation (rather than a DB default) is load-bearing: the audit
+    hook runs in `before_flush` and needs `entity_id` to already exist.
+    """
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+
+class TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class SoftDeleteMixin:
+    """Soft deletes only (doc 02 §4). Never issue a hard DELETE on these tables."""
+
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
+
+class Clinical:
+    """Marker: writes to this table are patient-affecting and must be audited.
+
+    Presence of this marker is what `app.audit` keys off. Adding it to a model is
+    the whole opt-in; there is no per-route audit call to forget.
+    """
+
+    __abstract__ = True

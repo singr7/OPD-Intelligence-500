@@ -16,7 +16,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # Host 5433: a native Postgres already owns 127.0.0.1:5432 on the dev
+      # machine, and it wins over Docker's bind — localhost:5432 would silently
+      # reach the wrong database. Same reason voice-gw is on 8090. In-cluster
+      # traffic still uses postgres:5432.
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opd}"]
       interval: 5s
