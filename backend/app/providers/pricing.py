@@ -214,5 +214,16 @@ _prices = PriceBookCache()
 
 
 def get_price_book() -> PriceBookCache:
-    """Process-wide cache. One book, so one cache; tests build their own."""
+    """Process-wide cache. One book, so one cache.
+
+    The meter prices against this and `/providers/health` reports its `unpriced`
+    set, so they must be the same object — a second cache would report an empty
+    `unpriced` while the real one filled up.
+    """
     return _prices
+
+
+def set_price_book(prices: PriceBookCache) -> None:
+    """Replace the process cache. Tests use this to scope a book to one test."""
+    global _prices
+    _prices = prices

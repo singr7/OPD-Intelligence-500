@@ -28,6 +28,7 @@ import os
 import subprocess
 import sys
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -41,6 +42,8 @@ from app.audit import AuditedSession
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.main import create_app
+from app.providers.metering import UsageMeter, set_meter
+from app.providers.pricing import PriceBookCache, set_price_book
 from app.providers.registry import reset_providers
 from app.providers.sms import FakeSMSProvider
 
@@ -141,16 +144,84 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-def sms() -> Iterator[FakeSMSProvider]:
-    """A fresh fake SMS provider per test, installed into the app's registry."""
-    reset_providers()
-    provider = FakeSMSProvider(log_body=True)
+def sms(providers: None, settings: Settings) -> FakeSMSProvider:
+    """The fake SMS provider this test's app is wired to.
 
-    import app.providers.registry as registry
+    Depends on `providers` so the registry is freshly reset, then takes the
+    instance *from the registry* rather than building a second one — the test
+    must assert on the same object the route actually used.
+    """
+    from app.providers.registry import get_sms_provider
 
-    registry._sms_provider = provider
-    yield provider
+    provider = get_sms_provider(settings)
+    assert isinstance(provider, FakeSMSProvider)
+    return provider
+
+
+@pytest.fixture
+def providers(settings: Settings) -> Iterator[None]:
+    """Reset the provider registry around every test.
+
+    Providers are process-wide singletons that accumulate state — the fakes keep
+    their `sent` lists, and every provider carries a circuit breaker and health
+    counters. Leaking those across tests makes failures depend on test order,
+    which is the kind of bug that costs an afternoon.
+    """
     reset_providers()
+    yield
+    reset_providers()
+
+
+@pytest.fixture
+def prices() -> Iterator[PriceBookCache]:
+    """A price book cache scoped to one test, with no TTL caching surprises.
+
+    Installed as *the* process cache, because that is how production is wired:
+    the meter prices against `get_price_book()` and `/providers/health` reports
+    the same object's `unpriced` set. Two caches would let the endpoint report
+    all-clear while the meter was failing to price anything.
+    """
+    cache = PriceBookCache(ttl_seconds=0)
+    set_price_book(cache)
+    yield cache
+    set_price_book(PriceBookCache())
+
+
+@pytest_asyncio.fixture
+async def meter(session: AsyncSession, prices: PriceBookCache) -> AsyncIterator[UsageMeter]:
+    """A usage meter writing into the test's rolled-back transaction.
+
+    The real meter owns its own sessionmaker and drains on a background task.
+    Here it gets a factory that hands back *this test's* session and does not
+    close it, so:
+      - flushed usage rows are visible to the test, and
+      - they vanish with the outer rollback at teardown.
+
+    No drain task is started: `await meter.flush()` is deterministic, and a
+    background task racing the assertions is how you get a flaky suite.
+    """
+
+    @asynccontextmanager
+    async def factory() -> AsyncIterator[AsyncSession]:
+        yield session
+
+    meter = UsageMeter(factory, prices, flush_interval_seconds=0.05)
+    set_meter(meter)
+    yield meter
+    set_meter(None)
+
+
+@pytest_asyncio.fixture
+async def seeded_prices(session: AsyncSession) -> None:
+    """Load `seeds/price_book.json` into the test transaction.
+
+    Metering tests need real prices: the S3 AC is that every fake call produces a
+    *priced* usage_event, and pricing against invented rates would test the
+    arithmetic while missing a missing seed row.
+    """
+    from app.seed import SeedReport, _load, _upsert_price_book
+
+    await _upsert_price_book(session, _load("price_book.json")["entries"], SeedReport.empty())
 
 
 @pytest_asyncio.fixture

@@ -214,14 +214,17 @@ class CostGuard:
         breached = fraction >= 1
         approaching = not breached and float(fraction) >= self._alert_fraction
 
+        # One rung per evaluation, down from wherever the channel already is —
+        # which is what makes doc 02 §8's "V1→V2→V3" actually happen. Computing
+        # it from the top of the ladder instead would pin the channel at V2
+        # forever: still spending, still breaching, never reaching the free tier.
+        # The first rupee over does not jump a patient straight to V3.
+        current = await self._store.get(channel)
         return Verdict(
             channel=channel,
             spent_inr=spent,
             budget_inr=budget,
-            # One rung per evaluation, from the top of the ladder. Repeated
-            # breaches walk it down; the guard never jumps a patient straight to
-            # V3 on the first rupee over.
-            tier=downgrade(IntakeTier.CONVERSATIONAL) if breached else None,
+            tier=downgrade(current or IntakeTier.CONVERSATIONAL) if breached else None,
             breached=breached,
             approaching=approaching,
         )
