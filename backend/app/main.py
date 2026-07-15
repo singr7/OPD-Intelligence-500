@@ -1,12 +1,19 @@
 """FastAPI application factory for the `api` service.
 
-S1 shipped the factory + health route. S2 adds persistence, auth, and the audit
+S1 shipped the factory + health route. S2 added persistence, auth, and the audit
 trail. Auditing needs nothing here: sessions come from `app.db`, which builds
 them on the audited session class, so clinical writes are logged no matter which
-router does them. This middleware only binds *who* is acting (`AuditMiddleware`).
-Feature routers (intake, queue, doctor, rx, checkins, admin, webhooks) are
-mounted here in later sessions.
+router does them. The middleware only binds *who* is acting (`AuditMiddleware`).
+
+S3 adds the provider layer's two background pieces, both on the lifespan: the
+usage meter's drain task (doc 02 §8 — metering is async, batched, and must never
+block a call) and the cost guard that owns the tier override. Feature routers
+(intake, queue, doctor, rx, checkins, admin, webhooks) mount here in later
+sessions.
 """
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +21,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.auth.routes import router as auth_router
 from app.config import Settings, get_settings
+from app.db import build_sessionmaker, get_engine
 from app.middleware import AuditMiddleware
+from app.providers.costguard import CostGuard, build_override_store, set_guard
+from app.providers.metering import UsageMeter, set_meter
+from app.providers.pricing import get_price_book
 from app.routes.health import router as health_router
+from app.routes.providers import router as providers_router
+
+
+def _build_lifespan(settings: Settings):
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # Built here rather than at import: an engine created at import time
+        # binds to whichever event loop imported it and fails on first use.
+        sessionmaker = build_sessionmaker(get_engine())
+
+        meter = UsageMeter(sessionmaker, get_price_book())
+        set_meter(meter)
+        await meter.start()
+
+        guard = CostGuard(
+            sessionmaker,
+            build_override_store(settings),
+            budgets=settings.daily_budget_inr,
+            alert_fraction=settings.cost_guard_alert_fraction,
+            override_ttl_seconds=settings.cost_guard_override_ttl_seconds,
+            timezone=settings.timezone,
+            enabled=settings.cost_guard_enabled,
+        )
+        set_guard(guard)
+
+        try:
+            yield
+        finally:
+            # Flushes the buffer, so a clean restart keeps its cost rows.
+            await meter.stop()
+            set_meter(None)
+            set_guard(None)
+
+    return lifespan
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -27,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="OPD Intelligence Platform API",
         version=__version__,
         docs_url="/docs",
+        lifespan=_build_lifespan(settings),
     )
 
     app.add_middleware(
@@ -41,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(providers_router)
     return app
 
 

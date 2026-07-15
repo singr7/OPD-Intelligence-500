@@ -1,0 +1,176 @@
+{
+  "_readme": [
+    "Seed rates for price_book (doc 02 §8). INR, per app/providers/pricing.py's units:",
+    "token_in/token_out/char are priced PER 1,000; audio_sec per second; call_min per",
+    "minute; msg per message.",
+    "",
+    "These are ESTIMATES converted from vendors' public USD list prices at ~INR 84/USD",
+    "and rounded up. They are seeds, not contract rates: the price book is admin-editable",
+    "(S18) precisely so real invoice numbers replace these without a deploy, and",
+    "usage_events keeps unit_cost_ref so history re-prices correctly when they do.",
+    "",
+    "Rounding is deliberately UP. A cost dashboard that flatters us is worse than",
+    "useless — the cost-guard reads these numbers to decide when to downgrade a tier,",
+    "and an under-estimate means the budget is already blown by the time it notices.",
+    "",
+    "effective_from is the pilot build date. Do not edit a row in place when a vendor",
+    "changes price: add a row with a later effective_from, and history stays true.",
+    "",
+    "Natural key (for idempotent upsert): provider + model + unit + effective_from.",
+    "model: \"*\" = a flat per-provider rate (SMS, telephony, WhatsApp) that needs no per-model row. Not null: the column is NOT NULL, and Postgres treats NULLs as distinct in the unique key, which would let duplicate rates through."
+  ],
+  "entries": [
+    {
+      "provider": "gemini-flash",
+      "model": "gemini-2.5-flash",
+      "unit": "token_in",
+      "price_inr": "0.025",
+      "effective_from": "2026-07-01",
+      "notes": "~$0.30/1M input tokens"
+    },
+    {
+      "provider": "gemini-flash",
+      "model": "gemini-2.5-flash",
+      "unit": "token_out",
+      "price_inr": "0.21",
+      "effective_from": "2026-07-01",
+      "notes": "~$2.50/1M output tokens"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "unit": "token_in",
+      "price_inr": "0.0126",
+      "effective_from": "2026-07-01",
+      "notes": "~$0.15/1M input tokens"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "unit": "token_out",
+      "price_inr": "0.0504",
+      "effective_from": "2026-07-01",
+      "notes": "~$0.60/1M output tokens"
+    },
+    {
+      "provider": "sarvam",
+      "model": "saarika:v2.5",
+      "unit": "audio_sec",
+      "price_inr": "0.0050",
+      "effective_from": "2026-07-01",
+      "notes": "STT, ~INR 0.30/audio-minute"
+    },
+    {
+      "provider": "sarvam",
+      "model": "bulbul:v2",
+      "unit": "char",
+      "price_inr": "0.15",
+      "effective_from": "2026-07-01",
+      "notes": "TTS billed per character; ~INR 0.15/1000 chars"
+    },
+    {
+      "provider": "google",
+      "model": "latest_long",
+      "unit": "audio_sec",
+      "price_inr": "0.0224",
+      "effective_from": "2026-07-01",
+      "notes": "STT fallback, ~$0.016/audio-minute"
+    },
+    {
+      "provider": "google",
+      "model": "standard",
+      "unit": "char",
+      "price_inr": "0.336",
+      "effective_from": "2026-07-01",
+      "notes": "TTS fallback, ~$4.00/1M chars"
+    },
+    {
+      "provider": "msg91",
+      "model": "*",
+      "unit": "msg",
+      "price_inr": "0.20",
+      "effective_from": "2026-07-01",
+      "notes": "transactional SMS, per message"
+    },
+    {
+      "provider": "exotel",
+      "model": "*",
+      "unit": "call_min",
+      "price_inr": "0.75",
+      "effective_from": "2026-07-01",
+      "notes": "outbound voice, per minute. NOTE: exotel is also the SMS fallback vendor; if SMS_PROVIDER=exotel, add an exotel/msg row too"
+    },
+    {
+      "provider": "meta",
+      "model": "*",
+      "unit": "msg",
+      "price_inr": "0.35",
+      "effective_from": "2026-07-01",
+      "notes": "WhatsApp. Meta bills per 24h conversation, not per message — this over-counts until S12 adds window tracking"
+    },
+    {
+      "provider": "fake-sms",
+      "model": "*",
+      "unit": "msg",
+      "price_inr": "0.20",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-llm",
+      "model": "fake-llm-1",
+      "unit": "token_in",
+      "price_inr": "0.02",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-llm",
+      "model": "fake-llm-1",
+      "unit": "token_out",
+      "price_inr": "0.08",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-stt",
+      "model": "fake-stt-1",
+      "unit": "audio_sec",
+      "price_inr": "0.005",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-tts",
+      "model": "fake-tts-1",
+      "unit": "char",
+      "price_inr": "0.15",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-live",
+      "model": "fake-live-1",
+      "unit": "audio_sec",
+      "price_inr": "0.05",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-whatsapp",
+      "model": "*",
+      "unit": "msg",
+      "price_inr": "0.35",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "fake-telephony",
+      "model": "*",
+      "unit": "call_min",
+      "price_inr": "0.75",
+      "effective_from": "2026-07-01",
+      "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    }
+  ]
+}

@@ -16,3 +16,9 @@ argon2-cffi>=23.1
 
 # --- Seeds (S2) ---
 faker>=33.1
+
+# --- Provider layer (S3) ---
+# pyyaml: front matter in the versioned prompt files (app/prompts/loader.py).
+# redis: the cost guard's tier-override store, shared across api/worker/voice-gw.
+pyyaml>=6.0
+redis>=5.2

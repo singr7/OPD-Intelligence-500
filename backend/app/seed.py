@@ -22,6 +22,7 @@ import logging
 import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import Actor, acting_as
 from app.db import build_engine, build_sessionmaker
-from app.models.enums import Lang, Role, Sex
+from app.models.enums import Lang, PriceUnit, Role, Sex
+from app.models.metering import PriceBook
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
 
@@ -261,12 +263,55 @@ async def _upsert_patients(
     await session.flush()
 
 
+async def _upsert_price_book(
+    session: AsyncSession, rows: list[dict[str, Any]], report: SeedReport
+) -> None:
+    """Seed `price_book` (doc 02 §8).
+
+    Natural key is (provider, model, unit, effective_from) — the same uniqueness
+    the table enforces. Note what that means for a price change: you add a row
+    with a later `effective_from`, you do not edit one. Editing in place would
+    silently re-interpret every historical cost that was computed at the old rate
+    (see app/providers/pricing.py), and the S18 invoice reconciliation would stop
+    matching reality with no visible cause.
+
+    Not `Clinical` — no patient is affected by a rate, so these writes are not
+    audited. Admin edits in S18 will be, through the admin console's own trail.
+    """
+    result = await session.execute(select(PriceBook))
+    existing = {(p.provider, p.model, p.unit, p.effective_from): p for p in result.scalars()}
+
+    for row in rows:
+        key = (
+            row["provider"],
+            row["model"],
+            PriceUnit(row["unit"]),
+            date.fromisoformat(row["effective_from"]),
+        )
+        values = {"price_inr": Decimal(row["price_inr"]), "notes": row.get("notes")}
+        entry = existing.get(key)
+        if entry is None:
+            session.add(
+                PriceBook(
+                    provider=key[0], model=key[1], unit=key[2], effective_from=key[3], **values
+                )
+            )
+            report.record(report.created, "price_book")
+        elif _apply(entry, values):
+            report.record(report.updated, "price_book")
+        else:
+            report.record(report.unchanged, "price_book")
+
+    await session.flush()
+
+
 async def seed(session: AsyncSession, *, patients: int = 50) -> SeedReport:
     """Load the pilot dataset into `session`. Caller owns the commit."""
     report = SeedReport.empty()
 
     hospital_data = _load("hospital.json")
     staff_data = _load("doctors.json")
+    price_data = _load("price_book.json")
 
     with acting_as(SEED_ACTOR):
         hospital = await _upsert_hospital(session, hospital_data, report)
@@ -277,6 +322,7 @@ async def seed(session: AsyncSession, *, patients: int = 50) -> SeedReport:
             await _upsert_user(session, hospital, row, report)
         await _upsert_doctors(session, hospital, departments, staff_data["doctors"], report)
         await _upsert_patients(session, hospital, patients, report)
+        await _upsert_price_book(session, price_data["entries"], report)
 
     return report
 

@@ -78,6 +78,10 @@ class UsageEvent(Base, UUIDPrimaryKey):
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)
     cached_tokens: Mapped[int] = mapped_column(Integer, default=0)
     audio_seconds: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=Decimal("0"))
+    # Added in S3 alongside PriceUnit.CHAR: TTS vendors bill per character, so
+    # without the quantity stored, TTS history could not be re-priced when a
+    # vendor changes rates — which is the whole promise of `unit_cost_ref`.
+    characters: Mapped[int] = mapped_column(Integer, default=0)
 
     unit_cost_ref: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     computed_cost_inr: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))

@@ -120,11 +120,22 @@ class UsagePurpose(StrEnum):
 
 
 class PriceUnit(StrEnum):
+    """How a vendor bills. Extends doc 02 §4's list with `char` — see below.
+
+    `char` is not in doc 02 §4's enum, which predates pricing the actual vendors:
+    both TTS options (Sarvam Bulbul, Google) bill per character, not per second
+    of audio produced. Without it, TTS cost would be an estimate derived from
+    output duration, and S18's AC ("dashboard numbers reconcile to usage_events
+    exactly" + monthly invoice reconciliation) would be unmeetable by
+    construction. Added in S3 and flagged in HANDOFF for ratification.
+    """
+
     TOKEN_IN = "token_in"
     TOKEN_OUT = "token_out"
     AUDIO_SEC = "audio_sec"
     CALL_MIN = "call_min"
     MSG = "msg"
+    CHAR = "char"
 
 
 class AuditAction(StrEnum):

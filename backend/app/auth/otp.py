@@ -161,11 +161,18 @@ async def request_otp(
     )
     await session.flush()
 
+    minutes = str(settings.otp_ttl_seconds // 60)
     await sms.send(
         SmsMessage(
             to=phone,
-            body=f"{code} is your OPD login code. Valid {settings.otp_ttl_seconds // 60} minutes.",
+            body=f"{code} is your OPD login code. Valid {minutes} minutes.",
             template_key="otp_login",
+            # MSG91 Flow transmits variables, not the body, and substitutes them
+            # into the registered DLT template. The template must therefore
+            # declare variables named `otp` and `minutes` — that naming is a
+            # config contract with the vendor account, not a detail. Exotel
+            # ignores these and sends `body` (see app/providers/sms.py).
+            variables={"otp": code, "minutes": minutes},
         )
     )
 
