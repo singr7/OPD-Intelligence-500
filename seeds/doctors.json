@@ -1,0 +1,76 @@
+{
+  "_phone_note": [
+    "Phone numbers here are unroutable by construction: Indian mobile numbers start",
+    "with 6-9, so a +91 5xxxxxxxxx number can never reach a real handset. That is",
+    "deliberate. Seeds get loaded on demo and staging boxes, and from S3 those boxes",
+    "may have a live SMS provider configured — a plausible-looking number would send",
+    "real OTP texts to a stranger. Real numbers are entered per-hospital via the admin",
+    "console (S18), never committed here.",
+    "Consequence: seeded staff cannot receive an OTP against a real provider. Local dev",
+    "uses SMS_PROVIDER=fake with OTP_DEBUG_ECHO=true, which returns the code in the",
+    "response instead."
+  ],
+  "staff": [
+    {
+      "role": "admin",
+      "name": "Priya Sharma",
+      "phone": "+915550000001",
+      "lang": "en",
+      "username": "admin"
+    },
+    {
+      "role": "coordinator",
+      "name": "Rekha Meena",
+      "phone": "+915550000002",
+      "lang": "hi"
+    },
+    {
+      "role": "nurse",
+      "name": "Sunita Yadav",
+      "phone": "+915550000003",
+      "lang": "hi"
+    }
+  ],
+  "doctors": [
+    {
+      "name": "Dr. Anil Gupta",
+      "phone": "+915550001001",
+      "reg_no": "RMC-ONC-1001",
+      "department_code": "MEDONC",
+      "qualification": "MD, DM (Medical Oncology)",
+      "lang": "en"
+    },
+    {
+      "name": "Dr. Kavita Rao",
+      "phone": "+915550001002",
+      "reg_no": "RMC-ONC-1002",
+      "department_code": "MEDONC",
+      "qualification": "MD, DM (Medical Oncology)",
+      "lang": "en"
+    },
+    {
+      "name": "Dr. Rajesh Verma",
+      "phone": "+915550001003",
+      "reg_no": "RMC-RAD-1003",
+      "department_code": "RADONC",
+      "qualification": "MD (Radiation Oncology)",
+      "lang": "hi"
+    },
+    {
+      "name": "Dr. Meena Kumari",
+      "phone": "+915550001004",
+      "reg_no": "RMC-SUR-1004",
+      "department_code": "SURGONC",
+      "qualification": "MS, MCh (Surgical Oncology)",
+      "lang": "hi"
+    },
+    {
+      "name": "Dr. Suresh Patel",
+      "phone": "+915550001005",
+      "reg_no": "RMC-PAL-1005",
+      "department_code": "PALL",
+      "qualification": "MD (Palliative Medicine)",
+      "lang": "hi"
+    }
+  ]
+}

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         problems = []
         if self.jwt_secret == Settings.model_fields["jwt_secret"].default:
             problems.append("JWT_SECRET is still the dev default")
+        # RFC 7518 §3.2: an HMAC key shorter than the hash output weakens HS256.
+        if len(self.jwt_secret) < 32:
+            problems.append("JWT_SECRET must be at least 32 characters")
         if self.otp_debug_echo:
             problems.append("OTP_DEBUG_ECHO must be off outside local")
         if self.sms_provider == "fake":

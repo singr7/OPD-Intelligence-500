@@ -1,0 +1,38 @@
+{
+  "code": "ALWAR01",
+  "name": "Alwar District Cancer Centre",
+  "city": "Alwar",
+  "district": "Alwar",
+  "default_lang": "hi",
+  "departments": [
+    {
+      "code": "MEDONC",
+      "name": "Medical Oncology",
+      "icon": "iv-drip",
+      "note": "Primary pilot department (doc 03 §3): new-patient intake, between-cycle review, pain."
+    },
+    {
+      "code": "RADONC",
+      "name": "Radiation Oncology",
+      "icon": "radiation",
+      "note": "On-treatment review (skin, swallowing, urinary per site)."
+    },
+    {
+      "code": "SURGONC",
+      "name": "Surgical Oncology",
+      "icon": "scalpel",
+      "note": "Post-op review; new lump/lesion intake."
+    },
+    {
+      "code": "PALL",
+      "name": "Palliative Care",
+      "icon": "hands-holding",
+      "note": "Symptom burden (ESAS-lite)."
+    },
+    { "code": "GENMED", "name": "General Medicine", "icon": "stethoscope", "note": "Routing tree." },
+    { "code": "GYNAE", "name": "Gynecology", "icon": "gynae", "note": "Gynae-onc routing tree." },
+    { "code": "ENT", "name": "ENT", "icon": "ear", "note": "Head & neck routing tree." },
+    { "code": "PULM", "name": "Pulmonology", "icon": "lungs", "note": "Routing tree." },
+    { "code": "DERM", "name": "Dermatology", "icon": "skin", "note": "Routing tree." }
+  ]
+}

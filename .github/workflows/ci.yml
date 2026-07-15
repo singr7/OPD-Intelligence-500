@@ -12,6 +12,26 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The suite runs against a real Postgres: the schema uses JSONB and PL/pgSQL
+    # triggers (the append-only audit log), so SQLite would test a different
+    # database than we ship. See backend/tests/conftest.py.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opd
+          POSTGRES_PASSWORD: opd_local_dev
+          POSTGRES_DB: opd
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opd"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # No native Postgres to collide with on the runner, so 5432 is free here.
+      TEST_DATABASE_URL: postgresql+asyncpg://opd:opd_local_dev@localhost:5432/opd_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

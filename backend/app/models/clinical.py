@@ -10,9 +10,20 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
@@ -70,8 +81,10 @@ class Intake(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Cost attribution is finalised on completion in S5 by summing the
-    # usage_events that share this intake_id (doc 02 §8).
-    cost_inr: Mapped[float | None] = mapped_column()
+    # usage_events that share this intake_id (doc 02 §8). Numeric, not float:
+    # this is a sum of per-event costs that has to reconcile exactly against
+    # usage_events on the S18 dashboard, and binary floats don't sum exactly.
+    cost_inr: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
 
     visit: Mapped[Visit] = relationship(back_populates="intakes")
 

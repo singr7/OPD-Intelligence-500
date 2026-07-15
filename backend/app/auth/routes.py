@@ -20,7 +20,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.models.auth import RefreshToken
 from app.models.org import User
-from app.providers.registry import get_sms_provider
+from app.providers.registry import sms_provider_dependency
 from app.providers.sms import SMSProvider
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -105,7 +105,7 @@ async def otp_request(
     payload: OtpRequestIn,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-    sms: SMSProvider = Depends(get_sms_provider),
+    sms: SMSProvider = Depends(sms_provider_dependency),
 ) -> OtpRequestOut:
     try:
         challenge = await request_otp(session, phone=payload.phone, settings=settings, sms=sms)

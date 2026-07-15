@@ -34,6 +34,11 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Session-scoped loop for both fixtures and tests: the DB engine is built once
+# per session, and an engine outliving the loop it was created on raises
+# "Event loop is closed" on the second test.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff]
 line-length = 100

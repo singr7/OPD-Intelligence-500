@@ -22,7 +22,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.hashing import hash_secret, verify_secret
@@ -73,6 +73,15 @@ async def _find_user(session: AsyncSession, phone: str) -> User | None:
 async def _newest_open_challenge(
     session: AsyncSession, phone: str, now: datetime
 ) -> OtpCode | None:
+    """The one open challenge for `phone`, if any.
+
+    `request_otp` retires prior challenges as it issues a new one, so at most one
+    is ever open and this needs no ordering to pick a winner. That matters: rows
+    created in the same transaction share `created_at` (Postgres `now()` is the
+    *transaction* timestamp), so `ORDER BY created_at DESC LIMIT 1` could return
+    an older code — quietly breaking the single-outstanding-code guarantee.
+    `.limit(1)` is belt-and-braces; the invariant is maintained on write.
+    """
     result = await session.execute(
         select(OtpCode)
         .where(
@@ -85,6 +94,24 @@ async def _newest_open_challenge(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def _retire_open_challenges(session: AsyncSession, phone: str, now: datetime) -> None:
+    """Consume every outstanding challenge for `phone`.
+
+    Issuing a new code kills the old one. Without this, each resend would leave
+    another live code in play and multiply an attacker's guessing odds by the
+    number of outstanding codes.
+    """
+    await session.execute(
+        update(OtpCode)
+        .where(
+            OtpCode.phone == phone,
+            OtpCode.purpose == OtpPurpose.LOGIN,
+            OtpCode.consumed_at.is_(None),
+        )
+        .values(consumed_at=now)
+    )
 
 
 async def _in_cooldown(
@@ -120,6 +147,8 @@ async def request_otp(
     if user is None:
         # Same shape, same timing-ish, no row, no SMS.
         return OtpChallenge(phone=phone, expires_at=expires_at)
+
+    await _retire_open_challenges(session, phone, now)
 
     code = generate_code(settings.otp_length)
     session.add(

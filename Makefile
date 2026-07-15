@@ -6,8 +6,13 @@ SHELL := /bin/bash
 BACKEND_PY := backend/.venv/bin/python
 VOICEGW_PY := voice-gw/.venv/bin/python
 
+# Host-side DB URL. In-cluster services reach Postgres at postgres:5432; from the
+# host it is published on 5433, because a native Postgres already owns 5432 on
+# the dev machine (see docker-compose.yml).
+HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
+
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
-        tf-validate build deploy venv clean
+        tf-validate build deploy venv clean migrate migration seed
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -25,6 +30,18 @@ down: ## Stop the stack
 
 logs: ## Tail all service logs
 	docker compose logs -f --tail=100
+
+# --- Database -----------------------------------------------------------------
+migrate: ## Apply migrations to the local stack's Postgres
+	cd backend && ALEMBIC_DATABASE_URL=$(HOST_DB_URL) .venv/bin/alembic upgrade head
+
+migration: ## Autogenerate a revision from model changes: make migration m="add x"
+	@test -n "$(m)" || (echo 'usage: make migration m="describe the change"' && exit 1)
+	cd backend && ALEMBIC_DATABASE_URL=$(HOST_DB_URL) \
+		.venv/bin/alembic revision --autogenerate -m "$(m)"
+
+seed: ## Load the pilot seed dataset (idempotent — safe to re-run)
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.seed
 
 # --- Tests --------------------------------------------------------------------
 venv: ## Create the two Python venvs and install dev deps

@@ -7,6 +7,8 @@ metering decorator; the shape here is deliberately the one it will grow into.
 
 from __future__ import annotations
 
+from fastapi import Depends
+
 from app.config import Settings, get_settings
 from app.providers.sms import FakeSMSProvider, SMSProvider
 
@@ -27,6 +29,16 @@ def get_sms_provider(settings: Settings | None = None) -> SMSProvider:
     if _sms_provider is None:
         _sms_provider = _build_sms_provider(settings or get_settings())
     return _sms_provider
+
+
+def sms_provider_dependency(settings: Settings = Depends(get_settings)) -> SMSProvider:
+    """FastAPI dependency form of `get_sms_provider`.
+
+    Routes must depend on *this*, not on `get_sms_provider` directly: FastAPI
+    inspects a dependency's signature, sees `settings: Settings` (a pydantic
+    model) and tries to parse it out of the request body — every call 422s.
+    """
+    return get_sms_provider(settings)
 
 
 def reset_providers() -> None:

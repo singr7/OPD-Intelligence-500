@@ -7,8 +7,9 @@ commit or roll back together, and there is no route-level call anyone can forget
 to add. `tests/test_audit.py` asserts coverage over the mapper registry, so a new
 clinical table without the marker fails CI.
 
-`before_flush` (not `after_flush`) is what lets the audit row join the same flush;
-it works because PKs are client-side UUID4s (see `models.base.UUIDPrimaryKey`).
+`before_flush` (not `after_flush`) is what lets the audit row join the same
+flush — objects added during `after_flush` would need a second one. The cost is
+that pending rows have no PK yet, so `_entity_id` materialises it.
 
 The actor comes from a `ContextVar` set per request by `AuditMiddleware`.
 Background work (Celery, webhooks, seeds) runs with the default system actor
@@ -138,6 +139,21 @@ def _stringify(value: Any) -> Any:
     return str(value)
 
 
+def _entity_id(obj: object) -> uuid.UUID | None:
+    """The PK of the row being written, materialised if it doesn't exist yet.
+
+    A column `default=uuid.uuid4` is evaluated by the INSERT during flush — which
+    is *after* this hook runs, so a pending object still has `id=None` here.
+    Assigning the UUID now produces exactly the value the default would have, and
+    it is the only way the audit row can name the row it describes.
+    """
+    current = getattr(obj, "id", None)
+    if current is None and hasattr(obj, "id"):
+        current = uuid.uuid4()
+        obj.id = current  # type: ignore[attr-defined]
+    return current
+
+
 def _entry(obj: object, action: AuditAction, actor: Actor, meta: dict[str, Any]) -> AuditLog:
     return AuditLog(
         actor_id=actor.id,
@@ -145,7 +161,7 @@ def _entry(obj: object, action: AuditAction, actor: Actor, meta: dict[str, Any])
         actor_label=actor.label,
         action=action,
         entity=obj.__tablename__,  # type: ignore[attr-defined]
-        entity_id=getattr(obj, "id", None),
+        entity_id=_entity_id(obj),
         request_id=actor.request_id,
         ip=actor.ip,
         meta=meta,
@@ -181,18 +197,24 @@ def _collect(session: Session) -> list[AuditLog]:
     return entries
 
 
+class AuditedSession(Session):
+    """A Session that audits clinical writes.
+
+    Auditing is bound to the session *class* rather than installed onto each
+    factory: any sessionmaker built with `sync_session_class=AuditedSession`
+    audits by construction, and there is no setup call to forget. Async sessions
+    reach this through their sync session — `before_flush` is a sync-session
+    event, and `async_sessionmaker` is not a valid event target.
+
+    Scoping to a subclass, rather than listening on `Session` globally, keeps the
+    hook off sessions that are not ours (Alembic's, for one).
+    """
+
+
+@event.listens_for(AuditedSession, "before_flush")
 def _before_flush(session: Session, flush_context: Any, instances: Any) -> None:
     for entry in _collect(session):
         session.add(entry)
-
-
-def install_audit_hook(session_factory: Any) -> None:
-    """Attach the audit hook to a sessionmaker (or the Session class).
-
-    Idempotent: safe to call from both the app factory and test fixtures.
-    """
-    if not event.contains(session_factory, "before_flush", _before_flush):
-        event.listen(session_factory, "before_flush", _before_flush)
 
 
 def audited_models() -> list[type]:

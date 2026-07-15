@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.audit import AuditedSession
 from app.config import Settings, get_settings
 
 
@@ -43,6 +44,8 @@ def build_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(
         engine,
         class_=AsyncSession,
+        # Every session from this factory audits clinical writes — see app.audit.
+        sync_session_class=AuditedSession,
         expire_on_commit=False,
         autoflush=False,
     )

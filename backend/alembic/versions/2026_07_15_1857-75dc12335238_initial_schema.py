@@ -842,7 +842,7 @@ def upgrade() -> None:
         sa.Column("summary_lang_versions", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("confirmed_by_patient", sa.Boolean(), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("cost_inr", sa.Float(), nullable=True),
+        sa.Column("cost_inr", sa.Numeric(precision=12, scale=4), nullable=True),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column(
             "created_at",
