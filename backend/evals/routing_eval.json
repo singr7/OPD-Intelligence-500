@@ -1,0 +1,407 @@
+{
+  "id": "routing",
+  "prompt": "routing",
+  "threshold": 0.85,
+  "description": "Chief complaint (patient's own words) -> department code. 60 labeled utterances in the Hindi / Hinglish / English mix an Alwar OPD desk actually hears. Labels are the department a coordinator would send them to, not a diagnosis.",
+  "notes": [
+    "Every case has exactly one correct answer. Where two desks could defend a case, it was rewritten rather than given two labels — an eval that accepts either answer cannot measure anything.",
+    "Vague utterances are labelled GENMED on purpose: prompts/routing/v1.md says an unroutable complaint goes to general/triage with low confidence, and that this is the right answer, not a failure.",
+    "Utterances are written the way patients speak: Devanagari, romanised Hindi, English, and code-mixed. 'sikai' / 'raid' / 'senk' all mean radiation; 'kimo' is chemo.",
+    "Authored by a model from doc 01/03's description of the catchment. Not collected from real patients and not reviewed by Alwar staff — see HANDOFF."
+  ],
+  "cases": [
+    {
+      "id": "r01",
+      "lang": "hi",
+      "utterance": "kimo ke liye aaya hoon",
+      "expect": "MEDONC",
+      "note": "Names the treatment, not the problem — the prompt calls this out."
+    },
+    {
+      "id": "r02",
+      "lang": "hi",
+      "utterance": "कीमो के बाद बहुत उल्टी हो रही है",
+      "expect": "MEDONC",
+      "note": "Post-chemo toxicity."
+    },
+    {
+      "id": "r03",
+      "lang": "hi",
+      "utterance": "मेरी दूसरी साइकिल है, डॉक्टर ने आज बुलाया था",
+      "expect": "MEDONC",
+      "note": "'cycle' is chemo vocabulary."
+    },
+    {
+      "id": "r04",
+      "lang": "hi",
+      "utterance": "blood cancer ka ilaj chal raha hai, aaj dikhana hai",
+      "expect": "MEDONC",
+      "note": "Haematological malignancy is medical oncology."
+    },
+    {
+      "id": "r05",
+      "lang": "hi",
+      "utterance": "cycle ke baad se bahut kamzori hai, chal nahi pata",
+      "expect": "MEDONC"
+    },
+    {
+      "id": "r06",
+      "lang": "hi",
+      "utterance": "platelet kam ho gaye hain, kimo wale doctor ne bulaya tha",
+      "expect": "MEDONC"
+    },
+    {
+      "id": "r07",
+      "lang": "hi",
+      "utterance": "मुझे कैंसर की दवा चल रही है और कल से बुखार आ गया",
+      "expect": "MEDONC",
+      "note": "Fever on chemo. Routing sends them to med-onc; the tree's red flag is what makes it urgent."
+    },
+    {
+      "id": "r08",
+      "lang": "hi",
+      "utterance": "chemotherapy ke baad muh me chhale ho gaye hain",
+      "expect": "MEDONC",
+      "note": "Mucositis after chemo — med-onc, even though a mouth ulcer alone would be ENT."
+    },
+    {
+      "id": "r09",
+      "lang": "en",
+      "utterance": "I am on chemotherapy and my hands have gone numb",
+      "expect": "MEDONC",
+      "note": "Neuropathy on chemo."
+    },
+    {
+      "id": "r10",
+      "lang": "hi",
+      "utterance": "kal kimo ka injection lagna hai",
+      "expect": "MEDONC"
+    },
+    {
+      "id": "r11",
+      "lang": "en",
+      "utterance": "lymphoma treatment is going on, I have come for review",
+      "expect": "MEDONC"
+    },
+    {
+      "id": "r12",
+      "lang": "hi",
+      "utterance": "मेरे पिताजी को कीमो के बाद तेज़ बुखार है, मैं उनका बेटा हूँ",
+      "expect": "MEDONC",
+      "note": "Caregiver speaking. The department does not change."
+    },
+    {
+      "id": "r13",
+      "lang": "hi",
+      "utterance": "सिकाई के लिए आया हूँ",
+      "expect": "RADONC",
+      "note": "'sikai' is radiation — the prompt lists this mapping."
+    },
+    {
+      "id": "r14",
+      "lang": "hi",
+      "utterance": "raid chal rahi hai, gale me bahut jalan hai",
+      "expect": "RADONC",
+      "note": "'raid' = radiation. On-treatment toxicity, not a new ENT problem."
+    },
+    {
+      "id": "r15",
+      "lang": "hi",
+      "utterance": "radiation ke baad skin kali pad gayi hai",
+      "expect": "RADONC"
+    },
+    {
+      "id": "r16",
+      "lang": "hi",
+      "utterance": "मुझे पच्चीस सिकाई लगनी हैं, दस हो चुकी हैं",
+      "expect": "RADONC"
+    },
+    {
+      "id": "r17",
+      "lang": "hi",
+      "utterance": "sikai wali jagah par chhale ho gaye hain",
+      "expect": "RADONC",
+      "note": "Skin reaction in the treated field."
+    },
+    {
+      "id": "r18",
+      "lang": "en",
+      "utterance": "I am getting radiotherapy for throat cancer, review today",
+      "expect": "RADONC",
+      "note": "Throat, but the reason for the visit is the radiation review."
+    },
+    {
+      "id": "r19",
+      "lang": "hi",
+      "utterance": "सेंक के बाद निगलने में बहुت दर्द होता है",
+      "expect": "RADONC",
+      "note": "'senk' is another word for radiation."
+    },
+    {
+      "id": "r20",
+      "lang": "hi",
+      "utterance": "operation ke baad dikhana hai",
+      "expect": "SURGONC",
+      "note": "The prompt lists post-op review -> surgical oncology."
+    },
+    {
+      "id": "r21",
+      "lang": "hi",
+      "utterance": "टाँके निकलवाने हैं",
+      "expect": "SURGONC"
+    },
+    {
+      "id": "r22",
+      "lang": "hi",
+      "utterance": "chhati me gaanth hai, dikhani hai",
+      "expect": "SURGONC",
+      "note": "A new lump is a surgical oncology intake (doc 03 §3)."
+    },
+    {
+      "id": "r23",
+      "lang": "hi",
+      "utterance": "breast me lump hai, biopsy karani hai",
+      "expect": "SURGONC"
+    },
+    {
+      "id": "r24",
+      "lang": "hi",
+      "utterance": "पेट के ऑपरेशन के बाद टाँके खुल गए हैं",
+      "expect": "SURGONC"
+    },
+    {
+      "id": "r25",
+      "lang": "hi",
+      "utterance": "surgery ki date leni hai",
+      "expect": "SURGONC"
+    },
+    {
+      "id": "r26",
+      "lang": "hi",
+      "utterance": "बगल में गाँठ निकल आई है",
+      "expect": "SURGONC",
+      "note": "Axillary lump."
+    },
+    {
+      "id": "r27",
+      "lang": "hi",
+      "utterance": "दर्द बहुत है, कोई दवा असर नहीं कर रही",
+      "expect": "PALL",
+      "note": "Uncontrolled pain on medication is palliative care's work."
+    },
+    {
+      "id": "r28",
+      "lang": "hi",
+      "utterance": "morphine ki dawa khatam ho gayi hai, likhwani hai",
+      "expect": "PALL"
+    },
+    {
+      "id": "r29",
+      "lang": "hi",
+      "utterance": "अब इलाज बंद कर दिया है, सिर्फ़ आराम की दवा चाहिए",
+      "expect": "PALL",
+      "note": "Treatment stopped, comfort only."
+    },
+    {
+      "id": "r30",
+      "lang": "hi",
+      "utterance": "papa bistar se uth nahi pate, dard se tadapte rehte hain",
+      "expect": "PALL"
+    },
+    {
+      "id": "r31",
+      "lang": "en",
+      "utterance": "we were sent for pain and comfort care",
+      "expect": "PALL"
+    },
+    {
+      "id": "r32",
+      "lang": "hi",
+      "utterance": "शरीर में दर्द है",
+      "expect": "GENMED",
+      "note": "The prompt's own example of too vague to route. Guessing a speciality sends someone 150km to the wrong floor."
+    },
+    {
+      "id": "r33",
+      "lang": "hi",
+      "utterance": "tabiyat theek nahi hai",
+      "expect": "GENMED",
+      "note": "Vague."
+    },
+    {
+      "id": "r34",
+      "lang": "hi",
+      "utterance": "किसी ने भेजा है, पता नहीं किधर जाना है",
+      "expect": "GENMED",
+      "note": "The prompt's 'sent by someone' case."
+    },
+    {
+      "id": "r35",
+      "lang": "hi",
+      "utterance": "तीन दिन से बुखार है",
+      "expect": "GENMED",
+      "note": "Fever with no cancer context — general medicine, not med-onc."
+    },
+    {
+      "id": "r36",
+      "lang": "hi",
+      "utterance": "sugar ki jaanch karani hai",
+      "expect": "GENMED"
+    },
+    {
+      "id": "r37",
+      "lang": "hi",
+      "utterance": "kamzori lagti hai aur chakkar aate hain",
+      "expect": "GENMED"
+    },
+    {
+      "id": "r38",
+      "lang": "hi",
+      "utterance": "BP check karana hai",
+      "expect": "GENMED"
+    },
+    {
+      "id": "r39",
+      "lang": "en",
+      "utterance": "I don't feel well, someone told me to come here",
+      "expect": "GENMED",
+      "note": "Vague."
+    },
+    {
+      "id": "r40",
+      "lang": "hi",
+      "utterance": "महावारी में बहुत खून जा रहा है",
+      "expect": "GYNAE"
+    },
+    {
+      "id": "r41",
+      "lang": "hi",
+      "utterance": "bachedani me gaanth batayi hai",
+      "expect": "GYNAE",
+      "note": "'bachedani' is uterus — gynae-onc, not a general lump."
+    },
+    {
+      "id": "r42",
+      "lang": "hi",
+      "utterance": "pet ke neeche dard hai aur safed pani aata hai",
+      "expect": "GYNAE"
+    },
+    {
+      "id": "r43",
+      "lang": "hi",
+      "utterance": "menopause ke baad bleeding ho rahi hai",
+      "expect": "GYNAE",
+      "note": "Post-menopausal bleeding."
+    },
+    {
+      "id": "r44",
+      "lang": "hi",
+      "utterance": "गर्भाशय के कैंसर की जाँच करानी है",
+      "expect": "GYNAE"
+    },
+    {
+      "id": "r45",
+      "lang": "en",
+      "utterance": "I have to get a pap smear done",
+      "expect": "GYNAE"
+    },
+    {
+      "id": "r46",
+      "lang": "hi",
+      "utterance": "गले में गाँठ है",
+      "expect": "ENT",
+      "note": "Neck lump is head & neck. Contrast r22 (chest lump -> SURGONC)."
+    },
+    {
+      "id": "r47",
+      "lang": "hi",
+      "utterance": "awaaz baith gayi hai do mahine se",
+      "expect": "ENT",
+      "note": "Persistent hoarseness."
+    },
+    {
+      "id": "r48",
+      "lang": "hi",
+      "utterance": "muh me chhala hai jo theek nahi ho raha, gutka khata hoon",
+      "expect": "ENT",
+      "note": "Non-healing oral ulcer with tobacco. Contrast r08 (mouth ulcer on chemo -> MEDONC)."
+    },
+    {
+      "id": "r49",
+      "lang": "hi",
+      "utterance": "कान से पानी आता रहता है",
+      "expect": "ENT"
+    },
+    {
+      "id": "r50",
+      "lang": "hi",
+      "utterance": "nigalne me dikkat hai, khana atak jata hai",
+      "expect": "ENT",
+      "note": "Swallowing trouble with no radiation context. Contrast r19."
+    },
+    {
+      "id": "r51",
+      "lang": "hi",
+      "utterance": "jeebh par safed daag hai",
+      "expect": "ENT",
+      "note": "Tongue leukoplakia."
+    },
+    {
+      "id": "r52",
+      "lang": "hi",
+      "utterance": "खाँसी में खून आ रहा है",
+      "expect": "PULM"
+    },
+    {
+      "id": "r53",
+      "lang": "hi",
+      "utterance": "thoda sa chalne par saans phool jati hai",
+      "expect": "PULM"
+    },
+    {
+      "id": "r54",
+      "lang": "hi",
+      "utterance": "do mahine se khansi hai, TB ka shak bataya hai",
+      "expect": "PULM"
+    },
+    {
+      "id": "r55",
+      "lang": "hi",
+      "utterance": "फेफड़े में पानी भर गया है, निकलवाना है",
+      "expect": "PULM",
+      "note": "Pleural effusion."
+    },
+    {
+      "id": "r56",
+      "lang": "hi",
+      "utterance": "pehle smoking karta tha, ab chest me dard aur khansi rehti hai",
+      "expect": "PULM"
+    },
+    {
+      "id": "r57",
+      "lang": "hi",
+      "utterance": "तिल का रंग बदल गया है और वो बढ़ रहा है",
+      "expect": "DERM",
+      "note": "Changing mole."
+    },
+    {
+      "id": "r58",
+      "lang": "hi",
+      "utterance": "poore sharir par khujli aur daane ho gaye hain",
+      "expect": "DERM"
+    },
+    {
+      "id": "r59",
+      "lang": "hi",
+      "utterance": "पैर में घाव है जो कई हफ़्तों से भर नहीं रहा",
+      "expect": "DERM",
+      "note": "Non-healing skin ulcer — dermatology's tree asks about exactly this."
+    },
+    {
+      "id": "r60",
+      "lang": "hi",
+      "utterance": "skin par kala daag bada hota ja raha hai",
+      "expect": "DERM"
+    }
+  ]
+}

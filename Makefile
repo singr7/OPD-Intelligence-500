@@ -12,7 +12,7 @@ VOICEGW_PY := voice-gw/.venv/bin/python
 HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
 
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
-        tf-validate build deploy venv clean migrate migration seed
+        tf-validate build deploy venv clean migrate migration seed eval-routing
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -42,6 +42,12 @@ migration: ## Autogenerate a revision from model changes: make migration m="add 
 
 seed: ## Load the pilot seed dataset (idempotent — safe to re-run)
 	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.seed
+
+# --- Evals --------------------------------------------------------------------
+eval-routing: ## Score the routing classifier against its 60-utterance eval set
+	@echo "Scores whatever LLM_PROVIDER is set to. With the default (fake) this"
+	@echo "measures the harness, not a model — set a real provider + key first."
+	cd backend && .venv/bin/python -m app.evals --set routing
 
 # --- Tests --------------------------------------------------------------------
 venv: ## Create the two Python venvs and install dev deps

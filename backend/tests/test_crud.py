@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.clinical import Intake, Prescription, Visit
 from app.models.content import QuestionTree
-from app.models.enums import Channel, IntakeTier, Lang, TreeStatus, VisitStatus
+from app.models.enums import Channel, IntakeTier, TreeStatus, VisitStatus
 from app.models.org import Department, Doctor, Hospital
 from app.models.patient import Patient
 from tests import factories as f
@@ -178,15 +178,23 @@ async def test_same_token_allowed_on_a_different_day(session: AsyncSession) -> N
 
 
 async def test_question_tree_versioning(session: AsyncSession) -> None:
-    """Trees are data: same key+lang, many versions, one published (S4/S18)."""
+    """Trees are data: same key, many versions, one published (S4/S18).
+
+    Keyed (key, version) since S4 — every language lives inside the JSONB, so a
+    tree is one row per version rather than one per language (see
+    `app.models.content.QuestionTree` and `app.trees.schema`).
+    """
     clinic = await f.build_clinic(session)
-    node = {"id": "onc.pain.location", "type": "single", "text": {"hi": "दर्द कहाँ है?"}}
+    node = {
+        "id": "onc.pain.location",
+        "type": "single",
+        "text": {"en": "Where is the pain?", "hi": "दर्द कहाँ है?"},
+    }
 
     v1 = QuestionTree(
         department_id=clinic["department"].id,
         key="onc_pain",
         version=1,
-        lang=Lang.HI,
         tree={"nodes": [node]},
         status=TreeStatus.PUBLISHED,
         published_at=datetime.now(UTC),
@@ -195,7 +203,6 @@ async def test_question_tree_versioning(session: AsyncSession) -> None:
         department_id=clinic["department"].id,
         key="onc_pain",
         version=2,
-        lang=Lang.HI,
         tree={"nodes": [node]},
         status=TreeStatus.DRAFT,
     )
@@ -211,6 +218,8 @@ async def test_question_tree_versioning(session: AsyncSession) -> None:
 
 
 async def test_duplicate_tree_version_is_rejected(session: AsyncSession) -> None:
+    """(key, version) is unique — publishing over a version rather than adding one
+    would silently re-interpret every intake that cited it."""
     clinic = await f.build_clinic(session)
     for _ in range(2):
         session.add(
@@ -218,7 +227,6 @@ async def test_duplicate_tree_version_is_rejected(session: AsyncSession) -> None
                 department_id=clinic["department"].id,
                 key="onc_pain",
                 version=1,
-                lang=Lang.HI,
                 tree={},
             )
         )
