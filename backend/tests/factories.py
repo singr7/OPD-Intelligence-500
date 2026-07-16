@@ -59,7 +59,11 @@ def make_user(hospital: Hospital | None = None, **overrides: Any) -> User:
         **{
             "hospital_id": hospital.id if hospital else None,
             "name": f"User {n}",
-            "phone": f"+9155500{n:05d}",
+            # +9155590… is a block the seeds never touch — the seeded doctors sit
+            # in +9155500…/+915550001001 and patients in +9155519…/+9155529…, so a
+            # factory user can't collide with a seeded phone under random ordering
+            # (which otherwise flakes the OTP resend-cooldown test at n≈1001).
+            "phone": f"+9155590{n:05d}",
             "role": Role.COORDINATOR,
             "lang": Lang.HI,
             **overrides,
