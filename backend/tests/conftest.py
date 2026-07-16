@@ -231,6 +231,13 @@ async def client(
     """HTTP client bound to the same rolled-back session the test sees."""
     app = create_app(settings)
 
+    # ASGITransport does not run the lifespan, so the engine the lifespan builds
+    # is absent. Set an in-memory one here — it persists across the requests of a
+    # single kiosk flow within one test (the same guarantee one api process gives).
+    from app.intake import InMemorySessionStore, IntakeEngine
+
+    app.state.intake_engine = IntakeEngine(InMemorySessionStore())
+
     async def _session_override() -> AsyncIterator[AsyncSession]:
         yield session
 

@@ -130,6 +130,12 @@ class IntakeEngine:
         self._guard = guard
         self._voicepack = voicepack
 
+    @property
+    def store(self) -> SessionStore:
+        """The session store this engine reads/writes. Channel adapters need it to
+        load a state by id before rebuilding a dispatcher on it."""
+        return self._store
+
     # -- provider accessors (resolved lazily so tests can inject) --------------
 
     def _realtime_provider(self) -> RealtimeVoiceProvider:

@@ -22,11 +22,13 @@ from app import __version__
 from app.auth.routes import router as auth_router
 from app.config import Settings, get_settings
 from app.db import build_sessionmaker, get_engine
+from app.intake import IntakeEngine, build_session_store
 from app.middleware import AuditMiddleware
 from app.providers.costguard import CostGuard, build_override_store, set_guard
 from app.providers.metering import UsageMeter, set_meter
 from app.providers.pricing import get_price_book
 from app.routes.health import router as health_router
+from app.routes.kiosk import router as kiosk_router
 from app.routes.providers import router as providers_router
 
 
@@ -51,6 +53,10 @@ def _build_lifespan(settings: Settings):
             enabled=settings.cost_guard_enabled,
         )
         set_guard(guard)
+
+        # One IntakeEngine per process — it holds no per-intake state (the session
+        # store does), so channel routers (kiosk now, WhatsApp S12) share it.
+        app.state.intake_engine = IntakeEngine(build_session_store(settings))
 
         try:
             yield
@@ -88,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(providers_router)
+    app.include_router(kiosk_router)
     return app
 
 
