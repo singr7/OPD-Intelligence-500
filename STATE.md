@@ -27,7 +27,20 @@ participates in; and `Walk`, one patient's position in one tree, **derived from 
 classifier (`app/routing.py`) around `routing@v1`, plus a 60-utterance eval set and harness
 (`app/evals.py`, `make eval-routing`). 466 backend tests. `make test` green.
 
-**Not built yet:** intake logic (S5), any real UI (S6+).
+**Built (S5):** Intake Engine (`app/intake/`) — one `IntakeEngine` driving an intake
+across the V1/V2/V3 tier ladder, all calling the same four-tool contract over one
+`Walk` via `ToolDispatcher`. `SessionState` in Redis (in-memory local) stores the
+**answers, not a cursor**, plus configured + active tier. V1 = Gemini Live session
+bridge (audio passthrough hook for voice-gw); V2 = STT→LLM→TTS turn pipeline; V3 =
+deterministic walker + `voicepack` (TTS fallback). Automatic downgrade on provider
+failure OR cost-guard, rebuilding the walk from stored answers (lossless). Summarizer
+(`summary.py`) = doc 03 §4 contract + patient read-back, LLM path with a deterministic
+offline fallback; red flags always from the rules. `finalize_cost` sums `usage_events`
+by intake_id onto `Intake.cost_inr`. `prompts/intake/v1.md` = the dialogue driver.
+466→**486 tests**. Not wired to any route (channels are S6/S12/S14).
+
+**Not built yet:** any real UI (S6+); channel adapters (kiosk S6, WhatsApp S12,
+telephony S14); the real Gemini Live impl (S14).
 
 ## How to run
 ```
@@ -105,6 +118,16 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
   editing content that has been asked, or every intake citing `key@vN` silently re-reads.
 - **Trees are seeded `draft`.** Publishing is a clinical act (doc 03 §3, S21), not a seed
   script's. `--publish-trees` is the explicit opt-in for a dev box.
+- **A session stores answers, never a tier cursor** (`app/intake/state.py`). Position is
+  derived by the walker; a downgrade rebuilds `Walk.from_json(tree, answers)` on the new
+  tier and loses nothing. Adding a cursor "for speed" reintroduces the exact bug the ladder
+  avoids — two sources of truth that disagree when a provider is failing over.
+- **The intake summariser never decides a red flag**, on any tier. Flags come from
+  `Walk.red_flags` (the rules) and are passed in; the LLM path overwrites the model's flag
+  list with the rules', the template path just lists them. Same boundary as the tool loop.
+- **The engine downgrades, never denies** — a provider outage or a cost-guard breach lowers
+  the tier (V1→V2→V3); a completed V3 intake needs no vendor for its summary. Nothing in the
+  engine may block or fail an intake for cost or an outage (that is a human's paper decision).
 
 ## Stubs & fakes
 - **No live vendor has ever accepted a call.** Every real impl (MSG91, Exotel SMS/telephony,
@@ -112,8 +135,20 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
   through `httpx.MockTransport` — real request-building and response-parsing, mocked wire.
   Endpoints, DLT template ids, sender ids and auth are per-account. **The first live send of each
   needs a human watching a real handset/number.**
-- **Realtime (Gemini Live / tier V1) is interface + fake only** — the session manager is S5's
-  build, the audio bridge S14's. `REALTIME_PROVIDER=gemini-live` raises rather than pretending.
+- **Realtime (Gemini Live / tier V1): session manager built (S5), impl still fake only.**
+  `IntakeEngine._run_v1` drives the `RealtimeVoiceProvider` interface and is proven against
+  the fake; the real websocket session + the Exotel↔Live audio bridge are S14.
+  `REALTIME_PROVIDER=gemini-live` still raises rather than pretending.
+- **V2 is a turn pipeline, not token streaming, and does not feed tool results back to the
+  LLM within a turn** — the request/response `LLMProvider` has no tool-result message type, so
+  the engine mediates `get_next_node` by injecting the current question into the prompt. Fine
+  for kiosk/WhatsApp; S14's real-time telephony wants true streaming + a tool-result turn.
+- **The intake engine is not wired to any route** — it is a service class; channel adapters
+  (kiosk S6, WhatsApp S12, telephony S14) will construct it and feed it turns.
+- **No node has real V3 audio** — `app/intake/voicepack.resolve` falls back to TTS for every
+  prompt; the pack format is S7, recordings S21 (already noted below for the tree nodes).
+- **`Intake.answers[*].text_en` is not filled during intake** — the per-answer English gloss
+  for the doctor screen is left to the summariser; a translation pass per answer is future.
 - `price_book` rates are **estimates**: public list prices at ~₹84/USD, rounded up. Admin-editable
   in S18; every unit-economics number depends on them.
 - WhatsApp meters per message; **Meta bills per 24h conversation** — over-counts until S12.

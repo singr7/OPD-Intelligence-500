@@ -1,54 +1,59 @@
-# HANDOFF — after Session 4
+# HANDOFF — after Session 5
 
-**Repo state:** branch `main`, last code commit `3225cc3` (session-close commit follows this
-file). `make test` green (backend **466**, voice-gw 1, web typecheck+lint). `make dev` brings
+**Repo state:** branch `main`, last code commit `514f433` (session-close commit follows this
+file). `make test` green (backend **486**, voice-gw 1, web typecheck+lint). `make dev` brings
 up 11 healthy services. Postgres is on host port **5433** — read the first bullet under
 "Watch out for" before anything else.
 
-**One paragraph:** The clinical content exists and is data. `app/trees/` is the engine:
-doc 03 §3's node schema with a validator strict enough that a parsed tree is safe to ask a
-patient, a deterministic red-flag rule language no model participates in, and `Walk` — one
-patient's position in one tree, **derived from their answers rather than stored**, which is
-what will make S5's mid-session tier downgrade lossless and what makes an amendment drop the
-answers stranded on the abandoned branch. `seeds/trees/` holds 11 authored trees (en+hi, 89
-nodes, 40 red flags) covering all nine departments, seeded as **draft** because publishing is
-an oncologist's act, not a seed script's. `app/routing.py` turns a chief complaint into a
-department around the existing `routing@v1` prompt, distrusting everything the model says —
-an invented department, a shy confidence, junk JSON, or an outage all route to triage with a
-human. **The one AC not met is the classifier's ≥85%**, which cannot be measured without a
-vendor key; the set, harness and gate are built and waiting for one live run.
+**One paragraph:** The intake is now a running engine. `app/intake/` is one `IntakeEngine`
+that drives an intake across the whole tier ladder — **V1** (a Gemini Live session bridge,
+audio streamed out through a passthrough hook for voice-gw), **V2** (an STT→LLM→TTS turn
+pipeline), **V3** (the deterministic walker + pre-recorded audio, offline) — all calling the
+**same four-tool contract over one `Walk`** via `ToolDispatcher`, so the answers JSONB is
+identical from every tier by construction. `SessionState` (Redis in prod, in-memory local)
+stores the **answers, not a cursor**, plus the configured and active tier; a provider failure
+or a cost-guard breach downgrades a rung and rebuilds the walk from those answers, losing
+nothing (both paths tested). The summariser produces doc 03 §4's contract plus a
+patient-language read-back — on the LLM for V1/V2, on a deterministic template for V3 (so a
+completed intake never needs a network), and the red flags are always the rule engine's, never
+the model's. `finalize_cost` sums the intake's `usage_events` onto `Intake.cost_inr` and
+reconciles to the paisa. What the engine is **not** yet is connected to anything: no route, no
+websocket. S6 builds the first channel — the kiosk — on top of it.
 
-## Next session (S5 — Intake Engine (all tiers) + session state)
+## Next session (S6 — Kiosk PWA part 1: flow + design system)
 
-- Objective: `IntakeEngine` exposing the shared tool contract; V1 Gemini Live session
-  manager (function-call loop + audio passthrough hooks); V2 pipeline loop (STT→Flash/
-  gpt-4o-mini→TTS) on the same tools; V3 deterministic walker + pre-recorded audio manifest;
-  Redis session state incl. active tier; automatic downgrade on provider failure OR
-  cost-guard **preserving answers**; summarizer producing doc 03 §4's contract + a
-  patient-language read-back; per-intake cost finalised on completion.
+- Objective: design tokens + component library (OptionCard, FacesScale, BodyMap, Stepper,
+  AssistantAvatar, AudioBar); the kiosk flow screens — language → caregiver toggle → voice
+  chief complaint (Web Speech + server STT toggle) → tree questions with auto-read-aloud →
+  summary read-back + confirm → token screen; Playwright screenshot suite + a self-critique
+  pass per **docs/04-UIUX-GUIDE.md §5** (mandatory — frontend session, anti-generic clause
+  applies to every screen).
 - Start notes:
-  - **`Walk` is already your V3 tier, and the engine under all three.** `walk.current` is
-    `get_next_node`, `walk.save(...)` is `save_answer`, `walk.red_flags()` is
-    `check_red_flags`, `walk.is_complete` is when `finish_and_summarize` becomes legal. Build
-    the tools as a thin dispatcher over it rather than a second implementation.
-  - **The downgrade AC is nearly free if you keep position derived.** Store the answers
-    (`walk.to_json()`) in Redis, not a cursor; on downgrade, `Walk.from_json(tree, answers)`
-    on the new tier resumes at the same question. Adding a cursor to Redis "for speed" is
-    exactly the bug the design avoids — it disagrees with the answers precisely when a
-    provider is failing over.
-  - `Walk.to_json()` is already `Intake.answers`'s shape ({node_id: {value, text, text_en,
-    at, lang}}); `text_en` is yours to fill for the doctor screen.
-  - Load trees with `app.trees.bank.get(key)` / `for_department(code)` — files, not rows, so
-    the draft/published status does not block you. `app.routing.classify_department()` gives
-    you the department; honour `needs_human` rather than routing on a 0.3 confidence.
-  - `RealtimeVoiceProvider` is still **interface + fake only** — the Gemini Live impl is
-    yours (S3 left `REALTIME_PROVIDER=gemini-live` raising rather than pretending).
-  - Red flags are recomputed from answers on every call, deterministically, on every tier.
-    Do not cache them onto the session, and do not let the summarize prompt invent one — it
-    repeats what it is given (doc 02 §5). That boundary is what lets S21 sign the rules off.
+  - **The kiosk is a V3 client of the engine.** It drives the tools directly from taps:
+    `dispatcher = engine.dispatcher(state)`, then `get_next_node()` renders the screen (it
+    returns `{node:{id,type,text,options[{id,text,icon}],min,max,unit,audio}}` already in the
+    patient's language), a tap calls `save_answer(node_id, value, raw_text=...)`, and
+    `finish_and_summarize` returns the read-back. You do **not** re-implement the walk — build
+    the UI over `app.intake.ToolDispatcher`. See `tests/test_intake.py::
+    test_dispatcher_walks_the_tree_and_finishes` for the exact call shape.
+  - **Q1 (voice chief complaint) is the one place the model judges** — feed the transcript to
+    `app.routing.classify_department`, honour `needs_human` (send to the desk, don't guess a
+    0.3), then `app.trees.bank.for_department(guess.dept_key)` to pick the tree and
+    `engine.start_session(tree=..., channel=Channel.KIOSK, lang=..., chief_complaint=...)`.
+  - **The engine has no HTTP surface yet — you are adding it.** Decide the kiosk API: either
+    thin REST endpoints wrapping the dispatcher (start / next / answer / finish) or a
+    websocket. Keep the tool contract as the wire shape so S14's telephony reuses it. Build the
+    session store with `app.intake.build_session_store(settings)` and one `IntakeEngine` per
+    process (it holds no per-intake state).
+  - **V3 audio is TTS today.** `voicepack.resolve` returns synthesised prompt audio (no
+    recordings exist). The kiosk's auto-read-aloud can use the returned clip or the browser's
+    own Web Speech; `node.audio` is authored-empty until S7/S21.
+  - `Intake.answers` / `red_flags` / `summary_md` are populated by `finalize_cost` — but that
+    needs an `Intake` row to exist. The kiosk creates the Visit+Intake (it knows the patient /
+    walk-in) and passes `intake_id`/`visit_id` into `start_session`.
 - Exact first commands:
   1. `make dev` (baseline; 11 services healthy)
-  2. `make migrate && make seed` (idempotent; now also loads the 11 trees as draft)
+  2. `make migrate && make seed` (idempotent; loads the 11 trees as draft)
   3. `make test`
 
 ## Watch out for
@@ -57,66 +62,58 @@ vendor key; the set, harness and gate are built and waiting for one live run.
   127.0.0.1:5432 which *wins over Docker's bind*, so `localhost:5432` reaches the wrong
   database and fails with `role "opd" does not exist`. Compose publishes ours on **5433**;
   don't revert it. In-cluster URLs stay `postgres:5432`. pytest defaults to
-  `localhost:5433/opd_test`. voice-gw is on 8090 (8080 taken). Others: web 3000, api 8000,
-  grafana 3001, uptime-kuma 3002, loki 3100, redis 6379.
-- **`.env` is gitignored and yours is stale.** S3 added ~30 keys; `make .env` only copies
-  when the file is *missing*. Everything defaults to `fake`, so a stale `.env` runs fine and
-  silently ignores any vendor you configure.
-- **A tree is only as validated as `parse()`.** `Tree` objects can only be built by
-  `app.trees.schema.parse`, so if you find yourself constructing one another way (or reading
-  `question_trees.tree` and using the dict directly), you have skipped every check —
-  including the ones that stop an unreachable question or an unfireable red flag.
-- **The Hindi and the clinical content are unreviewed.** A model wrote both. The tests prove
-  the text is *present* and the structure sound; they cannot prove it is good Hindi or good
-  medicine. Nothing should go near a real patient before S21's review pack.
-- **`Walk.save()` prunes.** Amending an early answer silently deletes the answers on the
-  branch you left. That is deliberate and tested — but if S5 caches anything derived from
-  `walk.answers` (a summary, a cost, a red-flag list), it must recompute after every save.
+  `localhost:5433/opd_test`. voice-gw is on 8090. Others: web 3000, api 8000, grafana 3001.
+- **The V2 pipeline is turn-based, not token-streamed, and does not feed tool results back to
+  the LLM mid-turn.** The `LLMProvider` interface has no tool-result message type, so the
+  engine injects the current question into the per-turn prompt instead of a true tool loop.
+  Fine for kiosk/WhatsApp; S14's real-time telephony will want streaming + a tool-result turn
+  on `LLMProvider`, which is a versioned contract change, not an edit.
+- **A downgrade rebuilds the walk from `state.answers`.** Anything the kiosk caches that is
+  derived from the answers (a rendered summary, a progress bar, a red-flag banner) must be
+  recomputed after every `save_answer` — `Walk.save` prunes answers stranded on an abandoned
+  branch, so an amendment can *remove* an answer and its flag (tested).
+- **`finalize_cost` needs the meter drained first.** In the app the lifespan drain handles it;
+  in a request you may need to let the batched meter flush before the number is complete.
+  Money is `Decimal` end to end — don't let a float into a cost path (S18 reconciles exactly).
+- **The Hindi and the clinical content are still unreviewed** (a model wrote both). Tests
+  prove structure and presence, not good Hindi or good medicine. Nothing goes near a real
+  patient before S21's review pack. The kiosk read-back is the patient's only check — get
+  its phrasing in front of a Hindi speaker when one is available.
 
 ## Decisions needed from the human
 
-- **Ratify dropping `question_trees.lang`** (S4's schema change, migration `fbcaee31fa43`).
-  Doc 02 §4 sketched one tree row per language; doc 03 §3 then put every language inside the
-  node (`text:{en,hi,mr,te}`). S4 kept doc 03 §3: doc 03 §1 makes language switchable
-  mid-intake, so embedded text is a re-render while per-language rows are a tree swap that is
-  only safe if the rows happen to share node ids and branching — and four rows means four
-  copies of the branching and red flags under one clinical sign-off. If you agree, doc 02
-  §4's `question_trees` line should lose `lang`, the way `PriceUnit.CHAR` was ratified in S3.
-  While there: line 73 points at "doc 03 §4" for the tree schema; it is **§3**.
-- **Five minutes with a `GEMINI_API_KEY` closes S4's open AC.** `make eval-routing` scores
-  the 60-utterance set and gates at 85%. Nobody can honestly claim that number until a real
-  model answers; if it comes in low, the fix is a `routing/v2.md` (v1 is immutable), and the
-  harness prints a confusion matrix to aim it.
-- **The trees need an oncologist before go-live** — they are seeded `draft` and S21 builds
-  the review pack, but if a clinician can read them sooner, the content is 11 JSON files and
-  the thresholds are worth challenging now (fever ≥38 within 14 days; pain ≥8 urgent;
-  vomiting >5×/day; ESAS distress ≥7). Cheaper to change now than after S6–S8 build on them.
-- **Still open from S3, neither blocking:** the SMS vendor pick (both work; note that Exotel
-  for SMS puts SMS and the phone intake channel in one failure domain, MSG91 splits them), and
-  whether the seeded price-book rates match your real contracts (they are public list prices
-  at ~₹84/USD, rounded up — every unit-economics number rests on them).
+- **Ratify dropping `question_trees.lang`** (S4's schema change, migration `fbcaee31fa43`) —
+  still open from S4. Doc 03 §3 embeds every language in the node; the per-language row in doc
+  02 §4 is the casualty. If you agree, doc 02 §4's `question_trees` line should lose `lang`
+  the way `PriceUnit.CHAR` was ratified in S3.
+- **Five minutes with a `GEMINI_API_KEY` closes S4's open AC.** `make eval-routing` scores the
+  60-utterance set and gates at 85%; nobody can honestly claim that number until a real model
+  answers. The classifier is now on the kiosk's critical path (Q1), so this matters more.
+- **The trees need an oncologist before go-live** — seeded `draft`, S21 builds the review
+  pack, but the thresholds are worth challenging now (fever ≥38 within 14 days; pain ≥8
+  urgent; vomiting >5×/day; ESAS distress ≥7). Cheaper to change before S6–S8 build on them.
+- **Still open, neither blocking:** SMS vendor pick (Exotel puts SMS + phone intake in one
+  failure domain, MSG91 splits them); whether the seeded price-book rates match your real
+  contracts (every unit-economics number rests on them).
 
 ## Backlog additions
 
-- **Surgical Oncology "new lump/lesion intake" tree** — doc 03 §3 lists it; doc 06's S4 line
-  did not, so it was not built. Walk-ins with a new lump currently get `surg_onc_post_op`,
-  which asks about an operation they have not had. **S18** (tree builder) or sooner.
-- **Red-flag satisfiability is only checked for `and`-rooted rules, in tests, not the
-  validator.** `or` across branches is legitimate and `unanswered` is satisfied by a node
-  being off-path, so the general check needs real satisfiability rather than reachability —
-  **S18**, when non-engineers start authoring and the check has to be live.
-- **Red flags and their instruction text are per-tree and duplicated** across the med-onc
-  trees (a tree is the unit of publish and sign-off, deliberately), so they can drift. A
-  shared rule library belongs in **S18**'s editor if it wants one.
-- **No node has `audio`** — V3's kiosk voice packs are **S7**, real human recordings **S21**.
-- **`app/evals.py`'s loader is generic** — S10's dictation mapping and S17's grading can reuse
-  the shape — **S10/S17**.
-- Carried from S3: WhatsApp metered per message vs Meta's 24h conversation (**S12**, before
-  S18's invoice reconciliation is honest); cached tokens priced at full `token_in` rate, wants
-  a `token_cached` unit (**S18**); nothing schedules `CostGuard.evaluate()`, so the guard would
-  never fire in production (**S17**); Sarvam STT reports no confidence (**S13**); enum columns
-  have no CHECK constraint despite the docstring (**S18/S20**); `/providers/health` is
-  unauthenticated (**S19/S20**); Realtime/Gemini Live impl (**S5**/**S14**).
+- **`LLMProvider` needs a tool-result message type** for a true multi-step tool loop within a
+  turn (and streaming) — **S14**, when telephony's latency budget makes the turn pipeline too
+  slow. Until then V2 mediates `get_next_node` by injecting the question into the prompt.
+- **`Intake.answers[*].text_en` is unfilled during intake** — the doctor-screen English gloss
+  per answer is left to the summariser. A per-answer translation pass wants an LLM call —
+  **S9** (doctor console) or S13 (multilingual), whichever needs it first.
+- **A kiosk idle-reset / abandoned-session sweeper** — `RedisSessionStore` has a TTL, but a
+  walked-away kiosk intake should reset the screen too (doc 03 §1a: 90s idle) — **S6/S7**.
+- **Surgical Oncology "new lump/lesion intake" tree** — doc 03 §3 lists it; a new-lump walk-in
+  currently gets `surg_onc_post_op`, which asks about an operation they have not had — **S18**.
+- Carried from S3/S4: red-flag `or`/`unanswered` satisfiability check needs real satisfiability
+  not reachability (**S18**); shared red-flag rule library to stop per-tree drift (**S18**);
+  WhatsApp per-message vs Meta's 24h conversation billing (**S12**); cached tokens priced at
+  full `token_in` rate, wants a `token_cached` unit (**S18**); nothing schedules
+  `CostGuard.evaluate()` so the guard never fires in production (**S17**); `/providers/health`
+  unauthenticated (**S19/S20**); Sarvam STT reports no confidence (**S13**).
 - Carried from S2: staff username+TOTP login (S18); rate-limit OTP verify by IP (S20); prune
-  `otp_codes` (S17); audit log daily S3 export + retention (S19); soft-delete filtering (S8+).
+  `otp_codes` (S17); audit log daily S3 export + retention (S19).
 - Carried from S1: provision Grafana datasource + dashboards (S19); pin dependency versions.
