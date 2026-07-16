@@ -18,15 +18,25 @@ computation, retry + circuit breaker, provider health registry (`GET /providers/
 cost-guard (budget → tier downgrade), and `prompts/` — four versioned vendor-neutral prompts +
 the V1/V2 shared tool contract. 231 backend tests. `make test` green.
 
-**Not built yet:** question-tree engine + trees (S4), intake logic (S5), any real UI (S6+).
+**Built (S4):** Question-tree engine (`app/trees/`) — doc 03 §3's node schema + a validator
+that rejects unreachable nodes, cycles, incomplete languages, >5 options (doc 03 §1a) and
+rules that can never fire; a deterministic red-flag rule language (`rules.py`) no model
+participates in; and `Walk`, one patient's position in one tree, **derived from the answers**
+(the V3 tier, and the engine under S5's four tools). 11 authored trees in `seeds/trees/`
+(en+hi, 89 nodes, 40 red flags) covering all 9 departments, seeded as **draft**. Department
+classifier (`app/routing.py`) around `routing@v1`, plus a 60-utterance eval set and harness
+(`app/evals.py`, `make eval-routing`). 466 backend tests. `make test` green.
+
+**Not built yet:** intake logic (S5), any real UI (S6+).
 
 ## How to run
 ```
 make dev                 # full stack (11 services)
 make migrate             # apply migrations to the local DB
-make seed                # load the pilot dataset + price book (idempotent)
+make seed                # load the pilot dataset + price book + trees (idempotent)
 make test                # backend pytest + voice-gw pytest + web typecheck/lint
 make migration m="..."   # autogenerate a revision from model changes
+make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 ```
 Local login: `POST /auth/otp/request {"phone": "+915550001001"}` (seeded doctor) returns
 `debug_code` when `OTP_DEBUG_ECHO=true`; POST it to `/auth/otp/verify` for a JWT.
@@ -75,6 +85,26 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
   silent data corruption.
 - **The cost guard degrades, never denies.** It may lower a tier (V1→V2→V3); it must never block
   a call, deny an intake, or force `paper` (that is a human's downtime decision).
+- **A `Tree` can only be built by `app.trees.schema.parse()`** — so a `Tree` in hand is
+  validated by construction. Reading `question_trees.tree` and using the dict directly skips
+  every check, including the ones for unreachable questions and unfireable red flags.
+- **No model ever decides a red flag**, on any tier. Rules are data in the tree, evaluated
+  deterministically (`app/trees/rules.py`). A model-decided flag would answer "is this fever
+  dangerous?" differently depending on which vendor was up, and would be unreviewable.
+- **Rules can't match `free_voice` answers** — the validator rejects it. That text is ASR
+  output; matching it makes a flag depend on the transcriber and fires "no blood in my stool"
+  as bleeding.
+- **The walker's position is derived from the answers, never stored.** Do not add a cursor:
+  it becomes a second source of truth that disagrees exactly when a provider is failing over,
+  and it is what makes a tier downgrade lossless. `Walk.save()` prunes the answers stranded
+  on an abandoned branch — anything derived from `walk.answers` must be recomputed after a
+  save, not cached.
+- **Red flags are recomputed, never accumulated** — an amendment that removes the alarming
+  answer removes the flag.
+- **A published tree version is immutable in spirit** — bump `version` in the file rather than
+  editing content that has been asked, or every intake citing `key@vN` silently re-reads.
+- **Trees are seeded `draft`.** Publishing is a clinical act (doc 03 §3, S21), not a seed
+  script's. `--publish-trees` is the explicit opt-in for a dev box.
 
 ## Stubs & fakes
 - **No live vendor has ever accepted a call.** Every real impl (MSG91, Exotel SMS/telephony,
@@ -91,11 +121,28 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 - **Nothing schedules `CostGuard.evaluate()`** — on-demand only; needs a beat job (S17).
 - Sarvam STT reports no confidence (`confidence=None`); doc 03 §4's `[unclear: ...]` contract
   leans on Google's until that is solved.
+- **The classifier's ≥85% AC (S4) is unmeasured.** The 60-utterance eval set, the harness and
+  the 85% gate exist (`make eval-routing`), but the only provider available is the fake, and
+  scoring it measures the harness. Needs one live run with a `GEMINI_API_KEY`. The tests
+  deliberately do not fake the number.
+- **The 11 trees are unreviewed clinical content**, seeded `draft`, pending S21. The Hindi in
+  them — and the eval set's utterances — were authored by a model, not a native speaker, and
+  not collected from real patients. Tests check the text is present and structurally sound;
+  they cannot check it is good Hindi or good medicine.
+- **No tree node has `audio`** — the field is authored-empty. V3 kiosk voice packs are S7,
+  real human recordings S21; TTS covers the gap until then.
+- **Red-flag satisfiability is only checked for `and`-rooted rules, and only in tests** —
+  `or` across branches is legitimate and `unanswered` is satisfied by an off-path node, so
+  a general check needs real satisfiability, not reachability (S18's editor will want it).
+- **Red flags and their instruction text are per-tree** (a tree is the unit of publish and
+  sign-off), so the shared ones are duplicated across the med-onc trees and can drift.
+- No Surgical Oncology "new lump/lesion" tree — doc 03 §3 lists it, doc 06's S4 line did not.
+  A new-lump walk-in currently gets `surg_onc_post_op`, which asks about an operation they
+  have not had.
 - `prompts/` text is English-only prompt *instructions*; mr/te patient-facing strings are S13.
 - Enum columns have **no CHECK constraint** despite the docstring claiming so (`native_enum=False`
   + SQLAlchemy 2.0's `create_constraint=False`).
 - Staff username+TOTP login is modelled on `users` but not implemented; phone-OTP is the only path.
-- `question_trees` is a migrated table with **no writers** (S4).
 - No IP rate limiting on OTP verify (per-challenge attempt cap only) — S20.
 - `otp_codes` rows are never pruned — S17.
 - Migrations applied by hand (`make migrate`); no auto-migrate on container start.

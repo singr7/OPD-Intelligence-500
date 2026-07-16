@@ -1,104 +1,122 @@
-# HANDOFF — after Session 3
+# HANDOFF — after Session 4
 
-**Repo state:** branch `main`, last code commit `c132441` (session-close commit follows this
-file). `make test` green (backend **231**, voice-gw 1, web typecheck+lint). `make dev` brings up
-11 healthy services. Postgres is on host port **5433** — read the first bullet under "Watch out
-for" before anything else.
+**Repo state:** branch `main`, last code commit `3225cc3` (session-close commit follows this
+file). `make test` green (backend **466**, voice-gw 1, web typecheck+lint). `make dev` brings
+up 11 healthy services. Postgres is on host port **5433** — read the first bullet under
+"Watch out for" before anything else.
 
-**One paragraph:** Every external dependency now sits behind an interface with a fake, and
-metering is no longer something a provider can forget: `Provider._invoke` (app/providers/base.py)
-is the only path to a vendor, and it times, meters, prices, retries and health-tracks every call.
-Costs land in `usage_events` priced against `price_book` (seeded, 19 rows), attributed to an
-intake by a contextvar rather than by threading ids through every signature. The cost guard turns
-a daily budget breach into a tier downgrade — degrade, never deny. `prompts/` holds four
-versioned vendor-neutral prompts plus the four-function tool contract that will make V1/V2 tier
-switching lossless. **The SMS decision is resolved as instructed: MSG91 and Exotel are both
-implemented and both config-switchable, so the pick is now `SMS_PROVIDER=` and nothing else.**
-Still no trees, no intake logic, no real UI — S4 starts the clinical content.
+**One paragraph:** The clinical content exists and is data. `app/trees/` is the engine:
+doc 03 §3's node schema with a validator strict enough that a parsed tree is safe to ask a
+patient, a deterministic red-flag rule language no model participates in, and `Walk` — one
+patient's position in one tree, **derived from their answers rather than stored**, which is
+what will make S5's mid-session tier downgrade lossless and what makes an amendment drop the
+answers stranded on the abandoned branch. `seeds/trees/` holds 11 authored trees (en+hi, 89
+nodes, 40 red flags) covering all nine departments, seeded as **draft** because publishing is
+an oncologist's act, not a seed script's. `app/routing.py` turns a chief complaint into a
+department around the existing `routing@v1` prompt, distrusting everything the model says —
+an invented department, a shy confidence, junk JSON, or an outage all route to triage with a
+human. **The one AC not met is the classifier's ≥85%**, which cannot be measured without a
+vendor key; the set, harness and gate are built and waiting for one live run.
 
-## Next session (S4 — Question-tree engine + oncology tree bank v1)
-- Objective: tree JSONB schema + validator, deterministic tree-walker, red-flag rule evaluator,
-  **author the actual trees** (med-onc new patient, between-cycle CTCAE-lite, pain, radiation
-  review, surgical post-op, palliative ESAS-lite, 5 routing trees) in en+hi, plus the
-  dept-classification prompt with a 60-utterance eval set.
+## Next session (S5 — Intake Engine (all tiers) + session state)
+
+- Objective: `IntakeEngine` exposing the shared tool contract; V1 Gemini Live session
+  manager (function-call loop + audio passthrough hooks); V2 pipeline loop (STT→Flash/
+  gpt-4o-mini→TTS) on the same tools; V3 deterministic walker + pre-recorded audio manifest;
+  Redis session state incl. active tier; automatic downgrade on provider failure OR
+  cost-guard **preserving answers**; summarizer producing doc 03 §4's contract + a
+  patient-language read-back; per-intake cost finalised on completion.
 - Start notes:
-  - **The routing prompt already exists** — `backend/prompts/routing/v1.md`, loaded via
-    `app.prompts.load("routing")`. S4 writes the eval set and the classifier around it; if the
-    prompt needs changing, add `v2.md` (published versions are immutable — see the loader docstring).
-  - `question_trees` is migrated with **no writers**; the tree JSONB schema is S4's to build.
-    `TreeStatus` (draft/published) already exists.
-  - Call the LLM through `app.providers.get_llm_provider()` / `llm_chain()` + `with_fallback` —
-    never a vendor SDK. `FakeLLMProvider.queue(FakeLLMScript(text=...))` scripts deterministic
-    replies; the eval set must not make live calls.
-  - Wrap classifier calls in `usage_scope(...)` with `purpose=UsagePurpose.ROUTING`, so the S18
-    dashboard can separate routing cost from intake-turn cost. It is one kwarg now and
-    unrecoverable later.
-  - The **tool contract** (`app/prompts/tools.py`) already declares `get_next_node` /
-    `save_answer` / `check_red_flags` / `finish_and_summarize`. S4's walker is what those tools
-    call in S5 — build it to that shape. Changing the contract means a new version, not an edit.
-  - Red-flag rules are **deterministic and run on every answer regardless of tier** (doc 02 §5).
-    The summarize prompt repeats the flags it is given verbatim and never invents one — keep that
-    boundary; it is what lets an oncologist sign off on the rules (S21).
+  - **`Walk` is already your V3 tier, and the engine under all three.** `walk.current` is
+    `get_next_node`, `walk.save(...)` is `save_answer`, `walk.red_flags()` is
+    `check_red_flags`, `walk.is_complete` is when `finish_and_summarize` becomes legal. Build
+    the tools as a thin dispatcher over it rather than a second implementation.
+  - **The downgrade AC is nearly free if you keep position derived.** Store the answers
+    (`walk.to_json()`) in Redis, not a cursor; on downgrade, `Walk.from_json(tree, answers)`
+    on the new tier resumes at the same question. Adding a cursor to Redis "for speed" is
+    exactly the bug the design avoids — it disagrees with the answers precisely when a
+    provider is failing over.
+  - `Walk.to_json()` is already `Intake.answers`'s shape ({node_id: {value, text, text_en,
+    at, lang}}); `text_en` is yours to fill for the doctor screen.
+  - Load trees with `app.trees.bank.get(key)` / `for_department(code)` — files, not rows, so
+    the draft/published status does not block you. `app.routing.classify_department()` gives
+    you the department; honour `needs_human` rather than routing on a 0.3 confidence.
+  - `RealtimeVoiceProvider` is still **interface + fake only** — the Gemini Live impl is
+    yours (S3 left `REALTIME_PROVIDER=gemini-live` raising rather than pretending).
+  - Red flags are recomputed from answers on every call, deterministically, on every tier.
+    Do not cache them onto the session, and do not let the summarize prompt invent one — it
+    repeats what it is given (doc 02 §5). That boundary is what lets S21 sign the rules off.
 - Exact first commands:
   1. `make dev` (baseline; 11 services healthy)
-  2. `make migrate && make seed` (seed is idempotent; now also loads price_book)
+  2. `make migrate && make seed` (idempotent; now also loads the 11 trees as draft)
   3. `make test`
 
 ## Watch out for
+
 - **Port 5433, and a native Postgres on 5432.** This machine runs its own Postgres on
-  127.0.0.1:5432 which *wins over Docker's bind*, so `localhost:5432` reaches the wrong database
-  and fails with `role "opd" does not exist`. Compose publishes ours on **5433**; don't revert it.
-  In-cluster URLs stay `postgres:5432`. pytest defaults to `localhost:5433/opd_test`. Port 8080
-  is still taken, so voice-gw is still on 8090. Others: web 3000, api 8000, grafana 3001,
-  uptime-kuma 3002, loki 3100, redis 6379.
-- **`.env` is gitignored and yours is now definitely stale.** S3 added ~30 keys (the `*_PROVIDER`
-  selectors, vendor creds, `DAILY_BUDGET_INR`). `make .env` only copies when the file is
-  *missing*, so append the new block from `.env.example` by hand. Everything defaults to `fake`,
-  so a stale `.env` still runs — it just silently ignores any vendor you configure.
-- **Metering is silent by design.** `record()` swallows everything and drops rows under
-  back-pressure rather than blocking a patient-facing call. If usage_events look thin, check
-  `meter.dropped` and `/providers/health`'s `unpriced` list before assuming the call path broke.
-  In tests there is no drain task: `await meter.flush()` explicitly (the `meter` fixture writes
-  into the test's rolled-back transaction).
-- **A new provider needs a price_book row or it silently costs ₹0** — which the cost guard reads
-  as "budget to spare". `/providers/health` → `unpriced` is the tripwire. Add rows to
-  `seeds/price_book.json` (natural key provider+model+unit+effective_from; `model: "*"` for flat
-  rates). **Never edit a rate in place** — add a row with a later `effective_from`, or you
-  silently re-interpret every historical cost.
-- **The enum columns have no CHECK constraint.** `app/models/enums.py` claims "VARCHAR + CHECK",
-  but `enum_type` sets `native_enum=False` and SQLAlchemy 2.0 defaults `create_constraint=False`,
-  so nothing at the DB level rejects a bad enum value. Found in S3 (it made adding
-  `PriceUnit.CHAR` free). Not fixed: the docstring is wrong, not the schema. Backlogged.
+  127.0.0.1:5432 which *wins over Docker's bind*, so `localhost:5432` reaches the wrong
+  database and fails with `role "opd" does not exist`. Compose publishes ours on **5433**;
+  don't revert it. In-cluster URLs stay `postgres:5432`. pytest defaults to
+  `localhost:5433/opd_test`. voice-gw is on 8090 (8080 taken). Others: web 3000, api 8000,
+  grafana 3001, uptime-kuma 3002, loki 3100, redis 6379.
+- **`.env` is gitignored and yours is stale.** S3 added ~30 keys; `make .env` only copies
+  when the file is *missing*. Everything defaults to `fake`, so a stale `.env` runs fine and
+  silently ignores any vendor you configure.
+- **A tree is only as validated as `parse()`.** `Tree` objects can only be built by
+  `app.trees.schema.parse`, so if you find yourself constructing one another way (or reading
+  `question_trees.tree` and using the dict directly), you have skipped every check —
+  including the ones that stop an unreachable question or an unfireable red flag.
+- **The Hindi and the clinical content are unreviewed.** A model wrote both. The tests prove
+  the text is *present* and the structure sound; they cannot prove it is good Hindi or good
+  medicine. Nothing should go near a real patient before S21's review pack.
+- **`Walk.save()` prunes.** Amending an early answer silently deletes the answers on the
+  branch you left. That is deliberate and tested — but if S5 caches anything derived from
+  `walk.answers` (a summary, a cost, a red-flag list), it must recompute after every save.
 
 ## Decisions needed from the human
-- ~~Ratify `PriceUnit.CHAR` + `usage_events.characters`.~~ **Ratified** ("bill per character is
-  fine"). Doc 02 §4 now lists `char` and `characters`, with a note on units/quanta. Settled — do
-  not reopen.
-- **The SMS pick is now unblocking but not urgent** (both vendors work; `fake` runs locally). One
-  thing to weigh when you do pick: Exotel is already the telephony vendor, so choosing it for SMS
-  means one outage takes down SMS *and* the phone intake channel together — MSG91 keeps those
-  failure domains apart. Either way the DLT template must declare variables named `otp` and
-  `minutes` (see `.env.example`).
-- **Are the seeded price-book rates close enough to your real contracts?** They are public list
-  prices converted at ~₹84/USD, rounded *up*. Every unit-economics number from here — cost per
-  intake, the S18 dashboard, the cost-guard thresholds — is built on them.
-- **Nothing blocking S4.**
+
+- **Ratify dropping `question_trees.lang`** (S4's schema change, migration `fbcaee31fa43`).
+  Doc 02 §4 sketched one tree row per language; doc 03 §3 then put every language inside the
+  node (`text:{en,hi,mr,te}`). S4 kept doc 03 §3: doc 03 §1 makes language switchable
+  mid-intake, so embedded text is a re-render while per-language rows are a tree swap that is
+  only safe if the rows happen to share node ids and branching — and four rows means four
+  copies of the branching and red flags under one clinical sign-off. If you agree, doc 02
+  §4's `question_trees` line should lose `lang`, the way `PriceUnit.CHAR` was ratified in S3.
+  While there: line 73 points at "doc 03 §4" for the tree schema; it is **§3**.
+- **Five minutes with a `GEMINI_API_KEY` closes S4's open AC.** `make eval-routing` scores
+  the 60-utterance set and gates at 85%. Nobody can honestly claim that number until a real
+  model answers; if it comes in low, the fix is a `routing/v2.md` (v1 is immutable), and the
+  harness prints a confusion matrix to aim it.
+- **The trees need an oncologist before go-live** — they are seeded `draft` and S21 builds
+  the review pack, but if a clinician can read them sooner, the content is 11 JSON files and
+  the thresholds are worth challenging now (fever ≥38 within 14 days; pain ≥8 urgent;
+  vomiting >5×/day; ESAS distress ≥7). Cheaper to change now than after S6–S8 build on them.
+- **Still open from S3, neither blocking:** the SMS vendor pick (both work; note that Exotel
+  for SMS puts SMS and the phone intake channel in one failure domain, MSG91 splits them), and
+  whether the seeded price-book rates match your real contracts (they are public list prices
+  at ~₹84/USD, rounded up — every unit-economics number rests on them).
 
 ## Backlog additions
-- **WhatsApp is metered per message; Meta bills per 24h conversation** — over-counts. Fix where
-  the window state lives — **S12**. Must close before S18's invoice reconciliation is honest.
-- **Cached tokens are priced at the full `token_in` rate** (vendors discount ~25%). Over-estimates
-  deliberately. Wants a `token_cached` unit — **S18**, with the price-book editor.
-- **Nothing schedules `CostGuard.evaluate()`** — on-demand only, so in production the guard would
-  never actually fire. Needs a Celery beat job — **S17**, when beat gets real work.
-- **Sarvam STT reports no confidence**, so doc 03 §4's `[unclear: ...]` contract leans on Google's.
-  Revisit when Saarika exposes one — **S13**, with the language QA harness.
-- **Enum CHECK constraints don't exist** (see "Watch out for") — fix the docstring or add the
-  constraints — **S18/S20**.
-- **`/providers/health` is unauthenticated.** It reports vendor names and health only, never keys,
-  but it should get auth or be edge-restricted before the box is public — **S19/S20**.
-- Realtime/Gemini Live impl — **S5** (session manager) / **S14** (voice-gw bridge).
+
+- **Surgical Oncology "new lump/lesion intake" tree** — doc 03 §3 lists it; doc 06's S4 line
+  did not, so it was not built. Walk-ins with a new lump currently get `surg_onc_post_op`,
+  which asks about an operation they have not had. **S18** (tree builder) or sooner.
+- **Red-flag satisfiability is only checked for `and`-rooted rules, in tests, not the
+  validator.** `or` across branches is legitimate and `unanswered` is satisfied by a node
+  being off-path, so the general check needs real satisfiability rather than reachability —
+  **S18**, when non-engineers start authoring and the check has to be live.
+- **Red flags and their instruction text are per-tree and duplicated** across the med-onc
+  trees (a tree is the unit of publish and sign-off, deliberately), so they can drift. A
+  shared rule library belongs in **S18**'s editor if it wants one.
+- **No node has `audio`** — V3's kiosk voice packs are **S7**, real human recordings **S21**.
+- **`app/evals.py`'s loader is generic** — S10's dictation mapping and S17's grading can reuse
+  the shape — **S10/S17**.
+- Carried from S3: WhatsApp metered per message vs Meta's 24h conversation (**S12**, before
+  S18's invoice reconciliation is honest); cached tokens priced at full `token_in` rate, wants
+  a `token_cached` unit (**S18**); nothing schedules `CostGuard.evaluate()`, so the guard would
+  never fire in production (**S17**); Sarvam STT reports no confidence (**S13**); enum columns
+  have no CHECK constraint despite the docstring (**S18/S20**); `/providers/health` is
+  unauthenticated (**S19/S20**); Realtime/Gemini Live impl (**S5**/**S14**).
 - Carried from S2: staff username+TOTP login (S18); rate-limit OTP verify by IP (S20); prune
-  `otp_codes` (S17); audit log daily S3 export + retention (S19); soft-delete query filtering
-  (S8+).
-- Carried from S1: provision Grafana datasource + dashboards (S19); pin exact dependency versions.
+  `otp_codes` (S17); audit log daily S3 export + retention (S19); soft-delete filtering (S8+).
+- Carried from S1: provision Grafana datasource + dashboards (S19); pin dependency versions.
