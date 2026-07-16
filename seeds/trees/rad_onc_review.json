@@ -1,0 +1,257 @@
+{
+  "key": "rad_onc_review",
+  "version": 1,
+  "department": "RADONC",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Radiation Oncology — on-treatment review",
+    "hi": "रेडिएशन ऑन्कोलॉजी — इलाज के दौरान जाँच"
+  },
+  "root": "rt.site",
+  "nodes": [
+    {
+      "id": "rt.site",
+      "type": "single",
+      "text": {
+        "en": "Which part of your body is getting the radiation?",
+        "hi": "आपके शरीर के किस हिस्से पर सिकाई हो रही है?"
+      },
+      "options": [
+        { "id": "head_neck", "icon": "head", "text": { "en": "Head or neck", "hi": "सिर या गला" } },
+        { "id": "chest", "icon": "chest", "text": { "en": "Chest", "hi": "छाती" } },
+        { "id": "breast", "icon": "breast", "text": { "en": "Breast", "hi": "स्तन" } },
+        { "id": "pelvis", "icon": "pelvis", "text": { "en": "Lower stomach or hip", "hi": "पेट का निचला हिस्सा या कूल्हा" } },
+        { "id": "other", "icon": "body", "text": { "en": "Somewhere else", "hi": "कोई और जगह" } }
+      ],
+      "next": {
+        "head_neck": "rt.hn.swallow",
+        "chest": "rt.chest.cough",
+        "breast": "rt.skin",
+        "pelvis": "rt.pelvis.urinary",
+        "other": "rt.skin",
+        "default": "rt.skin"
+      },
+      "adaptive_hints": "Patients say 'sikai' or 'raid' for radiation. The site decides which questions follow, so do not guess it — if unsure, ask which part the machine points at."
+    },
+    {
+      "id": "rt.hn.swallow",
+      "type": "single",
+      "text": {
+        "en": "How is your swallowing?",
+        "hi": "आपको निगलने में कैसा लग रहा है?"
+      },
+      "options": [
+        { "id": "no_trouble", "icon": "ok", "text": { "en": "No trouble", "hi": "कोई दिक्कत नहीं" } },
+        { "id": "solids_hard", "icon": "food", "text": { "en": "Solid food is hard", "hi": "ठोस खाना मुश्किल है" } },
+        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids go down", "hi": "सिर्फ़ तरल ही जाता है" } },
+        {
+          "id": "nothing",
+          "icon": "alert",
+          "text": { "en": "Nothing goes down", "hi": "कुछ भी नहीं जाता" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "rt.hn.mouth" },
+      "red_flag": {
+        "id": "rt.hn.no_swallow",
+        "severity": "urgent",
+        "label": { "en": "Unable to swallow anything", "hi": "कुछ भी निगल नहीं पा रहे" },
+        "instruction": {
+          "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+        }
+      }
+    },
+    {
+      "id": "rt.hn.mouth",
+      "type": "single",
+      "text": {
+        "en": "Do you have mouth ulcers or soreness?",
+        "hi": "क्या मुँह में छाले या जलन है?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "mild", "icon": "mouth", "text": { "en": "Yes, but I can eat", "hi": "हाँ, पर खा लेता हूँ" } },
+        { "id": "soft_only", "icon": "mouth", "text": { "en": "Only soft food or liquids", "hi": "सिर्फ़ नरम खाना या तरल" } },
+        { "id": "cannot_eat", "icon": "alert", "text": { "en": "I cannot eat at all", "hi": "कुछ भी नहीं खा पाता" } }
+      ],
+      "next": { "default": "rt.skin" }
+    },
+    {
+      "id": "rt.chest.cough",
+      "type": "single",
+      "text": {
+        "en": "Do you have a cough?",
+        "hi": "क्या आपको खाँसी है?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "dry", "icon": "cough", "text": { "en": "A dry cough", "hi": "सूखी खाँसी" } },
+        { "id": "phlegm", "icon": "cough", "text": { "en": "With phlegm", "hi": "बलगम के साथ" } },
+        {
+          "id": "blood",
+          "icon": "alert",
+          "text": { "en": "With blood", "hi": "खून के साथ" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "rt.chest.swallow" },
+      "red_flag": {
+        "id": "rt.chest.haemoptysis",
+        "severity": "urgent",
+        "label": { "en": "Coughing blood", "hi": "खाँसी में खून" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "rt.chest.swallow",
+      "type": "single",
+      "text": {
+        "en": "Does it hurt or burn when you swallow?",
+        "hi": "निगलते समय दर्द या जलन होती है?"
+      },
+      "options": [
+        { "id": "no_trouble", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "burning", "icon": "fire", "text": { "en": "Burning", "hi": "जलन होती है" } },
+        { "id": "solids_hard", "icon": "food", "text": { "en": "Solid food is hard", "hi": "ठोस खाना मुश्किल है" } },
+        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids go down", "hi": "सिर्फ़ तरल ही जाता है" } }
+      ],
+      "next": { "default": "rt.skin" }
+    },
+    {
+      "id": "rt.pelvis.urinary",
+      "type": "single",
+      "text": {
+        "en": "How is passing urine?",
+        "hi": "पेशाब करने में कैसा लग रहा है?"
+      },
+      "options": [
+        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
+        { "id": "burning", "icon": "fire", "text": { "en": "Burning", "hi": "जलन होती है" } },
+        { "id": "frequent", "icon": "clock", "text": { "en": "Going very often", "hi": "बार-बार जाना पड़ता है" } },
+        {
+          "id": "blood",
+          "icon": "blood",
+          "text": { "en": "Blood in the urine", "hi": "पेशाब में खून" },
+          "flag": true
+        },
+        {
+          "id": "cannot_pass",
+          "icon": "alert",
+          "text": { "en": "I cannot pass urine", "hi": "पेशाब नहीं आ रहा" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "rt.pelvis.bowel" },
+      "red_flag": {
+        "id": "rt.pelvis.urinary_urgent",
+        "severity": "urgent",
+        "label": { "en": "Blood in urine, or cannot pass urine", "hi": "पेशाब में खून, या पेशाब बंद" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "rt.pelvis.bowel",
+      "type": "single",
+      "text": {
+        "en": "How are your bowels?",
+        "hi": "पेट कैसा चल रहा है?"
+      },
+      "options": [
+        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
+        { "id": "loose", "icon": "loose", "text": { "en": "Loose motions", "hi": "दस्त" } },
+        { "id": "pain", "icon": "pain", "text": { "en": "Painful to pass", "hi": "करते समय दर्द" } },
+        {
+          "id": "blood",
+          "icon": "blood",
+          "text": { "en": "Blood when I pass stool", "hi": "शौच में खून" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "rt.skin" },
+      "red_flag": {
+        "id": "rt.pelvis.pr_bleed",
+        "severity": "urgent",
+        "label": { "en": "Bleeding from the back passage", "hi": "शौच के रास्ते से खून" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "rt.skin",
+      "type": "single",
+      "text": {
+        "en": "How does the skin look where the radiation goes?",
+        "hi": "जहाँ सिकाई हो रही है, वहाँ की त्वचा कैसी दिख रही है?"
+      },
+      "options": [
+        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
+        { "id": "pink", "icon": "skin", "text": { "en": "Pink or red", "hi": "गुलाबी या लाल" } },
+        { "id": "dry_peeling", "icon": "skin", "text": { "en": "Dry and peeling", "hi": "सूखी और छिल रही है" } },
+        {
+          "id": "wet_peeling",
+          "icon": "alert",
+          "text": { "en": "Wet, weeping or raw", "hi": "गीली, रिस रही या छिली हुई" },
+          "flag": true
+        },
+        {
+          "id": "ulcer",
+          "icon": "alert",
+          "text": { "en": "There is an open sore", "hi": "खुला घाव है" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "rt.fatigue" },
+      "red_flag": {
+        "id": "rt.skin_breakdown",
+        "severity": "semi",
+        "label": { "en": "Skin broken down in the treated area", "hi": "सिकाई वाली जगह की त्वचा फट गई है" },
+        "instruction": {
+          "en": "Please mention this to the staff at the desk when you check in.",
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        }
+      }
+    },
+    {
+      "id": "rt.fatigue",
+      "type": "scale",
+      "text": {
+        "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
+        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "rt.sessions" }
+    },
+    {
+      "id": "rt.sessions",
+      "type": "number",
+      "text": {
+        "en": "How many radiation sessions have you had so far?",
+        "hi": "अब तक कितनी सिकाई हो चुकी है?"
+      },
+      "min": 0,
+      "max": 60,
+      "unit": "sessions",
+      "next": { "default": "rt.words" },
+      "adaptive_hints": "If they do not know, the card they carry has it — but do not hold up the intake for it. Save 0 and note it in raw_text."
+    },
+    {
+      "id": "rt.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ]
+}

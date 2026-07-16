@@ -6,10 +6,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditLog
-from app.models.enums import Role
+from app.models.content import QuestionTree
+from app.models.enums import Role, TreeStatus
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
 from app.seed import seed
+from app.trees.bank import load_bank
+from app.trees.schema import parse
 
 
 async def _count(session: AsyncSession, model: type) -> int:
@@ -153,3 +156,70 @@ async def test_seeded_phone_numbers_cannot_reach_a_real_handset(session: AsyncSe
     for patient in patients:
         if patient.caregiver_phone:
             assert patient.caregiver_phone.startswith("+915")
+
+
+# -- question trees (S4) -------------------------------------------------------
+
+
+async def test_seed_loads_the_tree_bank(session: AsyncSession) -> None:
+    await seed(session, patients=5)
+
+    rows = list((await session.execute(select(QuestionTree))).scalars())
+    assert {row.key for row in rows} == set(load_bank())
+    assert all(row.version == 1 for row in rows)
+
+
+async def test_seeded_trees_are_still_valid_trees_after_the_round_trip(
+    session: AsyncSession,
+) -> None:
+    """The JSONB in the database must parse back into the tree it came from — the
+    column is what S18's editor and the eventual live path read, not the file."""
+    await seed(session, patients=5)
+
+    for row in (await session.execute(select(QuestionTree))).scalars():
+        tree = parse(row.tree)
+        assert tree.key == row.key
+        assert tree.version == row.version
+
+
+async def test_trees_seed_as_draft_because_publishing_is_a_clinical_act(
+    session: AsyncSession,
+) -> None:
+    """doc 03 §3: the bank is "clinically reviewed before go-live" (S21). A seed
+    script that published would make `status` mean nothing."""
+    await seed(session, patients=5)
+
+    rows = list((await session.execute(select(QuestionTree))).scalars())
+    assert rows
+    assert all(row.status is TreeStatus.DRAFT for row in rows)
+    assert all(row.published_at is None for row in rows)
+
+
+async def test_trees_can_be_published_explicitly(session: AsyncSession) -> None:
+    await seed(session, patients=5, publish_trees=True)
+
+    rows = list((await session.execute(select(QuestionTree))).scalars())
+    assert rows
+    assert all(row.status is TreeStatus.PUBLISHED for row in rows)
+    assert all(row.published_at is not None for row in rows)
+
+
+async def test_every_tree_is_linked_to_its_department(session: AsyncSession) -> None:
+    """A tree pointing at no department is a patient routed to a desk with nothing
+    to ask them."""
+    await seed(session, patients=5)
+
+    bank = load_bank()
+    for row in (await session.execute(select(QuestionTree))).scalars():
+        department = await session.get(Department, row.department_id)
+        assert department is not None, f"{row.key} has no department"
+        assert department.code == bank[row.key].department
+
+
+async def test_reseeding_trees_changes_nothing(session: AsyncSession) -> None:
+    await seed(session, patients=5)
+    report = await seed(session, patients=5)
+
+    assert "question_trees" not in report.created
+    assert "question_trees" not in report.updated
+    assert report.unchanged["question_trees"] == len(load_bank())

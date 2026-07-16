@@ -1,0 +1,291 @@
+{
+  "key": "med_onc_between_cycle",
+  "version": 1,
+  "department": "MEDONC",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Medical Oncology — between-cycle review",
+    "hi": "मेडिकल ऑन्कोलॉजी — साइकिल के बीच जाँच"
+  },
+  "root": "mo.cyc.days_since",
+  "nodes": [
+    {
+      "id": "mo.cyc.days_since",
+      "type": "number",
+      "text": {
+        "en": "How many days ago was your last chemotherapy?",
+        "hi": "आपकी पिछली कीमोथेरेपी कितने दिन पहले हुई थी?"
+      },
+      "min": 0,
+      "max": 365,
+      "unit": "days",
+      "next": { "default": "mo.cyc.fever_temp" },
+      "adaptive_hints": "Patients say 'last Tuesday' or 'after Holi' — convert to a day count. If they cannot recall, ask the caregiver before guessing."
+    },
+    {
+      "id": "mo.cyc.fever_temp",
+      "type": "number",
+      "text": {
+        "en": "Have you had fever since then? If you measured it, what was the highest? Say 0 if there was no fever.",
+        "hi": "उसके बाद क्या बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।"
+      },
+      "min": 0,
+      "max": 43,
+      "unit": "C",
+      "next": { "default": "mo.cyc.nausea" },
+      "adaptive_hints": "0 means no fever, not 0°C. If they had fever but never measured it, save 38 only if they describe shivering/chills — otherwise save 0 and put their words in raw_text."
+    },
+    {
+      "id": "mo.cyc.nausea",
+      "type": "scale",
+      "text": {
+        "en": "How bad has the nausea been? Zero is none, ten is the worst.",
+        "hi": "जी मिचलाना कितना रहा? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "mo.cyc.vomiting" }
+    },
+    {
+      "id": "mo.cyc.vomiting",
+      "type": "single",
+      "text": {
+        "en": "How many times have you vomited in the last day?",
+        "hi": "पिछले एक दिन में कितनी बार उल्टी हुई?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "Not at all", "hi": "बिल्कुल नहीं" } },
+        { "id": "one_two", "icon": "vomit", "text": { "en": "Once or twice", "hi": "एक-दो बार" } },
+        { "id": "three_five", "icon": "vomit", "text": { "en": "Three to five times", "hi": "तीन से पाँच बार" } },
+        {
+          "id": "over_five",
+          "icon": "alert",
+          "text": { "en": "More than five times", "hi": "पाँच से ज़्यादा बार" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.cyc.fluids" },
+      "red_flag": {
+        "id": "mo.cyc.vomiting_severe",
+        "severity": "urgent",
+        "label": { "en": "Vomiting more than 5 times a day", "hi": "दिन में 5 से ज़्यादा बार उल्टी" },
+        "instruction": {
+          "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+        }
+      }
+    },
+    {
+      "id": "mo.cyc.fluids",
+      "type": "single",
+      "text": {
+        "en": "Are you able to keep water down?",
+        "hi": "क्या आप पानी पेट में रोक पा रहे हैं?"
+      },
+      "options": [
+        { "id": "yes", "icon": "water", "text": { "en": "Yes", "hi": "हाँ" } },
+        { "id": "little", "icon": "water-low", "text": { "en": "Only a little", "hi": "थोड़ा ही" } },
+        {
+          "id": "no",
+          "icon": "alert",
+          "text": { "en": "No, it comes back up", "hi": "नहीं, वापस निकल जाता है" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.cyc.mucositis" },
+      "red_flag": {
+        "id": "mo.cyc.dehydration",
+        "severity": "urgent",
+        "label": { "en": "Cannot keep fluids down", "hi": "पानी भी नहीं रुक रहा" },
+        "instruction": {
+          "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+        }
+      }
+    },
+    {
+      "id": "mo.cyc.mucositis",
+      "type": "single",
+      "text": {
+        "en": "Do you have mouth ulcers or soreness?",
+        "hi": "क्या मुँह में छाले या जलन है?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "mild", "icon": "mouth", "text": { "en": "Yes, but I can eat", "hi": "हाँ, पर खा लेता हूँ" } },
+        { "id": "soft_only", "icon": "mouth", "text": { "en": "Only soft food or liquids", "hi": "सिर्फ़ नरम खाना या तरल" } },
+        { "id": "cannot_eat", "icon": "alert", "text": { "en": "I cannot eat at all", "hi": "कुछ भी नहीं खा पाता" } }
+      ],
+      "next": { "default": "mo.cyc.neuropathy" },
+      "adaptive_hints": "This grades CTCAE mucositis by function, not by looking — nobody is looking in their mouth over the phone."
+    },
+    {
+      "id": "mo.cyc.neuropathy",
+      "type": "single",
+      "text": {
+        "en": "Any numbness or tingling in your hands or feet?",
+        "hi": "क्या हाथ-पैर में सुन्नपन या झुनझुनी है?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "mild", "icon": "hand", "text": { "en": "A little", "hi": "थोड़ी" } },
+        {
+          "id": "interferes",
+          "icon": "hand",
+          "text": { "en": "It stops me doing things", "hi": "इससे काम करने में दिक्कत होती है" }
+        },
+        {
+          "id": "buttons",
+          "icon": "alert",
+          "text": { "en": "I cannot button clothes or hold things", "hi": "बटन नहीं लगा पाता, चीज़ें नहीं पकड़ पाता" }
+        }
+      ],
+      "next": { "default": "mo.cyc.fatigue" },
+      "adaptive_hints": "Buttons and holding a glass are the functional test — a dose change may follow, so record what they said."
+    },
+    {
+      "id": "mo.cyc.fatigue",
+      "type": "scale",
+      "text": {
+        "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
+        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "mo.cyc.appetite" }
+    },
+    {
+      "id": "mo.cyc.appetite",
+      "type": "single",
+      "text": {
+        "en": "How is your appetite compared to before?",
+        "hi": "पहले के मुकाबले आपकी भूख कैसी है?"
+      },
+      "options": [
+        { "id": "same", "icon": "plate", "text": { "en": "The same", "hi": "पहले जैसी" } },
+        { "id": "less", "icon": "plate-half", "text": { "en": "Less", "hi": "कम" } },
+        { "id": "much_less", "icon": "plate-empty", "text": { "en": "Much less", "hi": "बहुत कम" } },
+        { "id": "nothing", "icon": "alert", "text": { "en": "I am eating nothing", "hi": "कुछ नहीं खा रहा" } }
+      ],
+      "next": { "default": "mo.cyc.bowel" }
+    },
+    {
+      "id": "mo.cyc.bowel",
+      "type": "single",
+      "text": {
+        "en": "How have your bowels been?",
+        "hi": "आपका पेट कैसा चल रहा है?"
+      },
+      "options": [
+        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
+        { "id": "constipated", "icon": "block", "text": { "en": "Constipated", "hi": "कब्ज़" } },
+        { "id": "loose", "icon": "loose", "text": { "en": "Loose motions", "hi": "दस्त" } },
+        {
+          "id": "loose_severe",
+          "icon": "alert",
+          "text": { "en": "Many loose motions a day", "hi": "दिन में कई बार दस्त" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.cyc.bleeding" },
+      "red_flag": {
+        "id": "mo.cyc.diarrhoea",
+        "severity": "semi",
+        "label": { "en": "Frequent diarrhoea", "hi": "बार-बार दस्त" },
+        "instruction": {
+          "en": "Please mention this to the staff at the desk when you check in.",
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        }
+      }
+    },
+    {
+      "id": "mo.cyc.bleeding",
+      "type": "single",
+      "text": {
+        "en": "Any bleeding, or new blue-black marks on your skin?",
+        "hi": "क्या कहीं से खून आ रहा है, या त्वचा पर नए नीले-काले निशान हैं?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "yes",
+          "icon": "blood",
+          "text": { "en": "Yes", "hi": "हाँ" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.cyc.words" },
+      "red_flag": {
+        "id": "mo.cyc.bleeding",
+        "severity": "urgent",
+        "label": { "en": "Bleeding or bruising", "hi": "खून आना या नील पड़ना" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "mo.cyc.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "mo.cyc.febrile_neutropenia",
+      "severity": "urgent",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "mo.cyc.fever_temp", "op": "gte", "value": 38 },
+          { "node": "mo.cyc.days_since", "op": "lte", "value": 14 }
+        ]
+      },
+      "label": {
+        "en": "Fever 38°C+ within 14 days of chemotherapy",
+        "hi": "कीमो के 14 दिन के भीतर 38°C+ बुखार"
+      },
+      "instruction": {
+        "en": "Please tell a nurse now, before you sit down. A fever soon after chemotherapy needs to be seen straight away.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। कीमो के तुरंत बाद बुखार को फ़ौरन देखना ज़रूरी है।"
+      }
+    },
+    {
+      "id": "mo.cyc.fever_late",
+      "severity": "semi",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "mo.cyc.fever_temp", "op": "gte", "value": 38 },
+          { "node": "mo.cyc.days_since", "op": "gt", "value": 14 }
+        ]
+      },
+      "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+      "instruction": {
+        "en": "Please tell the staff at the desk that you have a fever today.",
+        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+      }
+    },
+    {
+      "id": "mo.cyc.not_eating",
+      "severity": "semi",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "mo.cyc.appetite", "op": "eq", "value": "nothing" },
+          { "node": "mo.cyc.mucositis", "op": "eq", "value": "cannot_eat" }
+        ]
+      },
+      "label": { "en": "Not eating — mouth too sore", "hi": "मुँह के छालों से खाना बंद" },
+      "instruction": {
+        "en": "Please mention this to the staff at the desk when you check in.",
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+      }
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "key": "pulmonology_routing",
+  "version": 1,
+  "department": "PULM",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Pulmonology — walk-in",
+    "hi": "फेफड़ा रोग — बिना अपॉइंटमेंट"
+  },
+  "root": "pu.problem",
+  "nodes": [
+    {
+      "id": "pu.problem",
+      "type": "single",
+      "text": {
+        "en": "What is troubling you most today?",
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+      },
+      "options": [
+        { "id": "cough", "icon": "cough", "text": { "en": "Cough", "hi": "खाँसी" } },
+        { "id": "breathless", "icon": "lungs", "text": { "en": "Breathlessness", "hi": "साँस फूलना" } },
+        { "id": "chest_pain", "icon": "chest", "text": { "en": "Chest pain", "hi": "सीने में दर्द" } },
+        { "id": "wheeze", "icon": "wind", "text": { "en": "Wheezing", "hi": "साँस में सीटी" } },
+        {
+          "id": "blood",
+          "icon": "alert",
+          "text": { "en": "Blood when I cough", "hi": "खाँसी में खून" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "pu.duration" },
+      "red_flag": {
+        "id": "pu.haemoptysis",
+        "severity": "urgent",
+        "label": { "en": "Coughing blood", "hi": "खाँसी में खून" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "pu.duration",
+      "type": "number",
+      "text": {
+        "en": "For how many days has this been going on?",
+        "hi": "यह कितने दिनों से है?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": { "default": "pu.breathless_now" }
+    },
+    {
+      "id": "pu.breathless_now",
+      "type": "single",
+      "text": {
+        "en": "Right now, can you speak a full sentence in one breath?",
+        "hi": "अभी, क्या आप एक साँस में पूरा वाक्य बोल सकते हैं?"
+      },
+      "options": [
+        { "id": "yes", "icon": "ok", "text": { "en": "Yes", "hi": "हाँ" } },
+        { "id": "few_words", "icon": "wind", "text": { "en": "Only a few words", "hi": "सिर्फ़ कुछ शब्द" } },
+        {
+          "id": "no",
+          "icon": "alert",
+          "text": { "en": "No, I am too breathless", "hi": "नहीं, साँस बहुत फूल रही है" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "pu.tobacco" },
+      "red_flag": {
+        "id": "pu.severe_breathless",
+        "severity": "urgent",
+        "label": { "en": "Too breathless to speak a sentence", "hi": "साँस इतनी फूली कि वाक्य नहीं बोल पाते" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      },
+      "adaptive_hints": "How much they can say in one breath is the measurement — and on a voice channel you can hear the answer while they give it."
+    },
+    {
+      "id": "pu.tobacco",
+      "type": "single",
+      "text": {
+        "en": "Do you smoke, or did you ever?",
+        "hi": "क्या आप धूम्रपान करते हैं, या कभी करते थे?"
+      },
+      "options": [
+        { "id": "never", "icon": "ok", "text": { "en": "Never", "hi": "कभी नहीं" } },
+        { "id": "past", "icon": "stop", "text": { "en": "I used to", "hi": "पहले करता था" } },
+        { "id": "current", "icon": "smoke", "text": { "en": "Yes, currently", "hi": "हाँ, अभी करता हूँ" } }
+      ],
+      "next": { "default": "pu.words" },
+      "adaptive_hints": "Ask without judgement — a patient who feels judged under-reports."
+    },
+    {
+      "id": "pu.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Tell me in your own words what is happening.",
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ]
+}

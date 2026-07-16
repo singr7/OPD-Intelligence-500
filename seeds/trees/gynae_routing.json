@@ -1,0 +1,80 @@
+{
+  "key": "gynae_routing",
+  "version": 1,
+  "department": "GYNAE",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Gynecology — walk-in",
+    "hi": "स्त्री रोग — बिना अपॉइंटमेंट"
+  },
+  "root": "gy.problem",
+  "nodes": [
+    {
+      "id": "gy.problem",
+      "type": "single",
+      "text": {
+        "en": "What is troubling you most today?",
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+      },
+      "options": [
+        { "id": "bleeding", "icon": "blood", "text": { "en": "Bleeding that is not normal for me", "hi": "ऐसा खून आना जो मेरे लिए सामान्य नहीं" } },
+        { "id": "discharge", "icon": "drop", "text": { "en": "Discharge", "hi": "पानी या स्राव आना" } },
+        { "id": "pain", "icon": "pain", "text": { "en": "Pain in the lower stomach", "hi": "पेट के निचले हिस्से में दर्द" } },
+        { "id": "lump", "icon": "lump", "text": { "en": "A lump or swelling", "hi": "गाँठ या सूजन" } },
+        { "id": "other", "icon": "question", "text": { "en": "Something else", "hi": "कुछ और" } }
+      ],
+      "next": { "default": "gy.bleeding_heavy" },
+      "adaptive_hints": "This is a private question in a public room. Ask it quietly and do not repeat the answer back loudly on the kiosk."
+    },
+    {
+      "id": "gy.bleeding_heavy",
+      "type": "single",
+      "text": {
+        "en": "Are you bleeding heavily right now — soaking a pad in an hour or less?",
+        "hi": "क्या अभी बहुत खून बह रहा है — एक घंटे या उससे कम में पैड भीग जाता है?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "not_bleeding", "icon": "ok", "text": { "en": "I am not bleeding", "hi": "मुझे खून नहीं आ रहा" } },
+        {
+          "id": "yes",
+          "icon": "alert",
+          "text": { "en": "Yes", "hi": "हाँ" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "gy.duration" },
+      "red_flag": {
+        "id": "gy.heavy_bleeding",
+        "severity": "urgent",
+        "label": { "en": "Heavy vaginal bleeding", "hi": "बहुत ज़्यादा रक्तस्राव" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      },
+      "adaptive_hints": "The pad-per-hour measure is the only reliable one — 'a lot' means different things to different women."
+    },
+    {
+      "id": "gy.duration",
+      "type": "number",
+      "text": {
+        "en": "For how many days has this been going on?",
+        "hi": "यह कितने दिनों से है?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": { "default": "gy.words" }
+    },
+    {
+      "id": "gy.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Tell me in your own words what is happening.",
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ]
+}

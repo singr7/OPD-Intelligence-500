@@ -1,0 +1,244 @@
+{
+  "key": "surg_onc_post_op",
+  "version": 1,
+  "department": "SURGONC",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Surgical Oncology — post-operative review",
+    "hi": "सर्जिकल ऑन्कोलॉजी — ऑपरेशन के बाद जाँच"
+  },
+  "root": "so.op.days_since",
+  "nodes": [
+    {
+      "id": "so.op.days_since",
+      "type": "number",
+      "text": {
+        "en": "How many days ago was your operation?",
+        "hi": "आपका ऑपरेशन कितने दिन पहले हुआ था?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": { "default": "so.op.wound" },
+      "adaptive_hints": "Patients date it by a festival or a relative's visit — convert to a day count."
+    },
+    {
+      "id": "so.op.wound",
+      "type": "single",
+      "text": {
+        "en": "How does the wound look?",
+        "hi": "टाँके वाली जगह कैसी दिख रही है?"
+      },
+      "options": [
+        { "id": "clean", "icon": "ok", "text": { "en": "Clean and dry", "hi": "साफ़ और सूखी" } },
+        { "id": "red", "icon": "skin", "text": { "en": "Red around it", "hi": "आसपास लाल है" } },
+        {
+          "id": "discharge",
+          "icon": "alert",
+          "text": { "en": "Something is leaking from it", "hi": "उसमें से कुछ रिस रहा है" },
+          "flag": true
+        },
+        {
+          "id": "open",
+          "icon": "alert",
+          "text": { "en": "It has opened up", "hi": "टाँके खुल गए हैं" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "so.op.fever_temp" },
+      "red_flag": {
+        "id": "so.op.wound_problem",
+        "severity": "urgent",
+        "label": { "en": "Wound leaking or opened", "hi": "घाव रिस रहा है या खुल गया है" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "so.op.fever_temp",
+      "type": "number",
+      "text": {
+        "en": "Have you had fever since the operation? If you measured it, what was the highest? Say 0 if there was no fever.",
+        "hi": "ऑपरेशन के बाद बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।"
+      },
+      "min": 0,
+      "max": 43,
+      "unit": "C",
+      "next": { "default": "so.op.pain" },
+      "adaptive_hints": "0 means no fever, not 0°C."
+    },
+    {
+      "id": "so.op.pain",
+      "type": "scale",
+      "text": {
+        "en": "How bad is the pain at the operation site? Zero is none, ten is the worst.",
+        "hi": "ऑपरेशन वाली जगह पर दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "so.op.eating" },
+      "red_flag_if": { "node": "so.op.pain", "op": "gte", "value": 8 },
+      "red_flag": {
+        "id": "so.op.severe_pain",
+        "severity": "urgent",
+        "label": { "en": "Severe pain at the wound (8+/10)", "hi": "घाव पर तेज़ दर्द (8+/10)" },
+        "instruction": {
+          "en": "Please tell a nurse now — you should not have to wait in this much pain.",
+          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।"
+        }
+      }
+    },
+    {
+      "id": "so.op.eating",
+      "type": "single",
+      "text": {
+        "en": "Are you able to eat and drink?",
+        "hi": "क्या आप खा-पी पा रहे हैं?"
+      },
+      "options": [
+        { "id": "normal", "icon": "plate", "text": { "en": "Normally", "hi": "सामान्य रूप से" } },
+        { "id": "less", "icon": "plate-half", "text": { "en": "Less than before", "hi": "पहले से कम" } },
+        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids", "hi": "सिर्फ़ तरल" } },
+        {
+          "id": "nothing",
+          "icon": "alert",
+          "text": { "en": "Nothing at all", "hi": "कुछ भी नहीं" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "so.op.bowels" },
+      "red_flag": {
+        "id": "so.op.not_eating",
+        "severity": "urgent",
+        "label": { "en": "Taking nothing by mouth after surgery", "hi": "ऑपरेशन के बाद कुछ भी नहीं ले पा रहे" },
+        "instruction": {
+          "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+        }
+      }
+    },
+    {
+      "id": "so.op.bowels",
+      "type": "single",
+      "text": {
+        "en": "Have your bowels moved, and are you passing gas?",
+        "hi": "क्या शौच हुआ है, और गैस निकल रही है?"
+      },
+      "options": [
+        { "id": "yes", "icon": "ok", "text": { "en": "Yes, both", "hi": "हाँ, दोनों" } },
+        { "id": "gas_only", "icon": "wind", "text": { "en": "Only gas", "hi": "सिर्फ़ गैस" } },
+        {
+          "id": "neither",
+          "icon": "alert",
+          "text": { "en": "Neither", "hi": "दोनों नहीं" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "so.op.swelling" },
+      "red_flag": {
+        "id": "so.op.obstruction",
+        "severity": "urgent",
+        "label": {
+          "en": "No stool and no gas after surgery",
+          "hi": "ऑपरेशन के बाद न शौच, न गैस"
+        },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      },
+      "adaptive_hints": "An embarrassing question asked plainly. Do not skip it — with the day count it is what catches an obstruction."
+    },
+    {
+      "id": "so.op.swelling",
+      "type": "single",
+      "text": {
+        "en": "Any new swelling or pain in your legs?",
+        "hi": "क्या टाँगों में नई सूजन या दर्द है?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "both", "icon": "leg", "text": { "en": "Yes, in both legs", "hi": "हाँ, दोनों टाँगों में" } },
+        {
+          "id": "one_leg",
+          "icon": "alert",
+          "text": { "en": "Yes, in one leg only", "hi": "हाँ, सिर्फ़ एक टाँग में" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "so.op.drain" },
+      "red_flag": {
+        "id": "so.op.dvt",
+        "severity": "urgent",
+        "label": { "en": "New swelling in one leg", "hi": "एक टाँग में नई सूजन" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      },
+      "adaptive_hints": "One leg versus both is the whole point of the question — do not let it be answered as a general 'yes'."
+    },
+    {
+      "id": "so.op.drain",
+      "type": "single",
+      "text": {
+        "en": "Do you still have a tube or drain in place?",
+        "hi": "क्या अभी भी कोई नली या ड्रेन लगी है?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        { "id": "yes", "icon": "tube", "text": { "en": "Yes", "hi": "हाँ" } },
+        { "id": "not_sure", "icon": "question", "text": { "en": "I am not sure", "hi": "पता नहीं" } }
+      ],
+      "next": { "default": "so.op.words" }
+    },
+    {
+      "id": "so.op.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "so.op.wound_infection",
+      "severity": "urgent",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "so.op.fever_temp", "op": "gte", "value": 38 },
+          { "node": "so.op.wound", "op": "in", "value": ["red", "discharge", "open"] }
+        ]
+      },
+      "label": {
+        "en": "Fever with a red or leaking wound",
+        "hi": "बुखार के साथ लाल या रिसता घाव"
+      },
+      "instruction": {
+        "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+      }
+    },
+    {
+      "id": "so.op.fever",
+      "severity": "semi",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "so.op.fever_temp", "op": "gte", "value": 38 },
+          { "node": "so.op.wound", "op": "eq", "value": "clean" }
+        ]
+      },
+      "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+      "instruction": {
+        "en": "Please tell the staff at the desk that you have a fever today.",
+        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+      }
+    }
+  ]
+}

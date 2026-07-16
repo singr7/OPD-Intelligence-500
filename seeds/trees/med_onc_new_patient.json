@@ -1,0 +1,285 @@
+{
+  "key": "med_onc_new_patient",
+  "version": 1,
+  "department": "MEDONC",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Medical Oncology — new patient",
+    "hi": "मेडिकल ऑन्कोलॉजी — नया मरीज़"
+  },
+  "root": "mo.new.diagnosis",
+  "nodes": [
+    {
+      "id": "mo.new.diagnosis",
+      "type": "single",
+      "text": {
+        "en": "Has a doctor already told you what the illness is?",
+        "hi": "क्या किसी डॉक्टर ने बताया है कि बीमारी क्या है?"
+      },
+      "options": [
+        {
+          "id": "confirmed",
+          "icon": "report",
+          "text": { "en": "Yes, it is confirmed", "hi": "हाँ, पक्का बताया है" }
+        },
+        {
+          "id": "suspected",
+          "icon": "question",
+          "text": { "en": "They suspect something", "hi": "शक बताया है" }
+        },
+        {
+          "id": "not_sure",
+          "icon": "unknown",
+          "text": { "en": "I am not sure", "hi": "मुझे ठीक से पता नहीं" }
+        }
+      ],
+      "next": { "default": "mo.new.reports" },
+      "adaptive_hints": "If not_sure, do not push — the doctor will establish this. Move on."
+    },
+    {
+      "id": "mo.new.reports",
+      "type": "single",
+      "text": {
+        "en": "Have you brought your reports or files today?",
+        "hi": "क्या आज आप अपनी रिपोर्ट या फाइल लाए हैं?"
+      },
+      "options": [
+        { "id": "yes", "icon": "folder", "text": { "en": "Yes", "hi": "हाँ" } },
+        { "id": "some", "icon": "paper", "text": { "en": "Some of them", "hi": "कुछ ही" } },
+        { "id": "no", "icon": "empty", "text": { "en": "No", "hi": "नहीं" } }
+      ],
+      "next": { "default": "mo.new.problems" }
+    },
+    {
+      "id": "mo.new.problems",
+      "type": "multi",
+      "text": {
+        "en": "What is troubling you most right now? Choose all that apply.",
+        "hi": "अभी आपको सबसे ज़्यादा क्या तकलीफ़ है? जो भी लागू हो चुनें।"
+      },
+      "options": [
+        { "id": "pain", "icon": "pain", "text": { "en": "Pain", "hi": "दर्द" } },
+        { "id": "lump", "icon": "lump", "text": { "en": "A lump or swelling", "hi": "गाँठ या सूजन" } },
+        { "id": "vomiting", "icon": "vomit", "text": { "en": "Vomiting", "hi": "उल्टी" } },
+        { "id": "fever", "icon": "thermometer", "text": { "en": "Fever", "hi": "बुखार" } },
+        { "id": "weakness", "icon": "tired", "text": { "en": "Weakness", "hi": "कमज़ोरी" } }
+      ],
+      "next": { "default": "mo.new.duration" }
+    },
+    {
+      "id": "mo.new.duration",
+      "type": "number",
+      "text": {
+        "en": "For how many days has this been going on?",
+        "hi": "यह तकलीफ़ कितने दिनों से है?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": { "default": "mo.new.weight_loss" },
+      "adaptive_hints": "Patients answer in months or years — convert to days before saving."
+    },
+    {
+      "id": "mo.new.weight_loss",
+      "type": "single",
+      "text": {
+        "en": "Have your clothes become loose, or has your weight dropped?",
+        "hi": "क्या आपके कपड़े ढीले हो गए हैं, या वज़न घटा है?"
+      },
+      "options": [
+        { "id": "a_lot", "icon": "scale-down", "text": { "en": "Yes, a lot", "hi": "हाँ, बहुत" } },
+        { "id": "a_little", "icon": "scale", "text": { "en": "A little", "hi": "थोड़ा" } },
+        { "id": "no", "icon": "scale-flat", "text": { "en": "No", "hi": "नहीं" } }
+      ],
+      "next": { "default": "mo.new.fever_temp" },
+      "adaptive_hints": "Asked by clothes fitting because most patients have not weighed themselves."
+    },
+    {
+      "id": "mo.new.fever_temp",
+      "type": "number",
+      "text": {
+        "en": "If you have measured your temperature, what was it? Say 0 if you have not.",
+        "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।"
+      },
+      "min": 0,
+      "max": 43,
+      "unit": "C",
+      "next": { "default": "mo.new.chest" },
+      "red_flag_if": { "node": "mo.new.fever_temp", "op": "gte", "value": 38 },
+      "red_flag": {
+        "id": "mo.new.fever",
+        "severity": "semi",
+        "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+        "instruction": {
+          "en": "Please tell the staff at the desk that you have a fever today.",
+          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+        }
+      },
+      "adaptive_hints": "0 means not measured, not 0°C. Do not read 0 back as a temperature."
+    },
+    {
+      "id": "mo.new.chest",
+      "type": "single",
+      "text": {
+        "en": "Do you have chest pain, or trouble breathing?",
+        "hi": "क्या आपको सीने में दर्द है, या साँस लेने में तकलीफ़?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "Neither", "hi": "दोनों नहीं" } },
+        {
+          "id": "chest_pain",
+          "icon": "heart",
+          "text": { "en": "Chest pain", "hi": "सीने में दर्द" },
+          "flag": true
+        },
+        {
+          "id": "breathless",
+          "icon": "lungs",
+          "text": { "en": "Trouble breathing", "hi": "साँस लेने में तकलीफ़" },
+          "flag": true
+        },
+        {
+          "id": "both",
+          "icon": "alert",
+          "text": { "en": "Both", "hi": "दोनों" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.new.bleeding" },
+      "red_flag": {
+        "id": "mo.new.cardioresp",
+        "severity": "urgent",
+        "label": {
+          "en": "Chest pain or breathlessness",
+          "hi": "सीने में दर्द या साँस फूलना"
+        },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "mo.new.bleeding",
+      "type": "single",
+      "text": {
+        "en": "Is there any bleeding right now — from anywhere?",
+        "hi": "क्या अभी कहीं से खून आ रहा है?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "yes",
+          "icon": "blood",
+          "text": { "en": "Yes", "hi": "हाँ" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.new.vomiting_24" },
+      "red_flag": {
+        "id": "mo.new.bleeding",
+        "severity": "urgent",
+        "label": { "en": "Active bleeding", "hi": "खून बह रहा है" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "mo.new.vomiting_24",
+      "type": "single",
+      "text": {
+        "en": "Have you been vomiting? For how long?",
+        "hi": "क्या आपको उल्टी हो रही है? कितने समय से?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No vomiting", "hi": "उल्टी नहीं" } },
+        {
+          "id": "under_24",
+          "icon": "clock",
+          "text": { "en": "Less than a day", "hi": "एक दिन से कम" }
+        },
+        {
+          "id": "over_24",
+          "icon": "alert",
+          "text": { "en": "More than a day", "hi": "एक दिन से ज़्यादा" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.new.confusion" },
+      "red_flag": {
+        "id": "mo.new.vomiting",
+        "severity": "urgent",
+        "label": { "en": "Vomiting over 24 hours", "hi": "24 घंटे से ज़्यादा उल्टी" },
+        "instruction": {
+          "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+        }
+      }
+    },
+    {
+      "id": "mo.new.confusion",
+      "type": "single",
+      "text": {
+        "en": "Has anyone at home noticed you being confused or very drowsy?",
+        "hi": "क्या घर में किसी ने देखा कि आप उलझन में हैं या बहुत सुस्त हैं?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "yes",
+          "icon": "alert",
+          "text": { "en": "Yes", "hi": "हाँ" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "mo.new.other_illness" },
+      "red_flag": {
+        "id": "mo.new.confusion",
+        "severity": "urgent",
+        "label": { "en": "New confusion or drowsiness", "hi": "नई उलझन या सुस्ती" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      },
+      "adaptive_hints": "Ask the caregiver if one is present — the patient may not notice this themselves."
+    },
+    {
+      "id": "mo.new.other_illness",
+      "type": "multi",
+      "text": {
+        "en": "Do you have any of these other illnesses?",
+        "hi": "क्या आपको इनमें से कोई और बीमारी है?"
+      },
+      "options": [
+        { "id": "none", "icon": "ok", "text": { "en": "None of these", "hi": "इनमें से कोई नहीं" } },
+        { "id": "diabetes", "icon": "sugar", "text": { "en": "Diabetes (sugar)", "hi": "मधुमेह (शुगर)" } },
+        { "id": "bp", "icon": "bp", "text": { "en": "High blood pressure", "hi": "उच्च रक्तचाप (बीपी)" } },
+        { "id": "heart", "icon": "heart", "text": { "en": "Heart problem", "hi": "दिल की बीमारी" } },
+        { "id": "tb_asthma", "icon": "lungs", "text": { "en": "TB or asthma", "hi": "टीबी या दमा" } }
+      ],
+      "next": { "default": "mo.new.meds" }
+    },
+    {
+      "id": "mo.new.meds",
+      "type": "free_voice",
+      "text": {
+        "en": "Which medicines are you taking now? Say their names, or read them from the strip.",
+        "hi": "आप अभी कौन सी दवाइयाँ ले रहे हैं? नाम बोलें, या पत्ते पर से पढ़कर बताएं।"
+      },
+      "next": { "default": "mo.new.words" },
+      "adaptive_hints": "Do not guess or correct a drug name. Record exactly what was said; mark unclear names as [unclear: ...] per doc 03 §4."
+    },
+    {
+      "id": "mo.new.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+      },
+      "adaptive_hints": "Last node. Let the patient finish without interrupting; this quote goes to the doctor verbatim."
+    }
+  ]
+}

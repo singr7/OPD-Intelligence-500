@@ -1,0 +1,124 @@
+{
+  "key": "dermatology_routing",
+  "version": 1,
+  "department": "DERM",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Dermatology — walk-in",
+    "hi": "त्वचा रोग — बिना अपॉइंटमेंट"
+  },
+  "root": "de.problem",
+  "nodes": [
+    {
+      "id": "de.problem",
+      "type": "single",
+      "text": {
+        "en": "What is troubling you most today?",
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+      },
+      "options": [
+        { "id": "rash", "icon": "skin", "text": { "en": "A rash", "hi": "चकत्ते" } },
+        { "id": "itching", "icon": "hand", "text": { "en": "Itching", "hi": "खुजली" } },
+        { "id": "lump", "icon": "lump", "text": { "en": "A lump or growth on the skin", "hi": "त्वचा पर गाँठ या उभार" } },
+        { "id": "ulcer", "icon": "alert", "text": { "en": "A sore that will not heal", "hi": "घाव जो ठीक नहीं हो रहा" } },
+        { "id": "mole", "icon": "dot", "text": { "en": "A mole that has changed", "hi": "तिल जो बदल गया है" } }
+      ],
+      "next": { "default": "de.duration" }
+    },
+    {
+      "id": "de.duration",
+      "type": "number",
+      "text": {
+        "en": "For how many days has it been there?",
+        "hi": "यह कितने दिनों से है?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": { "default": "de.changing" }
+    },
+    {
+      "id": "de.changing",
+      "type": "single",
+      "text": {
+        "en": "Has it been changing — growing, bleeding, or changing colour?",
+        "hi": "क्या इसमें बदलाव हो रहा है — बढ़ रहा है, खून आता है, या रंग बदल रहा है?"
+      },
+      "options": [
+        { "id": "no", "icon": "ok", "text": { "en": "No, it stays the same", "hi": "नहीं, वैसा ही रहता है" } },
+        { "id": "growing", "icon": "grow", "text": { "en": "It is growing", "hi": "बढ़ रहा है" } },
+        {
+          "id": "bleeding",
+          "icon": "blood",
+          "text": { "en": "It bleeds", "hi": "उससे खून आता है" }
+        },
+        { "id": "colour", "icon": "palette", "text": { "en": "The colour has changed", "hi": "रंग बदल गया है" } }
+      ],
+      "next": { "default": "de.spread" },
+      "adaptive_hints": "Growth, bleeding and colour change are why a skin lesion reaches a cancer centre. Record which one — do not summarise them as 'changing'."
+    },
+    {
+      "id": "de.spread",
+      "type": "single",
+      "text": {
+        "en": "Is it in one place, or spreading over your body?",
+        "hi": "क्या यह एक ही जगह है, या शरीर पर फैल रहा है?"
+      },
+      "options": [
+        { "id": "one_place", "icon": "dot", "text": { "en": "One place", "hi": "एक ही जगह" } },
+        { "id": "few_places", "icon": "dots", "text": { "en": "A few places", "hi": "कुछ जगहों पर" } },
+        { "id": "all_over", "icon": "body", "text": { "en": "All over", "hi": "पूरे शरीर पर" } }
+      ],
+      "next": { "default": "de.words" }
+    },
+    {
+      "id": "de.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Tell me in your own words what is happening.",
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+      },
+      "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "de.suspicious_lesion",
+      "severity": "semi",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "de.problem", "op": "in", "value": ["lump", "ulcer", "mole"] },
+          { "node": "de.changing", "op": "in", "value": ["growing", "bleeding", "colour"] }
+        ]
+      },
+      "label": {
+        "en": "Skin lesion that is growing, bleeding or changing colour",
+        "hi": "त्वचा का घाव जो बढ़ रहा है, खून आ रहा है या रंग बदल रहा है"
+      },
+      "instruction": {
+        "en": "Please mention this to the staff at the desk when you check in.",
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+      }
+    },
+    {
+      "id": "de.non_healing_ulcer",
+      "severity": "semi",
+      "when": {
+        "op": "and",
+        "rules": [
+          { "node": "de.problem", "op": "eq", "value": "ulcer" },
+          { "node": "de.duration", "op": "gte", "value": 42 }
+        ]
+      },
+      "label": {
+        "en": "Sore not healing for 6+ weeks",
+        "hi": "घाव 6+ हफ़्तों से ठीक नहीं हो रहा"
+      },
+      "instruction": {
+        "en": "Please mention this to the staff at the desk when you check in.",
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+      }
+    }
+  ]
+}

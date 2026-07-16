@@ -11,6 +11,7 @@ attributed to seeding rather than to a person.
     python -m app.seed                 # 50 patients (default)
     python -m app.seed --patients 200  # load-test sized
     python -m app.seed --dry-run       # report what would change
+    python -m app.seed --publish-trees # publish the trees too (they seed as draft)
 """
 
 from __future__ import annotations
@@ -32,10 +33,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import Actor, acting_as
 from app.db import build_engine, build_sessionmaker
-from app.models.enums import Lang, PriceUnit, Role, Sex
+from app.models.content import QuestionTree
+from app.models.enums import Lang, PriceUnit, Role, Sex, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
+from app.trees.bank import TREES_DIR, load_bank
 
 logger = logging.getLogger("seed")
 
@@ -305,7 +308,69 @@ async def _upsert_price_book(
     await session.flush()
 
 
-async def seed(session: AsyncSession, *, patients: int = 50) -> SeedReport:
+async def _upsert_trees(
+    session: AsyncSession,
+    departments: dict[str, Department],
+    report: SeedReport,
+    *,
+    publish: bool = False,
+) -> None:
+    """Seed `question_trees` from the authored bank in `seeds/trees/` (doc 03 §3).
+
+    Natural key is (key, version) — the table's uniqueness since S4 dropped `lang`
+    (every language lives inside the JSONB; see `app.models.content.QuestionTree`).
+    Editing a tree's content and re-seeding therefore *replaces* that version in
+    place, which is right while the bank is a file in a pull request and wrong the
+    moment S18 lets someone edit a published tree in the console. Bump `version` in
+    the file to keep the old one.
+
+    **Seeded as draft.** Doc 03 §3: the bank is "clinically reviewed before
+    go-live", and publishing is a clinical act — an oncologist's, in S21. A seed
+    script asserting review happened would make `status` mean nothing. Pass
+    `--publish-trees` for a dev box that wants live content; nothing in the engine
+    reads `status`, because `app.trees.bank` loads the files directly.
+
+    Not `Clinical` — authored content affects no patient by existing. S18's editor
+    gets its own trail.
+    """
+    bank = load_bank()
+    result = await session.execute(select(QuestionTree))
+    existing = {(row.key, row.version): row for row in result.scalars()}
+
+    for tree in sorted(bank.values(), key=lambda item: item.key):
+        department = departments.get(tree.department) if tree.department else None
+        if tree.department and department is None:
+            # A tree pointing at a department that does not exist would route
+            # patients to a desk with nobody at it.
+            raise ValueError(
+                f"tree {tree.ref} names department {tree.department!r}, "
+                f"which is not in hospital.json ({sorted(departments)})"
+            )
+
+        raw = json.loads((TREES_DIR / f"{tree.key}.json").read_text())
+        values: dict[str, Any] = {
+            "department_id": department.id if department else None,
+            "tree": raw,
+        }
+        if publish:
+            values["status"] = TreeStatus.PUBLISHED
+            values["published_at"] = datetime.now(UTC)
+
+        row = existing.get((tree.key, tree.version))
+        if row is None:
+            session.add(QuestionTree(key=tree.key, version=tree.version, **values))
+            report.record(report.created, "question_trees")
+        elif _apply(row, values):
+            report.record(report.updated, "question_trees")
+        else:
+            report.record(report.unchanged, "question_trees")
+
+    await session.flush()
+
+
+async def seed(
+    session: AsyncSession, *, patients: int = 50, publish_trees: bool = False
+) -> SeedReport:
     """Load the pilot dataset into `session`. Caller owns the commit."""
     report = SeedReport.empty()
 
@@ -323,11 +388,12 @@ async def seed(session: AsyncSession, *, patients: int = 50) -> SeedReport:
         await _upsert_doctors(session, hospital, departments, staff_data["doctors"], report)
         await _upsert_patients(session, hospital, patients, report)
         await _upsert_price_book(session, price_data["entries"], report)
+        await _upsert_trees(session, departments, report, publish=publish_trees)
 
     return report
 
 
-async def _main(patients: int, dry_run: bool) -> None:
+async def _main(patients: int, dry_run: bool, publish_trees: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     engine = build_engine()
@@ -335,7 +401,7 @@ async def _main(patients: int, dry_run: bool) -> None:
 
     try:
         async with factory() as session:
-            report = await seed(session, patients=patients)
+            report = await seed(session, patients=patients, publish_trees=publish_trees)
             if dry_run:
                 await session.rollback()
                 logger.info("dry run — rolled back\n%s", report.summary())
@@ -352,8 +418,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Load the pilot seed dataset (idempotent).")
     parser.add_argument("--patients", type=int, default=50, help="fake patients to generate")
     parser.add_argument("--dry-run", action="store_true", help="report changes without committing")
+    parser.add_argument(
+        "--publish-trees",
+        action="store_true",
+        help="publish the seeded question trees (default: draft — publishing is a "
+        "clinical decision, see doc 03 §3)",
+    )
     args = parser.parse_args()
-    asyncio.run(_main(args.patients, args.dry_run))
+    asyncio.run(_main(args.patients, args.dry_run, args.publish_trees))
 
 
 if __name__ == "__main__":

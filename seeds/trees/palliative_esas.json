@@ -1,0 +1,195 @@
+{
+  "key": "palliative_esas",
+  "version": 1,
+  "department": "PALL",
+  "languages": ["en", "hi"],
+  "title": {
+    "en": "Palliative care — symptom burden (ESAS-lite)",
+    "hi": "उपशामक देखभाल — लक्षणों का बोझ (ESAS-lite)"
+  },
+  "root": "pall.pain",
+  "nodes": [
+    {
+      "id": "pall.pain",
+      "type": "scale",
+      "text": {
+        "en": "Right now, how bad is your pain? Zero is none, ten is the worst possible.",
+        "hi": "अभी आपका दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे भयानक।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.tired" },
+      "red_flag_if": { "node": "pall.pain", "op": "gte", "value": 8 },
+      "red_flag": {
+        "id": "pall.severe_pain",
+        "severity": "urgent",
+        "label": { "en": "Severe pain (8+/10)", "hi": "तेज़ दर्द (8+/10)" },
+        "instruction": {
+          "en": "Please tell a nurse now — you should not have to wait in this much pain.",
+          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।"
+        }
+      },
+      "adaptive_hints": "Every ESAS question is 'right now', not 'usually'. Keep that framing in every language."
+    },
+    {
+      "id": "pall.tired",
+      "type": "scale",
+      "text": {
+        "en": "How tired do you feel right now? Zero is not tired, ten is the most tired possible.",
+        "hi": "अभी आप कितना थका महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.nausea" }
+    },
+    {
+      "id": "pall.nausea",
+      "type": "scale",
+      "text": {
+        "en": "How much nausea do you feel right now? Zero is none, ten is the worst possible.",
+        "hi": "अभी आपको कितना जी मिचला रहा है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.appetite" }
+    },
+    {
+      "id": "pall.appetite",
+      "type": "scale",
+      "text": {
+        "en": "How is your appetite right now? Zero is normal appetite, ten is no appetite at all.",
+        "hi": "अभी आपकी भूख कैसी है? शून्य मतलब सामान्य भूख, दस मतलब बिल्कुल भूख नहीं।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.breath" },
+      "adaptive_hints": "The scale runs the opposite way to how people talk about appetite — ten is the bad end. Read the anchors out every time."
+    },
+    {
+      "id": "pall.breath",
+      "type": "scale",
+      "text": {
+        "en": "How short of breath do you feel right now? Zero is not at all, ten is the worst possible.",
+        "hi": "अभी आपको साँस की कितनी तकलीफ़ है? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.drowsy" },
+      "red_flag_if": { "node": "pall.breath", "op": "gte", "value": 8 },
+      "red_flag": {
+        "id": "pall.severe_breathless",
+        "severity": "urgent",
+        "label": { "en": "Severe breathlessness (8+/10)", "hi": "साँस की तेज़ तकलीफ़ (8+/10)" },
+        "instruction": {
+          "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        }
+      }
+    },
+    {
+      "id": "pall.drowsy",
+      "type": "scale",
+      "text": {
+        "en": "How drowsy do you feel right now? Zero is wide awake, ten is unable to stay awake.",
+        "hi": "अभी आपको कितनी सुस्ती लग रही है? शून्य मतलब पूरी तरह जागे हुए, दस मतलब जाग ही नहीं पाते।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.low" }
+    },
+    {
+      "id": "pall.low",
+      "type": "scale",
+      "text": {
+        "en": "How low or sad do you feel right now? Zero is not at all, ten is the worst possible.",
+        "hi": "अभी आप कितना उदास महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.anxious" },
+      "adaptive_hints": "Ask it as plainly as the pain question. Do not soften it, do not skip it, and do not offer reassurance — just record the number and their words."
+    },
+    {
+      "id": "pall.anxious",
+      "type": "scale",
+      "text": {
+        "en": "How anxious or worried do you feel right now? Zero is not at all, ten is the worst possible.",
+        "hi": "अभी आप कितना घबराहट या चिंता महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.wellbeing" }
+    },
+    {
+      "id": "pall.wellbeing",
+      "type": "scale",
+      "text": {
+        "en": "Overall, how is your wellbeing right now? Zero is best, ten is worst.",
+        "hi": "कुल मिलाकर, अभी आपकी तबीयत कैसी है? शून्य मतलब सबसे अच्छी, दस मतलब सबसे खराब।"
+      },
+      "min": 0,
+      "max": 10,
+      "next": { "default": "pall.bowels" }
+    },
+    {
+      "id": "pall.bowels",
+      "type": "single",
+      "text": {
+        "en": "When did your bowels last move?",
+        "hi": "पिछली बार शौच कब हुआ था?"
+      },
+      "options": [
+        { "id": "today", "icon": "ok", "text": { "en": "Today", "hi": "आज" } },
+        { "id": "yesterday", "icon": "ok", "text": { "en": "Yesterday", "hi": "कल" } },
+        { "id": "two_three", "icon": "block", "text": { "en": "Two or three days ago", "hi": "दो-तीन दिन पहले" } },
+        {
+          "id": "over_three",
+          "icon": "alert",
+          "text": { "en": "More than three days ago", "hi": "तीन दिन से ज़्यादा हो गए" },
+          "flag": true
+        }
+      ],
+      "next": { "default": "pall.words" },
+      "red_flag": {
+        "id": "pall.constipation",
+        "severity": "semi",
+        "label": { "en": "No bowel movement for over 3 days", "hi": "3 दिन से ज़्यादा शौच नहीं" },
+        "instruction": {
+          "en": "Please mention this to the staff at the desk when you check in.",
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        }
+      },
+      "adaptive_hints": "Constipation on opioids is common, preventable and miserable — which is why it is asked here and not left to the doctor to remember."
+    },
+    {
+      "id": "pall.words",
+      "type": "free_voice",
+      "text": {
+        "en": "What is troubling you most today? Say it in your own words.",
+        "hi": "आज आपको सबसे ज़्यादा क्या परेशान कर रहा है? अपने शब्दों में बताएं।"
+      },
+      "adaptive_hints": "Last node, and the most important one on this tree. Let them finish. This quote goes to the doctor verbatim."
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "pall.distress",
+      "severity": "semi",
+      "when": {
+        "op": "or",
+        "rules": [
+          { "node": "pall.low", "op": "gte", "value": 7 },
+          { "node": "pall.anxious", "op": "gte", "value": 7 }
+        ]
+      },
+      "label": {
+        "en": "High distress score (sadness or anxiety 7+/10)",
+        "hi": "मानसिक परेशानी का ऊँचा स्कोर (उदासी या चिंता 7+/10)"
+      },
+      "instruction": {
+        "en": "Thank you for telling me. Please mention this to the staff at the desk when you check in.",
+        "hi": "बताने के लिए धन्यवाद। कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+      }
+    }
+  ]
+}
