@@ -22,21 +22,37 @@ from app.models.base import (
     UUIDPrimaryKey,
     enum_type,
 )
-from app.models.enums import Channel, CheckinGrade, CheckinPlanStatus, Lang, TreeStatus
+from app.models.enums import Channel, CheckinGrade, CheckinPlanStatus, TreeStatus
 
 
 class QuestionTree(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
+    """One version of one authored tree. **Every language lives in the JSONB.**
+
+    Doc 02 §4 sketched this table with a `lang` column and a (key, lang, version)
+    key — one row per language. S4 dropped it, because doc 03 §3's node schema
+    carries `text:{en,hi,mr,te}` inside the node and that is the shape that works:
+
+    - Doc 03 §1 makes the patient's language **switchable at any time**, and
+      `Intake.lang` is per-intake. With text in the node that is a re-render of
+      the same node id; with per-language rows it is a mid-session swap onto a
+      different tree row that has to happen to share node ids and branching.
+    - Branching and red flags stay single-sourced. Four rows per tree means four
+      copies of `red_flag_if` free to drift, under one clinical sign-off (S21)
+      that only ever covered the copy the reviewer opened.
+    - S13 (mr/te) becomes additive — fill in text keys, touch no structure.
+
+    The `tree` JSONB schema and its validator are `app.trees.schema`; nothing here
+    knows the shape beyond "it is an object".
+    """
+
     __tablename__ = "question_trees"
-    __table_args__ = (
-        UniqueConstraint("key", "lang", "version", name="uq_question_trees_key_lang_version"),
-    )
+    __table_args__ = (UniqueConstraint("key", "version", name="uq_question_trees_key_version"),)
 
     department_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("departments.id"), index=True
     )
     key: Mapped[str] = mapped_column(String(64), index=True)  # e.g. "med_onc_new_patient"
     version: Mapped[int] = mapped_column(Integer, default=1)
-    lang: Mapped[Lang] = mapped_column(enum_type(Lang, "lang"))
     tree: Mapped[dict[str, Any]] = mapped_column(default=dict)
     status: Mapped[TreeStatus] = mapped_column(
         enum_type(TreeStatus, "tree_status"), default=TreeStatus.DRAFT, index=True
