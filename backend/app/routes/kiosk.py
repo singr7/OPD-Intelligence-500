@@ -22,11 +22,13 @@ that boring — no patient lookup, no PII in a path.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +38,7 @@ from app.db import get_session
 from app.intake import IntakeEngine, SessionState, ToolError
 from app.models.enums import Channel, Lang
 from app.providers.metering import get_meter
+from app.trees import bank
 
 logger = logging.getLogger(__name__)
 
@@ -322,6 +325,65 @@ async def confirm(
 
 
 # -- offline (S7, doc 01 §5) --------------------------------------------------
+
+
+class BundleTreeOut(BaseModel):
+    department_key: str | None
+    #: The canonical tree (`Tree.to_json`) — already validated and desugared, so
+    #: the offline walker is a walker only. See app/trees/schema.py.
+    tree: dict[str, Any]
+
+
+class BundleOut(BaseModel):
+    #: Changes whenever the content does; the kiosk re-downloads only on a change.
+    etag: str
+    generated_at: datetime
+    departments: list[DeptOut]
+    trees: list[BundleTreeOut]
+
+
+@router.get("/bundle", response_model=BundleOut)
+async def bundle(
+    session: AsyncSession = Depends(get_session),
+    response: Response = None,  # type: ignore[assignment]
+) -> BundleOut:
+    """Everything the kiosk needs to run with no server (doc 01 §5).
+
+    Fetched while the network is up and kept in IndexedDB. It is the trees plus
+    the department chooser, because those are the two things an offline intake
+    cannot do without: the walk is deterministic given a tree, and offline there
+    is no classifier, so the patient picks the department by hand.
+
+    The trees are the **canonical** form, not the authored one — already parsed,
+    validated and desugared by `parse()`. That is what keeps the offline TS
+    walker from having to re-implement the validator, which is the whole reason
+    it can be trusted (see app/tree_fixtures.py).
+    """
+    departments = await kiosk_svc._departments(session)
+    trees = [tree.to_json() for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)]
+
+    # Content-addressed: the kiosk sends If-None-Match and skips the download
+    # when nothing changed. A tree edit (S18) or a department rename changes it.
+    payload = json.dumps(
+        {"departments": [(d.code, d.name) for d in departments], "trees": trees},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    etag = hashlib.sha256(payload.encode()).hexdigest()[:32]
+    if response is not None:
+        response.headers["ETag"] = f'"{etag}"'
+        # The kiosk must not serve a tree from the HTTP cache without asking —
+        # a stale tree is a stale clinical question. Revalidate every time; the
+        # ETag makes that nearly free, and the service worker holds the real
+        # offline copy.
+        response.headers["Cache-Control"] = "no-cache"
+
+    return BundleOut(
+        etag=etag,
+        generated_at=datetime.now(UTC),
+        departments=[DeptOut(key=d.code, name=d.name) for d in departments],
+        trees=[BundleTreeOut(department_key=tree.get("department"), tree=tree) for tree in trees],
+    )
 
 
 class BlockOut(BaseModel):

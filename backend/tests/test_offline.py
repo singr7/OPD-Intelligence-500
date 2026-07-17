@@ -587,3 +587,56 @@ async def test_a_used_up_to_watermark_only_moves_forward(session: AsyncSession) 
         )
     )
     assert row.used_up_to == block.start_no + 5
+
+
+# -- the bundle ----------------------------------------------------------------
+
+
+async def test_the_bundle_carries_canonical_trees_the_kiosk_can_walk(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """What the kiosk caches before the outage: every tree, already validated and
+    desugared, plus the chooser it needs when there is no classifier."""
+    await _seed_departments(session)
+
+    resp = await client.get("/kiosk/bundle")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert {d["key"] for d in body["departments"]} == {"MEDONC", "DERM"}
+    assert len(body["trees"]) == 11
+
+    tree = next(t["tree"] for t in body["trees"] if t["tree"]["key"] == _tree_key())
+    # The canonical shape the TS walker expects: nodes as a list, flags desugared
+    # out of the options, every rule already type-checked by parse().
+    assert isinstance(tree["nodes"], list)
+    assert tree["root"]
+    assert all("flag" not in option for node in tree["nodes"] for option in node["options"])
+
+
+async def test_the_bundle_etag_lets_a_kiosk_skip_an_unchanged_download(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    await _seed_departments(session)
+
+    first = await client.get("/kiosk/bundle")
+    again = await client.get("/kiosk/bundle")
+
+    assert first.headers["etag"] == again.headers["etag"]
+    assert first.json()["etag"] == again.json()["etag"]
+    # A stale tree is a stale clinical question: never served from cache without
+    # asking.
+    assert first.headers["cache-control"] == "no-cache"
+
+
+async def test_the_bundle_etag_changes_when_the_content_does(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    hospital = await _seed_departments(session)
+    before = (await client.get("/kiosk/bundle")).json()["etag"]
+
+    session.add(f.make_department(hospital, code="CARDIO", name="Cardiology"))
+    await session.flush()
+
+    after = (await client.get("/kiosk/bundle")).json()["etag"]
+    assert before != after
