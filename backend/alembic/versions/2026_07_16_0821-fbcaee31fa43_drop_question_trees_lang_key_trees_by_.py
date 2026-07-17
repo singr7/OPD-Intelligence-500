@@ -52,9 +52,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.drop_constraint(
-        op.f("uq_question_trees_key_lang_version"), "question_trees", type_="unique"
-    )
+    op.drop_constraint(op.f("uq_question_trees_key_lang_version"), "question_trees", type_="unique")
     op.create_unique_constraint(
         "uq_question_trees_key_version", "question_trees", ["key", "version"]
     )

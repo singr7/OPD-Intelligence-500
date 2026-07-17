@@ -23,6 +23,12 @@ from fastapi import Depends
 from app.config import Settings, get_settings
 from app.providers.base import Provider
 from app.providers.llm import FakeLLMProvider, GeminiFlashProvider, LLMProvider, OpenAIProvider
+from app.providers.local_oss import (
+    LocalLLMProvider,
+    LocalSTTProvider,
+    LocalTTSProvider,
+    VoiceboxTTSProvider,
+)
 from app.providers.messaging import (
     FakeMessagingProvider,
     MessagingProvider,
@@ -84,7 +90,13 @@ def _build_llm(name: str, settings: Settings) -> LLMProvider:
             return GeminiFlashProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
         case "openai":
             return OpenAIProvider(api_key=settings.openai_api_key, model=settings.openai_model)
-    raise UnknownProvider(f"LLM_PROVIDER={name!r}; expected fake|gemini|openai")
+        case "local_vllm":
+            return LocalLLMProvider(
+                base_url=settings.local_vllm_base_url,
+                model=settings.local_vllm_model,
+                api_key=settings.local_vllm_api_key,
+            )
+    raise UnknownProvider(f"LLM_PROVIDER={name!r}; expected fake|gemini|openai|local_vllm")
 
 
 def _build_stt(name: str, settings: Settings) -> STTProvider:
@@ -97,7 +109,9 @@ def _build_stt(name: str, settings: Settings) -> STTProvider:
             )
         case "google":
             return GoogleSTTProvider(api_key=settings.google_api_key)
-    raise UnknownProvider(f"STT_PROVIDER={name!r}; expected fake|sarvam|google")
+        case "local_whisper":
+            return LocalSTTProvider(base_url=settings.local_stt_url, model=settings.local_stt_model)
+    raise UnknownProvider(f"STT_PROVIDER={name!r}; expected fake|sarvam|google|local_whisper")
 
 
 def _build_tts(name: str, settings: Settings) -> TTSProvider:
@@ -114,7 +128,17 @@ def _build_tts(name: str, settings: Settings) -> TTSProvider:
             return GoogleTTSProvider(
                 api_key=settings.google_api_key, voice=settings.google_tts_voice or None
             )
-    raise UnknownProvider(f"TTS_PROVIDER={name!r}; expected fake|sarvam|google")
+        case "local_tts":
+            return LocalTTSProvider(
+                base_url=settings.local_tts_url,
+                model=settings.local_tts_model or None,
+                voice=settings.local_tts_voice or None,
+            )
+        case "voicebox":
+            return VoiceboxTTSProvider(
+                base_url=settings.voicebox_url, voice=settings.voicebox_voice or None
+            )
+    raise UnknownProvider(f"TTS_PROVIDER={name!r}; expected fake|sarvam|google|local_tts|voicebox")
 
 
 def _build_realtime(name: str, settings: Settings) -> RealtimeVoiceProvider:
@@ -128,7 +152,17 @@ def _build_realtime(name: str, settings: Settings) -> RealtimeVoiceProvider:
             raise UnknownProvider(
                 "REALTIME_PROVIDER=gemini-live is not implemented yet (S5/S14); use 'fake'"
             )
-    raise UnknownProvider(f"REALTIME_PROVIDER={name!r}; expected fake|gemini-live")
+        case "local-pipecat":
+            # LocalPipelineVoiceProvider — the Pipecat per-session pipeline with
+            # Silero VAD + smart-turn endpointing (doc 08 §2) — needs the GPU box
+            # and Pipecat serving. That is the S-OSS.2 GPU half; naming it here
+            # today would promise a tier that cannot run, so refuse, exactly like
+            # gemini-live. V-OSS voice runs as V2-with-local-providers until then.
+            raise UnknownProvider(
+                "REALTIME_PROVIDER=local-pipecat needs the GPU box + Pipecat (S-OSS.2, doc 08 §6); "
+                "use local_vllm/local_whisper/local_tts for the V-OSS pipeline, or 'fake'"
+            )
+    raise UnknownProvider(f"REALTIME_PROVIDER={name!r}; expected fake|gemini-live|local-pipecat")
 
 
 def _build_messaging(name: str, settings: Settings) -> MessagingProvider:

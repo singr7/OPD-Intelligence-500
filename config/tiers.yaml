@@ -1,0 +1,30 @@
+# Per-channel tier ladder + V-OSS admission cap (doc 08 §3/§5).
+#
+# The "ladder" is the ordered list of tiers a channel prefers, best first. It is
+# expressed in labels, not the IntakeTier enum, because V-OSS is not a new enum
+# value — it is the V2 pipeline (or V1 realtime) backed by local providers. How
+# each label resolves to concrete providers is the registry's job (LLM/STT/TTS
+# selectors + fallback chains); this file only says *which order per channel* and
+# *how many local sessions the GPU may hold at once*.
+#
+# Labels:
+#   v1     Gemini Live (premium cloud speech-to-speech)
+#   v_oss  Local pipeline on the GPU box (Whisper -> local LLM -> local TTS)
+#   v2     Cloud pipeline (Sarvam/Google STT -> Gemini/OpenAI -> Sarvam TTS)
+#   v3     Zero-AI (deterministic walker + pre-recorded packs; the offline floor)
+#
+# A hospital can run entirely on [v_oss, v3] with no per-call AI cost. When the
+# GPU box or its WireGuard tunnel is unhealthy, or admission is full, a channel
+# falls to the next label in its ladder automatically.
+
+channels:
+  phone: {ladder: [v_oss, v2, v3]}
+  kiosk: {ladder: [v_oss, v3]}
+  whatsapp: {ladder: [v2, v_oss, v3]}
+  app: {ladder: [v_oss, v2, v3]}
+
+admission:
+  # Hard cap on concurrent local voice sessions (doc 08 §3: engineered for 12,
+  # tested to 16). Session #(cap+1) is routed to the next ladder tier, never
+  # queued on the GPU. 0 means uncapped.
+  max_oss_sessions: 12

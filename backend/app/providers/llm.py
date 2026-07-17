@@ -335,6 +335,12 @@ class OpenAIProvider(LLMProvider):
             base_url=self.BASE_URL, timeout=self.timeout_seconds
         )
 
+    def _auth_headers(self) -> dict[str, str]:
+        """Auth for the completions call. A hook so an OpenAI-compatible local
+        server (vLLM, `app.providers.local_oss.llm`) can reuse this whole wire
+        path and just drop the header when it runs without a key."""
+        return {"Authorization": f"Bearer {self._api_key}"}
+
     def _payload(self, request: LLMRequest) -> dict[str, Any]:
         messages: list[dict[str, Any]] = []
         if request.system:
@@ -362,15 +368,17 @@ class OpenAIProvider(LLMProvider):
             response = await self._client.post(
                 "/chat/completions",
                 json=self._payload(request),
-                headers={"Authorization": f"Bearer {self._api_key}"},
+                headers=self._auth_headers(),
             )
         except httpx.HTTPError as exc:
-            raise ProviderUnavailable(f"openai transport error: {exc}") from exc
+            raise ProviderUnavailable(f"{self.name} transport error: {exc}") from exc
 
         if response.status_code == 400:
-            raise ProviderBadRequest(f"openai rejected the request: {response.text[:200]}")
+            raise ProviderBadRequest(f"{self.name} rejected the request: {response.text[:200]}")
         if response.status_code >= 300:
-            raise ProviderUnavailable(f"openai http {response.status_code}: {response.text[:200]}")
+            raise ProviderUnavailable(
+                f"{self.name} http {response.status_code}: {response.text[:200]}"
+            )
 
         body = response.json()
         usage = body.get("usage") or {}

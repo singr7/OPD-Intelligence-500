@@ -48,10 +48,10 @@ class Settings(BaseSettings):
     # Every one of these is a config-only swap (doc 02 §9). `fake` is the
     # deterministic in-process impl; anything else names a vendor.
     sms_provider: str = "fake"  # fake | msg91 | exotel
-    llm_provider: str = "fake"  # fake | gemini | openai
-    stt_provider: str = "fake"  # fake | sarvam | google
-    tts_provider: str = "fake"  # fake | sarvam | google
-    realtime_provider: str = "fake"  # fake | gemini-live (S5/S14)
+    llm_provider: str = "fake"  # fake | gemini | openai | local_vllm (V-OSS, doc 08)
+    stt_provider: str = "fake"  # fake | sarvam | google | local_whisper (V-OSS)
+    tts_provider: str = "fake"  # fake | sarvam | google | local_tts | voicebox (V-OSS)
+    realtime_provider: str = "fake"  # fake | gemini-live (S5/S14) | local-pipecat (S-OSS.2)
     messaging_provider: str = "fake"  # fake | meta
     telephony_provider: str = "fake"  # fake | exotel
 
@@ -94,6 +94,22 @@ class Settings(BaseSettings):
     # Meta WhatsApp Cloud API.
     meta_whatsapp_token: str = ""
     meta_phone_number_id: str = ""
+
+    # --- V-OSS: local open-source voice tier (doc 08) ------------------------
+    # The GPU box, reached over the WireGuard tunnel (doc 08 §4). A base URL is
+    # all a local provider needs to count as "configured" — no key, unlike a
+    # cloud vendor. Empty base_url = not deployed; selecting the provider without
+    # one is a boot-time error, same as a cloud vendor missing its key.
+    local_vllm_base_url: str = ""  # e.g. http://10.8.0.2:8000/v1
+    local_vllm_model: str = "qwen3-8b-awq"
+    local_vllm_api_key: str = ""  # only if a gateway fronts vLLM; usually blank
+    local_stt_url: str = ""  # e.g. http://10.8.0.2:8010
+    local_stt_model: str = "whisper-large-v3-turbo"
+    local_tts_url: str = ""  # e.g. http://10.8.0.2:8020
+    local_tts_model: str = ""  # bake-off winner (S-OSS.1); blank uses adapter default
+    local_tts_voice: str = "dhara_hi_v1"  # the cloned Dhara identity (doc 08 §1)
+    voicebox_url: str = ""  # Voicebox REST host for batch V3-pack generation
+    voicebox_voice: str = "dhara_hi_v1"
 
     # --- Cost guard (S3, doc 02 §8) ------------------------------------------
     cost_guard_enabled: bool = True

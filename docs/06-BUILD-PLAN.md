@@ -50,6 +50,20 @@ Each session = one focused Claude Opus working session (~2–4h human time), siz
 - Build: queue APIs, token issuance, priority/urgent insertion, wait-time estimator; WebSocket fan-out; TV board (train-board aesthetic, audio announcements 2 langs); coordinator console (drag reorder, downtime enter/exit, reconciliation screen, downtime paper-entry form); printable daily paper-token-block + paper intake sheets (PDF generated from trees).
 - AC: 3 browsers (kiosk/board/coordinator) live-sync; urgent red-flag intake jumps queue with reason chip; downtime drill passes end-to-end.
 
+### Parallel track — V-OSS: fully open-source local voice tier (doc 08)
+
+A **peer of V2** that runs the whole voice pipeline (STT→LLM→TTS) on the hospital's own 24 GB GPU box with **zero paid APIs**, exposed as ordinary provider adapters and selected per channel by config. Full spec in **doc 08**; starts after S5 (needs the provider layer, tool contract, metering, price-book — all S3/S5) and runs alongside the main line. **Split by hardware dependency** (this dev machine has no GPU):
+
+**S-OSS.0 — Adapter & tier-ladder software layer (no GPU; BUILT).**
+- Build: `backend/app/providers/local_oss/` — `LocalLLMProvider` (vLLM, OpenAI-compatible), `LocalSTTProvider` (Whisper), `LocalTTSProvider` + `VoiceboxTTSProvider`, all config-only-selectable and metering `provider=local-*`; `config/tiers.yaml` + `app/tiers.py` (per-channel ladder loader); `AdmissionController` (`MAX_OSS_SESSIONS` cap → route to next tier); `price_book` `local-*` rows (amortized).
+- AC (met): swapping to local providers is config-only; every local adapter emits a **priced** usage_event; `local-pipecat` realtime honestly refuses until S-OSS.2; admission cap admits N then routes overflow to fallback and releases seats on crash; tiers.yaml validates and rejects malformed ladders. (515 backend tests green.)
+
+**S-OSS.1 — GPU stack bring-up + open-model bake-off (needs the GPU box).** doc 08 §6: `docker-compose.gpu.yml`, Voicebox install, TTS bake-off (RTF/MOS per language), Whisper-vs-IndicConformer WER bench, Qwen3-8B tool-contract smoke. AC: bench report committed; chosen TTS RTF ≤0.35 for hi/mr/te.
+
+**S-OSS.2 — Pipecat pipeline, realtime adapter, concurrency & turn-taking proof (needs the GPU box).** doc 08 §6: `LocalPipelineVoiceProvider` (Silero VAD + smart-turn + barge-in), wire `S-OSS.0`'s `AdmissionController` + `ladder_for()` into voice-gw, WireGuard failover. AC: 12 concurrent synthetic calls, p90 first-audio ≤3.0s, zero premature end-of-turn cuts, session #13 lands on fallback.
+
+**S-OSS.3 — Dhara voice cloning + V3 pack regeneration (folds into S21).** doc 08 §6: record human samples, clone in Voicebox, regenerate all V3 packs via `VoiceboxTTSProvider` batch mode. Replaces S21's "recording script sheets" plan.
+
 ### Phase C — Doctor loop (S9–S11)
 
 **S9 — Doctor console + summary view**

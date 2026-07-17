@@ -1,103 +1,65 @@
-# HANDOFF — after Session 6
+# HANDOFF — after Session S-OSS.0 (V-OSS software layer)
 
-**Repo state:** branch `main`, last code commit `115547e` (session-close commit
-follows this file). `make test` green (backend **492**, voice-gw 1, web
-typecheck+lint clean). `make dev` brings up the stack; Postgres on host port
-**5433** (read "Watch out for"). The kiosk PWA is live at `/kiosk`.
+**Repo state:** branch `main`, last code commit precedes the session-close commit that
+follows this file. `make test` green (backend **515**, up from 492). `ruff check .` and
+`ruff format --check .` clean. `make dev` brings up the stack; Postgres on host port
+**5433**. Kiosk PWA live at `/kiosk` (S6). This was a **parallel-track** session (doc 08),
+not the main line — S7 (kiosk offline) is still the main-line next.
 
-**One paragraph:** The intake engine now has its first channel. `app/routes/kiosk.py`
-is thin REST that mirrors the four-tool contract (start / next / answer / finish /
-confirm) over one `IntakeEngine` on `app.state`; `app/kiosk.py` routes Q1 through
-the department classifier — honouring `needs_human` by returning a **department
-chooser** rather than guessing — then creates the walk-in Visit+Intake and drives
-the dispatcher from taps. The kiosk is a **V3 client**: no model in the walk, the
-answers JSONB identical to every other tier by construction. The **PWA**
-(`web/app/(kiosk)/kiosk/`) is the first real UI — a design system on the doc 04 §1
-palette, a component library (breathing Dhara avatar, faces scale, body map,
-stepper, audio bar, duotone icons), and the whole flow language → caregiver → voice
-chief complaint → chooser → tree questions (auto-read-aloud) → read-back + confirm →
-train-board token, all audio-first with a 90s privacy blur. A Playwright suite
-drives a full hi intake welcome→token against the local stack (11 screens in
-`web/screenshots/s6/`). What the kiosk is **not** yet: offline. Kill the API and it
-stops — that is exactly S7.
+**One paragraph:** The user added **doc 08** — a fully open-source local voice tier
+("V-OSS": Whisper → local LLM → local TTS on a 24 GB GPU box, zero paid APIs). We folded
+it into the build plan as a parallel track and built its **software half (S-OSS.0)**: the
+GPU-independent part. `app/providers/local_oss/` adds four adapters onto the *existing*
+provider interfaces — `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless),
+`LocalSTTProvider` (Whisper), `LocalTTSProvider` + `VoiceboxTTSProvider` — so a hospital
+selects V-OSS with three env vars (`LLM_PROVIDER=local_vllm` etc.) and nothing else changes;
+each meters `provider=local-*`, priced from amortized `local-*` rows. `config/tiers.yaml` +
+`app/tiers.py` hold the per-channel tier ladder; `AdmissionController` is the
+`MAX_OSS_SESSIONS` cap that routes overflow to the next tier instead of queuing on the GPU.
+All tested through `httpx.MockTransport` — **no GPU, no cloud keys**. The **GPU half**
+(S-OSS.1 bake-off, S-OSS.2 Pipecat realtime + 12-concurrent proof, S-OSS.3 Dhara cloning)
+is deferred until the box is available; `REALTIME_PROVIDER=local-pipecat` honestly refuses
+to build until then.
 
-## Next session (S7 — Kiosk part 2: offline-first, T3 voices, printing)
-- Objective: service worker + Dexie caching (trees, audio packs, session state);
-  offline token blocks (server allocation API + kiosk consumption); Downtime Mode UI
-  + auto-detection + sync/reconciliation; ESC/POS print bridge for the token slip;
-  voice-pack manifest format + placeholder TTS-rendered packs. (docs 01 §5, 03 §1a,
-  04 §3.)
-- Start notes:
-  - **The kiosk currently dies without the API.** Every screen calls
-    `kioskApi.*` (`web/app/(kiosk)/kiosk/_lib/api.ts`) synchronously. S7 puts a
-    service worker + Dexie in front: cache the tree bank and walk the dispatcher
-    **client-side** when offline (the walker is deterministic — reimplement it in TS
-    from `app/trees`, or expose it via a cached WASM/JSON contract; the V3 logic is
-    small). Session state must persist to Dexie so an idle-reset or a reload resumes.
-  - **Token issuance is the offline crux.** `app.kiosk.allocate_token` is a
-    provisional `max+1` that needs the DB. S7's offline token *blocks* (a server
-    pre-allocates a range per kiosk per day; the kiosk consumes from it offline and
-    reconciles on reconnect) replace it — build the server allocation API and the
-    kiosk consumption side together so the demo AC (kill API 10 min → 3 offline
-    intakes → reconnect → zero collisions) passes.
-  - **Server-STT toggle + `/kiosk/stt`.** S6 shipped Web Speech + tap-to-type only.
-    Add a `/kiosk/stt` endpoint over `stt_chain` and a MediaRecorder client path so
-    the "trouble hearing?" toggle is real (doc 06 S6 line, deferred).
-  - **Voice packs.** `node.audio` is authored-empty and `voicepack.resolve` TTS-falls
-    back. S7 defines the pack manifest and renders placeholder TTS packs; the kiosk's
-    AudioBar should prefer `node.audio` when present over browser Web Speech.
-- Exact first commands:
-  1. `make dev` (stack up; if Docker is down, `open -a Docker` first — it dropped
-     mid-session once)
-  2. `make migrate && make seed`
-  3. `make test`
-  4. Kiosk live: `cd web && npm run e2e` (drives `/kiosk` against the local stack)
+## Next session — pick one
+**Main line: S7 — Kiosk part 2 (offline-first, T3 voices, printing).** Unchanged by this
+session; see its brief in docs/06-BUILD-PLAN.md and the S6 notes (below). The kiosk still
+dies without the API — service worker + Dexie, offline token blocks, Downtime Mode, ESC/POS
+printing, voice-pack manifest.
+
+**Parallel track (only when the GPU box is available): S-OSS.1** — `docker-compose.gpu.yml`,
+Voicebox install, the TTS bake-off + Whisper/IndicConformer WER bench (doc 08 §6). S-OSS.0
+already gave it the adapters, price rows and admission gate to plug into.
+
+- Exact first commands (either path): `make dev` → `make migrate && make seed` → `make test`.
+
+### (Carried from S6, still true for S7)
+- Kiosk calls `kioskApi.*` (`web/app/(kiosk)/kiosk/_lib/api.ts`) synchronously; S7 puts a
+  service worker + Dexie in front and walks the dispatcher client-side when offline.
+- Token issuance is the offline crux — `app.kiosk.allocate_token` is a provisional `max+1`;
+  S7's offline token *blocks* (server pre-allocates a range, kiosk consumes offline,
+  reconciles) replace it. Build server allocation + kiosk consumption together.
+- Add `/kiosk/stt` over `stt_chain` + MediaRecorder for the "trouble hearing?" toggle.
 
 ## Watch out for
-- **Docker died mid-session once** (daemon stopped → Postgres 5433 refused → api
-  500s with no CORS header → the browser reports a bogus "CORS" error). If the kiosk
-  fetch fails, check `docker ps` before suspecting the code. `open -a Docker`,
-  `docker compose up -d postgres redis`, wait for healthy.
-- **`NEXT_PUBLIC_API_BASE` is baked at dev-server start**, not per request. If the
-  kiosk calls the wrong api, the dev server was started without the env — restart it.
-  Compose sets it to `http://localhost:8000`; a local uvicorn on another port needs
-  the web dev server relaunched with a matching base.
-- **The kiosk session store is in-memory locally** — one api process only. A second
-  uvicorn worker (or a compose scale) would 404 mid-flow. Prod uses Redis.
-- **`finalize_cost` in `/confirm` flushes the meter first** — keep that if you touch
-  the route, or the cost reads ₹0 for a metered call.
-- **Position is derived, never stored** (STATE.md) — anything the kiosk caches from
-  the answers (a rendered read-back, a progress bar, the red-flag banner) is
-  recomputed after every save; a downgrade/prune can *remove* an answer and its flag.
+- **V-OSS `ladder_for()` is loaded but not wired into the engine/voice-gw** — routing a
+  channel down its ladder + gating the live local session on admission is S-OSS.2. Today the
+  ladder is only operational via provider fallback chains + the V2→V3 tier downgrade.
+- **`local-pipecat` refuses on purpose** — do not "fix" it to fall to the fake; it needs the
+  GPU + Pipecat (S-OSS.2), same stance as `gemini-live`.
+- **`local-*` price rows are amortized placeholders**, non-zero so the dashboard shows a real
+  cost; not measured. Admin-editable in S18.
+- **Docker died mid-session once in S6** (daemon stop → Postgres 5433 refused → api 500s that
+  the browser mislabels "CORS"). If a kiosk fetch fails, `docker ps` before suspecting code.
+- Pre-existing lint stragglers were fixed this session (local ruff 0.15 vs unpinned CI now
+  flags what older ruff didn't); if CI ruff drifts again, expect more format-only nits.
 
 ## Decisions needed from the human
-- **Server-STT vendor confidence** — the kiosk read-back is the patient's only check
-  on a bad transcription; the Hindi in the trees + the read-back script are still
-  model-authored and unreviewed (S21). Get the read-back phrasing in front of a Hindi
-  speaker when one is available.
-- **Carried, still open:** ratify dropping `question_trees.lang` (S4); five minutes
-  with a `GEMINI_API_KEY` to close S4's classifier ≥85% AC (now on the kiosk's Q1
-  critical path — matters more); oncologist review of the tree thresholds before
-  S7/S8 build further on them; SMS vendor pick; price-book rates vs real contracts.
+- None blocking. When the 24 GB GPU box is provisioned, that unblocks S-OSS.1 (its network,
+  WireGuard tunnel and driver versions are doc 08 §4).
 
 ## Backlog additions
-- **`/kiosk/stt` server-STT endpoint** (MediaRecorder → `stt_chain`) + the "trouble
-  hearing?" toggle — **S7**.
-- **Per-node "back"/amend inside a kiosk walk** — needs a rewind/remove-answer path;
-  today "change something" restarts — **S7/S9**.
-- **Attribute Q1 routing cost to the intake** — the classifier runs before the
-  intake_id exists, so its `usage_event` is unattributed; wrap it in
-  `usage_scope(intake_id=...)` once the walk-in row is created — **S9/S18**.
-- **Full custom duotone icon set** (~65 keys) + human review — **S7/S21** (S6 ships a
-  branded subset + aliases + neutral fallback).
-- **Kiosk department-name localisation** (hi/mr/te) — seeded names are English — **S13**.
-- Carried from S5: `LLMProvider` tool-result message type for a true tool loop (S14);
-  `Intake.answers[*].text_en` per-answer English gloss (S9/S13); kiosk idle-reset
-  *sweeper* server-side (S6 did the client blur; a walked-away session TTL is S7).
-- Carried earlier: red-flag `or`/`unanswered` real satisfiability (S18); shared
-  red-flag rule library (S18); WhatsApp 24h-conversation billing (S12); `token_cached`
-  price unit (S18); schedule `CostGuard.evaluate()` (S17); `/providers/health` auth
-  (S19/S20); Sarvam STT confidence (S13); staff username+TOTP (S18); OTP-verify IP
-  rate-limit (S20); prune `otp_codes` (S17); audit S3 export + retention (S19);
-  Grafana datasource + dashboards (S19); pin dependency versions; Surgical Oncology
-  "new lump/lesion" tree (S18).
+- S-OSS.2: wire `config/tiers.yaml` `ladder_for()` + `AdmissionController` into voice-gw;
+  `LocalPipelineVoiceProvider` (Pipecat, Silero VAD + smart-turn); Redis-backed admission
+  counter for multi-replica voice-gw.
+- S18: replace amortized `local-*` price rows with measured GPU cost-per-unit.

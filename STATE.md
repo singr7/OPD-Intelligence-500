@@ -54,9 +54,22 @@ targets, 60s idle prompt / 90s privacy blur. Playwright suite (`web/e2e`) drives
 full hi intake welcome→token against the local stack; 11 screens in
 `web/screenshots/s6/`. **492 backend tests** (486→492) + web e2e. `make test` green.
 
+**Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
+voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
+`LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
+OpenAI-audio-compatible), `LocalTTSProvider` + `VoiceboxTTSProvider` — all config-only-selectable
+(`LLM_PROVIDER=local_vllm`, `STT_PROVIDER=local_whisper`, `TTS_PROVIDER=local_tts|voicebox`) and
+metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. `config/tiers.yaml`
++ `app/tiers.py` = per-channel tier ladder loader (validated at boot); `AdmissionController` =
+`MAX_OSS_SESSIONS` concurrency cap that routes overflow to the next tier and frees seats on crash.
+492→**515 tests**. The **GPU half** (S-OSS.1 bake-off, S-OSS.2 Pipecat realtime + 12-concurrent
+proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
+realtime refuses to build until then.
+
 **Not built yet:** channel adapters for WhatsApp (S12) and telephony (S14); the
 kiosk's offline-first / service worker / real voice packs / printing (S7); the real
-Gemini Live impl (S14); queue service + board + coordinator (S8).
+Gemini Live impl (S14); queue service + board + coordinator (S8); the V-OSS **GPU half**
+(S-OSS.1/.2/.3 — needs the GPU box).
 
 ## How to run
 ```
@@ -94,7 +107,11 @@ Provider status: `GET /providers/health` (unauthenticated; names + health only, 
 See `.env.example` (authoritative). Notable: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` (≥32
 chars), `OTP_DEBUG_ECHO` (local only), and the S3 provider block — one `*_PROVIDER` selector per
 interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor credentials, and
-`DAILY_BUDGET_INR` (per-channel cost-guard caps; a channel with no entry is uncapped).
+`DAILY_BUDGET_INR` (per-channel cost-guard caps; a channel with no entry is uncapped). **V-OSS
+(doc 08):** `local_vllm|local_whisper|local_tts|voicebox` are valid provider selectors backed by
+`LOCAL_VLLM_BASE_URL`, `LOCAL_STT_URL`, `LOCAL_TTS_URL`, `VOICEBOX_URL` (a base URL is all a local
+provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
+`config/tiers.yaml`, not env.
 
 ## Invariants (don't quietly break these)
 - **Anything patient-affecting subclasses `Clinical`** (`app/models/base.py`) — that alone makes
@@ -210,6 +227,23 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
   they cannot check it is good Hindi or good medicine.
 - **No tree node has `audio`** — the field is authored-empty. V3 kiosk voice packs are S7,
   real human recordings S21; TTS covers the gap until then.
+- **V-OSS is the software half only (S-OSS.0).** The local provider adapters are real HTTP
+  clients tested through `httpx.MockTransport` (OpenAI-compatible vLLM/Whisper shapes, local
+  TTS `/tts`, Voicebox `/api/tts`) — **no live GPU server has ever answered**; first real bring-up
+  is S-OSS.1 on the box. The `local-*` `price_book` rates are **amortized placeholders** (GPU
+  capital + power spread over volume, set to a tiny per-unit number), not measured — non-zero on
+  purpose so the S18 dashboard shows a true V-OSS cost, admin-editable in S18.
+- **`LocalPipelineVoiceProvider` (V-OSS realtime) does not exist yet** — `REALTIME_PROVIDER=local-pipecat`
+  raises (needs GPU + Pipecat, S-OSS.2), the same honesty `gemini-live` keeps. V-OSS voice runs as
+  the V2 pipeline backed by local providers until then.
+- **`config/tiers.yaml` `ladder_for()` is not wired into the engine/voice-gw yet** — the loader,
+  validation and `AdmissionController` are built and tested, but *routing* a channel down its ladder
+  (and gating the live local session on admission) is S-OSS.2, when there is a live local realtime
+  session to route. Today the ladder is expressed operationally via provider fallback chains
+  (local primary + cloud `*_FALLBACK_PROVIDER`) plus the existing V2→V3 tier downgrade.
+- **`AdmissionController` count is per-process, in-memory** — correct for the single-voice-gw pilot;
+  a second voice-gw replica needs a Redis counter (noted for S-OSS.2), same shape as the cost-guard
+  override store.
 - **Red-flag satisfiability is only checked for `and`-rooted rules, and only in tests** —
   `or` across branches is legitimate and `unanswered` is satisfied by an off-path node, so
   a general check needs real satisfiability, not reachability (S18's editor will want it).

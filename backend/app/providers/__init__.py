@@ -37,6 +37,14 @@ from app.providers.llm import (
     LLMResult,
     ToolCall,
 )
+from app.providers.local_oss import (
+    AdmissionController,
+    AdmissionFull,
+    LocalLLMProvider,
+    LocalSTTProvider,
+    LocalTTSProvider,
+    VoiceboxTTSProvider,
+)
 from app.providers.messaging import (
     Button,
     FakeMessagingProvider,
@@ -92,6 +100,8 @@ from app.providers.telephony import (
 from app.providers.tts import FakeTTSProvider, Speech, TTSProvider
 
 __all__ = [
+    "AdmissionController",
+    "AdmissionFull",
     "AudioClip",
     "Button",
     "CallHandle",
@@ -110,6 +120,9 @@ __all__ = [
     "LLMProvider",
     "LLMRequest",
     "LLMResult",
+    "LocalLLMProvider",
+    "LocalSTTProvider",
+    "LocalTTSProvider",
     "MessagingProvider",
     "Msg91SMSProvider",
     "OutboundMessage",
@@ -134,6 +147,7 @@ __all__ = [
     "TelephonyProvider",
     "ToolCall",
     "Transcript",
+    "VoiceboxTTSProvider",
     "UsageDelta",
     "UsageMeter",
     "Verdict",

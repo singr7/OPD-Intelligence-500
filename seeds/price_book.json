@@ -171,6 +171,46 @@
       "price_inr": "0.75",
       "effective_from": "2026-07-01",
       "notes": "fakes are priced non-zero on purpose: it is what proves the metering path end to end in tests"
+    },
+    {
+      "provider": "local-vllm",
+      "model": "*",
+      "unit": "token_in",
+      "price_inr": "0.001",
+      "effective_from": "2026-07-01",
+      "notes": "V-OSS (doc 08): local Qwen on the GPU box. AMORTIZED, not vendor-billed — box capital + power spread over pilot volume, set by you. Non-zero on purpose so the S18 dashboard shows a true V-OSS cost-per-intake instead of a misleading flat zero (doc 08 §3). Wildcard model: any served model prices at the same amortized rate."
+    },
+    {
+      "provider": "local-vllm",
+      "model": "*",
+      "unit": "token_out",
+      "price_inr": "0.001",
+      "effective_from": "2026-07-01",
+      "notes": "V-OSS local LLM output tokens, amortized. See local-vllm token_in note."
+    },
+    {
+      "provider": "local-whisper",
+      "model": "*",
+      "unit": "audio_sec",
+      "price_inr": "0.001",
+      "effective_from": "2026-07-01",
+      "notes": "V-OSS (doc 08) local Whisper STT, amortized GPU cost per audio second. Wildcard model covers whisper-large-v3-turbo or the S-OSS.1 IndicConformer alternate."
+    },
+    {
+      "provider": "local-tts",
+      "model": "*",
+      "unit": "char",
+      "price_inr": "0.002",
+      "effective_from": "2026-07-01",
+      "notes": "V-OSS (doc 08) local TTS, amortized per 1000 chars. Wildcard model: the bake-off winner (S-OSS.1) prices the same amortized rate whichever engine wins."
+    },
+    {
+      "provider": "voicebox",
+      "model": "*",
+      "unit": "char",
+      "price_inr": "0.002",
+      "effective_from": "2026-07-01",
+      "notes": "V-OSS (doc 08 §1) Voicebox REST — batch V3-pack generation + low-concurrency fallback host, amortized per 1000 chars."
     }
   ]
 }

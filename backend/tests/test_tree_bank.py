@@ -23,7 +23,6 @@ structurally sound. They cannot check that it is good Hindi or good medicine.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
