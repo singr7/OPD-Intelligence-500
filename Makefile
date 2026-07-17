@@ -12,7 +12,8 @@ VOICEGW_PY := voice-gw/.venv/bin/python
 HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
 
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
-        tf-validate build deploy venv clean migrate migration seed eval-routing
+        tf-validate build deploy venv clean migrate migration seed eval-routing \
+        tree-fixtures check-tree-fixtures
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -62,8 +63,14 @@ test-backend: ## Backend pytest
 test-voicegw: ## voice-gw pytest
 	cd voice-gw && .venv/bin/python -m pytest -q
 
-test-web: ## Web typecheck + lint (build is exercised in CI)
-	cd web && npm run typecheck && npm run lint
+test-web: check-tree-fixtures ## Web typecheck + lint + walker conformance (build is exercised in CI)
+	cd web && npm run typecheck && npm run lint && npm run conformance
+
+tree-fixtures: ## Regenerate the Python→TS walker conformance fixtures (S7)
+	cd backend && .venv/bin/python -m app.tree_fixtures
+
+check-tree-fixtures: ## Fail if the conformance fixtures are stale vs the Python walker
+	cd backend && .venv/bin/python -m app.tree_fixtures --check
 
 lint: ## Ruff (python) + next lint (web)
 	cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check .
