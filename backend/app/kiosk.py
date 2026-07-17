@@ -36,6 +36,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
@@ -207,19 +208,35 @@ async def allocate_token(session: AsyncSession, visit: Visit) -> int:
     Provisional (see the module docstring): a simple per-department-per-day
     sequence guarded by the `uq_visits_dept_date_token` unique constraint, with a
     single retry on the race. S8's queue service owns real issuance — priority
-    insertion, offline blocks, reconciliation. Returns the allocated number.
+    insertion, reconciliation. Returns the allocated number.
+
+    **Stays below `kiosk_offline_token_base`** (S7). Everything at or above the
+    base belongs to the offline blocks in `app.offline`, which a kiosk may be
+    handing out right now with no way to tell us. The `max()` below is therefore
+    taken over online numbers only — an offline intake that synced at 500 must
+    not drag the next online token to 501, straight into another kiosk's range.
     """
     if visit.token_no is not None:
         return visit.token_no
 
+    base = get_settings().kiosk_offline_token_base
     for _ in range(5):
         current = await session.scalar(
             select(func.max(Visit.token_no)).where(
                 Visit.department_id == visit.department_id,
                 Visit.date == visit.date,
+                Visit.token_no < base,
             )
         )
         candidate = int(current or 0) + 1
+        if candidate >= base:
+            # The online range is full. Refuse rather than wrap into the offline
+            # blocks: a duplicate token is worse than a loud failure, and this is
+            # a capacity problem a human must see (S8 widens the range).
+            raise KioskError(
+                f"online token range is exhausted for this department today "
+                f"(reached {base - 1}); offline blocks own {base} and above"
+            )
         try:
             # A savepoint, not the whole transaction: a collision must roll back
             # only this token attempt, never the walk-in rows created alongside it.

@@ -23,6 +23,7 @@ that boring — no patient lookup, no PII in a path.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -30,6 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import kiosk as kiosk_svc
+from app import offline as offline_svc
 from app.db import get_session
 from app.intake import IntakeEngine, SessionState, ToolError
 from app.models.enums import Channel, Lang
@@ -316,6 +318,144 @@ async def confirm(
         department=department,
         red_flags=state.red_flags,
         cost_inr=str(cost) if cost is not None else None,
+    )
+
+
+# -- offline (S7, doc 01 §5) --------------------------------------------------
+
+
+class BlockOut(BaseModel):
+    department: DeptOut
+    start_no: int
+    end_no: int
+    #: The highest number the *server* knows this kiosk has issued. The kiosk's
+    #: own store is ahead of this during an outage — it is a resume hint after a
+    #: reboot, not an instruction.
+    used_up_to: int | None
+    next_free: int
+
+
+class LeaseOut(BaseModel):
+    kiosk_id: str
+    date: str
+    blocks: list[BlockOut]
+
+
+class SyncIntakeIn(BaseModel):
+    #: The kiosk's id for this intake; the idempotency key (see `app.offline`).
+    client_id: str = Field(min_length=8, max_length=64)
+    department_key: str
+    tree_key: str
+    lang: Lang
+    token_no: int
+    #: `{node_id: {value, text, text_en, lang, at}}` — the walker's shape, from
+    #: the offline TS walker. The server re-walks it; red flags are recomputed
+    #: here and the kiosk's own list is never read.
+    answers: dict[str, Any]
+    chief_complaint: str | None = None
+    caregiver: bool = False
+    completed_at: datetime | None = None
+
+
+class SyncIn(BaseModel):
+    kiosk_id: str = Field(min_length=1, max_length=64)
+    intakes: list[SyncIntakeIn] = Field(max_length=200)
+
+
+class SyncResultOut(BaseModel):
+    client_id: str
+    #: "synced" | "duplicate" | "rejected"
+    status: str
+    token_no: int | None = None
+    red_flags: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None
+
+
+class SyncOut(BaseModel):
+    results: list[SyncResultOut]
+    synced: int
+    duplicates: int
+    rejected: int
+
+
+@router.post("/blocks/lease", response_model=LeaseOut)
+async def lease_blocks(
+    kiosk_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> LeaseOut:
+    """Lease this kiosk's offline token blocks for today (doc 01 §5).
+
+    Called while the network is *up* — that is the whole point. The kiosk holds
+    one block per department (offline it cannot classify, so the patient picks
+    from the chooser and any department may be needed) and consumes them from
+    IndexedDB during an outage.
+
+    Idempotent: re-leasing returns the same ranges. It never hands out a fresh
+    one, because the old one is already on paper slips in patients' hands.
+    """
+    try:
+        blocks = await offline_svc.lease_blocks(session, kiosk_id=kiosk_id)
+    except offline_svc.OfflineError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return LeaseOut(
+        kiosk_id=kiosk_id,
+        date=offline_svc.today().isoformat(),
+        blocks=[
+            BlockOut(
+                department=DeptOut(key=block.department_key, name=block.department_name),
+                start_no=block.start_no,
+                end_no=block.end_no,
+                used_up_to=block.used_up_to,
+                next_free=block.next_free,
+            )
+            for block in blocks
+        ],
+    )
+
+
+@router.post("/sync", response_model=SyncOut)
+async def sync(
+    payload: SyncIn,
+    session: AsyncSession = Depends(get_session),
+) -> SyncOut:
+    """Take back the intakes a kiosk completed while the API was unreachable.
+
+    Per-intake results rather than all-or-nothing: one bad intake in a batch of
+    twenty must not strand the other nineteen on a kiosk, and the kiosk needs to
+    know exactly which ones to stop retrying. A `duplicate` is a success — it
+    means an earlier attempt landed before the network dropped again.
+    """
+    results: list[SyncResultOut] = []
+    for item in payload.intakes:
+        outcome = await offline_svc.sync_intake(
+            session,
+            kiosk_id=payload.kiosk_id,
+            client_id=item.client_id,
+            department_key=item.department_key,
+            tree_key=item.tree_key,
+            lang=item.lang,
+            token_no=item.token_no,
+            answers=item.answers,
+            chief_complaint=item.chief_complaint,
+            caregiver=item.caregiver,
+            completed_at=item.completed_at,
+        )
+        results.append(
+            SyncResultOut(
+                client_id=outcome.client_id,
+                status=outcome.status,
+                token_no=outcome.token_no,
+                red_flags=outcome.red_flags or [],
+                error=outcome.error,
+            )
+        )
+
+    return SyncOut(
+        results=results,
+        synced=sum(1 for r in results if r.status == "synced"),
+        duplicates=sum(1 for r in results if r.status == "duplicate"),
+        rejected=sum(1 for r in results if r.status == "rejected"),
     )
 
 

@@ -126,6 +126,24 @@ class Settings(BaseSettings):
     # Cost guard reads spend since local midnight; the OPD's day is IST.
     timezone: str = "Asia/Kolkata"
 
+    # --- Offline kiosk token blocks (S7, doc 01 §5) --------------------------
+    # The token line is split in two so an offline kiosk and the server can both
+    # issue numbers during an outage without ever meeting:
+    #
+    #   1 .. base-1     server-issued, online, the ordinary case
+    #   base ..         carved into per-kiosk blocks, consumed offline
+    #
+    # Nothing may cross the line: `allocate_token` refuses to issue at or above
+    # the base, and a block is never carved below it. That is the whole of the
+    # "tokens never collide because blocks are pre-allocated" promise — it is
+    # structural, not a runtime check that could be skipped while the API is
+    # down and nobody is watching.
+    kiosk_offline_token_base: int = 500
+    # Numbers per block. One block covers one kiosk, one department, one day; the
+    # kiosk leases one per department up front (offline it cannot classify, so the
+    # patient picks the department and any of them may be needed).
+    kiosk_offline_block_size: int = 50
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}

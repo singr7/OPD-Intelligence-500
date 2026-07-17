@@ -80,6 +80,20 @@ class Intake(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     confirmed_by_patient: Mapped[bool] = mapped_column(Boolean, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # `key@vN` of the tree that produced `answers` (S7). Without it a stored
+    # answer set cannot be read back with certainty: node ids are stable across
+    # versions by design, so the same JSONB means different questions depending
+    # on which version was asked, and S18 can publish a new version while a kiosk
+    # is offline with the old one cached.
+    tree_ref: Mapped[str | None] = mapped_column(String(120))
+
+    # The offline kiosk's own id for this intake (S7, doc 01 §5). It is the
+    # idempotency key for sync: the network usually returns *during* a batch, so
+    # a retry re-sends intakes that already landed, and without a unique key each
+    # retry mints a second visit for one patient. Null for anything created
+    # online — a server-side intake never needs one.
+    client_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+
     # Cost attribution is finalised on completion in S5 by summing the
     # usage_events that share this intake_id (doc 02 §8). Numeric, not float:
     # this is a sum of per-event costs that has to reconcile exactly against
