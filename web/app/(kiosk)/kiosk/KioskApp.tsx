@@ -83,9 +83,10 @@ export function KioskApp() {
 
   useEffect(() => {
     kick();
+    const timers = idleTimers.current; // stable ref object; ids read at cleanup
     return () => {
-      window.clearTimeout(idleTimers.current.prompt);
-      window.clearTimeout(idleTimers.current.blur);
+      window.clearTimeout(timers.prompt);
+      window.clearTimeout(timers.blur);
     };
   }, [kick]);
 

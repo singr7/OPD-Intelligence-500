@@ -39,8 +39,24 @@ offline fallback; red flags always from the rules. `finalize_cost` sums `usage_e
 by intake_id onto `Intake.cost_inr`. `prompts/intake/v1.md` = the dialogue driver.
 466→**486 tests**. Not wired to any route (channels are S6/S12/S14).
 
-**Not built yet:** any real UI (S6+); channel adapters (kiosk S6, WhatsApp S12,
-telephony S14); the real Gemini Live impl (S14).
+**Built (S6):** The **kiosk channel** — the intake engine's first HTTP surface.
+`app/routes/kiosk.py` = thin REST mirroring the four-tool contract (start / next /
+answer / finish / confirm); `app/kiosk.py` = the service (route Q1 through the
+classifier honouring `needs_human` → a department chooser; create the walk-in
+Visit+Intake; provisional token allocation). One `IntakeEngine` on `app.state`.
+The **kiosk PWA** (`web/app/(kiosk)/kiosk/`) — a V3 client driven by taps + audio:
+expanded design tokens on the doc 04 §1 palette, self-hosted Noto Sans/Devanagari,
+a component library (breathing **Dhara** avatar, AudioBar, OptionCard, FacesScale,
+Stepper, BodyMap, ProgressDots, MicButton, duotone icons), and the full flow
+language → caregiver → voice chief complaint → chooser → tree questions
+(auto-read-aloud) → read-back + confirm → **train-board token**. Audio-first, ≥64px
+targets, 60s idle prompt / 90s privacy blur. Playwright suite (`web/e2e`) drives a
+full hi intake welcome→token against the local stack; 11 screens in
+`web/screenshots/s6/`. **492 backend tests** (486→492) + web e2e. `make test` green.
+
+**Not built yet:** channel adapters for WhatsApp (S12) and telephony (S14); the
+kiosk's offline-first / service worker / real voice packs / printing (S7); the real
+Gemini Live impl (S14); queue service + board + coordinator (S8).
 
 ## How to run
 ```
@@ -51,6 +67,12 @@ make test                # backend pytest + voice-gw pytest + web typecheck/lint
 make migration m="..."   # autogenerate a revision from model changes
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 ```
+Kiosk PWA: `web/app/(kiosk)/kiosk`, served at `/kiosk` (web on :3000, api on :8000;
+`NEXT_PUBLIC_API_BASE` points the browser at the api). The Playwright screenshot
+suite runs against a live stack: `cd web && npm run e2e` (needs `make dev` + a
+seeded dev DB; drives welcome→token, writes `web/screenshots/s6/`). The kiosk is a
+V3 client — the fake classifier always triages, so Q1 lands on the department
+chooser locally; pick a department to proceed.
 Local login: `POST /auth/otp/request {"phone": "+915550001001"}` (seeded doctor) returns
 `debug_code` when `OTP_DEBUG_ECHO=true`; POST it to `/auth/otp/verify` for a JWT.
 Provider status: `GET /providers/health` (unauthenticated; names + health only, never keys).
@@ -130,6 +152,28 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
   engine may block or fail an intake for cost or an outage (that is a human's paper decision).
 
 ## Stubs & fakes
+- **Kiosk token issuance is provisional** — `app.kiosk.allocate_token` is a
+  `max(token_no)+1` per department per day, guarded by the unique constraint. Real
+  queue-managed issuance (priority/urgent insertion, offline blocks, reconciliation)
+  is S8/S7; the allocator is replaced then, not the wire shape.
+- **Kiosk session state is in-memory locally** (`is_local` → `InMemorySessionStore`),
+  so the multi-request flow only survives within one api process. Prod is Redis. A
+  second uvicorn worker locally would not share sessions.
+- **No server-STT endpoint** — the kiosk chief complaint uses the browser's Web
+  Speech, with an always-present tap-to-type fallback. Doc 06 S6's "server STT
+  toggle" (a `/kiosk/stt` endpoint over `stt_chain`, MediaRecorder client) is a
+  small S7 follow-up; no non-functional toggle was shipped.
+- **No true "back" inside a kiosk walk** — the walk has no rewind endpoint; the
+  read-back "change something" restarts the intake. A per-node amend is S7/S9.
+- **The kiosk icon set is a branded subset + aliases + a neutral fallback**, not the
+  full ~65-key custom duotone set doc 04 law 4 wants; the full set + human review is
+  a design-asset task (S7/S21). No option is ever iconless.
+- **A pure-V3 kiosk intake finalises at ~₹0** — no metered calls happen in the walk,
+  and Q1's routing-classifier cost is not attributed to the intake (routing runs
+  before the intake_id exists). A `usage_scope(intake_id=...)` around the classifier
+  is backlog.
+- **Kiosk department names render in English** on the hi flow (seeded English names);
+  dept-name localisation is S13.
 - **No live vendor has ever accepted a call.** Every real impl (MSG91, Exotel SMS/telephony,
   Gemini, OpenAI, Sarvam, Google, Meta) is written against documented HTTP APIs and tested
   through `httpx.MockTransport` — real request-building and response-parsing, mocked wire.
