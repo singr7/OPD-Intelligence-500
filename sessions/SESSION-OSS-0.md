@@ -87,4 +87,4 @@ hardware split the addendum glossed over — the bake-off (S-OSS.1) and the real
 - `local-*` price rates are amortized placeholders, admin-editable in S18.
 
 ## Commits
-- 8740201 — S-OSS.0: session close — V-OSS open-source local voice tier, software half; 515 tests green
+- 4a6ad21 — S-OSS.0: session close — V-OSS open-source local voice tier, software half; 515 tests green
