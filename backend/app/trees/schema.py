@@ -91,6 +91,12 @@ _NODE_KEYS = {
 }
 _OPTION_KEYS = {"id", "text", "icon", "flag"}
 _FLAG_KEYS = {"id", "severity", "when", "label", "instruction"}
+#: What a *tree-level* red flag may carry. `source_node` is not authored by hand —
+#: `parse` stamps it on flags desugared from a node — but `Tree.to_json` emits it,
+#: and `parse(tree.to_json())` must round-trip, so the canonical form has to be
+#: re-readable. Node-level sugar still validates against `_FLAG_KEYS`, which keeps
+#: `source_node` un-authorable where it would be a lie.
+_CANONICAL_FLAG_KEYS = _FLAG_KEYS | {"source_node"}
 
 #: Answers that are a *list* of option ids cannot pick a single branch, so these
 #: node types route by `next.default` only.
@@ -129,6 +135,13 @@ class Option:
     icon: str | None = None
     flag: bool = False
 
+    def to_json(self) -> dict[str, Any]:
+        # `flag` is deliberately absent: `parse` has already turned it into a real
+        # RedFlagSpec in `tree.red_flags`, and a consumer of the canonical form
+        # must read flags from there only. Emitting it would invite a second,
+        # divergent way to decide a red flag.
+        return {"id": self.id, "text": dict(self.text), "icon": self.icon}
+
 
 @dataclass(frozen=True, slots=True)
 class RedFlagSpec:
@@ -150,6 +163,16 @@ class RedFlagSpec:
     #: Set when the flag was authored as node-level sugar (`red_flag_if` /
     #: `flag: true`), for error messages and S18's editor.
     source_node: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "severity": str(self.severity),
+            "when": _plain(self.when),
+            "label": dict(self.label),
+            "instruction": dict(self.instruction),
+            "source_node": self.source_node,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +209,20 @@ class Node:
         yet" — S7/S21 fill these; TTS covers the gap until then."""
         return self.audio.get(str(lang))
 
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type.value,
+            "text": dict(self.text),
+            "audio": dict(self.audio),
+            "options": [option.to_json() for option in self.options],
+            "next": dict(self.next),
+            "min": self.min,
+            "max": self.max,
+            "unit": self.unit,
+            "adaptive_hints": self.adaptive_hints,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class Tree:
@@ -217,6 +254,40 @@ class Tree:
 
     def speaks(self, lang: Lang | str) -> bool:
         return str(lang) in {str(item) for item in self.languages}
+
+    def to_json(self) -> dict[str, Any]:
+        """The **canonical** form of a parsed tree — the offline kiosk's wire shape.
+
+        Deliberately not the authored form (`seeds/trees/*.json`). `parse` has
+        already desugared `red_flag_if` / `flag: true` into real `red_flags` and
+        proved the tree acyclic, reachable, language-complete and rule-type-safe.
+        Shipping *this* is what lets the offline TS walker (S7) be a walker only:
+        it never re-implements the sugar or the validator, so there is exactly one
+        place that decides what a tree means. A client handed the authored form
+        would have to re-derive both, and would drift.
+
+        Round-trips: `parse(tree.to_json())` returns an equal tree (tested).
+        """
+        return {
+            "key": self.key,
+            "version": self.version,
+            "department": self.department,
+            "title": dict(self.title),
+            "languages": [str(lang) for lang in self.languages],
+            "root": self.root,
+            "nodes": [node.to_json() for node in self.nodes.values()],
+            "red_flags": [flag.to_json() for flag in self.red_flags],
+        }
+
+
+def _plain(value: Any) -> Any:
+    """A rule expression as plain JSON containers (it is stored as nested
+    Mappings/Sequences; `json.dumps` will not take a `MappingProxy`)."""
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_plain(item) for item in value]
+    return value
 
 
 def parse(data: Any) -> Tree:
@@ -568,11 +639,27 @@ def _parse_red_flags(
     for index, raw in enumerate(value):
         if not isinstance(raw, Mapping):
             raise TreeError(f"{where}: red_flags[{index}] must be an object")
-        if unknown := set(raw) - _FLAG_KEYS:
+        if unknown := set(raw) - _CANONICAL_FLAG_KEYS:
             raise TreeError(f"{where}: red_flags[{index}] unexpected keys: {sorted(unknown)}")
         if "when" not in raw:
             raise TreeError(f"{where}: red_flags[{index}] needs a 'when' rule")
-        flags.append(_build_flag(raw, raw["when"], languages, where=f"{where}: red_flags[{index}]"))
+        source_node = raw.get("source_node")
+        if source_node is not None and (
+            not isinstance(source_node, str) or source_node not in kinds
+        ):
+            raise TreeError(
+                f"{where}: red_flags[{index}] source_node {source_node!r} "
+                "is not a node of this tree"
+            )
+        flags.append(
+            _build_flag(
+                raw,
+                raw["when"],
+                languages,
+                where=f"{where}: red_flags[{index}]",
+                source_node=source_node,
+            )
+        )
     return tuple(flags)
 
 

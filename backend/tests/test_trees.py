@@ -21,6 +21,8 @@ a pure function of the answers, recomputed rather than accumulated.
 from __future__ import annotations
 
 import copy
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -829,3 +831,71 @@ def test_answer_from_json_tolerates_a_missing_lang():
     answer = Answer.from_json("site", {"value": "chest", "at": "2026-07-15T10:00:00+00:00"})
     assert answer.lang is None
     assert answer.value == "chest"
+
+
+# -- the canonical form (S7: the offline kiosk's wire shape) --------------------
+
+
+def test_the_canonical_form_is_a_fixed_point():
+    """`parse(t.to_json()).to_json() == t.to_json()` — canonicalising is idempotent.
+
+    This is the property the offline kiosk (S7) rests on. The TS walker is handed
+    `to_json`, so the canonical form must carry the tree's whole *meaning*; if it
+    ever lost or re-interpreted something, this fails here rather than on a kiosk
+    during an outage.
+
+    It is deliberately not `parse(t.to_json()) == parse(authored)`: the authored
+    sugar (`flag: true`) is *consumed* by `parse` and does not survive into the
+    canonical form — that is the point of desugaring, and `Option.flag` is
+    therefore False on the reparse. What must survive is everything the walker
+    reads, which is exactly what `to_json` emits.
+    """
+    canonical = parse(demo()).to_json()
+
+    assert parse(canonical).to_json() == canonical
+
+
+def test_the_canonical_form_is_json_serialisable():
+    # The bundle is shipped over HTTP and stored in IndexedDB: nested Mappings
+    # from the rule expressions must come out as plain containers.
+    payload = json.dumps(parse(demo()).to_json())
+    assert json.loads(payload)["key"] == "demo"
+
+
+def test_the_canonical_form_desugars_flags_so_a_client_never_has_to():
+    """Option-level `flag: true` and node-level `red_flag` arrive as real rules."""
+    canonical = parse(demo()).to_json()
+
+    flag_ids = {flag["id"] for flag in canonical["red_flags"]}
+    assert flag_ids == {"gi.bleed", "febrile.neutropenia"}
+
+    bleed = next(f for f in canonical["red_flags"] if f["id"] == "gi.bleed")
+    assert bleed["source_node"] == "belly.symptoms"
+    # The sugar is gone: a client reading `options` sees no `flag` key to
+    # (mis)interpret, because flags live in one place only.
+    node = next(n for n in canonical["nodes"] if n["id"] == "belly.symptoms")
+    assert all("flag" not in option for option in node["options"])
+
+
+def test_every_seeded_tree_is_a_fixed_point():
+    """Not just the demo — the 11 authored trees are what actually ship offline."""
+    paths = sorted((Path(__file__).resolve().parents[2] / "seeds" / "trees").glob("*.json"))
+    assert paths, "no seeded trees found — the fixed-point check would vacuously pass"
+
+    for path in paths:
+        canonical = parse(json.loads(path.read_text())).to_json()
+        assert parse(canonical).to_json() == canonical, f"{path.name} is not a fixed point"
+
+
+def test_source_node_cannot_be_authored_on_node_level_sugar():
+    """`source_node` is the parser's stamp, not an author's claim."""
+    tree = demo()
+    node = next(n for n in tree["nodes"] if n["id"] == "belly.symptoms")
+    node["red_flag"]["source_node"] = "temp"
+    rejects(tree, because="unexpected red_flag keys")
+
+
+def test_a_tree_level_flag_cannot_claim_a_source_node_that_does_not_exist():
+    tree = demo()
+    tree["red_flags"][0]["source_node"] = "ghost"
+    rejects(tree, because="is not a node of this tree")
