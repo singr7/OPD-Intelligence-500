@@ -52,7 +52,7 @@ Each session = one focused Claude Opus working session (~2–4h human time), siz
 
 ### Parallel track — V-OSS: fully open-source local voice tier (doc 08)
 
-A **peer of V2** that runs the whole voice pipeline (STT→LLM→TTS) on the hospital's own 24 GB GPU box with **zero paid APIs**, exposed as ordinary provider adapters and selected per channel by config. Full spec in **doc 08**; starts after S5 (needs the provider layer, tool contract, metering, price-book — all S3/S5) and runs alongside the main line. **Split by hardware dependency** (this dev machine has no GPU):
+A **peer of V2** that runs the whole voice pipeline (STT→LLM→TTS) on an on-prem 24 GB GPU box with **zero paid APIs**, exposed as ordinary provider adapters and selected per channel by config. Full spec in **doc 08**; **deployment runbook in [doc 09](09-VOSS-GPU-DEPLOYMENT.md)** (own-box / single-server, approved same-LAN two-box variant, approval-gated AWS hybrid). Starts after S5 (needs the provider layer, tool contract, metering, price-book — all S3/S5) and runs alongside the main line. **Split by hardware dependency** (this dev machine has no GPU):
 
 **S-OSS.0 — Adapter & tier-ladder software layer (no GPU; BUILT).**
 - Build: `backend/app/providers/local_oss/` — `LocalLLMProvider` (vLLM, OpenAI-compatible), `LocalSTTProvider` (Whisper), `LocalTTSProvider` + `VoiceboxTTSProvider`, all config-only-selectable and metering `provider=local-*`; `config/tiers.yaml` + `app/tiers.py` (per-channel ladder loader); `AdmissionController` (`MAX_OSS_SESSIONS` cap → route to next tier); `price_book` `local-*` rows (amortized).

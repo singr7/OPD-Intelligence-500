@@ -54,6 +54,16 @@ Deploys via SSM (no SSH keys). GitHub Actions: on tag → build images → push 
 
 Cost levers designed in: tier mix is a dial (V1 premium voice ↔ V2 cost-optimal pipeline ↔ V3 zero-AI), enforced live by the cost-guard; Flash + context caching for all non-realtime work; batch where latency allows; audio deleted at 90 days. The §11 dashboard makes cost-per-intake visible daily so the tier mix can be tuned on real numbers, not estimates.
 
+## 6a. V-OSS local voice deployment → doc 09
+
+The fully open-source local voice tier (doc 08) is **not** deployed on the AWS box
+above — it runs on an on-prem GPU server. The self-sufficient runbook is
+**[doc 09](09-VOSS-GPU-DEPLOYMENT.md)** (own-box / single-server, with an approved
+same-LAN two-box GPU-node variant and an approval-gated app-in-AWS hybrid). Note
+for S19: if the hybrid is ever approved, `voice-gw` becomes an on-prem *edge*
+service co-located with the GPU box, not an EC2 container — the real-time loop must
+stay off the WAN (doc 09 §2/§15).
+
 ## 6. Kiosk hardware note
 
 Any 10–11" Android tab (₹15–20k) in a floor stand + USB thermal printer; Chrome kiosk mode pointed at the PWA. Queue board = TV + ₹3k Android stick. Budget ~₹60k per OPD floor.
