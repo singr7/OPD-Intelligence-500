@@ -16,6 +16,40 @@
   --line: #d9e4df;
   --radius: 22px;
   --shadow: 0 10px 30px rgba(16, 48, 42, 0.08);
+
+  /* --- S6 additions: scale, spacing, motion -------------------------------
+     Still built *on* the doc 04 §1 palette above — these add the rhythm the
+     component library needs (a rural, audio-first, ≥64px-target kiosk), they do
+     not fork a colour. */
+
+  /* Type scale — patient surfaces run large (doc 04 §4: readable at 200% zoom,
+     bright OPD light). rem-based so the OS font-scale test actually moves them. */
+  --fs-caption: 1rem; /* 16px — the text under the audio */
+  --fs-body: 1.25rem; /* 20px */
+  --fs-lead: 1.5rem; /* 24px — reassurance copy */
+  --fs-option: 1.75rem; /* 28px — tap-card labels */
+  --fs-question: 2.25rem; /* 36px — the question being asked */
+  --fs-display: 4rem; /* 64px — screen titles */
+  --fs-token: clamp(7rem, 22vw, 16rem); /* the train-board numeral */
+
+  /* Spacing — ≥16px everywhere, generous on a kiosk. */
+  --sp-1: 8px;
+  --sp-2: 16px;
+  --sp-3: 24px;
+  --sp-4: 32px;
+  --sp-5: 48px;
+  --sp-6: 64px;
+
+  --tap-min: 64px; /* doc 04 law 3: gloves-friendly hit areas */
+  --radius-lg: 32px;
+  --radius-pill: 999px;
+  --shadow-lift: 0 18px 44px rgba(16, 48, 42, 0.14);
+  --shadow-press: 0 4px 12px rgba(16, 48, 42, 0.1);
+
+  /* Motion — calm, never a spinner alone (doc 04 law 11). */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur: 220ms;
+  --line-indic: 1.65; /* Devanagari/Telugu line-height floor (doc 04 §4) */
 }
 
 * {
@@ -28,8 +62,8 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu",
-    system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans), var(--font-deva), "Noto Sans",
+    "Noto Sans Devanagari", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

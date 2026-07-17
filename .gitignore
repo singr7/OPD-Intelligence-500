@@ -49,3 +49,8 @@ infra/*.auto.tfvars
 # Data / logs
 /data/
 *.log
+
+# Playwright (screenshots are committed under web/screenshots as session evidence;
+# the run artifacts are not)
+web/test-results/
+web/playwright-report/
