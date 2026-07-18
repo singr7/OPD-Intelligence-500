@@ -54,6 +54,24 @@ targets, 60s idle prompt / 90s privacy blur. Playwright suite (`web/e2e`) drives
 full hi intake welcome→token against the local stack; 11 screens in
 `web/screenshots/s6/`. **492 backend tests** (486→492) + web e2e. `make test` green.
 
+**Built (S7):** The **kiosk goes offline-first** (doc 01 §5). The tree walker + red-flag
+rules are ported to TypeScript (`web/app/(kiosk)/kiosk/_lib/tree/`) so an intake completes
+in the browser with no API, gated against the Python original by a golden-trace conformance
+suite (`app/tree_fixtures.py` → `web/e2e/conformance.spec.ts`, regenerated + diffed in
+`make test` via `make check-tree-fixtures`; mutation-tested). `Tree.to_json()` is the
+canonical desugared wire shape. **Offline token blocks** (`app/offline.py`): the token line
+is partitioned — online `< kiosk_offline_token_base(500)`, offline blocks `>=` — so a
+collision is unrepresentable; `POST /kiosk/blocks/lease` (idempotent) + `POST /kiosk/sync`
+(idempotent per `Intake.client_id`, recomputes red flags server-side). `Intake` gained
+`client_id` + `tree_ref` (migration `bc2e83129ac3`); `allocate_token` refuses to cross the
+base. `GET /kiosk/bundle` ships canonical trees + chooser (ETag). Web offline layer
+(`_lib/offline/`: Dexie store, local intake flow, `/health` reachability monitor, the
+online-or-local `flow` seam, background sync, `useOffline` lifecycle) + a shell service
+worker (`kiosk-sw.js`) + a **marigold Downtime banner** (doc 04 §3). ESC/POS token-slip
+print (`_lib/print.ts`) + browser fallback. Demo AC proven at the service layer
+(`test_offline.py`) and in a browser (`web/e2e/offline-demo.spec.ts`). 515→**541 tests** +
+48 pure-logic web tests.
+
 **Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
 voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
 `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
@@ -66,9 +84,9 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** channel adapters for WhatsApp (S12) and telephony (S14); the
-kiosk's offline-first / service worker / real voice packs / printing (S7); the real
-Gemini Live impl (S14); queue service + board + coordinator (S8); the V-OSS **GPU half**
+**Not built yet:** channel adapters for WhatsApp (S12) and telephony (S14); real voice
+packs / the voice-pack manifest + `/kiosk/stt` (S7 carryover → backlog); the real Gemini
+Live impl (S14); queue service + board + coordinator (S8); the V-OSS **GPU half**
 (S-OSS.1/.2/.3 — needs the GPU box).
 
 ## How to run
@@ -111,7 +129,10 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 (doc 08):** `local_vllm|local_whisper|local_tts|voicebox` are valid provider selectors backed by
 `LOCAL_VLLM_BASE_URL`, `LOCAL_STT_URL`, `LOCAL_TTS_URL`, `VOICEBOX_URL` (a base URL is all a local
 provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
-`config/tiers.yaml`, not env.
+`config/tiers.yaml`, not env. **Offline kiosk (S7):** `KIOSK_OFFLINE_TOKEN_BASE` (default 500 —
+online tokens stay below it, offline blocks at/above) and `KIOSK_OFFLINE_BLOCK_SIZE` (default 50).
+Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
+fallback).
 
 ## Invariants (don't quietly break these)
 - **Anything patient-affecting subclasses `Clinical`** (`app/models/base.py`) — that alone makes
@@ -169,17 +190,28 @@ provider needs to count as configured — no key); per-channel ladder + `max_oss
   engine may block or fail an intake for cost or an outage (that is a human's paper decision).
 
 ## Stubs & fakes
-- **Kiosk token issuance is provisional** — `app.kiosk.allocate_token` is a
-  `max(token_no)+1` per department per day, guarded by the unique constraint. Real
-  queue-managed issuance (priority/urgent insertion, offline blocks, reconciliation)
-  is S8/S7; the allocator is replaced then, not the wire shape.
+- **Online kiosk token issuance is still provisional** — `app.kiosk.allocate_token` is a
+  `max(token_no)+1` **below the offline base (500)**, guarded by the unique constraint.
+  Real queue-managed issuance (priority/urgent insertion, wait estimate, reconciliation)
+  is S8; the allocator is replaced then, not the wire shape. The **offline** blocks
+  (`app.offline`, S7) are real and partition the number line so the two never collide.
+- **Offline audio is the browser's Web Speech** — the voice-pack manifest + placeholder
+  TTS packs were deferred (S7 backlog). No recorded packs exist (S21); the `VoicePack`
+  seam (`app.intake.voicepack`) is unchanged from S5.
+- **The offline TS walker/rules are a second implementation of clinical logic** — trusted
+  only because `make check-tree-fixtures` + `web/e2e/conformance.spec.ts` gate them against
+  the Python original (mutation-tested). Change `app/trees/` ⇒ `make tree-fixtures`.
 - **Kiosk session state is in-memory locally** (`is_local` → `InMemorySessionStore`),
   so the multi-request flow only survives within one api process. Prod is Redis. A
-  second uvicorn worker locally would not share sessions.
+  second uvicorn worker locally would not share sessions. (Offline sessions live in the
+  browser tab, not the server, and do not survive a tab reload mid-intake by design.)
 - **No server-STT endpoint** — the kiosk chief complaint uses the browser's Web
   Speech, with an always-present tap-to-type fallback. Doc 06 S6's "server STT
-  toggle" (a `/kiosk/stt` endpoint over `stt_chain`, MediaRecorder client) is a
-  small S7 follow-up; no non-functional toggle was shipped.
+  toggle" (a `/kiosk/stt` endpoint over `stt_chain`, MediaRecorder client) is an
+  S7 carryover, still not built (backlog); no non-functional toggle was shipped.
+- **No printer has printed a slip** — `_lib/print.ts` ESC/POS bytes are built against the
+  documented 58mm command set and unit-tested; the first real slip needs a human at a
+  printer. Devanagari needs the printer codepage set on the box (prints `?` until then).
 - **No true "back" inside a kiosk walk** — the walk has no rewind endpoint; the
   read-back "change something" restarts the intake. A per-node amend is S7/S9.
 - **The kiosk icon set is a branded subset + aliases + a neutral fallback**, not the

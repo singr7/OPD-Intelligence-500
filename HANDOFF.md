@@ -1,65 +1,71 @@
-# HANDOFF — after Session S-OSS.0 (V-OSS software layer)
+# HANDOFF — after Session S7 (kiosk offline-first)
 
-**Repo state:** branch `main`, last code commit precedes the session-close commit that
-follows this file. `make test` green (backend **515**, up from 492). `ruff check .` and
-`ruff format --check .` clean. `make dev` brings up the stack; Postgres on host port
-**5433**. Kiosk PWA live at `/kiosk` (S6). This was a **parallel-track** session (doc 08),
-not the main line — S7 (kiosk offline) is still the main-line next.
+**Repo state:** branch `main`. `make test` green: backend **541** (was 515),
+voice-gw 1, web typecheck+lint clean, **48** pure-logic web tests. Postgres on host
+port **5433**; voice-gw on 8090. A migration was added (`bc2e83129ac3`) — run
+`make migrate`. `make dev`'s api image predates this session; rebuild it (or run a
+local uvicorn) to serve `/kiosk/bundle`.
 
-**One paragraph:** The user added **doc 08** — a fully open-source local voice tier
-("V-OSS": Whisper → local LLM → local TTS on a 24 GB GPU box, zero paid APIs). We folded
-it into the build plan as a parallel track and built its **software half (S-OSS.0)**: the
-GPU-independent part. `app/providers/local_oss/` adds four adapters onto the *existing*
-provider interfaces — `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless),
-`LocalSTTProvider` (Whisper), `LocalTTSProvider` + `VoiceboxTTSProvider` — so a hospital
-selects V-OSS with three env vars (`LLM_PROVIDER=local_vllm` etc.) and nothing else changes;
-each meters `provider=local-*`, priced from amortized `local-*` rows. `config/tiers.yaml` +
-`app/tiers.py` hold the per-channel tier ladder; `AdmissionController` is the
-`MAX_OSS_SESSIONS` cap that routes overflow to the next tier instead of queuing on the GPU.
-All tested through `httpx.MockTransport` — **no GPU, no cloud keys**. The **GPU half**
-(S-OSS.1 bake-off, S-OSS.2 Pipecat realtime + 12-concurrent proof, S-OSS.3 Dhara cloning)
-is deferred until the box is available; `REALTIME_PROVIDER=local-pipecat` honestly refuses
-to build until then.
+**One paragraph:** S7 made the kiosk survive an outage (doc 01 §5). The tree
+walker + red-flag rules are now ported to TypeScript (`web/.../_lib/tree/`) and run
+in the browser when the API is unreachable — a second implementation of clinical
+logic, trusted only because a golden-trace conformance suite gates it against the
+Python original in `make test` (mutation-tested; a `gte`→`gt` fails it). Token
+collisions are made **unrepresentable** by partitioning the number line: online
+`< 500`, offline blocks `>= 500`, enforced on both sides. `POST /kiosk/blocks/lease`
+leases per-kiosk ranges while online; `POST /kiosk/sync` replays finished offline
+intakes idempotently (per `client_id`) and recomputes red flags server-side; the
+kiosk caches everything via `GET /kiosk/bundle` + Dexie + a shell service worker,
+flips to a marigold Downtime banner after 60s offline, and syncs on reconnect. The
+demo AC is proven both at the service layer (`test_offline.py`) and in a browser
+(`web/e2e/offline-demo.spec.ts`). Token slips print via an ESC/POS byte builder
+with a browser fallback. **Voice-pack manifest and `/kiosk/stt` were deferred.**
 
 ## Next session — pick one
-**Main line: S7 — Kiosk part 2 (offline-first, T3 voices, printing).** Unchanged by this
-session; see its brief in docs/06-BUILD-PLAN.md and the S6 notes (below). The kiosk still
-dies without the API — service worker + Dexie, offline token blocks, Downtime Mode, ESC/POS
-printing, voice-pack manifest.
+**Main line: S8 — Queue service + board + coordinator console** (docs 03 §6, 04 §3,
+01 §5). Builds directly on S7: the offline token blocks + `sync` reconciliation are
+the raw material for the coordinator's downtime-reconciliation screen, and
+`allocate_token` is still the provisional allocator S8 replaces with real
+queue-managed issuance (priority/urgent insertion, the wait-time estimator).
+- Exact first commands: `make dev` → `make migrate && make seed` → `make test`.
+  Rebuild the api image so `/kiosk/bundle` and `/kiosk/sync` are served, or run a
+  local uvicorn (see below).
 
-**Parallel track (only when the GPU box is available): S-OSS.1** — `docker-compose.gpu.yml`,
-Voicebox install, the TTS bake-off + Whisper/IndicConformer WER bench (doc 08 §6). S-OSS.0
-already gave it the adapters, price rows and admission gate to plug into.
-
-- Exact first commands (either path): `make dev` → `make migrate && make seed` → `make test`.
-
-### (Carried from S6, still true for S7)
-- Kiosk calls `kioskApi.*` (`web/app/(kiosk)/kiosk/_lib/api.ts`) synchronously; S7 puts a
-  service worker + Dexie in front and walks the dispatcher client-side when offline.
-- Token issuance is the offline crux — `app.kiosk.allocate_token` is a provisional `max+1`;
-  S7's offline token *blocks* (server pre-allocates a range, kiosk consumes offline,
-  reconciles) replace it. Build server allocation + kiosk consumption together.
-- Add `/kiosk/stt` over `stt_chain` + MediaRecorder for the "trouble hearing?" toggle.
+**To re-run the S7 offline demo** (needs a live API with S7 code):
+`cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
+.venv/bin/uvicorn app.main:app --port 8123` then
+`cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210` then
+`KIOSK_URL=http://127.0.0.1:3210 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx
+playwright test --project=offline-demo`.
 
 ## Watch out for
-- **V-OSS `ladder_for()` is loaded but not wired into the engine/voice-gw** — routing a
-  channel down its ladder + gating the live local session on admission is S-OSS.2. Today the
-  ladder is only operational via provider fallback chains + the V2→V3 tier downgrade.
-- **`local-pipecat` refuses on purpose** — do not "fix" it to fall to the fake; it needs the
-  GPU + Pipecat (S-OSS.2), same stance as `gemini-live`.
-- **`local-*` price rows are amortized placeholders**, non-zero so the dashboard shows a real
-  cost; not measured. Admin-editable in S18.
-- **Docker died mid-session once in S6** (daemon stop → Postgres 5433 refused → api 500s that
-  the browser mislabels "CORS"). If a kiosk fetch fails, `docker ps` before suspecting code.
-- Pre-existing lint stragglers were fixed this session (local ruff 0.15 vs unpinned CI now
-  flags what older ruff didn't); if CI ruff drifts again, expect more format-only nits.
+- **The dockerized api image is stale** — it was built at S6 and 404s on
+  `/kiosk/bundle`. If a kiosk boots and never caches/leases, rebuild the api image
+  (`make build`) or run local uvicorn. This bit the demo once (tokens came back as
+  online 4,5,6 because the browser hit the old :8000 image).
+- **Never let a token cross the base (500).** The online allocator and offline
+  blocks are disjoint by construction; that is the whole no-collision guarantee.
+  `allocate_token` raises when the online range fills rather than wrapping.
+- **The conformance gate is load-bearing.** Change `app/trees/rules.py` or
+  `walker.py` and you must `make tree-fixtures` + re-run `--project=conformance`,
+  or CI fails. It is mutation-tested; do not weaken the sampler.
+- **`make test` now runs the web conformance/offline/print suites** (pure logic,
+  fake-indexeddb) but NOT `offline-demo` (needs a live stack) or `kiosk` (S6).
+- **The block cursor is client-authoritative while offline** — `saveBlocks` never
+  rewinds `nextFree` to the server's stale `used_up_to`. Do not "fix" it to trust
+  the server after a reboot; those numbers are on paper slips already.
 
 ## Decisions needed from the human
-- None blocking. When the 24 GB GPU box is provisioned, that unblocks S-OSS.1 (its network,
-  WireGuard tunnel and driver versions are doc 08 §4).
+- None blocking. When the GPU box arrives, S-OSS.1 unblocks (unchanged from S6).
 
 ## Backlog additions
-- S-OSS.2: wire `config/tiers.yaml` `ladder_for()` + `AdmissionController` into voice-gw;
-  `LocalPipelineVoiceProvider` (Pipecat, Silero VAD + smart-turn); Redis-backed admission
-  counter for multi-replica voice-gw.
-- S18: replace amortized `local-*` price rows with measured GPU cost-per-unit.
+- **S7-carryover / S8: voice-pack manifest** — format + placeholder TTS-rendered
+  packs (per language, per node `audio` clip), served alongside the bundle and
+  cached for offline V3 audio. Seam exists (`app.intake.voicepack.VoicePack`);
+  today offline audio is the browser's Web Speech. Real human recordings are S21.
+- **S7-carryover: `/kiosk/stt`** — a server-STT endpoint over `stt_chain` +
+  MediaRecorder for the "trouble hearing?" chief-complaint path (doc 06 S6 line).
+- **ESC/POS Devanagari** — set the printer codepage on the box so Hindi lines
+  print; today they fall back to `?` and the slip leans on the ASCII token/time.
+- **A kiosk admin "list synced intakes" endpoint** — the demo proves sync from the
+  client side; a server-side reconciliation list is the coordinator's S8 screen.
