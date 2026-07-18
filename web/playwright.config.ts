@@ -25,6 +25,13 @@ export default defineConfig({
       testMatch: /kiosk\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The S7 offline demo (doc 01 §5): needs a live stack, so it is separate
+      // from the pure-logic conformance project and run explicitly.
+      name: "offline-demo",
+      testMatch: /offline-demo\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

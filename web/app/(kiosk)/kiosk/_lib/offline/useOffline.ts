@@ -34,8 +34,20 @@ export type OfflineState = {
   lastSync: SyncSummary | null;
 };
 
+/** A test seam only: the demo e2e cannot wait the full 60s for downtime mode, so
+ *  it sets this before the app mounts. Never set in production. */
+declare global {
+  interface Window {
+    __KIOSK_DOWNTIME_AFTER_MS__?: number;
+  }
+}
+
 export function useOffline(): OfflineState {
-  const net = useMemo(() => new NetMonitor(healthProbe(API_BASE)), []);
+  const net = useMemo(() => {
+    const override =
+      typeof window !== "undefined" ? window.__KIOSK_DOWNTIME_AFTER_MS__ : undefined;
+    return new NetMonitor(healthProbe(API_BASE), undefined, override);
+  }, []);
   const flow = useMemo(() => makeFlow({ net }), [net]);
 
   const [downtime, setDowntime] = useState(false);

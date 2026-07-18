@@ -832,7 +832,9 @@ function TokenScreen({
   return (
     <div className={s.tokenScreen}>
       <div className={s.tokenLabel}>{t("tokenTitle", lang)}</div>
-      <div className={s.tokenNumber}>{token.token_no ?? "—"}</div>
+      <div className={s.tokenNumber} data-testid="token-number">
+        {token.token_no ?? "—"}
+      </div>
       {token.department ? (
         <div className={s.tokenDept}>{token.department.name}</div>
       ) : null}
@@ -842,7 +844,11 @@ function TokenScreen({
           <Icon name="alert" /> {t("urgentNote", lang)}
         </div>
       ) : null}
-      <button className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`} onClick={onDone}>
+      <button
+        className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
+        onClick={onDone}
+        data-testid="token-done"
+      >
         {t("startOver", lang)}
       </button>
     </div>

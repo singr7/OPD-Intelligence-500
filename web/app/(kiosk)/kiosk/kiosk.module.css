@@ -641,7 +641,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  background: var(--primary);
+  /* doc 04 §3: downtime flips the bar to marigold, not the calm green. */
+  background: var(--accent);
   color: #3d2a00;
   border-radius: var(--radius);
   padding: var(--sp-2) var(--sp-3);

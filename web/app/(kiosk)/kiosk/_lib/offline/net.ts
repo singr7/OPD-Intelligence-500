@@ -47,11 +47,16 @@ export class NetMonitor {
   private state: NetState = { reachable: true, downtime: false, since: null };
   private listeners = new Set<NetListener>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  private downtimeTimer: ReturnType<typeof setTimeout> | null = null;
   private firstFailureAt: number | null = null;
 
   constructor(
     private readonly probe: () => Promise<boolean>,
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Date.now(),
+    /** How long continuous failure must last before the banner flips. Defaults
+     *  to the doc 01 §5 60s; the demo e2e shortens it (it cannot wait a minute).
+     *  Only affects the banner — the intake path fails over immediately. */
+    private readonly downtimeAfterMs: number = DOWNTIME_AFTER_MS
   ) {}
 
   get current(): NetState {
@@ -77,10 +82,26 @@ export class NetMonitor {
   stop(): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
+    this.clearDowntimeTimer();
     if (typeof window !== "undefined") {
       window.removeEventListener("online", this.onOnline);
       window.removeEventListener("offline", this.onOffline);
     }
+  }
+
+  private scheduleDowntimeCheck(): void {
+    this.clearDowntimeTimer();
+    this.downtimeTimer = setTimeout(() => {
+      this.downtimeTimer = null;
+      // Re-record the still-failing state so `downtime` is recomputed now that
+      // the threshold has passed. `record` is idempotent when nothing changed.
+      if (this.firstFailureAt !== null) this.record(false);
+    }, this.downtimeAfterMs);
+  }
+
+  private clearDowntimeTimer(): void {
+    if (this.downtimeTimer !== null) clearTimeout(this.downtimeTimer);
+    this.downtimeTimer = null;
   }
 
   private onOnline = () => void this.check();
@@ -117,12 +138,19 @@ export class NetMonitor {
     const at = this.now();
     if (reachable) {
       this.firstFailureAt = null;
+      this.clearDowntimeTimer();
     } else if (this.firstFailureAt === null) {
       this.firstFailureAt = at;
+      // Flip the banner when the threshold elapses even if nothing else probes
+      // in between — an outage detected by a failed request (not the heartbeat)
+      // would otherwise not reach downtime until the next 15s tick.
+      this.scheduleDowntimeCheck();
     }
 
     const downtime =
-      !reachable && this.firstFailureAt !== null && at - this.firstFailureAt >= DOWNTIME_AFTER_MS;
+      !reachable &&
+      this.firstFailureAt !== null &&
+      at - this.firstFailureAt >= this.downtimeAfterMs;
 
     const next: NetState = {
       reachable,
