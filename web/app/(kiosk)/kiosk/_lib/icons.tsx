@@ -258,6 +258,16 @@ const ICONS: Record<string, (p: P) => React.ReactNode> = {
       </>,
       title
     ),
+  printer: ({ title }) =>
+    wrap(
+      <>
+        <path d="M16 12h16v8H16z" fill="none" stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
+        <rect x="10" y="20" width="28" height="14" rx="2" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <rect x="16" y="28" width="16" height="10" rx="1" fill="#fff" stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
+        <circle cx="32" cy="25" r="1.6" fill={ink} />
+      </>,
+      title
+    ),
   stop: ({ title }) =>
     wrap(
       <>

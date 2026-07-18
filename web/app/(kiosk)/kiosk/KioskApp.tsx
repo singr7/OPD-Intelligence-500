@@ -12,6 +12,7 @@ import {
 } from "./_lib/api";
 import { useOffline } from "./_lib/offline/useOffline";
 import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offline/flow";
+import { printSlip } from "./_lib/print";
 import { cancelSpeech, listen, speak, sttSupported } from "./_lib/speech";
 import { Icon } from "./_lib/icons";
 import { AssistantAvatar } from "./_components/AssistantAvatar";
@@ -844,13 +845,31 @@ function TokenScreen({
           <Icon name="alert" /> {t("urgentNote", lang)}
         </div>
       ) : null}
-      <button
-        className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
-        onClick={onDone}
-        data-testid="token-done"
-      >
-        {t("startOver", lang)}
-      </button>
+      <div className={s.tokenActions}>
+        <button
+          className={`${s.btn} ${s.btnBig} ${s.btnGhost}`}
+          data-testid="token-print"
+          onClick={() =>
+            void printSlip({
+              tokenNo: token.token_no,
+              departmentName: token.department?.name ?? "",
+              hospitalName: t("hospital", lang),
+              issuedAt: new Date().toISOString(),
+              urgent: token.red_flags.length > 0,
+              lang,
+            })
+          }
+        >
+          <Icon name="printer" /> {t("printSlip", lang)}
+        </button>
+        <button
+          className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
+          onClick={onDone}
+          data-testid="token-done"
+        >
+          {t("startOver", lang)}
+        </button>
+      </div>
     </div>
   );
 }

@@ -679,3 +679,27 @@
   border-radius: var(--radius-pill);
   padding: 2px var(--sp-2);
 }
+
+/* --- token slip actions (S7) --------------------------------------------- */
+.tokenActions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Browser-print fallback (a kiosk with no thermal printer): print only the token
+   card, black on white. The ESC/POS bytes are the real path on a kiosk with a
+   print bridge; this is the honest fallback. */
+@media print {
+  .shell > *:not(.tokenScreen) { display: none !important; }
+  .downtimeBanner { display: none !important; }
+  .tokenScreen {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  .tokenNumber { color: #000 !important; }
+  .tokenActions { display: none !important; }
+}

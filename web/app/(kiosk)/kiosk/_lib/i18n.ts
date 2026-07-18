@@ -158,6 +158,10 @@ export const T = {
     hi: "{n} पर्चियाँ जुड़ने का इंतज़ार कर रही हैं",
     en: "{n} waiting to sync",
   } as Str,
+  printSlip: {
+    hi: "पर्ची छापें",
+    en: "Print slip",
+  } as Str,
 } as const;
 
 export function t(key: keyof typeof T, lang: KioskLang): string {
