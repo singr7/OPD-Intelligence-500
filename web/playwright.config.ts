@@ -17,7 +17,9 @@ export default defineConfig({
   fullyParallel: false,
   reporter: [["list"]],
   projects: [
-    { name: "conformance", testMatch: /conformance\.spec\.ts/ },
+    // Pure-logic suites: the walker conformance gate and the offline-store
+    // invariants. No browser, no server — they run in `make test`.
+    { name: "conformance", testMatch: /(conformance|offline-db)\.spec\.ts/ },
     {
       name: "kiosk",
       testMatch: /kiosk\.spec\.ts/,

@@ -2,6 +2,8 @@
 // deliberately mirrors the intake tool contract, so this stays thin — one method
 // per tool. The kiosk is a V3 client: taps in, nodes out.
 
+import type { Tree as CanonicalTree } from "./tree/types";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
@@ -80,6 +82,55 @@ export class ApiError extends Error {
   }
 }
 
+// -- offline surface (S7) -----------------------------------------------------
+
+export type BundleResult = {
+  etag: string;
+  generated_at: string;
+  departments: Dept[];
+  trees: { department_key: string | null; tree: CanonicalTree }[];
+};
+
+export type LeaseResult = {
+  kiosk_id: string;
+  date: string;
+  blocks: {
+    department: Dept;
+    start_no: number;
+    end_no: number;
+    used_up_to: number | null;
+    next_free: number;
+  }[];
+};
+
+export type SyncBody = {
+  kiosk_id: string;
+  intakes: {
+    client_id: string;
+    department_key: string;
+    tree_key: string;
+    lang: string;
+    token_no: number;
+    answers: unknown;
+    chief_complaint: string | null;
+    caregiver: boolean;
+    completed_at: string;
+  }[];
+};
+
+export type SyncResponse = {
+  results: {
+    client_id: string;
+    status: "synced" | "duplicate" | "rejected";
+    token_no: number | null;
+    red_flags: { id: string; severity: string }[];
+    error: string | null;
+  }[];
+  synced: number;
+  duplicates: number;
+  rejected: number;
+};
+
 export const kioskApi = {
   start(input: {
     lang: string;
@@ -103,5 +154,19 @@ export const kioskApi = {
   },
   confirm(sessionId: string) {
     return post<ConfirmResult>(`/kiosk/${sessionId}/confirm`);
+  },
+
+  // -- offline (S7) -----------------------------------------------------------
+  bundle() {
+    return fetch(`${API_BASE}/kiosk/bundle`, { cache: "no-cache" }).then((r) => {
+      if (!r.ok) throw new ApiError(r.status, r.statusText);
+      return r.json() as Promise<BundleResult>;
+    });
+  },
+  leaseBlocks(kioskId: string) {
+    return post<LeaseResult>(`/kiosk/blocks/lease?kiosk_id=${encodeURIComponent(kioskId)}`);
+  },
+  sync(body: SyncBody) {
+    return post<SyncResponse>("/kiosk/sync", body);
   },
 };

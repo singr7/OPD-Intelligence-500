@@ -8,8 +8,10 @@ import {
   ConfirmResult,
   Dept,
   KioskNode,
-  kioskApi,
+  StartResult,
 } from "./_lib/api";
+import { useOffline } from "./_lib/offline/useOffline";
+import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offline/flow";
 import { cancelSpeech, listen, speak, sttSupported } from "./_lib/speech";
 import { Icon } from "./_lib/icons";
 import { AssistantAvatar } from "./_components/AssistantAvatar";
@@ -53,6 +55,10 @@ export function KioskApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [idle, setIdle] = useState(false);
+
+  // Offline lifecycle (S7): the flow that drives an intake online-or-local, plus
+  // the downtime signal and the pending-sync count for the banner.
+  const { flow, downtime, pending, cachedDepartments } = useOffline();
 
   // --- audio: speak the current prompt whenever it changes -----------------
   const say = useCallback(
@@ -122,9 +128,7 @@ export function KioskApp() {
     }
   };
 
-  const applyStart = (
-    res: Awaited<ReturnType<typeof kioskApi.start>>
-  ) => {
+  const applyStart = (res: StartResult) => {
     if (res.status === "needs_department") {
       setDepts(res.departments);
       setScreen("chooser");
@@ -141,21 +145,41 @@ export function KioskApp() {
     }
   };
 
-  const start = (deptKey?: string) =>
+  const start = (dept?: Dept) =>
     withBusy(async () => {
-      const res = await kioskApi.start({
-        lang,
-        chief_complaint: complaint || "—",
-        caregiver,
-        dept_key: deptKey,
-      });
-      applyStart(res);
+      try {
+        const res = await flow.start({
+          lang,
+          chiefComplaint: complaint || "—",
+          caregiver,
+          deptKey: dept?.key,
+          deptName: dept?.name,
+        });
+        applyStart(res);
+      } catch (e) {
+        if (e instanceof OfflineNeedsDepartment) {
+          // No server to classify Q1 — go straight to the chooser from the
+          // cached bundle (doc 03 §1a: the tap fallback is always available).
+          setDepts(cachedDepartments);
+          setScreen("chooser");
+          return;
+        }
+        if (e instanceof OfflineUnavailableForDept) {
+          setError(
+            lang === "hi"
+              ? "यह पर्ची कर्मचारी से लें — अभी ऑफ़लाइन सेवा उपलब्ध नहीं।"
+              : "Please see the staff desk — offline service is unavailable for this department."
+          );
+          return;
+        }
+        throw e;
+      }
     });
 
   const submitAnswer = (value: unknown, rawText?: string) =>
     withBusy(async () => {
       if (!sessionId || !node) return;
-      const res = await kioskApi.answer(sessionId, {
+      const res = await flow.answer(sessionId, {
         node_id: node.id,
         value,
         raw_text: rawText ?? null,
@@ -177,7 +201,7 @@ export function KioskApp() {
 
   const finish = (sid: string) =>
     withBusy(async () => {
-      const res = await kioskApi.finish(sid);
+      const res = await flow.finish(sid);
       setReadback(res.readback);
       setRedFlags(res.red_flags);
       setScreen("readback");
@@ -186,7 +210,7 @@ export function KioskApp() {
   const confirm = () =>
     withBusy(async () => {
       if (!sessionId) return;
-      const res = await kioskApi.confirm(sessionId);
+      const res = await flow.confirm(sessionId);
       setToken(res);
       setScreen("token");
     });
@@ -207,6 +231,8 @@ export function KioskApp() {
           cancelSpeech();
         }}
       />
+
+      {downtime && <DowntimeBanner lang={lang} pending={pending} />}
 
       {error ? <div className={s.errorToast}>{error}</div> : null}
 
@@ -308,7 +334,7 @@ export function KioskApp() {
                 key={d.key}
                 text={d.name}
                 icon={deptIcon(d.key)}
-                onSelect={() => start(d.key)}
+                onSelect={() => start(d)}
               />
             ))}
           </div>
@@ -359,6 +385,26 @@ export function KioskApp() {
         </div>
       )}
     </main>
+  );
+}
+
+// -- downtime banner (S7, doc 01 §5) ------------------------------------------
+
+/** The "OFFLINE — tokens continue" card (doc 04 §3: coordinator/kiosk downtime
+ *  flips the bar to marigold with a clear banner). It reassures rather than
+ *  alarms: the whole point of downtime mode is that the patient's intake still
+ *  works, so the copy says what still works, not what is broken. */
+function DowntimeBanner({ lang, pending }: { lang: KioskLang; pending: number }) {
+  return (
+    <div className={s.downtimeBanner} role="status" data-testid="downtime-banner">
+      <span className={s.downtimeDot} aria-hidden />
+      <span className={s.downtimeText}>{t("downtimeBanner", lang)}</span>
+      {pending > 0 && (
+        <span className={s.downtimePending}>
+          {t("downtimePending", lang).replace("{n}", String(pending))}
+        </span>
+      )}
+    </div>
   );
 }
 

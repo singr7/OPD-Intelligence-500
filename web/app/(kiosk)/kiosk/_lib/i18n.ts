@@ -149,6 +149,15 @@ export const T = {
     hi: "यह जवाब भेजिए",
     en: "Send this answer",
   } as Str,
+  // Downtime mode (S7, doc 01 §5). Reassure, don't alarm: the intake still works.
+  downtimeBanner: {
+    hi: "ऑफ़लाइन मोड — आपकी पर्ची और जानकारी सुरक्षित है",
+    en: "Offline mode — your token and answers are safe",
+  } as Str,
+  downtimePending: {
+    hi: "{n} पर्चियाँ जुड़ने का इंतज़ार कर रही हैं",
+    en: "{n} waiting to sync",
+  } as Str,
 } as const;
 
 export function t(key: keyof typeof T, lang: KioskLang): string {
