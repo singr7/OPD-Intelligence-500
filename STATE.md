@@ -72,6 +72,29 @@ print (`_lib/print.ts`) + browser fallback. Demo AC proven at the service layer
 (`test_offline.py`) and in a browser (`web/e2e/offline-demo.spec.ts`). 515→**541 tests** +
 48 pure-logic web tests.
 
+**Built (S8):** The **live queue** over the tokens (doc 03 §6). `app/queue.py` = a
+`QueueEntry` per visit with ordering *derived* from `(priority_rank, position,
+token_no)`, so an urgent red-flag intake jumps the line by construction (severity
+from the rules, never re-decided) with a reason chip; plus `call_next`, a guarded
+state machine (waiting→called→in_consult→done / no-show / lab-requeue-to-back),
+drag `reorder` (priority still wins), a wait estimator (observed mean consult time,
+seeded), `board`/`department_queue` read models, and `paper_entry` for downtime
+recovery. The kiosk **confirm** and the S7 offline **sync** now `enqueue_from_intake`
++ broadcast, so a token is on the board the instant it's issued (online or
+synced-from-downtime). `app/queue_hub.py` = in-process WebSocket fan-out + the
+in-memory downtime flag. `app/routes/queue.py` = board (public) + `/queue/ws`,
+console + action verbs (staff), downtime get/set, a reconciliation list (offline +
+paper intakes), a paper-entry form, and two print routes. `app/print_sheets.py` =
+downtime paper intake forms (one fillable A4 per tree, bilingual) + a tear-off
+token-block sheet, both from live data (HTML→browser-print). Web: the **TV board**
+(`app/(board)/board` — train-platform numerals, next-3, wait ranges, LIVE + clock,
+2-lang chime + speech announce, marigold downtime banner) and the **coordinator
+console** (`app/(coordinator)/coordinator` — phone-OTP login, call-next/state/drag
+reorder, downtime enter/exit repainting the app bar marigold, reconciliation table,
+paper-entry form, print tab); shared `app/_lib/queue.ts` + `useQueueSocket.ts`.
+541→**577 tests** + `web/e2e/queue.spec.ts` (live) + `scripts/seed_queue_demo.py`.
+No migration (Queue/QueueEntry existed since S2).
+
 **Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
 voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
 `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
@@ -84,9 +107,9 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** channel adapters for WhatsApp (S12) and telephony (S14); real voice
-packs / the voice-pack manifest + `/kiosk/stt` (S7 carryover → backlog); the real Gemini
-Live impl (S14); queue service + board + coordinator (S8); the V-OSS **GPU half**
+**Not built yet:** the doctor console (S9); channel adapters for WhatsApp (S12) and
+telephony (S14); real voice packs / the voice-pack manifest + `/kiosk/stt` (S7
+carryover → backlog); the real Gemini Live impl (S14); the V-OSS **GPU half**
 (S-OSS.1/.2/.3 — needs the GPU box).
 
 ## How to run
@@ -98,6 +121,13 @@ make test                # backend pytest + voice-gw pytest + web typecheck/lint
 make migration m="..."   # autogenerate a revision from model changes
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 ```
+Queue board + coordinator console (S8): served at `/board` (public TV) and
+`/coordinator` (staff, phone-OTP). The board holds a WebSocket to `/queue/ws` and
+re-fetches on every change ping. Live demo (needs a live api with S8 code — the
+dockerised image predates it): run a local uvicorn with `OTP_RESEND_COOLDOWN_SECONDS=0`,
+`python -m scripts.seed_queue_demo` for a deterministic demo queue, then
+`npm run e2e:queue`. Coordinator login: `+915550000002` (seeded coordinator); the
+OTP is echoed on the login screen locally. See HANDOFF.md for the exact commands.
 Kiosk PWA: `web/app/(kiosk)/kiosk`, served at `/kiosk` (web on :3000, api on :8000;
 `NEXT_PUBLIC_API_BASE` points the browser at the api). The Playwright screenshot
 suite runs against a live stack: `cd web && npm run e2e` (needs `make dev` + a
@@ -131,6 +161,9 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
 `config/tiers.yaml`, not env. **Offline kiosk (S7):** `KIOSK_OFFLINE_TOKEN_BASE` (default 500 —
 online tokens stay below it, offline blocks at/above) and `KIOSK_OFFLINE_BLOCK_SIZE` (default 50).
+**Queue (S8):** `QUEUE_DEFAULT_CONSULT_MINUTES` (default 6) — the wait-estimator seed before
+a department has any completed consults to measure; no other queue config (downtime is an
+in-memory flag, not env).
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
@@ -188,13 +221,45 @@ fallback).
 - **The engine downgrades, never denies** — a provider outage or a cost-guard breach lowers
   the tier (V1→V2→V3); a completed V3 intake needs no vendor for its summary. Nothing in the
   engine may block or fail an intake for cost or an outage (that is a human's paper decision).
+- **The queue never renumbers a token** (`app.queue`) — it wraps `allocate_token`, it does
+  not re-issue. A token is a promise to a patient holding a slip; priority reorders the
+  *queue*, never the number. The online/offline partition (S7) stays the no-collision guarantee.
+- **Queue order is derived, never stored as a rank** — `(priority_rank, position, token_no)`.
+  Urgent-jump falls out of the sort (severity from the rules, not re-decided, and not a
+  coordinator's manual move); a drag only rewrites `position` and can never demote an urgent
+  token below a routine one. The one place a human sets priority is a **paper** entry.
+- **A WebSocket route reads app state directly, never via a `Request` dependency** — a WS
+  scope has no `Request`, so `Depends(get_hub)` 500s the handshake. `/queue/ws` uses
+  `ws.app.state.queue_hub`.
+- **Client components inject CSS via `dangerouslySetInnerHTML`, not a `<style>{text}` child**
+  — the text child hydrates as a mismatch (quotes escape differently SSR vs client) and
+  flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
-- **Online kiosk token issuance is still provisional** — `app.kiosk.allocate_token` is a
-  `max(token_no)+1` **below the offline base (500)**, guarded by the unique constraint.
-  Real queue-managed issuance (priority/urgent insertion, wait estimate, reconciliation)
-  is S8; the allocator is replaced then, not the wire shape. The **offline** blocks
-  (`app.offline`, S7) are real and partition the number line so the two never collide.
+- **Kiosk token issuance is `max(token_no)+1` and stays that way** —
+  `app.kiosk.allocate_token` allocates below the offline base (500), guarded by the
+  unique constraint. S8 did **not** replace it: the queue (`app.queue`) *wraps* it
+  with a `QueueEntry` (priority/urgent insertion, wait estimate, reconciliation)
+  rather than re-issuing a number, because a token is a promise to a patient holding
+  a slip. The offline blocks (`app.offline`, S7) still partition the number line so
+  online and offline never collide. A gap-free / reserved-number scheme is not needed.
+- **The queue + downtime flag are in-memory, single-process** (`app.queue_hub`) —
+  correct for the one pilot api container; a second replica would each hold their own
+  WS clients and downtime flag and miss each other's. Fix is a Redis pub/sub channel
+  (S19/S20), same shape as the cost-guard override store and the OSS AdmissionController.
+- **`/queue/ws` is covered by the live `queue` e2e, not a unit test** — the
+  ASGITransport test client can't easily drive a WebSocket; the `QueueHub` logic
+  itself is unit-tested. The route reads the hub off `ws.app.state` (a WS scope has
+  no `Request`, so `Depends` on a Request-typed provider 500s the handshake).
+- **The coordinator staff token is localStorage, not an httpOnly cookie** — fine for
+  a pilot on a trusted LAN behind Caddy; a cookie hardening pass is S19/S20. The
+  minimal phone-OTP login was written to be lifted into S9's doctor console.
+- **Board/console reason chips + department names render in English** — the stored
+  priority reason is the English clinical label; dept-name/chip localisation is S13.
+- **Downtime paper sheets are browser-printed HTML, not server PDFs** —
+  `app.print_sheets` returns print-optimised HTML (A4, tick-boxes, Devanagari) that
+  the browser turns into a PDF, the same fallback stance as the S7 ESC/POS bridge. A
+  server-side PDF with embedded Indic fonts is a deploy dependency decision (S19/S21).
 - **Offline audio is the browser's Web Speech** — the voice-pack manifest + placeholder
   TTS packs were deferred (S7 backlog). No recorded packs exist (S21); the `VoicePack`
   seam (`app.intake.voicepack`) is unchanged from S5.

@@ -1,71 +1,87 @@
-# HANDOFF — after Session S7 (kiosk offline-first)
+# HANDOFF — after Session S8 (queue + board + coordinator console)
 
-**Repo state:** branch `main`. `make test` green: backend **541** (was 515),
-voice-gw 1, web typecheck+lint clean, **48** pure-logic web tests. Postgres on host
-port **5433**; voice-gw on 8090. A migration was added (`bc2e83129ac3`) — run
-`make migrate`. `make dev`'s api image predates this session; rebuild it (or run a
-local uvicorn) to serve `/kiosk/bundle`.
+**Repo state:** branch `main`. `make test` green: backend **577** (was 541),
+voice-gw 1, web typecheck+lint clean, **48** conformance. Postgres on host port
+**5433**; voice-gw on 8090. **No migration this session** — `Queue`/`QueueEntry`
+existed since S2 (only a new env-only setting, `queue_default_consult_minutes`).
+`make dev`'s api image predates this session; rebuild it (or run a local uvicorn)
+to serve the `/queue/*` routes and `/queue/ws`.
 
-**One paragraph:** S7 made the kiosk survive an outage (doc 01 §5). The tree
-walker + red-flag rules are now ported to TypeScript (`web/.../_lib/tree/`) and run
-in the browser when the API is unreachable — a second implementation of clinical
-logic, trusted only because a golden-trace conformance suite gates it against the
-Python original in `make test` (mutation-tested; a `gte`→`gt` fails it). Token
-collisions are made **unrepresentable** by partitioning the number line: online
-`< 500`, offline blocks `>= 500`, enforced on both sides. `POST /kiosk/blocks/lease`
-leases per-kiosk ranges while online; `POST /kiosk/sync` replays finished offline
-intakes idempotently (per `client_id`) and recomputes red flags server-side; the
-kiosk caches everything via `GET /kiosk/bundle` + Dexie + a shell service worker,
-flips to a marigold Downtime banner after 60s offline, and syncs on reconnect. The
-demo AC is proven both at the service layer (`test_offline.py`) and in a browser
-(`web/e2e/offline-demo.spec.ts`). Token slips print via an ESC/POS byte builder
-with a browser fallback. **Voice-pack manifest and `/kiosk/stt` were deferred.**
+**One paragraph:** S8 turned the tokens into a live queue (doc 03 §6). `app/queue.py`
+is the service — a `QueueEntry` per visit, ordering derived from
+`(priority_rank, position, token_no)` so an urgent red-flag intake *jumps the line
+by construction* (severity from the rules, not re-decided) with a reason chip;
+plus `call_next`, a guarded state machine, drag `reorder`, a wait estimator, and
+`board`/`department_queue` read models. The kiosk confirm and the S7 offline sync
+now `enqueue_from_intake` + broadcast, so a token hits the board the instant it's
+issued — online or synced-from-downtime. `app/queue_hub.py` is an in-process WS
+fan-out + the in-memory downtime flag; `app/routes/queue.py` exposes a public
+board + `/queue/ws`, staff console + actions, downtime, a reconciliation list
+(offline + paper intakes), a paper-entry form, and two print routes
+(`app/print_sheets.py`: fillable intake forms + a tear-off token block, HTML→
+browser-print). Web: the **TV board** (`app/(board)/board`, train-platform
+numerals + chime + 2-lang announce + marigold downtime banner) and the
+**coordinator console** (`app/(coordinator)/coordinator`, phone-OTP login,
+call-next/state/reorder, downtime toggle, reconciliation, paper entry, print).
+The three-browser live-sync + urgent-jump AC is proven live in
+`web/e2e/queue.spec.ts` (project `queue`).
 
-## Next session — pick one
-**Main line: S8 — Queue service + board + coordinator console** (docs 03 §6, 04 §3,
-01 §5). Builds directly on S7: the offline token blocks + `sync` reconciliation are
-the raw material for the coordinator's downtime-reconciliation screen, and
-`allocate_token` is still the provisional allocator S8 replaces with real
-queue-managed issuance (priority/urgent insertion, the wait-time estimator).
-- Exact first commands: `make dev` → `make migrate && make seed` → `make test`.
-  Rebuild the api image so `/kiosk/bundle` and `/kiosk/sync` are served, or run a
-  local uvicorn (see below).
+## Next session — S9 (Doctor console + summary view)
+- Objective: OTP login; day list; patient card (summary hero, red-flag strip,
+  answers accordion, visit timeline, symptom sparklines); call-next / no-show /
+  lab-requeue wired to the **S8 queue** (`app.queue.set_state` / `call_next`);
+  keyboard shortcuts. Load docs 03 §4/§5, 04 §3.
+- **Reuse, don't rebuild:** the doctor's queue actions are the same
+  `app.queue` verbs the console uses; the minimal phone-OTP login
+  (`web/app/(coordinator)/coordinator/_components/Login.tsx` + `_lib/session.ts`)
+  was written to be lifted into S9. The summariser (S5, `app/intake/summary.py`)
+  already produces the doc 03 §4 contract onto `Intake.summary_md`.
+- Exact first commands: `make dev` → rebuild the api image (or local uvicorn,
+  below) → `make migrate && make seed` → `make test`.
 
-**To re-run the S7 offline demo** (needs a live API with S7 code):
-`cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
-.venv/bin/uvicorn app.main:app --port 8123` then
-`cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210` then
-`KIOSK_URL=http://127.0.0.1:3210 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx
-playwright test --project=offline-demo`.
+## Run the S8 board/console demo (needs a live api with S8 code)
+```
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 ENV=local \
+  .venv/bin/uvicorn app.main:app --port 8123
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  .venv/bin/python -m scripts.seed_queue_demo         # deterministic demo queue
+cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npx playwright test --project=queue                 # or npm run e2e:queue
+```
+Coordinator login: phone `+915550000002` (seeded coordinator); the demo OTP code
+is echoed in the response and shown as a hint on the login screen.
 
 ## Watch out for
-- **The dockerized api image is stale** — it was built at S6 and 404s on
-  `/kiosk/bundle`. If a kiosk boots and never caches/leases, rebuild the api image
-  (`make build`) or run local uvicorn. This bit the demo once (tokens came back as
-  online 4,5,6 because the browser hit the old :8000 image).
-- **Never let a token cross the base (500).** The online allocator and offline
-  blocks are disjoint by construction; that is the whole no-collision guarantee.
-  `allocate_token` raises when the online range fills rather than wrapping.
-- **The conformance gate is load-bearing.** Change `app/trees/rules.py` or
-  `walker.py` and you must `make tree-fixtures` + re-run `--project=conformance`,
-  or CI fails. It is mutation-tested; do not weaken the sampler.
-- **`make test` now runs the web conformance/offline/print suites** (pure logic,
-  fake-indexeddb) but NOT `offline-demo` (needs a live stack) or `kiosk` (S6).
-- **The block cursor is client-authoritative while offline** — `saveBlocks` never
-  rewinds `nextFree` to the server's stale `used_up_to`. Do not "fix" it to trust
-  the server after a reboot; those numbers are on paper slips already.
+- **A WebSocket route can't take a `Request`-typed dependency.** `/queue/ws`
+  reads the hub off `ws.app.state.queue_hub` directly — `Depends(get_hub)` there
+  500s the handshake (it bit us once). Any new WS route must do the same.
+- **`<style>{cssText}</style>` in a client component hydrates as a mismatch**
+  (quotes escape differently SSR vs client). The board/console inject CSS via
+  `dangerouslySetInnerHTML`. Keep it that way; a plain text child flickers.
+- **Never renumber a token.** The queue wraps `allocate_token`; it does not
+  reissue. The online/offline partition (S7) is still the no-collision
+  guarantee. Priority reorders the *queue*, never the number.
+- **Downtime + the hub are in-memory, single-process** — correct for the one
+  pilot api container; a second replica needs Redis pub/sub (same caveat as the
+  cost-guard override store and the OSS AdmissionController).
+- **`make test` does NOT run the `queue` e2e** (needs a live stack), same as
+  `offline-demo` and `kiosk`. Run it explicitly (`npm run e2e:queue`).
+- **`seed_queue_demo` hard-deletes today's demo rows** to be repeatable — it is a
+  dev-only script and steps outside the soft-delete invariant on purpose.
 
 ## Decisions needed from the human
-- None blocking. When the GPU box arrives, S-OSS.1 unblocks (unchanged from S6).
+- None blocking. When the GPU box arrives, S-OSS.1 unblocks (unchanged).
 
 ## Backlog additions
-- **S7-carryover / S8: voice-pack manifest** — format + placeholder TTS-rendered
-  packs (per language, per node `audio` clip), served alongside the bundle and
-  cached for offline V3 audio. Seam exists (`app.intake.voicepack.VoicePack`);
-  today offline audio is the browser's Web Speech. Real human recordings are S21.
-- **S7-carryover: `/kiosk/stt`** — a server-STT endpoint over `stt_chain` +
-  MediaRecorder for the "trouble hearing?" chief-complaint path (doc 06 S6 line).
-- **ESC/POS Devanagari** — set the printer codepage on the box so Hindi lines
-  print; today they fall back to `?` and the slip leans on the ASCII token/time.
-- **A kiosk admin "list synced intakes" endpoint** — the demo proves sync from the
-  client side; a server-side reconciliation list is the coordinator's S8 screen.
+- **Server-side PDF for the paper sheets** — today the print routes return HTML
+  the browser prints; a real HTML→PDF with embedded Indic fonts is a deploy
+  dependency decision (S19/S21).
+- **Per-doctor queues + room assignment** — S8 runs one queue per department
+  (`doctor_id` null); splitting by room/doctor is S9/S18.
+- **Board/console localisation** — reason chip + department names are English
+  until S13.
+- **Staff auth hardening** — the coordinator token is localStorage, not an
+  httpOnly cookie (S19/S20).
+- **A `/queue/ws` unit test** — currently covered only by the live `queue` e2e.
