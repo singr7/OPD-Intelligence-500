@@ -42,7 +42,10 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
   const onEvent = useCallback(
     (e: QueueEvent) => {
       if (e.type === "queue_update") void refresh();
-      if (e.type === "downtime") setData((d) => (d ? { ...d, downtime: e.active } : d));
+      if (e.type === "downtime")
+        // Only re-render when it actually flipped — a reconnect re-sends the
+        // current flag, and a new object each time would churn the DOM.
+        setData((d) => (d && d.downtime !== e.active ? { ...d, downtime: e.active } : d));
     },
     [refresh],
   );
@@ -67,7 +70,9 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
 
   return (
     <main className={`console ${downtime ? "is-downtime" : ""}`}>
-      <style>{CONSOLE_CSS}</style>
+      {/* Raw-injected so SSR/client hydration agrees (quotes in CSS escape
+          differently as a text child). */}
+      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS }} />
 
       <header className="appbar">
         <div className="appbar-l">

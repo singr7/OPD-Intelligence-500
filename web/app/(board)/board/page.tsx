@@ -35,7 +35,7 @@ export default function BoardPage() {
     (e: QueueEvent) => {
       if (e.type === "queue_update") void refresh();
       if (e.type === "downtime") {
-        setBoard((b) => (b ? { ...b, downtime: e.active } : b));
+        setBoard((b) => (b && b.downtime !== e.active ? { ...b, downtime: e.active } : b));
       }
     },
     [refresh],
@@ -58,7 +58,9 @@ export default function BoardPage() {
 
   return (
     <main className="board">
-      <style>{BOARD_CSS}</style>
+      {/* Injected raw so SSR and client agree byte-for-byte — a `<style>{text}`
+          child hydrates as a mismatch (quotes in the CSS escape differently). */}
+      <style dangerouslySetInnerHTML={{ __html: BOARD_CSS }} />
       {board?.downtime && (
         <div className="downtime" role="status">
           <span className="dot" /> OFFLINE — tokens continue · टोकन जारी हैं

@@ -32,6 +32,14 @@ export default defineConfig({
       testMatch: /offline-demo\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The S8 queue board + coordinator console (doc 03 §6). Live stack; drives
+      // the real WS fan-out to prove board↔console sync. Screenshots for doc 04
+      // §5 self-critique. Run explicitly (`npm run e2e:queue`).
+      name: "queue",
+      testMatch: /queue\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

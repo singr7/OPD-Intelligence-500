@@ -46,7 +46,7 @@ export function Login({ onToken }: { onToken: (token: string) => void }) {
 
   return (
     <main className="login">
-      <style>{LOGIN_CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: LOGIN_CSS }} />
       <section className="card">
         <div className="badge">Coordinator</div>
         <h1>Sign in</h1>

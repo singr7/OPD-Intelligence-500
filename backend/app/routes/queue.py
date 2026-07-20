@@ -198,13 +198,21 @@ async def get_board(
 
 
 @router.websocket("/ws")
-async def queue_ws(ws: WebSocket, hub: QueueHub = Depends(get_hub)) -> None:
+async def queue_ws(ws: WebSocket) -> None:
     """The live-sync socket for board + console. Public (the board has no login).
 
     Carries only change *pings* and the downtime flag — no PII crosses it, so a
     wall-mounted TV can hold it open with no credential. Clients re-fetch their
     own snapshot on a ping.
+
+    The hub is read off `ws.app.state` rather than via `Depends(get_hub)`: a
+    WebSocket scope has no `Request`, so the Request-typed dependency can't be
+    resolved here (this bit us once — the handshake 500'd).
     """
+    hub: QueueHub | None = getattr(ws.app.state, "queue_hub", None)
+    if hub is None:  # pragma: no cover - lifespan always sets it
+        await ws.close(code=1011)
+        return
     await hub.connect(ws)
     try:
         while True:
