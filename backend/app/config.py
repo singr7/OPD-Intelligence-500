@@ -144,6 +144,12 @@ class Settings(BaseSettings):
     # patient picks the department and any of them may be needed).
     kiosk_offline_block_size: int = 50
 
+    # --- Queue (S8, doc 03 §6) -----------------------------------------------
+    # Seed value for the wait-time estimator before the day has any completed
+    # consults to measure. Once a department finishes a few tokens the estimator
+    # uses its own observed mean instead (app.queue.estimate_wait).
+    queue_default_consult_minutes: int = 6
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}

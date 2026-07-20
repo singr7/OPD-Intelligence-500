@@ -34,10 +34,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
+from app import queue as queue_svc
 from app.db import get_session
 from app.intake import IntakeEngine, SessionState, ToolError
 from app.models.enums import Channel, Lang
 from app.providers.metering import get_meter
+from app.queue_hub import QueueHub
 from app.trees import bank
 
 logger = logging.getLogger(__name__)
@@ -284,30 +286,29 @@ async def finish(
 @router.post("/{session_id}/confirm", response_model=ConfirmOut)
 async def confirm(
     session_id: str,
+    request: Request,
     engine: IntakeEngine = Depends(get_engine),
     session: AsyncSession = Depends(get_session),
 ) -> ConfirmOut:
-    """The patient confirmed the read-back: allocate a token and finalise the cost.
+    """The patient confirmed the read-back: allocate a token, finalise the cost,
+    and put the visit in its department's queue (S8).
 
     The token screen is the kiosk's last screen (doc 03 §1a). Cost finalisation
     sums this intake's `usage_events` (the classifier's routing call, mostly) onto
-    the `Intake` row.
+    the `Intake` row. Enqueuing is what makes the token appear on the board and
+    coordinator console live — an intake with a red flag lands `urgent` and jumps
+    the queue (doc 03 §6), with no coordinator action.
     """
     state = await _load_state(engine, session_id)
     state.confirmed = True
     await engine.store.save(state)
 
-    token_no: int | None = None
-    department: DeptOut | None = None
-    if state.visit_id is not None:
-        from app.models.clinical import Visit
+    from app.models.clinical import Visit
 
-        visit = await session.get(Visit, state.visit_id)
-        if visit is not None:
-            token_no = await kiosk_svc.allocate_token(session, visit)
-            dept = await session.get(kiosk_svc.Department, visit.department_id)
-            if dept is not None:
-                department = DeptOut(key=dept.code, name=dept.name)
+    # Load the visit up front so `finalize_cost` → `_persist_intake` can resolve
+    # `intake.visit` from the identity map without an async lazy-load (which would
+    # raise MissingGreenlet). It is also the row `allocate_token` stamps.
+    visit = await session.get(Visit, state.visit_id) if state.visit_id is not None else None
 
     # Drain the batched meter first so the cost sums a complete set of
     # usage_events — the classifier's routing call is metered async, and without a
@@ -315,7 +316,29 @@ async def confirm(
     meter = get_meter()
     if meter is not None:
         await meter.flush()
+    # Finalise before enqueuing: it persists `intake.red_flags`
+    # (engine._persist_intake), the source the queue reads to decide urgency.
     cost = await engine.finalize_cost(state, session)
+
+    token_no: int | None = None
+    department: DeptOut | None = None
+    enqueued = False
+    if visit is not None:
+        token_no = await kiosk_svc.allocate_token(session, visit)
+        intake = await session.get(kiosk_svc.Intake, state.intake_id)
+        if intake is not None:
+            await queue_svc.enqueue_from_intake(session, visit=visit, intake=intake)
+            enqueued = True
+        dept = await session.get(kiosk_svc.Department, visit.department_id)
+        if dept is not None:
+            department = DeptOut(key=dept.code, name=dept.name)
+
+    if enqueued:
+        await session.commit()  # commit before broadcasting so re-fetches see it
+        hub: QueueHub | None = getattr(request.app.state, "queue_hub", None)
+        if hub is not None:
+            await hub.notify_queue_changed()
+
     return ConfirmOut(
         token_no=token_no,
         department=department,
@@ -479,6 +502,7 @@ async def lease_blocks(
 @router.post("/sync", response_model=SyncOut)
 async def sync(
     payload: SyncIn,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> SyncOut:
     """Take back the intakes a kiosk completed while the API was unreachable.
@@ -513,9 +537,18 @@ async def sync(
             )
         )
 
+    synced = sum(1 for r in results if r.status == "synced")
+    if synced:
+        # A drill/outage recovery just put tokens on the record; nudge the board
+        # and coordinator console so the reconciliation list and queue go live.
+        await session.commit()
+        hub: QueueHub | None = getattr(request.app.state, "queue_hub", None)
+        if hub is not None:
+            await hub.notify_queue_changed()
+
     return SyncOut(
         results=results,
-        synced=sum(1 for r in results if r.status == "synced"),
+        synced=synced,
         duplicates=sum(1 for r in results if r.status == "duplicate"),
         rejected=sum(1 for r in results if r.status == "rejected"),
     )

@@ -27,9 +27,11 @@ from app.middleware import AuditMiddleware
 from app.providers.costguard import CostGuard, build_override_store, set_guard
 from app.providers.metering import UsageMeter, set_meter
 from app.providers.pricing import get_price_book
+from app.queue_hub import QueueHub
 from app.routes.health import router as health_router
 from app.routes.kiosk import router as kiosk_router
 from app.routes.providers import router as providers_router
+from app.routes.queue import router as queue_router
 
 
 def _build_lifespan(settings: Settings):
@@ -57,6 +59,11 @@ def _build_lifespan(settings: Settings):
         # One IntakeEngine per process — it holds no per-intake state (the session
         # store does), so channel routers (kiosk now, WhatsApp S12) share it.
         app.state.intake_engine = IntakeEngine(build_session_store(settings))
+
+        # The live-queue fan-out hub (S8): board + coordinator sockets and the
+        # in-memory downtime flag. In-process — one api container at pilot scale
+        # (see app/queue_hub.py for the multi-replica caveat).
+        app.state.queue_hub = QueueHub()
 
         try:
             yield
@@ -95,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(providers_router)
     app.include_router(kiosk_router)
+    app.include_router(queue_router)
     return app
 
 

@@ -69,6 +69,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import queue
 from app.config import get_settings
 from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
@@ -361,6 +362,11 @@ async def sync_intake(
     await session.flush()
 
     await _mark_used(session, block, token_no)
+
+    # A synced downtime intake joins the queue exactly like an online one — same
+    # rows, same urgent-jump on a red flag (S8). Without this, tokens issued
+    # during an outage would sync onto the record but never appear on the board.
+    await queue.enqueue_from_intake(session, visit=visit, intake=intake)
 
     return SyncResult(
         client_id,

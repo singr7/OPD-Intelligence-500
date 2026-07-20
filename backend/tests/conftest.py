@@ -235,8 +235,12 @@ async def client(
     # is absent. Set an in-memory one here — it persists across the requests of a
     # single kiosk flow within one test (the same guarantee one api process gives).
     from app.intake import InMemorySessionStore, IntakeEngine
+    from app.queue_hub import QueueHub
 
     app.state.intake_engine = IntakeEngine(InMemorySessionStore())
+    # The lifespan (which builds the hub in prod) does not run under
+    # ASGITransport, so the queue routes' get_hub dependency needs it set here.
+    app.state.queue_hub = QueueHub()
 
     async def _session_override() -> AsyncIterator[AsyncSession]:
         yield session
