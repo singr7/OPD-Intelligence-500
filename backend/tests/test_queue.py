@@ -500,3 +500,64 @@ async def test_call_next_and_state_via_routes(
     assert resp.status_code == 200
     assert resp.json()["token_no"] == 1
     assert resp.json()["state"] == "called"
+
+
+# -- printable downtime sheets ------------------------------------------------
+
+
+def test_render_intake_sheet_from_tree() -> None:
+    from app import print_sheets
+    from app.models.enums import Lang
+    from app.trees import bank
+
+    tree = sorted(bank.load_bank().values(), key=lambda t: t.key)[0]
+    html = print_sheets.render_intake_sheet(
+        tree.to_json(), hospital_name="Alwar OPD", department_name="Dermatology",
+        langs=[Lang.HI, Lang.EN],
+    )
+    assert "Alwar OPD" in html
+    assert "Token / टोकन" in html  # patient strip, bilingual
+    assert "☐" in html  # tick boxes for options
+
+
+def test_render_token_block_sheet_lists_every_number() -> None:
+    from app import print_sheets
+
+    html = print_sheets.render_token_block_sheet(
+        [{"department_name": "Med Onc", "start_no": 500, "end_no": 504}],
+        hospital_name="Alwar OPD", kiosk_id="K1", date_str="2026-07-20",
+    )
+    for n in range(500, 505):
+        assert f">{n}<" in html
+
+
+async def test_intake_sheets_route_requires_staff(client: AsyncClient) -> None:
+    assert (await client.get("/queue/print/intake-sheets")).status_code == 401
+
+
+async def test_intake_sheets_route_renders_html(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    resp = await client.get(
+        "/queue/print/intake-sheets", headers=_staff_headers(settings, user)
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "<!doctype html>" in resp.text.lower()
+
+
+async def test_token_block_route_renders_the_kiosk_block(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    resp = await client.get(
+        "/queue/print/token-block",
+        params={"kiosk_id": "KIOSK-PRINT-1"},
+        headers=_staff_headers(settings, user),
+    )
+    assert resp.status_code == 200
+    # First offline block starts at the configured base (500).
+    assert ">500<" in resp.text

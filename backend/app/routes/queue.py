@@ -19,18 +19,22 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketDisconnect
 
+from app import offline as offline_svc
+from app import print_sheets
 from app import queue as queue_svc
 from app.auth.rbac import Principal, require_staff
 from app.db import get_session
 from app.models.clinical import Intake, Visit
 from app.models.enums import Lang, QueueEntryState
-from app.models.org import Department
+from app.models.org import Department, Hospital
 from app.queue_hub import QueueHub
+from app.trees import bank
 
 logger = logging.getLogger(__name__)
 
@@ -413,3 +417,62 @@ async def paper_entry(
         token_no=result.token_no,
         priority=result.priority.value,
     )
+
+
+# -- printable downtime sheets (doc 01 §5 pt 3) -------------------------------
+
+
+async def _hospital_name(session: AsyncSession) -> str:
+    hospital = await session.scalar(select(Hospital).order_by(Hospital.created_at))
+    return hospital.name if hospital else "OPD"
+
+
+@router.get("/print/intake-sheets", response_class=HTMLResponse)
+async def print_intake_sheets(
+    session: AsyncSession = Depends(get_session),
+    lang: list[Lang] | None = None,
+    _: Principal = Depends(require_staff),
+) -> HTMLResponse:
+    """Fillable paper intake forms, one page per tree, rendered from the live tree
+    bank (doc 01 §5 pt 3). Print to PDF from the browser and laminate."""
+    hospital_name = await _hospital_name(session)
+    result = await session.execute(select(Department).order_by(Department.code))
+    dept_names = {d.code: d.name for d in result.scalars().all()}
+    sheets = [
+        (tree.to_json(), dept_names.get(tree.department or "", tree.department or "General"))
+        for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)
+    ]
+    html = print_sheets.render_intake_sheets(
+        sheets, hospital_name=hospital_name, langs=lang
+    )
+    return HTMLResponse(html)
+
+
+@router.get("/print/token-block", response_class=HTMLResponse)
+async def print_token_block(
+    kiosk_id: str,
+    session: AsyncSession = Depends(get_session),
+    _: Principal = Depends(require_staff),
+) -> HTMLResponse:
+    """A tear-off token-numeral sheet for a kiosk's offline blocks (doc 01 §5 pt 3).
+
+    Leasing is idempotent (`app.offline`), so printing this before an outage both
+    ensures the day's blocks exist and prints exactly the numbers the kiosk will
+    hand out — the same pre-allocated ranges, so a paper token can never collide.
+    """
+    try:
+        blocks = await offline_svc.lease_blocks(session, kiosk_id=kiosk_id)
+    except offline_svc.OfflineError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    hospital_name = await _hospital_name(session)
+    html = print_sheets.render_token_block_sheet(
+        [
+            {"department_name": b.department_name, "start_no": b.start_no, "end_no": b.end_no}
+            for b in blocks
+        ],
+        hospital_name=hospital_name,
+        kiosk_id=kiosk_id,
+        date_str=offline_svc.today().isoformat(),
+    )
+    return HTMLResponse(html)
