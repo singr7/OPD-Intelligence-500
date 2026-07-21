@@ -19,8 +19,9 @@ services:
       # Host 5433: a native Postgres already owns 127.0.0.1:5432 on the dev
       # machine, and it wins over Docker's bind — localhost:5432 would silently
       # reach the wrong database. Same reason voice-gw is on 8090. In-cluster
-      # traffic still uses postgres:5432.
-      - "5433:5432"
+      # traffic still uses postgres:5432. Override the host port via .env
+      # (POSTGRES_HOST_PORT) when 5433 is taken on the target box.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opd}"]
       interval: 5s
@@ -34,7 +35,7 @@ services:
     volumes:
       - redisdata:/data
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -54,7 +55,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 10s
@@ -71,7 +72,7 @@ services:
     ports:
       # Host 8090 (container stays 8080) to avoid clashing with other local
       # dev projects that commonly grab 8080; Caddy talks to voice-gw:8080.
-      - "8090:8080"
+      - "${VOICE_GW_HOST_PORT:-8090}:8080"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 10s
@@ -101,14 +102,23 @@ services:
         condition: service_healthy
 
   web:
-    build: ./web
+    build:
+      context: ./web
+      # NEXT_PUBLIC_* are baked into the browser bundle at build time (see
+      # web/Dockerfile). The browser talks to the api at its *published* host
+      # port, so on a box where the api isn't on 8000, set NEXT_PUBLIC_API_BASE
+      # in .env to match API_HOST_PORT. NEXT_PUBLIC_KIOSK_SERVER_STT=1 turns on
+      # local Whisper for the kiosk mic (doc 08).
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+        NEXT_PUBLIC_KIOSK_SERVER_STT: ${NEXT_PUBLIC_KIOSK_SERVER_STT:-0}
     <<: *restart
     environment:
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "${WEB_HOST_PORT:-3000}:3000"
     healthcheck:
       # node is guaranteed present in node:22-slim; wget/curl are not.
       test:
@@ -130,8 +140,11 @@ services:
       - web
       - voice-gw
     ports:
-      - "80:80"
-      - "443:443"
+      # Caddy is the public TLS front door. On a box already running nginx (or any
+      # web server) on 80/443, either don't start caddy — bring up only the core
+      # services — or set CADDY_HTTP_PORT/CADDY_HTTPS_PORT in .env to free ports.
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
@@ -142,7 +155,7 @@ services:
     <<: *restart
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - "3100:3100"
+      - "${LOKI_HOST_PORT:-3100}:3100"
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -154,7 +167,7 @@ services:
     volumes:
       - grafanadata:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "${GRAFANA_HOST_PORT:-3001}:3000"
     depends_on:
       - loki
 
@@ -164,7 +177,7 @@ services:
     volumes:
       - kumadata:/app/data
     ports:
-      - "3002:3001"
+      - "${KUMA_HOST_PORT:-3002}:3001"
 
 volumes:
   pgdata:
