@@ -185,3 +185,31 @@ async def test_unknown_department_is_422(client: AsyncClient, session: AsyncSess
         json={"lang": "hi", "chief_complaint": "x", "dept_key": "NOSUCH"},
     )
     assert resp.status_code == 422
+
+
+async def test_stt_transcribes_the_uploaded_clip(client: AsyncClient) -> None:
+    """The server-STT path: a posted clip comes back as text via the STT chain.
+
+    With the default `fake` provider the transcript is deterministic ("haan");
+    on a V-OSS box the same route runs the clip through local Whisper so the
+    audio never leaves the premises.
+    """
+    resp = await client.post(
+        "/kiosk/stt",
+        files={"file": ("clip.webm", b"\x00\x01\x02\x03fake-audio", "audio/webm")},
+        data={"lang": "hi", "duration_seconds": "2.5"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"] == "haan"
+    assert body["provider"] == "fake-stt"
+    assert body["uncertain"] is False
+
+
+async def test_stt_rejects_an_empty_upload(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/kiosk/stt",
+        files={"file": ("clip.webm", b"", "audio/webm")},
+        data={"lang": "hi"},
+    )
+    assert resp.status_code == 422

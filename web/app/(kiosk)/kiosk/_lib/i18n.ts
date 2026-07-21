@@ -57,6 +57,10 @@ export const T = {
     hi: "सुन रहे हैं…",
     en: "Listening…",
   } as Str,
+  transcribing: {
+    hi: "समझ रहे हैं…",
+    en: "Understanding…",
+  } as Str,
   tapToSpeak: {
     hi: "बोलने के लिए दबाइए",
     en: "Press to speak",

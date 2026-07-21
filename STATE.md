@@ -270,10 +270,13 @@ fallback).
   so the multi-request flow only survives within one api process. Prod is Redis. A
   second uvicorn worker locally would not share sessions. (Offline sessions live in the
   browser tab, not the server, and do not survive a tab reload mid-intake by design.)
-- **No server-STT endpoint** — the kiosk chief complaint uses the browser's Web
-  Speech, with an always-present tap-to-type fallback. Doc 06 S6's "server STT
-  toggle" (a `/kiosk/stt` endpoint over `stt_chain`, MediaRecorder client) is an
-  S7 carryover, still not built (backlog); no non-functional toggle was shipped.
+- **Server-STT is built (`POST /kiosk/stt`)** — the kiosk records the chief complaint
+  (MediaRecorder) and posts the clip to `/kiosk/stt`, which runs it through `stt_chain`
+  (local Whisper on a V-OSS box → audio stays on-premises). Gated by the build-time flag
+  `NEXT_PUBLIC_KIOSK_SERVER_STT=1`; **off by default**, when the kiosk uses the browser's
+  Web Speech (Chrome ships that audio to a cloud recogniser). Tap-to-type is always behind
+  both. The endpoint is proven with the fake STT (returns "haan"); a real transcript needs
+  a live Whisper on the box. `python-multipart` was added for the upload.
 - **No printer has printed a slip** — `_lib/print.ts` ESC/POS bytes are built against the
   documented 58mm command set and unit-tested; the first real slip needs a human at a
   printer. Devanagari needs the printer codepage set on the box (prints `?` until then).

@@ -26,19 +26,24 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import queue as queue_svc
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.intake import IntakeEngine, SessionState, ToolError
-from app.models.enums import Channel, Lang
-from app.providers.metering import get_meter
+from app.models.enums import Channel, Lang, UsagePurpose
+from app.providers.audio import AudioClip
+from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
+from app.providers.metering import get_meter, usage_scope
+from app.providers.registry import stt_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
 
@@ -344,6 +349,80 @@ async def confirm(
         department=department,
         red_flags=state.red_flags,
         cost_inr=str(cost) if cost is not None else None,
+    )
+
+
+# -- server STT (local Whisper on a V-OSS box) --------------------------------
+
+
+class SttOut(BaseModel):
+    text: str
+    provider: str
+    lang: str
+    confidence: float | None = None
+    #: True when the transcript is below the confidence floor (doc 03 §4) — the
+    #: kiosk should offer the tap-to-type correction rather than trust it silently.
+    uncertain: bool = False
+
+
+#: A kiosk chief complaint is a few seconds of audio; anything much larger is a
+#: broken client or abuse, and the box's Whisper should not be handed a huge blob.
+_MAX_STT_BYTES = 8 * 1024 * 1024
+
+
+@router.post("/stt", response_model=SttOut)
+async def stt(
+    file: UploadFile = File(...),
+    lang: Lang = Form(Lang.HI),
+    duration_seconds: str | None = Form(default=None),
+    settings: Settings = Depends(get_settings),
+) -> SttOut:
+    """Server-side speech-to-text for the kiosk chief complaint (doc 03 §1a).
+
+    The kiosk records the spoken complaint (MediaRecorder) and posts the clip
+    here; we transcribe it through the configured STT chain. On a V-OSS box that
+    is `local_whisper`, so the audio never leaves the premises — unlike the
+    browser Web Speech path, which ships it to a cloud recogniser. Keeping this
+    boring and unauthenticated on purpose: a public terminal carries no
+    credential, and the clip is an anonymous chief complaint, not a stored record.
+    """
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="empty audio upload")
+    if len(data) > _MAX_STT_BYTES:
+        raise HTTPException(status_code=413, detail="audio clip too large")
+
+    # The browser knows the recording length; trust it for metering (the clip is
+    # webm/opus, whose duration the server can't derive without transcoding).
+    # Absent or unparseable, `duration()` falls to 0 — unpriced usage is visible
+    # on the S18 dashboard, an invented duration is an invented rupee amount.
+    duration: Decimal | None = None
+    if duration_seconds:
+        try:
+            duration = Decimal(duration_seconds)
+        except (InvalidOperation, ValueError):
+            duration = None
+
+    clip = AudioClip(data=data, mime=file.content_type or "audio/webm", duration_seconds=duration)
+    try:
+        with usage_scope(channel=Channel.KIOSK):
+            transcript = await with_fallback(
+                stt_chain(settings),
+                lambda p: p.transcribe(clip, str(lang), purpose=UsagePurpose.INTAKE_TURN),
+            )
+    except ProviderBadRequest as exc:
+        raise HTTPException(status_code=422, detail=f"could not read that audio: {exc}") from exc
+    except ProviderError as exc:
+        # The kiosk always has tap-to-type behind this (doc 04 law 8); a 503 tells
+        # it to show that fallback rather than blame the patient.
+        raise HTTPException(status_code=503, detail="speech recognition is unavailable") from exc
+
+    return SttOut(
+        text=transcript.text,
+        provider=transcript.provider,
+        lang=transcript.lang,
+        confidence=transcript.confidence,
+        uncertain=transcript.is_uncertain,
     )
 
 

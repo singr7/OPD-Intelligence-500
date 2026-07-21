@@ -8,15 +8,18 @@ export function MicButton({
   listening,
   label,
   onPress,
+  disabled = false,
 }: {
   listening: boolean;
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       className={`${s.micBtn} ${listening ? s.micListening : ""}`}
       onClick={onPress}
+      disabled={disabled}
       aria-label={label}
       aria-pressed={listening}
     >

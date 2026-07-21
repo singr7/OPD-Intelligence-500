@@ -6,6 +6,8 @@
 // Everything here degrades silently: a kiosk in a browser without Web Speech
 // still completes the intake by tapping (law 8 / doc 03 §1a tap-to-type fallback).
 
+import { API_BASE } from "./api";
+
 const BCP47: Record<string, string> = { hi: "hi-IN", en: "en-IN" };
 
 export function speechSupported(): boolean {
@@ -15,6 +17,78 @@ export function speechSupported(): boolean {
 export function sttSupported(): boolean {
   if (typeof window === "undefined") return false;
   return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+}
+
+/**
+ * Server-STT mode (doc 08 / V-OSS): when on, the chief-complaint mic records the
+ * clip and posts it to `/kiosk/stt` — which runs local Whisper on the box — so the
+ * audio never leaves the premises. Off (default), the kiosk uses the browser's
+ * Web Speech recognition, which in Chrome ships audio to a cloud recogniser.
+ * Build-time flag: `NEXT_PUBLIC_KIOSK_SERVER_STT=1`.
+ */
+export function serverSttEnabled(): boolean {
+  const v = (process.env.NEXT_PUBLIC_KIOSK_SERVER_STT ?? "").toLowerCase();
+  return v === "1" || v === "true";
+}
+
+export function recorderSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof MediaRecorder !== "undefined" &&
+    !!navigator.mediaDevices?.getUserMedia
+  );
+}
+
+/**
+ * Record from the mic until the returned stop() is called, then POST the clip to
+ * `/kiosk/stt` and hand back the transcript via `onText`. Resolves to a stop()
+ * handle, or null if recording is unsupported / the mic is denied — in which case
+ * the caller falls to tap-to-type (doc 04 law 8). Everything degrades silently.
+ */
+export async function recordToServer(
+  lang: string,
+  handlers: {
+    onText: (text: string) => void;
+    onError?: (err: string) => void;
+    onDone?: () => void;
+  }
+): Promise<(() => void) | null> {
+  if (!recorderSupported()) return null;
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    handlers.onError?.("mic-denied");
+    return null;
+  }
+
+  const chunks: BlobPart[] = [];
+  const startedAt = Date.now();
+  const rec = new MediaRecorder(stream);
+  rec.ondataavailable = (e) => {
+    if (e.data.size) chunks.push(e.data);
+  };
+  rec.onstop = async () => {
+    stream.getTracks().forEach((tr) => tr.stop());
+    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    const seconds = ((Date.now() - startedAt) / 1000).toFixed(2);
+    try {
+      const fd = new FormData();
+      fd.append("file", blob, "clip.webm");
+      fd.append("lang", lang);
+      fd.append("duration_seconds", seconds);
+      const res = await fetch(`${API_BASE}/kiosk/stt`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error(String(res.status));
+      const body = (await res.json()) as { text?: string };
+      handlers.onText((body.text ?? "").trim());
+    } catch {
+      handlers.onError?.("stt-failed");
+    } finally {
+      handlers.onDone?.();
+    }
+  };
+  rec.start();
+  return () => rec.stop();
 }
 
 let _current: SpeechSynthesisUtterance | null = null;

@@ -13,7 +13,14 @@ import {
 import { useOffline } from "./_lib/offline/useOffline";
 import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offline/flow";
 import { printSlip } from "./_lib/print";
-import { cancelSpeech, listen, speak, sttSupported } from "./_lib/speech";
+import {
+  cancelSpeech,
+  listen,
+  recordToServer,
+  serverSttEnabled,
+  speak,
+  sttSupported,
+} from "./_lib/speech";
 import { Icon } from "./_lib/icons";
 import { AssistantAvatar } from "./_components/AssistantAvatar";
 import { AudioBar } from "./_components/AudioBar";
@@ -522,14 +529,38 @@ function VoiceCapture({
   onChange: (v: string) => void;
   busy: boolean;
 }) {
+  // Server-STT mode records the clip and sends it to local Whisper on the box
+  // (V-OSS, fully local); default mode uses the browser's Web Speech.
+  const useServer = serverSttEnabled();
   const [listening, setListening] = useState(false);
-  const [showType, setShowType] = useState(!sttSupported());
+  const [transcribing, setTranscribing] = useState(false);
+  const [showType, setShowType] = useState(!useServer && !sttSupported());
   const stopRef = useRef<(() => void) | null>(null);
 
   const toggleMic = () => {
     if (listening) {
+      // Stop: browser-STT ends immediately; server-STT now uploads + transcribes.
       stopRef.current?.();
       setListening(false);
+      if (useServer) setTranscribing(true);
+      return;
+    }
+    if (useServer) {
+      void recordToServer(lang, {
+        onText: (text) => onChange(text),
+        onError: () => {
+          setTranscribing(false);
+          setShowType(true);
+        },
+        onDone: () => setTranscribing(false),
+      }).then((stop) => {
+        if (!stop) {
+          setShowType(true);
+          return;
+        }
+        stopRef.current = stop;
+        setListening(true);
+      });
       return;
     }
     const stop = listen(lang, {
@@ -554,9 +585,14 @@ function VoiceCapture({
         listening={listening}
         label={listening ? t("listening", lang) : t("tapToSpeak", lang)}
         onPress={toggleMic}
+        disabled={transcribing}
       />
       <div className={s.avatarStatus}>
-        {listening ? t("listening", lang) : t("ccHint", lang)}
+        {transcribing
+          ? t("transcribing", lang)
+          : listening
+            ? t("listening", lang)
+            : t("ccHint", lang)}
       </div>
       <div className={`${s.transcript} ${value ? "" : s.transcriptPlaceholder}`}>
         {value ? `${t("youSaid", lang)} ${value}` : t("tapToSpeak", lang)}
