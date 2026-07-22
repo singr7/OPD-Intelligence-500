@@ -224,6 +224,46 @@ async def test_patient_card_renders_answers_as_english_questions_and_labels(
     assert duration.flagged is False
 
 
+async def test_patient_card_flags_every_answer_a_multi_node_rule_used(
+    session: AsyncSession,
+) -> None:
+    """The clinically interesting flags span several nodes and carry no
+    `source_node`, so highlighting on that alone would leave the febrile
+    -neutropenia patient's fever unmarked. The nodes come from the fired rule's
+    own `when` condition instead."""
+    clinic = await f.build_clinic(session)
+    visit = f.make_visit(clinic["patient"], clinic["department"], date=TODAY, token_no=61)
+    session.add(visit)
+    await session.flush()
+    session.add(
+        f.make_intake(
+            visit,
+            tree_ref="med_onc_between_cycle@v1",
+            answers={
+                "mo.cyc.days_since": {"value": 8},
+                "mo.cyc.fever_temp": {"value": 38.6},
+                "mo.cyc.nausea": {"value": 6},
+            },
+            # Fired by the rules; note it has no source_node of its own.
+            red_flags=[
+                {
+                    "id": "mo.cyc.febrile_neutropenia",
+                    "severity": "urgent",
+                    "label": {"en": "Fever 38°C+ within 14 days of chemotherapy"},
+                    "instruction": {"en": "Call the nurse now."},
+                    "source_node": None,
+                }
+            ],
+        )
+    )
+    await session.flush()
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+
+    flagged = {row.node_id for row in card.answers if row.flagged}
+    assert flagged == {"mo.cyc.fever_temp", "mo.cyc.days_since"}
+
+
 async def test_patient_card_still_renders_answers_when_the_tree_is_unknown(
     session: AsyncSession,
 ) -> None:

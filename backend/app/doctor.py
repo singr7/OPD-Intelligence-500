@@ -26,6 +26,7 @@ than the kiosk told the patient, and than the queue prioritised on.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from datetime import datetime
@@ -389,6 +390,49 @@ def _pick_en(mapping: Any) -> str:
     return str(mapping.get(str(Lang.EN)) or next(iter(mapping.values()), "") or "")
 
 
+def _flagged_nodes(tree: Tree | None, fired: list[Any]) -> set[str]:
+    """Which answers made this patient dangerous.
+
+    `source_node` alone is not enough: it is only populated for flags authored as
+    node-level sugar (`red_flag_if` / `flag: true`). The clinically interesting
+    rules are the multi-node ones — "fever ≥38 **and** within 14 days of chemo" —
+    and those carry no source node at all, so highlighting on `source_node` would
+    silently leave the febrile-neutropenia patient's fever unmarked.
+
+    So we read the *fired* flags back against the tree's own `RedFlagSpec.when`
+    and collect every node the condition references. Nothing is re-evaluated here
+    — which flags fired was decided by the rule engine (`app.trees.rules`) and is
+    read from `Intake.red_flags`; this only asks the tree which questions each
+    fired rule was about.
+    """
+    if tree is None:
+        return set()
+    fired_ids = {str(flag.get("id")) for flag in fired if isinstance(flag, dict) and flag.get("id")}
+    nodes: set[str] = set()
+    for flag in fired:
+        if isinstance(flag, dict) and flag.get("source_node"):
+            nodes.add(str(flag["source_node"]))
+    for spec in tree.red_flags:
+        if spec.id in fired_ids:
+            nodes |= _nodes_in_condition(spec.when)
+    return nodes
+
+
+def _nodes_in_condition(condition: Any) -> set[str]:
+    """Every `node` referenced by a rule condition, at any nesting depth."""
+    found: set[str] = set()
+    if isinstance(condition, Mapping):
+        node = condition.get("node")
+        if isinstance(node, str):
+            found.add(node)
+        for value in condition.values():
+            found |= _nodes_in_condition(value)
+    elif isinstance(condition, list | tuple):
+        for item in condition:
+            found |= _nodes_in_condition(item)
+    return found
+
+
 def _answer_rows(intake: Intake | None) -> list[AnswerRow]:
     """The intake's answers as asked, in tree order where the tree is known.
 
@@ -401,11 +445,7 @@ def _answer_rows(intake: Intake | None) -> list[AnswerRow]:
     if intake is None or not intake.answers:
         return []
     tree = _tree_for(intake.tree_ref)
-    flagged_nodes = {
-        str(flag.get("source_node"))
-        for flag in intake.red_flags or []
-        if isinstance(flag, dict) and flag.get("source_node")
-    }
+    flagged_nodes = _flagged_nodes(tree, intake.red_flags or [])
 
     node_order = list(tree.nodes) if tree else []
     stored = intake.answers
