@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     # patient picks the department and any of them may be needed).
     kiosk_offline_block_size: int = 50
 
+    # --- Adaptive intake (S-ADAPT.1, doc 11) ---------------------------------
+    # Off by default and branch-only until proven on the live box (doc 11 header).
+    # On, and with a real (non-fake) LLM provider, a kiosk answer that arrives as
+    # spoken text (value=null + raw_text) is mapped onto the node by the answer
+    # interpreter, with one clarifying follow-up before falling back to taps. Taps
+    # never touch it (doc 11 §1). Flag off ⇒ byte-for-byte today's tap flow.
+    intake_adaptive: bool = False
+
     # --- Queue (S8, doc 03 §6) -----------------------------------------------
     # Seed value for the wait-time estimator before the day has any completed
     # consults to measure. Once a department finishes a few tokens the estimator

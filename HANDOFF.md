@@ -8,11 +8,19 @@
 > live; the branded-Dhara Voicebox clone is a reserved later iteration. Also fixed
 > live: `/finish` 500 (rule-flag dicts vs summary strings, `dispatch.py`).
 >
-> **Next build decided: S-ADAPT.1 — adaptive intake turn V1** (answer questions by
-> voice + one clarifying follow-up, on the live local stack). Full V1→V2 design,
-> sequencing, seams and guardrails in **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**;
-> integrated into the build plan as the **S-ADAPT** track (doc 06). S9 (doctor
-> console) remains the main-line build; S-ADAPT runs as a parallel track like V-OSS.
+> **S-ADAPT.1 — adaptive intake turn V1 — is BUILT** (branch `feat/adaptive-intake`,
+> session log: sessions/SESSION-ADAPT-1.md). A patient can answer any tap node by
+> voice; a vague answer earns one spoken clarify, then falls back to taps. New
+> `app/intake/interpret.py` (`AnswerInterpreter`, mirrors the summariser),
+> `prompts/interpret_answer/v1.md`, an extended `POST /kiosk/{sid}/answer`
+> (`value:null`+`raw_text` ⇒ interpret against the current node; validated by the
+> unchanged `walk.save`), gated on `INTAKE_ADAPTIVE` + a real LLM, and the kiosk's
+> `AdaptiveVoiceAnswer` affordance (`NEXT_PUBLIC_KIOSK_ADAPTIVE=1`). Full design,
+> seams, guardrails in **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**.
+> **Next for S-ADAPT:** deploy this branch to omen, prove the interpreter on Qwen3
+> with scripted hi/en answers (watch the `adaptive_intake` outcome logs), then
+> S-ADAPT.2 (V2 enrichment, scoped from that telemetry). S9 (doctor console)
+> remains the main-line build; S-ADAPT runs as a parallel track like V-OSS.
 >
 > ⚠️ **S-ADAPT is BRANCH-ONLY until proven on omen (operator instruction).** All
 > S-ADAPT work lives on **`feat/adaptive-intake`** and is **not merged to `main`**

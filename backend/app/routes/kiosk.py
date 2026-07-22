@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -38,7 +39,7 @@ from app import offline as offline_svc
 from app import queue as queue_svc
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.intake import IntakeEngine, SessionState, ToolError
+from app.intake import IntakeEngine, Interpreter, SessionState, ToolError
 from app.models.enums import Channel, Lang, UsagePurpose
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
@@ -46,6 +47,7 @@ from app.providers.metering import get_meter, usage_scope
 from app.providers.registry import stt_chain, tts_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
+from app.trees.walker import AnswerError, validate_answer
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,10 @@ class AnswerIn(BaseModel):
     node_id: str
     value: Any = None
     raw_text: str | None = None
+    #: How many times this node has already been re-asked by voice (S-ADAPT.1, doc
+    #: 11 §5). The kiosk increments it on each clarify; the server refuses to
+    #: clarify a second time and falls back to taps — no infinite clarify loop.
+    attempt: int = 0
 
 
 class AnswerOut(BaseModel):
@@ -133,6 +139,14 @@ class AnswerOut(BaseModel):
     red_flags: list[dict[str, Any]] = Field(default_factory=list)
     #: The next screen (None once the tree completes).
     node: NodeOut | None = None
+    #: S-ADAPT.1 (doc 11 §2): one spoken clarifying question when a voice answer was
+    #: too vague to map. The kiosk speaks it (Kokoro) and re-opens the mic on the
+    #: *same* node. Null with `ok=False` and `adaptive_exhausted` set means the
+    #: clarify budget is spent — the kiosk keeps the node's taps.
+    clarify: str | None = None
+    #: True when adaptive voice gave up on this node and the patient should tap
+    #: (flag off, no interpreter, second vague answer, or a rejected value).
+    adaptive_exhausted: bool = False
 
 
 class FinishOut(BaseModel):
@@ -227,6 +241,11 @@ async def next_node(
     return node.model_dump() if node else {"complete": True, "node": None}
 
 
+#: The clarify budget per node (doc 11 §5: "one clarify, then fall back"). The
+#: first vague voice answer earns one follow-up; a second falls back to taps.
+_MAX_CLARIFY_ATTEMPTS = 1
+
+
 @router.post("/{session_id}/answer", response_model=AnswerOut)
 async def answer(
     session_id: str,
@@ -238,12 +257,32 @@ async def answer(
     A `Walk.save` prunes answers stranded on an abandoned branch, so the next node
     and the red flags are recomputed here from the fresh walk — never cached on the
     client (STATE.md invariant).
+
+    S-ADAPT.1 (doc 11 §2): a *voice* answer arrives as `value=null` + `raw_text`.
+    When adaptive intake is on, the answer interpreter maps the words onto the
+    current node's own allowed answers; a vague answer earns one spoken clarifying
+    question (`clarify`) before falling back to taps. A tapped `value` skips all of
+    this — the unchanged, zero-AI path (doc 04 law 8).
     """
     state = await _load_state(engine, session_id)
     dispatcher = engine.dispatcher(state)
+
+    value = payload.value
+    interpreter = engine.answer_interpreter()
+    is_voice_answer = value is None and bool(payload.raw_text)
+    if is_voice_answer and interpreter is not None:
+        outcome = await _interpret_voice_answer(interpreter, dispatcher, state, payload)
+        if outcome.reply is not None:
+            # A clarify or an exhausted-budget fallback — return without advancing;
+            # the kiosk re-asks or shows taps on the *same* node.
+            return outcome.reply
+        # The interpreter proposed a candidate the node's spec allows; it still has
+        # to pass `walk.save` below (doc 11 §5 — the rules decide, not the model).
+        value = outcome.value
+
     try:
         saved = await dispatcher.save_answer(
-            payload.node_id, payload.value, raw_text=payload.raw_text
+            payload.node_id, value, raw_text=payload.raw_text
         )
     except ToolError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -264,6 +303,98 @@ async def answer(
         complete=saved["complete"],
         red_flags=saved.get("red_flags", []),
         node=_node_out(nxt),
+    )
+
+
+@dataclass(slots=True)
+class _VoiceOutcome:
+    """Either a terminal `AnswerOut` (clarify / fall-back-to-taps), or a candidate
+    `value` still to be validated by `walk.save`. Exactly one is set."""
+
+    reply: AnswerOut | None = None
+    value: Any = None
+
+
+async def _interpret_voice_answer(
+    interpreter: Interpreter,
+    dispatcher: Any,
+    state: SessionState,
+    payload: AnswerIn,
+) -> _VoiceOutcome:
+    """Map a spoken answer onto the current node (doc 11 §2), metered per turn.
+
+    Returns a candidate value to save, or a terminal reply — one spoken clarify
+    (first vague answer) or a fall-back-to-taps once the clarify budget is spent
+    (doc 11 §5). The interpreter never advances the walk: only `walk.save` does.
+    """
+    node = dispatcher.walk.current
+    if node is None or node.id != payload.node_id:
+        # The client is a screen behind (idle reset, double-post). Don't interpret a
+        # stale utterance against a different question — let the kiosk re-render.
+        return _VoiceOutcome(reply=await _exhausted(payload.node_id, dispatcher))
+
+    with usage_scope(
+        session_id=state.session_id,
+        intake_id=state.intake_id,
+        visit_id=state.visit_id,
+        channel=Channel.KIOSK,
+        tier=state.active_tier,
+    ):
+        interpretation = await interpreter.interpret(node, payload.raw_text or "", state.lang)
+
+    # V2's whole input (doc 11 §6): what each spoken turn produced, per node. The
+    # priced usage_event is emitted by the LLM call above; this is the outcome label.
+    logger.info(
+        "adaptive_intake node=%s outcome=%s confidence=%.2f attempt=%d session=%s",
+        node.id,
+        interpretation.outcome,
+        interpretation.confidence,
+        payload.attempt,
+        state.session_id,
+    )
+
+    if interpretation.has_value:
+        try:
+            # The interpreter cannot produce a value the node rejects (doc 11 §5):
+            # validate the candidate here, and an out-of-spec proposal becomes a
+            # clarify rather than an error. The real save still re-validates.
+            validate_answer(node, interpretation.value)
+        except AnswerError:
+            logger.info(
+                "adaptive_intake node=%s outcome=rejected value=%r session=%s",
+                node.id,
+                interpretation.value,
+                state.session_id,
+            )
+        else:
+            return _VoiceOutcome(value=interpretation.value)
+
+    # A vague answer, or a candidate the node rejected. One clarify, then taps
+    # (doc 11 §5) — never an invented option, never an infinite loop.
+    if payload.attempt >= _MAX_CLARIFY_ATTEMPTS or not interpretation.clarify:
+        return _VoiceOutcome(reply=await _exhausted(node.id, dispatcher))
+    return _VoiceOutcome(
+        reply=AnswerOut(
+            ok=False,
+            node_id=node.id,
+            complete=False,
+            clarify=interpretation.clarify,
+            node=_node_out(await dispatcher.get_next_node()),
+        )
+    )
+
+
+async def _exhausted(node_id: str, dispatcher: Any) -> AnswerOut:
+    """The voice path gave up on this node; the kiosk keeps its taps (doc 11 §5).
+
+    Nothing was saved, so `get_next_node` still returns the same question — the
+    kiosk re-renders it with its taps and drops the mic."""
+    return AnswerOut(
+        ok=False,
+        node_id=node_id,
+        complete=False,
+        adaptive_exhausted=True,
+        node=_node_out(await dispatcher.get_next_node()),
     )
 
 

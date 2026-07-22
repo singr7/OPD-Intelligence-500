@@ -94,7 +94,10 @@ export function makeFlow({ net }: FlowDeps) {
 
   async function answer(
     sessionId: string,
-    input: { node_id: string; value: unknown; raw_text?: string | null }
+    // `attempt` is the adaptive-intake voice retry counter (doc 11 §5); it only
+    // matters on the online path (a local walk never interprets), forwarded to the
+    // server and ignored by localAnswer.
+    input: { node_id: string; value: unknown; raw_text?: string | null; attempt?: number }
   ): Promise<AnswerResult> {
     if (isLocalSession(sessionId)) return localAnswer(sessionId, input);
     // A server session cannot be advanced offline — its walk is on the server.
@@ -161,7 +164,7 @@ function requireLocal(sessionId: string): LocalSession {
 
 function localAnswer(
   sessionId: string,
-  input: { node_id: string; value: unknown; raw_text?: string | null }
+  input: { node_id: string; value: unknown; raw_text?: string | null; attempt?: number }
 ): AnswerResult {
   const session = requireLocal(sessionId);
   try {

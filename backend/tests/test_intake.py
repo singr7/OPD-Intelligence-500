@@ -22,6 +22,7 @@ import pytest
 import pytest_asyncio
 
 from app.intake import InMemorySessionStore, IntakeEngine, PatientTurn, SessionState, SessionStatus
+from app.intake.interpret import FakeInterpreter, LLMInterpreter
 from app.intake.summary import IntakeSummary, LLMSummarizer, SummaryError, TemplateSummarizer
 from app.models.enums import Channel, IntakeTier, Priority
 from app.providers import AudioClip, FakeLLMProvider, FakeSTTProvider, FakeTTSProvider, ToolCall
@@ -552,6 +553,73 @@ async def test_summary_priority_reflects_red_flags(tree):
     assert walk.priority() is Priority.ROUTINE
     walk.save("pain", 9)
     assert walk.priority() is Priority.URGENT
+
+
+# -- adaptive answer interpreter (S-ADAPT.1, doc 11) --------------------------
+
+
+async def test_fake_interpreter_maps_single_and_scale(tree):
+    """The deterministic interpreter maps voice → a value the node allows (AC §2)."""
+    interp = FakeInterpreter()
+    fever = tree.node("fever")
+    pain = tree.node("pain")
+
+    yes = await interp.interpret(fever, "haan Yes ji", "en")
+    assert yes.value == "yes" and yes.has_value
+
+    eight = await interp.interpret(pain, "मुझे लगता है 8 hoga", "hi")
+    assert eight.value == 8
+
+
+async def test_fake_interpreter_clarifies_when_vague(tree):
+    """A vague utterance earns a clarify, never a guessed option (doc 11 §5)."""
+    interp = FakeInterpreter()
+    out = await interp.interpret(tree.node("fever"), "pata nahi", "hi")
+    assert out.value is None
+    assert out.clarify  # a follow-up, not a value
+
+
+async def test_fake_interpreter_never_invents_an_option(tree):
+    """Whatever the fake returns as a value passes the node validator (doc 11 §5)."""
+    from app.trees.walker import validate_answer
+
+    interp = FakeInterpreter()
+    for utterance in ["Yes", "No", "nonsense words", "हाँ", "42"]:
+        out = await interp.interpret(tree.node("fever"), utterance, "en")
+        if out.has_value:
+            # Must round-trip through the real validator — the whole safety story.
+            validate_answer(tree.node("fever"), out.value)
+
+
+async def test_llm_interpreter_returns_value(tree):
+    """LLMInterpreter on the fake LLM: a `{"value": ...}` reply → that value."""
+    llm = FakeLLMProvider()
+    llm.queue(FakeLLMScript(text=json.dumps({"value": "yes", "confidence": 0.9})))
+    interp = LLMInterpreter([llm])
+    out = await interp.interpret(tree.node("fever"), "haan bukhaar hai", "hi")
+    assert out.value == "yes"
+    assert out.confidence == pytest.approx(0.9)
+    # The node's own option ids are handed to the model (never-invent constraint).
+    assert 'id "yes"' in llm.last.prompt
+
+
+async def test_llm_interpreter_returns_clarify(tree):
+    """A `{"clarify": ...}` reply → a clarify, no value."""
+    llm = FakeLLMProvider()
+    llm.queue(FakeLLMScript(text=json.dumps({"clarify": "बुखार है या नहीं?"})))
+    interp = LLMInterpreter([llm])
+    out = await interp.interpret(tree.node("fever"), "hmm", "hi")
+    assert out.value is None
+    assert out.clarify == "बुखार है या नहीं?"
+
+
+async def test_llm_interpreter_degrades_on_garbage(tree):
+    """Unparseable JSON degrades to a clarify — never crashes an intake (doc 11 §5)."""
+    llm = FakeLLMProvider()
+    llm.queue(FakeLLMScript(text="not json at all"))
+    interp = LLMInterpreter([llm])
+    out = await interp.interpret(tree.node("fever"), "haan", "hi")
+    assert out.value is None  # falls back; the kiosk shows taps
 
 
 # -- cost attribution (DB-backed) ---------------------------------------------

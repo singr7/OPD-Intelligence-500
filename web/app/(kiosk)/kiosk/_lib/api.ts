@@ -44,6 +44,11 @@ export type AnswerResult = {
   error: string | null;
   red_flags: { id: string; severity: string }[];
   node: KioskNode | null;
+  // Adaptive intake (S-ADAPT.1, doc 11 §2): a spoken clarifying question when a
+  // voice answer was too vague to map. Null unless adaptive is on and the answer
+  // needs one. `adaptive_exhausted` = voice gave up; the patient should tap.
+  clarify?: string | null;
+  adaptive_exhausted?: boolean;
 };
 
 export type FinishResult = {
@@ -145,7 +150,14 @@ export const kioskApi = {
   },
   answer(
     sessionId: string,
-    input: { node_id: string; value: unknown; raw_text?: string | null }
+    input: {
+      node_id: string;
+      value: unknown;
+      raw_text?: string | null;
+      // How many times this node has been re-asked by voice — the server refuses
+      // to clarify past the budget and falls back to taps (doc 11 §5).
+      attempt?: number;
+    }
   ) {
     return post<AnswerResult>(`/kiosk/${sessionId}/answer`, input);
   },

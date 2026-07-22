@@ -484,6 +484,36 @@
 }
 .redFlagIcon { width: 36px; height: 36px; flex: none; }
 
+/* --- adaptive voice answer (S-ADAPT.1, doc 11) ---------------------------- */
+/* Sits above the taps as a secondary affordance — deliberately smaller than the
+ * chief-complaint mic so the taps read as the primary path (doc 04 law 8). */
+.adaptiveVoice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  margin-bottom: var(--sp-3);
+  border-bottom: 2px dashed var(--line);
+}
+.adaptiveVoiceLabel {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.adaptiveVoice .micBtn { width: 120px; height: 120px; }
+.adaptiveVoice .micIcon { width: 52px; height: 52px; }
+.clarify {
+  max-width: 40ch;
+  text-align: center;
+  font-size: var(--fs-lead);
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--accent-soft, rgba(226, 144, 31, 0.12));
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+}
+
 /* --- token screen (deliberate aesthetic risk #2: train board) ------------- */
 .tokenScreen {
   position: fixed;

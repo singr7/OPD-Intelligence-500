@@ -58,7 +58,13 @@ def _build_lifespan(settings: Settings):
 
         # One IntakeEngine per process — it holds no per-intake state (the session
         # store does), so channel routers (kiosk now, WhatsApp S12) share it.
-        app.state.intake_engine = IntakeEngine(build_session_store(settings))
+        # Adaptive intake (S-ADAPT.1, doc 11) is enabled only when the flag is on
+        # AND a real LLM is wired: a fake provider answering itself is exactly what
+        # the interpreter must never do, so a fake keeps the kiosk on taps.
+        adaptive = settings.intake_adaptive and settings.llm_provider != "fake"
+        app.state.intake_engine = IntakeEngine(
+            build_session_store(settings), adaptive=adaptive
+        )
 
         # The live-queue fan-out hub (S8): board + coordinator sockets and the
         # in-memory downtime flag. In-process — one api container at pilot scale

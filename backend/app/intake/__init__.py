@@ -21,6 +21,13 @@ Layout:
 
 from app.intake.dispatch import ToolDispatcher, ToolError
 from app.intake.engine import IntakeEngine, PatientTurn
+from app.intake.interpret import (
+    FAKE_INTERPRETER,
+    FakeInterpreter,
+    Interpretation,
+    Interpreter,
+    LLMInterpreter,
+)
 from app.intake.state import (
     InMemorySessionStore,
     RedisSessionStore,
@@ -40,9 +47,14 @@ from app.intake.voicepack import EMPTY_PACK, VoicePack
 
 __all__ = [
     "EMPTY_PACK",
+    "FAKE_INTERPRETER",
+    "FakeInterpreter",
     "IntakeEngine",
     "IntakeSummary",
     "InMemorySessionStore",
+    "Interpretation",
+    "Interpreter",
+    "LLMInterpreter",
     "LLMSummarizer",
     "PatientTurn",
     "RedisSessionStore",

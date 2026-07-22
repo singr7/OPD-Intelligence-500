@@ -47,6 +47,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.intake import voicepack as voicepack_mod
 from app.intake.dispatch import ToolDispatcher
+from app.intake.interpret import Interpreter, LLMInterpreter
 from app.intake.state import SessionState, SessionStatus, SessionStore
 from app.intake.summary import LANG_NAMES, LLMSummarizer, Summarizer, TemplateSummarizer
 from app.intake.voicepack import EMPTY_PACK, VoicePack
@@ -121,6 +122,8 @@ class IntakeEngine:
         tts_provider: TTSProvider | None = None,
         guard: CostGuard | None = None,
         voicepack: VoicePack = EMPTY_PACK,
+        adaptive: bool = False,
+        interpreter: Interpreter | None = None,
     ) -> None:
         self._store = store
         self._realtime = realtime
@@ -129,6 +132,11 @@ class IntakeEngine:
         self._tts = tts_provider
         self._guard = guard
         self._voicepack = voicepack
+        # Adaptive intake (S-ADAPT.1, doc 11): off unless the flag is on AND a real
+        # LLM is wired (the lifespan gates on both). `interpreter` lets a test inject
+        # the deterministic `FakeInterpreter` without the flag.
+        self._adaptive = adaptive
+        self._interpreter = interpreter
 
     @property
     def store(self) -> SessionStore:
@@ -143,6 +151,20 @@ class IntakeEngine:
 
     def _llm_chain(self) -> list[LLMProvider]:
         return self._llm if self._llm is not None else llm_chain()
+
+    def answer_interpreter(self) -> Interpreter | None:
+        """The adaptive answer interpreter, or None when adaptive intake is off.
+
+        A `None` here is what makes doc 04 law 8 true by construction: the kiosk
+        answer route only interprets a spoken answer when this returns something, so
+        flag-off / no-LLM is byte-for-byte today's tap flow (doc 11 §5). A test may
+        inject a `FakeInterpreter`; otherwise it is the `interpret_answer` prompt on
+        the same LLM chain the summariser uses."""
+        if self._interpreter is not None:
+            return self._interpreter
+        if not self._adaptive:
+            return None
+        return LLMInterpreter(self._llm_chain())
 
     def _stt_chain(self) -> list[STTProvider]:
         return self._stt if self._stt is not None else stt_chain()

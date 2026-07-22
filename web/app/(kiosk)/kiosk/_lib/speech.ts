@@ -43,6 +43,20 @@ export function serverTtsEnabled(): boolean {
   return v === "1" || v === "true";
 }
 
+/**
+ * Adaptive intake (S-ADAPT.1, doc 11): when on, a node offers "answer by voice" —
+ * the spoken answer is recorded, transcribed on the box, and mapped onto the
+ * node's own allowed answers by the answer interpreter, with one clarifying
+ * follow-up before falling back to taps. Off (default), every node is pure taps —
+ * today's deterministic, offline-capable flow (doc 04 law 8). Requires server-STT
+ * (the utterance must reach the interpreter) and the recorder.
+ * Build-time flag: `NEXT_PUBLIC_KIOSK_ADAPTIVE=1`.
+ */
+export function kioskAdaptiveEnabled(): boolean {
+  const v = (process.env.NEXT_PUBLIC_KIOSK_ADAPTIVE ?? "").toLowerCase();
+  return (v === "1" || v === "true") && serverSttEnabled() && recorderSupported();
+}
+
 export function recorderSupported(): boolean {
   return (
     typeof window !== "undefined" &&

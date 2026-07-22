@@ -77,6 +77,16 @@ export const T = {
     hi: "आपने कहा:",
     en: "You said:",
   } as Str,
+  // Adaptive intake (S-ADAPT.1, doc 11): the "answer by voice" affordance that
+  // sits alongside the taps — taps stay first-class (doc 04 law 8).
+  answerByVoice: {
+    hi: "या बोलकर जवाब दीजिए",
+    en: "Or answer by voice",
+  } as Str,
+  orTapAnswer: {
+    hi: "या नीचे से चुनिए",
+    en: "Or tap your answer below",
+  } as Str,
   sttFailed: {
     hi: "माफ़ कीजिए, ठीक से सुनाई नहीं दिया — एक बार फिर बोलिए।",
     en: "I couldn't hear that properly — let's try once more.",

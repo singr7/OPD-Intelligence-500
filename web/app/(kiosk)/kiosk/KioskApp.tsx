@@ -15,6 +15,7 @@ import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offlin
 import { printSlip } from "./_lib/print";
 import {
   cancelSpeech,
+  kioskAdaptiveEnabled,
   listen,
   recordToServer,
   serverSttEnabled,
@@ -56,6 +57,10 @@ export function KioskApp() {
   const [depts, setDepts] = useState<Dept[]>([]);
   const [step, setStep] = useState(1);
   const [redFlags, setRedFlags] = useState<{ id: string; severity: string }[]>([]);
+  // Adaptive intake (S-ADAPT.1, doc 11): the current node's spoken clarify (if
+  // any) and how many voice attempts it has had — both reset when the node moves.
+  const [clarify, setClarify] = useState<string | null>(null);
+  const [voiceAttempt, setVoiceAttempt] = useState(0);
   const [readback, setReadback] = useState("");
   const [token, setToken] = useState<ConfirmResult | null>(null);
 
@@ -199,6 +204,7 @@ export function KioskApp() {
       // Flags are recomputed by the walker on every save (STATE.md invariant:
       // never accumulated) — take the server's current set, don't merge.
       setRedFlags(res.red_flags);
+      setClarify(null);
       if (res.complete || !res.node) {
         await finish(sessionId);
       } else {
@@ -206,6 +212,47 @@ export function KioskApp() {
         setStep((n) => n + 1);
       }
     });
+
+  // Adaptive intake (S-ADAPT.1, doc 11 §2): a *voice* answer to the current node.
+  // The server maps it onto the node's own allowed answers; a vague answer earns
+  // one spoken clarify (re-listen), a second falls back to the taps that are
+  // always on screen (doc 11 §5). Taps use submitAnswer above — unchanged.
+  const submitVoiceAnswer = (rawText: string) =>
+    withBusy(async () => {
+      if (!sessionId || !node || !rawText.trim()) return;
+      const res = await flow.answer(sessionId, {
+        node_id: node.id,
+        value: null,
+        raw_text: rawText,
+        attempt: voiceAttempt,
+      });
+      if (res.ok) {
+        setRedFlags(res.red_flags);
+        setClarify(null);
+        if (res.complete || !res.node) {
+          await finish(sessionId);
+        } else {
+          setNode(res.node);
+          setStep((n) => n + 1);
+        }
+        return;
+      }
+      if (res.clarify) {
+        // One follow-up, spoken and shown; re-open the mic on the same node.
+        setClarify(res.clarify);
+        setVoiceAttempt((n) => n + 1);
+        say(res.clarify);
+        return;
+      }
+      // adaptive_exhausted (or any other non-ok): drop the voice loop, keep taps.
+      setClarify(null);
+    });
+
+  // When the walk moves to a new node, the voice loop starts fresh (doc 11 §5).
+  useEffect(() => {
+    setClarify(null);
+    setVoiceAttempt(0);
+  }, [node?.id]);
 
   const finish = (sid: string) =>
     withBusy(async () => {
@@ -359,6 +406,8 @@ export function KioskApp() {
           busy={busy}
           say={say}
           onSubmit={submitAnswer}
+          onVoiceAnswer={submitVoiceAnswer}
+          clarify={clarify}
           redFlags={redFlags}
         />
       )}
@@ -630,6 +679,8 @@ function QuestionScreen({
   busy,
   say,
   onSubmit,
+  onVoiceAnswer,
+  clarify,
   redFlags,
 }: {
   lang: KioskLang;
@@ -639,12 +690,21 @@ function QuestionScreen({
   busy: boolean;
   say: (t: string) => void;
   onSubmit: (value: unknown, rawText?: string) => void;
+  onVoiceAnswer: (rawText: string) => void;
+  clarify: string | null;
   redFlags: { id: string; severity: string }[];
 }) {
   const [multi, setMulti] = useState<string[]>([]);
   const [scale, setScale] = useState<number | null>(null);
   const [num, setNum] = useState<number>(node.min ?? 0);
   const [text, setText] = useState("");
+
+  // Adaptive voice answering (doc 11 §2) is offered only on tap nodes with a fixed
+  // answer set — never free_voice (which is already spoken text, a V3 turn), and
+  // only when the flag + server-STT + recorder are all present. Taps stay on every
+  // screen regardless (doc 04 law 8).
+  const adaptiveVoice =
+    kioskAdaptiveEnabled() && node.type !== "free_voice";
 
   useEffect(() => {
     say(node.text);
@@ -691,6 +751,15 @@ function QuestionScreen({
         <h2 className={s.question} lang={lang}>
           {node.text}
         </h2>
+
+        {adaptiveVoice && (
+          <AdaptiveVoiceAnswer
+            lang={lang}
+            clarify={clarify}
+            busy={busy}
+            onAnswer={onVoiceAnswer}
+          />
+        )}
 
         {node.type === "single" && (
           <div
@@ -764,6 +833,72 @@ function QuestionScreen({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Adaptive intake (S-ADAPT.1, doc 11 §2): "answer by voice" on a tap node. It
+ *  records the spoken answer, sends it to the box (local Whisper → the answer
+ *  interpreter via `/answer`), and shows the server's clarifying question when the
+ *  answer was too vague. The taps below it are always available — this is an
+ *  addition, never a replacement (doc 04 law 8). Degrades silently: a denied mic
+ *  just leaves the patient tapping. */
+function AdaptiveVoiceAnswer({
+  lang,
+  clarify,
+  busy,
+  onAnswer,
+}: {
+  lang: KioskLang;
+  clarify: string | null;
+  busy: boolean;
+  onAnswer: (rawText: string) => void;
+}) {
+  const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const stopRef = useRef<(() => void) | null>(null);
+
+  const toggleMic = () => {
+    if (listening) {
+      stopRef.current?.();
+      setListening(false);
+      setTranscribing(true);
+      return;
+    }
+    void recordToServer(lang, {
+      onText: (txt) => {
+        if (txt.trim()) onAnswer(txt);
+      },
+      onError: () => setTranscribing(false),
+      onDone: () => setTranscribing(false),
+    }).then((stop) => {
+      if (!stop) return; // mic denied → taps below carry the patient
+      stopRef.current = stop;
+      setListening(true);
+    });
+  };
+
+  return (
+    <div className={s.adaptiveVoice} data-testid="adaptive-voice">
+      <div className={s.adaptiveVoiceLabel}>{t("answerByVoice", lang)}</div>
+      <MicButton
+        listening={listening}
+        label={listening ? t("listening", lang) : t("tapToSpeak", lang)}
+        onPress={toggleMic}
+        disabled={busy || transcribing}
+      />
+      <div className={s.avatarStatus}>
+        {transcribing
+          ? t("transcribing", lang)
+          : listening
+            ? t("listening", lang)
+            : t("orTapAnswer", lang)}
+      </div>
+      {clarify ? (
+        <div className={s.clarify} role="status" lang={lang} data-testid="clarify">
+          {clarify}
+        </div>
+      ) : null}
     </div>
   );
 }
