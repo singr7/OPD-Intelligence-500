@@ -205,6 +205,11 @@ async def test_dispatcher_walks_the_tree_and_finishes(tree, store):
     assert done["complete"] and done["readback"]
     assert state.status is SessionStatus.COMPLETE
     assert state.answers.keys() == {"fever", "pain", "detail"}
+    # finish returns rule-engine flags as {id, severity} dicts — the FinishOut
+    # contract + the shape /answer and /confirm use — NOT the summary's human
+    # strings (regression: a real LLM emits flag strings that a str list would
+    # leak into the dict-typed route, 500ing /finish on the live box).
+    assert done["red_flags"] == [{"id": "severe_pain", "severity": "urgent"}]
 
 
 async def test_dispatcher_rejects_a_foreign_session_id(tree, store):

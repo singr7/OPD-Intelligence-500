@@ -75,6 +75,22 @@ def _lang_code(language: str | None) -> str:
     return code
 
 
+def _resolve_voice(code: str, requested: str | None) -> str:
+    """Pick a Kokoro voice valid for this language.
+
+    Kokoro voice ids are `<lang><gender>_<name>` — the first letter is the language
+    (`hf_alpha` = Hindi, `af_heart` = American English). The backend adapter sends
+    ONE voice id for every language (and injects its own `dhara_hi_v1` default when
+    LOCAL_TTS_VOICE is blank), so a request's `voice` only applies when its language
+    letter matches this pipeline; otherwise use the language default. This is why
+    leaving LOCAL_TTS_VOICE blank is the clean choice: the container picks the right
+    voice per language (hi -> hf_alpha, en -> af_heart) with no wasted synth.
+    """
+    if requested and requested[:1] == code:
+        return requested
+    return DEFAULT_VOICE[code]
+
+
 def _synth(code: str, text: str, voice: str) -> np.ndarray | None:
     """Synthesize one utterance to a float32 array, or None if this voice fails."""
     try:
@@ -118,7 +134,7 @@ def voices() -> dict:
 @app.post("/tts")
 def tts(body: TtsIn) -> dict:
     code = _lang_code(body.language)
-    voice = body.voice or DEFAULT_VOICE[code]
+    voice = _resolve_voice(code, body.voice)
 
     audio = _synth(code, body.text, voice)
     if audio is None and voice != DEFAULT_VOICE[code]:

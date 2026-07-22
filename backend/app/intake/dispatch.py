@@ -213,7 +213,12 @@ class ToolDispatcher:
             "complete": self.walk.is_complete,
             "readback": summary.readback,
             "summary_md": self.state.summary_md,
-            "red_flags": list(summary.red_flags),
+            # The rule-engine flags as {id, severity} dicts — the same shape
+            # save_answer/confirm return and FinishOut is typed for. NOT
+            # summary.red_flags, which are human-readable strings for the doctor
+            # summary_md (a real LLM emits them; the fake in tests emits none,
+            # which is why the string-vs-dict mismatch only bit on the live box).
+            "red_flags": [self._flag_brief(flag) for flag in self.walk.red_flags()],
         }
 
     def _apply_summary(self, summary: IntakeSummary) -> None:
