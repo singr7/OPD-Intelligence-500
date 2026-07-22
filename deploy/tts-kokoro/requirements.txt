@@ -1,6 +1,10 @@
-# torch is provided by the base image (pytorch/pytorch CUDA runtime).
+# torch is provided by the base image (pytorch/pytorch 2.4.1 CUDA runtime).
+# transformers is pinned: the latest needs torch>=2.5 (it imports
+# torch.distributed.tensor.DTensor, absent in 2.4.1) — pinning to the 4.46 line
+# keeps it compatible with the base image's torch. numpy<2 for the same reason.
 kokoro>=0.9.4
+transformers==4.46.3
+numpy>=1.24,<2
 soundfile>=0.12.1
-numpy>=1.24
 fastapi>=0.110
 uvicorn[standard]>=0.27
