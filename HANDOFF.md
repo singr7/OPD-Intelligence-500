@@ -13,6 +13,13 @@
 > sequencing, seams and guardrails in **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**;
 > integrated into the build plan as the **S-ADAPT** track (doc 06). S9 (doctor
 > console) remains the main-line build; S-ADAPT runs as a parallel track like V-OSS.
+>
+> ⚠️ **S-ADAPT is BRANCH-ONLY until proven on omen (operator instruction).** All
+> S-ADAPT work lives on **`feat/adaptive-intake`** and is **not merged to `main`**
+> until it is validated stable on the live `omen` box — `main` is what the pilot
+> deploys from, and adaptive-intake must not disrupt the working local-voice kiosk.
+> Build on the branch, deploy the branch to omen to test, fast-forward `main` only
+> on the operator's explicit go-ahead. (Session log: sessions/SESSION-ADAPT-DESIGN.md.)
 
 
 

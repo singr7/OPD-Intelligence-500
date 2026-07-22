@@ -1,5 +1,12 @@
 # 11 — Adaptive intake turn (local-LLM answer interpreter), V1 → V2
 
+> ⚠️ **Branch-only rollout (operator instruction, 2026-07-22).** This entire track
+> is built on **`feat/adaptive-intake`** and is **not merged to `main`** until it is
+> validated stable on the live **`omen`** box. `main` is what the pilot deploys
+> from; adaptive-intake must not disrupt the working local-voice kiosk. Build on the
+> branch → deploy the branch to omen → prove it in real use → fast-forward `main`
+> only on the operator's explicit go-ahead.
+
 **Status as of 2026-07-22:** design, not yet built. The pilot runs a **local**
 STT + LLM + TTS stack live (doc 10): the kiosk records voice, transcribes on-box
 (Whisper), routes/summarises on-box (Qwen3), and reads aloud on-box (Kokoro, doc
