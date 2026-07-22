@@ -28,6 +28,7 @@ from app.models.enums import Channel, IntakeTier, Priority
 from app.providers import AudioClip, FakeLLMProvider, FakeSTTProvider, FakeTTSProvider, ToolCall
 from app.providers.costguard import InMemoryTierOverrideStore
 from app.providers.llm import FakeLLMScript
+from app.providers.metering import usage_scope
 from app.providers.realtime import FakeRealtimeProvider, FakeRealtimeScript
 from app.providers.resilience import ProviderUnavailable
 from app.trees import bank
@@ -622,6 +623,95 @@ async def test_llm_interpreter_degrades_on_garbage(tree):
     assert out.value is None  # falls back; the kiosk shows taps
 
 
+# -- adaptive V2: enrichment + adaptive follow-up (doc 11 §3) ------------------
+
+
+async def test_fake_interpreter_enriches_other_nodes(tree):
+    """One utterance that answers the current node AND volunteers another node's
+    answer returns both — the primary value plus `extra` (doc 11 §3)."""
+    interp = FakeInterpreter()
+    # The deterministic fake matches option labels/ids literally; "Yes" hits the
+    # fever option and the "8" is picked up for the pain scale.
+    out = await interp.interpret(
+        tree.node("fever"), "Yes fever hai aur dard 8", "hi", others=[tree.node("pain")]
+    )
+    assert out.value == "yes"
+    assert ("pain", 8) in out.extra
+
+
+async def test_enrichment_only_when_primary_maps(tree):
+    """A vague primary answer earns a clarify, not enrichment — the interpreter does
+    not volunteer facts off an answer it could not even map (doc 11 §3)."""
+    interp = FakeInterpreter()
+    out = await interp.interpret(
+        tree.node("fever"), "pata nahi lekin dard 8", "hi", others=[tree.node("pain")]
+    )
+    assert out.value is None and out.clarify  # primary unmapped
+    assert out.extra == ()
+
+
+async def test_llm_interpreter_passes_adaptive_and_enrich_context(tree):
+    """The v2 prompt is handed the node's `adaptive` flag and the other askable
+    nodes — the two things V2 needs the model to reason over (doc 11 §3)."""
+    from app.trees.schema import parse
+
+    data = json.loads(json.dumps(TREE_DATA))
+    data["nodes"][1]["adaptive"] = True  # mark `pain` adaptive
+    adaptive_tree = parse(data)
+
+    llm = FakeLLMProvider()
+    llm.queue(FakeLLMScript(text=json.dumps({"value": 8})))
+    interp = LLMInterpreter([llm])
+    await interp.interpret(
+        adaptive_tree.node("pain"), "dard hai", "hi", others=[adaptive_tree.node("fever")]
+    )
+    prompt = llm.last.prompt
+    assert "adaptive: yes" in prompt
+    assert 'node "fever"' in prompt  # the enrichment target is offered
+
+
+async def test_prefill_is_auto_applied_when_the_walk_reaches_the_node(tree, store):
+    """A pending pre-fill (an enriched fact) is applied through the same validator a
+    tap would hit, so the node is skipped and the answers JSONB is identical to a
+    pure-tap walk for the same facts (doc 11 §3, §5 invariant 4)."""
+    engine = IntakeEngine(store)
+    state = await engine.start_session(
+        tree=tree, channel=Channel.KIOSK, lang="hi", configured_tier=V3
+    )
+    dispatcher = engine.dispatcher(state)
+
+    await dispatcher.save_answer("fever", "yes")
+    # The patient volunteered the pain score on the fever turn.
+    state.pending_prefills["pain"] = {"value": 8}
+
+    nxt = await dispatcher.get_next_node()
+    # `pain` was auto-answered from the pre-fill; the walk advanced past it.
+    assert nxt["node"]["id"] == "detail"
+    assert state.answers["pain"]["value"] == 8
+    assert not state.pending_prefills  # consumed
+    # It went through the real validator, so the red-flag rule fired on pain>=8.
+    assert any(f["id"] == "severe_pain" for f in state.red_flags)
+    # And the telemetry recorded the auto-apply (no LLM call).
+    assert any(t["outcome"] == "prefilled" and t["node_id"] == "pain" for t in state.adaptive_turns)
+
+
+async def test_prefill_that_no_longer_fits_is_dropped_not_forced(tree, store):
+    """A pre-fill the node rejects when the walk reaches it is dropped — the node is
+    asked normally, never answered with an invalid value (doc 11 §5)."""
+    engine = IntakeEngine(store)
+    state = await engine.start_session(
+        tree=tree, channel=Channel.KIOSK, lang="hi", configured_tier=V3
+    )
+    dispatcher = engine.dispatcher(state)
+    await dispatcher.save_answer("fever", "yes")
+    state.pending_prefills["pain"] = {"value": 999}  # out of the 0-10 range
+
+    nxt = await dispatcher.get_next_node()
+    assert nxt["node"]["id"] == "pain"  # still asked, not skipped
+    assert "pain" not in state.answers
+    assert not state.pending_prefills
+
+
 # -- cost attribution (DB-backed) ---------------------------------------------
 
 
@@ -703,3 +793,57 @@ async def test_usage_events_are_tagged_with_intake_and_tier(
     assert rows, "the intake produced metered usage"
     assert all(row.tier is V3 for row in rows)
     assert all(row.channel is Channel.KIOSK for row in rows)
+
+
+# -- adaptive telemetry report (S-ADAPT.2, doc 11 §3) -------------------------
+
+
+async def test_adaptive_report_reconciles_to_usage_events(
+    session, meter, seeded_prices, clinic, tree
+):
+    """The doc 11 §3 AC: on a seeded replay, the per-node report's LLM-call turns
+    match the intake's INTAKE_TURN usage_events one-for-one — enrichment pre-fills
+    (no call) are excluded, so the two sides balance."""
+    from app.intake.adaptive_report import adaptive_report
+    from app.intake.interpret import LLMInterpreter
+
+    intake = clinic["intake"]
+    llm = FakeLLMProvider()
+    interp = LLMInterpreter([llm])
+
+    # Replay four voice turns → four priced INTAKE_TURN usage_events. One of them
+    # enriches another node (pre-fill = a fifth event with NO call).
+    scripts = [
+        json.dumps({"value": "yes", "extra": [{"node_id": "pain", "value": 8}]}),
+        json.dumps({"clarify": "kripya dobara boliye"}),
+        json.dumps({"value": 8}),
+        "garbage not json",  # degrades to exhausted-style; still one call
+    ]
+    events: list[dict] = []
+    for i, script in enumerate(scripts):
+        llm.queue(FakeLLMScript(text=script))
+        node = tree.node("fever") if i == 0 else tree.node("pain")
+        with usage_scope(intake_id=intake.id, channel=Channel.KIOSK, tier=V3):
+            out = await interp.interpret(node, "kuch", "hi", others=[tree.node("pain")])
+        outcome = "interpreted" if out.has_value else "clarify"
+        events.append(
+            {"node_id": node.id, "outcome": outcome, "enriched": len(out.extra), "at": ""}
+        )
+    # The enrichment pre-fill that later auto-applies — a non-billable event.
+    events.append({"node_id": "pain", "outcome": "prefilled", "enriched": 0, "at": ""})
+
+    intake.adaptive_events = events
+    await session.flush()
+    await meter.flush()
+
+    report = await adaptive_report(session)
+    # 4 interpreter calls were made → 4 INTAKE_TURN usage_events; the report's
+    # billable turns match, the pre-fill is excluded.
+    assert report.usage_events == 4
+    assert report.recorded_llm_turns == 4
+    assert report.reconciled is True
+    # The enrichment hit and the pre-fill are both visible per node.
+    pain = next(n for n in report.nodes if n.node_id == "pain")
+    assert pain.prefilled == 1
+    fever = next(n for n in report.nodes if n.node_id == "fever")
+    assert fever.enrichment_hits == 1

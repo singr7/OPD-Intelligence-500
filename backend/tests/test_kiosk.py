@@ -251,8 +251,11 @@ class _ScriptedInterpreter:
     def push(self, interpretation: Any) -> None:
         self.queue.append(interpretation)
 
-    async def interpret(self, node: Any, utterance: str, lang: Any) -> Any:
+    async def interpret(
+        self, node: Any, utterance: str, lang: Any, *, others: Any = ()
+    ) -> Any:
         self.calls.append((node.id, utterance))
+        self.last_others = [n.id for n in others]
         return self.queue.pop(0)
 
 
@@ -425,3 +428,51 @@ async def test_voice_answer_is_ignored_when_adaptive_is_off(
     assert body["ok"] is False
     assert body.get("clarify") is None
     assert body.get("adaptive_exhausted") is False
+
+
+async def test_voice_answer_enriches_a_later_node(
+    adaptive: tuple[AsyncClient, _ScriptedInterpreter], session: AsyncSession
+) -> None:
+    """A single voice turn that also volunteers a later node's answer pre-fills it:
+    the interpreter is offered the other nodes, and the enriched node is auto-applied
+    (validated) so it is never re-asked (doc 11 §3)."""
+    from app.intake.interpret import Interpretation
+
+    client, interp = adaptive
+    await _seed_departments(session)
+
+    async def _start() -> dict[str, Any]:
+        r = await client.post(
+            "/kiosk/start",
+            json={"lang": "hi", "chief_complaint": "seene mein dard", "dept_key": "MEDONC"},
+        )
+        return r.json()
+
+    # Discover the node that follows node1 (given node1 = options[0]) via a
+    # throwaway tap walk, so the enrichment targets a real, valid upcoming node.
+    probe = await _start()
+    node1 = probe["node"]
+    v1 = _valid_value(node1)
+    tapped = await client.post(
+        f"/kiosk/{probe['session_id']}/answer",
+        json={"node_id": node1["id"], "value": v1},
+    )
+    node2 = tapped.json()["node"]
+    if node2 is None or _valid_value(node2) is None:
+        pytest.skip("med_onc's second node is not a tap node — enrichment N/A here")
+    v2 = _valid_value(node2)
+
+    # Fresh session: voice-answer node1 and volunteer node2's answer in the same turn.
+    started = await _start()
+    sid = started["session_id"]
+    interp.push(Interpretation(value=v1, extra=((node2["id"], v2),), confidence=0.95))
+    resp = await client.post(
+        f"/kiosk/{sid}/answer",
+        json={"node_id": node1["id"], "value": None, "raw_text": "sab bata diya", "attempt": 0},
+    )
+    body = resp.json()
+    assert body["ok"] is True
+    # The interpreter was handed the other askable nodes to enrich from.
+    assert interp.last_others
+    # node2 was pre-filled from the enrichment, so it is not the next screen.
+    assert body["node"] is None or body["node"]["id"] != node2["id"]

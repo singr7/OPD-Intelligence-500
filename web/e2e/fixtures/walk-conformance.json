@@ -387,6 +387,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "de.problem",
@@ -445,6 +446,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "de.duration",
@@ -462,6 +464,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Growth, bleeding and colour change are why a skin lesion reaches a cancer centre. Record which one — do not summarise them as 'changing'.",
             "audio": {},
             "id": "de.changing",
@@ -512,6 +515,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "de.spread",
@@ -554,6 +558,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "de.words",
@@ -5167,6 +5172,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "A neck lump, a non-healing mouth ulcer, or a voice change lasting weeks is why head & neck cancer walks in here. Do not reassure — just record and route.",
             "audio": {},
             "id": "ent.problem",
@@ -5225,6 +5231,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Noise breathing in (stridor) from a neck or throat mass is an airway that can close. This node is why this tree is not just two questions.",
             "audio": {},
             "id": "ent.breathing",
@@ -5259,6 +5266,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "ent.duration",
@@ -5276,6 +5284,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Ask without judgement — a patient who feels judged under-reports, and the doctor needs the true answer.",
             "audio": {},
             "id": "ent.tobacco",
@@ -5318,6 +5327,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "ent.words",
@@ -10055,6 +10065,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "gm.problem",
@@ -10113,6 +10124,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "gm.duration",
@@ -10130,6 +10142,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "0 means not measured, not 0°C.",
             "audio": {},
             "id": "gm.fever_temp",
@@ -10147,6 +10160,7 @@
             "unit": "C"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "gm.severity",
@@ -10164,6 +10178,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "gm.words",
@@ -14884,6 +14899,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "This is a private question in a public room. Ask it quietly and do not repeat the answer back loudly on the kiosk.",
             "audio": {},
             "id": "gy.problem",
@@ -14942,6 +14958,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "The pad-per-hour measure is the only reliable one — 'a lot' means different things to different women.",
             "audio": {},
             "id": "gy.bleeding_heavy",
@@ -14984,6 +15001,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "gy.duration",
@@ -15001,6 +15019,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "gy.words",
@@ -20642,6 +20661,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "Patients say 'last Tuesday' or 'after Holi' — convert to a day count. If they cannot recall, ask the caregiver before guessing.",
             "audio": {},
             "id": "mo.cyc.days_since",
@@ -20659,6 +20679,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "0 means no fever, not 0°C. If they had fever but never measured it, save 38 only if they describe shivering/chills — otherwise save 0 and put their words in raw_text.",
             "audio": {},
             "id": "mo.cyc.fever_temp",
@@ -20676,6 +20697,7 @@
             "unit": "C"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.nausea",
@@ -20693,6 +20715,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.vomiting",
@@ -20743,6 +20766,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.fluids",
@@ -20785,6 +20809,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "This grades CTCAE mucositis by function, not by looking — nobody is looking in their mouth over the phone.",
             "audio": {},
             "id": "mo.cyc.mucositis",
@@ -20835,6 +20860,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Buttons and holding a glass are the functional test — a dose change may follow, so record what they said.",
             "audio": {},
             "id": "mo.cyc.neuropathy",
@@ -20885,6 +20911,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.fatigue",
@@ -20902,6 +20929,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.appetite",
@@ -20952,6 +20980,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.bowel",
@@ -21002,6 +21031,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.cyc.bleeding",
@@ -21036,6 +21066,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "mo.cyc.words",
@@ -34330,6 +34361,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "If not_sure, do not push — the doctor will establish this. Move on.",
             "audio": {},
             "id": "mo.new.diagnosis",
@@ -34372,6 +34404,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.reports",
@@ -34414,6 +34447,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.problems",
@@ -34472,6 +34506,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Patients answer in months or years — convert to days before saving.",
             "audio": {},
             "id": "mo.new.duration",
@@ -34489,6 +34524,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Asked by clothes fitting because most patients have not weighed themselves.",
             "audio": {},
             "id": "mo.new.weight_loss",
@@ -34531,6 +34567,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "0 means not measured, not 0°C. Do not read 0 back as a temperature.",
             "audio": {},
             "id": "mo.new.fever_temp",
@@ -34548,6 +34585,7 @@
             "unit": "C"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.chest",
@@ -34598,6 +34636,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.bleeding",
@@ -34632,6 +34671,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.vomiting_24",
@@ -34674,6 +34714,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Ask the caregiver if one is present — the patient may not notice this themselves.",
             "audio": {},
             "id": "mo.new.confusion",
@@ -34708,6 +34749,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "mo.new.other_illness",
@@ -34766,6 +34808,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Do not guess or correct a drug name. Record exactly what was said; mark unclear names as [unclear: ...] per doc 03 §4.",
             "audio": {},
             "id": "mo.new.meds",
@@ -34783,6 +34826,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. Let the patient finish without interrupting; this quote goes to the doctor verbatim.",
             "audio": {},
             "id": "mo.new.words",
@@ -49738,6 +49782,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "On voice channels there is no picture — ask them to name the place and map it.",
             "audio": {},
             "id": "pain.where",
@@ -49828,6 +49873,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Use the faces scale on the kiosk. Many patients under-report — if their words and their number disagree, save the number but keep their words in raw_text.",
             "audio": {},
             "id": "pain.severity",
@@ -49845,6 +49891,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pain.worst",
@@ -49862,6 +49909,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pain.duration",
@@ -49879,6 +49927,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Burning and shooting suggest neuropathic pain; the doctor treats it differently. Do not say so to the patient.",
             "audio": {},
             "id": "pain.character",
@@ -49937,6 +49986,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pain.night",
@@ -49979,6 +50029,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pain.medicine",
@@ -50029,6 +50080,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Do not guess or correct a drug name. Mark unclear names as [unclear: ...] per doc 03 §4.",
             "audio": {},
             "id": "pain.medicine_name",
@@ -50046,6 +50098,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "pain.words",
@@ -59804,6 +59857,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "Every ESAS question is 'right now', not 'usually'. Keep that framing in every language.",
             "audio": {},
             "id": "pall.pain",
@@ -59821,6 +59875,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.tired",
@@ -59838,6 +59893,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.nausea",
@@ -59855,6 +59911,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "The scale runs the opposite way to how people talk about appetite — ten is the bad end. Read the anchors out every time.",
             "audio": {},
             "id": "pall.appetite",
@@ -59872,6 +59929,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.breath",
@@ -59889,6 +59947,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.drowsy",
@@ -59906,6 +59965,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Ask it as plainly as the pain question. Do not soften it, do not skip it, and do not offer reassurance — just record the number and their words.",
             "audio": {},
             "id": "pall.low",
@@ -59923,6 +59983,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.anxious",
@@ -59940,6 +60001,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pall.wellbeing",
@@ -59957,6 +60019,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Constipation on opioids is common, preventable and miserable — which is why it is asked here and not left to the doctor to remember.",
             "audio": {},
             "id": "pall.bowels",
@@ -60007,6 +60070,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node, and the most important one on this tree. Let them finish. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "pall.words",
@@ -70855,6 +70919,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pu.problem",
@@ -70913,6 +70978,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "pu.duration",
@@ -70930,6 +70996,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "How much they can say in one breath is the measurement — and on a voice channel you can hear the answer while they give it.",
             "audio": {},
             "id": "pu.breathless_now",
@@ -70972,6 +71039,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Ask without judgement — a patient who feels judged under-reports.",
             "audio": {},
             "id": "pu.tobacco",
@@ -71014,6 +71082,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "pu.words",
@@ -76111,6 +76180,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "Patients say 'sikai' or 'raid' for radiation. The site decides which questions follow, so do not guess it — if unsure, ask which part the machine points at.",
             "audio": {},
             "id": "rt.site",
@@ -76174,6 +76244,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.hn.swallow",
@@ -76224,6 +76295,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.hn.mouth",
@@ -76274,6 +76346,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.chest.cough",
@@ -76324,6 +76397,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.chest.swallow",
@@ -76374,6 +76448,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.pelvis.urinary",
@@ -76432,6 +76507,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.pelvis.bowel",
@@ -76482,6 +76558,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.skin",
@@ -76540,6 +76617,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "rt.fatigue",
@@ -76557,6 +76635,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "If they do not know, the card they carry has it — but do not hold up the intake for it. Save 0 and note it in raw_text.",
             "audio": {},
             "id": "rt.sessions",
@@ -76574,6 +76653,7 @@
             "unit": "sessions"
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "rt.words",
@@ -82938,6 +83018,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": "Patients date it by a festival or a relative's visit — convert to a day count.",
             "audio": {},
             "id": "so.op.days_since",
@@ -82955,6 +83036,7 @@
             "unit": "days"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "so.op.wound",
@@ -83005,6 +83087,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "0 means no fever, not 0°C.",
             "audio": {},
             "id": "so.op.fever_temp",
@@ -83022,6 +83105,7 @@
             "unit": "C"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "so.op.pain",
@@ -83039,6 +83123,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "so.op.eating",
@@ -83089,6 +83174,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "An embarrassing question asked plainly. Do not skip it — with the day count it is what catches an obstruction.",
             "audio": {},
             "id": "so.op.bowels",
@@ -83131,6 +83217,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "One leg versus both is the whole point of the question — do not let it be answered as a general 'yes'.",
             "audio": {},
             "id": "so.op.swelling",
@@ -83173,6 +83260,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "so.op.drain",
@@ -83215,6 +83303,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": "Last node. This quote goes to the doctor verbatim.",
             "audio": {},
             "id": "so.op.words",
@@ -92452,6 +92541,7 @@
         ],
         "nodes": [
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "a.single",
@@ -92496,6 +92586,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "b.multi",
@@ -92538,6 +92629,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "c.scale",
@@ -92555,6 +92647,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "d.number",
@@ -92572,6 +92665,7 @@
             "unit": "C"
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "e.body",
@@ -92614,6 +92708,7 @@
             "unit": null
           },
           {
+            "adaptive": false,
             "adaptive_hints": null,
             "audio": {},
             "id": "f.voice",

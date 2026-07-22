@@ -576,6 +576,7 @@ class IntakeEngine:
         intake.lang = state.lang
         intake.answers = state.answers
         intake.red_flags = state.red_flags
+        intake.adaptive_events = state.adaptive_turns
         intake.transcript = state.transcript
         intake.summary_md = state.summary_md
         intake.summary_lang_versions = state.summary_lang_versions

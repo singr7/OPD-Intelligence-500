@@ -76,7 +76,12 @@ class Interpretation:
 
 class Interpreter(Protocol):
     async def interpret(
-        self, node: Node, utterance: str, lang: Lang | str
+        self,
+        node: Node,
+        utterance: str,
+        lang: Lang | str,
+        *,
+        others: Sequence[Node] = (),
     ) -> Interpretation: ...
 
 
@@ -110,11 +115,28 @@ def answer_spec(node: Node, lang: Lang | str) -> str:
     return "Free text — do not interpret; ask the patient to use the screen."
 
 
+def others_spec(others: Sequence[Node], lang: Lang | str) -> str:
+    """The OTHER askable nodes the patient may have volunteered facts for (doc 11
+    §3 enrichment). Each is a node id + its question + its own answer spec, so the
+    model can only return an id and value those nodes accept — never a free fact."""
+    if not others:
+        return "(none — do not volunteer anything for other questions)"
+    blocks = []
+    for node in others:
+        spec = answer_spec(node, lang).replace("\n", "\n    ")
+        blocks.append(f'- node "{node.id}": {node.ask(lang)}\n    {spec}')
+    return "\n".join(blocks)
+
+
 # -- the LLM path --------------------------------------------------------------
 
 
 class LLMInterpreter:
-    """V1/V2 path — the `interpret_answer` prompt on the LLM chain (doc 11 §2)."""
+    """V1/V2 path — the `interpret_answer` prompt on the LLM chain (doc 11 §2/§3).
+
+    The prompt version carries the capability: v1 is clarify-only (V1); v2 adds
+    the adaptive follow-up (for `adaptive: true` nodes) and enrichment (volunteered
+    facts for the `others` nodes). Latest is loaded unless pinned."""
 
     def __init__(
         self, providers: Sequence[LLMProvider], *, prompt_version: int | None = None
@@ -122,12 +144,21 @@ class LLMInterpreter:
         self._providers = list(providers)
         self._prompt = load("interpret_answer", prompt_version)
 
-    async def interpret(self, node: Node, utterance: str, lang: Lang | str) -> Interpretation:
+    async def interpret(
+        self,
+        node: Node,
+        utterance: str,
+        lang: Lang | str,
+        *,
+        others: Sequence[Node] = (),
+    ) -> Interpretation:
         rendered = self._prompt.render(
             question=node.ask(lang),
             answer_spec=answer_spec(node, lang),
             utterance=utterance,
             lang=str(lang),
+            adaptive="yes" if node.adaptive else "no",
+            other_nodes=others_spec(others, lang),
         )
         request = LLMRequest(
             prompt=rendered,
@@ -195,11 +226,34 @@ class FakeInterpreter:
     #: The stand-in clarify — a real deployment speaks the LLM's, in-language.
     clarify_text: str = "Sorry, I did not catch that. Please say it again or tap your answer."
 
-    async def interpret(self, node: Node, utterance: str, lang: Lang | str) -> Interpretation:
+    async def interpret(
+        self,
+        node: Node,
+        utterance: str,
+        lang: Lang | str,
+        *,
+        others: Sequence[Node] = (),
+    ) -> Interpretation:
         text = utterance.strip().lower()
         if not text:
             return Interpretation(clarify=self.clarify_text)
 
+        base = self._map(node, text)
+        # Enrichment (doc 11 §3): scan the OTHER askable nodes for a value the same
+        # utterance also volunteers, and offer them as candidates. Only when the
+        # primary mapped — a vague primary answer earns a clarify, not enrichment.
+        extra: list[tuple[str, Any]] = []
+        if base.has_value:
+            for other in others:
+                got = self._map(other, text)
+                if got.has_value:
+                    extra.append((other.id, got.value))
+        if extra:
+            return Interpretation(value=base.value, confidence=base.confidence, extra=tuple(extra))
+        return base
+
+    def _map(self, node: Node, text: str) -> Interpretation:
+        """The deterministic single-node mapping (V1 behaviour), no enrichment."""
         if node.type.wants_options:
             matched: list[str] = []
             for opt in node.options:

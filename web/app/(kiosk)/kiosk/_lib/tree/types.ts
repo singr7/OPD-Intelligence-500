@@ -45,6 +45,11 @@ export type TreeNode = {
   max: number | null;
   unit: string | null;
   adaptive_hints: string | null;
+  /** Opt-in adaptive questioning (S-ADAPT.2, doc 11 §3). Server-driven: the
+   *  interpreter may ask one bounded sub-question on this node. The offline walker
+   *  ignores it (it is a hint to the online interpreter, never to branching), so it
+   *  is optional here. */
+  adaptive?: boolean;
 };
 
 export type Severity = "routine" | "semi" | "urgent";

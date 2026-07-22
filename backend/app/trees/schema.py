@@ -86,6 +86,7 @@ _NODE_KEYS = {
     "max",
     "unit",
     "adaptive_hints",
+    "adaptive",
     "red_flag_if",
     "red_flag",
 }
@@ -190,6 +191,12 @@ class Node:
     #: Free text for the conversational tiers: "probe radiation to back". Never
     #: shown to the patient, never affects branching — a hint, not a question.
     adaptive_hints: str | None = None
+    #: Opt-in adaptive questioning (S-ADAPT.2, doc 11 §3). When true, the answer
+    #: interpreter may ask ONE bounded clarifying sub-question not in the tree to
+    #: disambiguate before mapping — the tree-authority-bending part, so it is
+    #: per-node and S18-editable. Default false ⇒ the node behaves exactly as V1
+    #: (map, or clarify only when the answer is too vague).
+    adaptive: bool = False
 
     def option(self, option_id: str) -> Option | None:
         return next((o for o in self.options if o.id == option_id), None)
@@ -221,6 +228,7 @@ class Node:
             "max": self.max,
             "unit": self.unit,
             "adaptive_hints": self.adaptive_hints,
+            "adaptive": self.adaptive,
         }
 
 
@@ -444,6 +452,9 @@ def _parse_node(
     hints = raw.get("adaptive_hints")
     if hints is not None and not isinstance(hints, str):
         raise TreeError(f"{where}: adaptive_hints must be a string")
+    adaptive = raw.get("adaptive", False)
+    if not isinstance(adaptive, bool):
+        raise TreeError(f"{where}: adaptive must be a boolean")
 
     node = Node(
         id=node_id,
@@ -456,6 +467,7 @@ def _parse_node(
         max=maximum,
         unit=unit,
         adaptive_hints=hints,
+        adaptive=adaptive,
     )
     return node, _parse_node_flags(raw, node, languages, where=where)
 

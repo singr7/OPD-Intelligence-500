@@ -115,6 +115,7 @@ class ToolDispatcher:
     # -- the four tools -------------------------------------------------------
 
     async def get_next_node(self) -> dict[str, Any]:
+        await self._drain_prefills()
         node = self.walk.current
         if node is None:
             return {"complete": True, "node": None}
@@ -178,6 +179,60 @@ class ToolDispatcher:
             "complete": self.walk.is_complete,
             "red_flags": [self._flag_brief(flag) for flag in flags],
         }
+
+    async def _drain_prefills(self) -> None:
+        """Auto-answer any node the walk has reached that a patient already
+        volunteered an answer for (S-ADAPT.2 enrichment, doc 11 §3).
+
+        This is what makes an enriched walk "skip" a question: when the current
+        node has a pending prefill, apply it — through the SAME `walk.save`
+        validator and red-flag recompute a tap would hit — and move on, so the
+        node is never re-asked. Nothing here bypasses the tree: an invalid or
+        no-longer-reachable prefill is dropped, and the node is asked normally.
+        The result is byte-for-byte the answers JSONB a pure-tap walk would
+        produce for the same facts (doc 11 §5 invariant 4).
+        """
+        prefills = self.state.pending_prefills
+        if not prefills:
+            return
+        changed = False
+        # Bounded by the number of pending prefills — each iteration consumes one.
+        for _ in range(len(prefills)):
+            node = self.walk.current
+            if node is None or node.id not in prefills:
+                break
+            spec = prefills.pop(node.id)
+            changed = True
+            try:
+                self.walk.save(
+                    node.id,
+                    spec.get("value"),
+                    text=spec.get("text"),
+                    lang=spec.get("lang") or self.state.lang,
+                )
+            except AnswerError:
+                # A fact that no longer fits (an amendment rerouted the branch, or
+                # the model proposed something the node rejects). Drop it and ask.
+                self._record_adaptive_turn(node.id, "prefill_rejected")
+                break
+            self._record_adaptive_turn(node.id, "prefilled")
+        if changed:
+            self.state.answers = self.walk.to_json()
+            self.state.red_flags = [flag.to_json() for flag in self.walk.red_flags()]
+            await self._store.save(self.state)
+
+    def _record_adaptive_turn(self, node_id: str, outcome: str, *, enriched: int = 0) -> None:
+        """Append one adaptive-intake telemetry event (doc 11 §3, §6)."""
+        from datetime import UTC, datetime
+
+        self.state.adaptive_turns.append(
+            {
+                "node_id": node_id,
+                "outcome": outcome,
+                "enriched": enriched,
+                "at": datetime.now(UTC).isoformat(),
+            }
+        )
 
     async def check_red_flags(self) -> dict[str, Any]:
         flags = self.walk.red_flags()

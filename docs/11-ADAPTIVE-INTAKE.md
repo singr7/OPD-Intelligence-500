@@ -123,6 +123,28 @@ are untouched. Scope is intentionally minimal so tree authority stays absolute.
 
 ## 3. V2 — enrichment + adaptive follow-ups (informed by V1)
 
+> **Status as of 2026-07-22: BUILT on `feat/adaptive-intake`** (branch-only, ahead
+> of V1's omen validation — the operator chose to keep building, not deploy).
+> Session log: `sessions/SESSION-ADAPT-2.md`. What shipped and where it differs
+> from the target below:
+> - **Enrichment** — the interpreter returns `extra: [(node_id, value)]`; the route
+>   validates each against its node and stashes it in `SessionState.pending_prefills`.
+>   The **dispatcher auto-applies** a pre-fill through the *same* `walk.save` the
+>   moment the walk reaches that node (`ToolDispatcher._drain_prefills`), so the
+>   node is skipped (auto-answered), never re-asked — and an enrichment for a branch
+>   never taken stays inert and is pruned. Same answers JSONB as a pure-tap walk.
+> - **Adaptive micro-follow-up** — `Node.adaptive: bool` (schema + parse + round-trip);
+>   the `interpret_answer` **v2** prompt is handed the flag and may ask one bounded
+>   sub-question on an adaptive node. Non-adaptive nodes behave exactly as V1. The
+>   V1 one-clarify budget caps it.
+> - **Skip-logic** — realised *through* enrichment (a later node answered by a
+>   volunteered fact is skipped by the deterministic walker, which still validates),
+>   rather than a separate skip primitive that could leave an unasked hole.
+> - **Telemetry** — every interpret turn is recorded on `SessionState.adaptive_turns`
+>   and persisted to `Intake.adaptive_events` (JSONB, new migration). `app/intake/
+>   adaptive_report.py` aggregates per-node clarify/mis-map/enrichment rates and
+>   reconciles the LLM-call turns to the intake's `INTAKE_TURN` usage_events.
+
 V2 is **deliberately designed after V1 ships**, because its shape depends on V1
 telemetry (which nodes clarify most, mis-map rates, how often patients volunteer
 extra facts). The design below is the *intended* target; the numbers from V1 tune

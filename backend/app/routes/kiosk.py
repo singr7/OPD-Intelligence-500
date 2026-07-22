@@ -47,6 +47,7 @@ from app.providers.metering import get_meter, usage_scope
 from app.providers.registry import stt_chain, tts_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
+from app.trees.schema import Node
 from app.trees.walker import AnswerError, validate_answer
 
 logger = logging.getLogger(__name__)
@@ -271,7 +272,7 @@ async def answer(
     interpreter = engine.answer_interpreter()
     is_voice_answer = value is None and bool(payload.raw_text)
     if is_voice_answer and interpreter is not None:
-        outcome = await _interpret_voice_answer(interpreter, dispatcher, state, payload)
+        outcome = await _interpret_voice_answer(interpreter, engine, dispatcher, state, payload)
         if outcome.reply is not None:
             # A clarify or an exhausted-budget fallback — return without advancing;
             # the kiosk re-asks or shows taps on the *same* node.
@@ -315,17 +316,43 @@ class _VoiceOutcome:
     value: Any = None
 
 
+#: How many other nodes to offer the interpreter as enrichment targets (doc 11
+#: §3). A bound on prompt size, not clinical: the patient rarely volunteers facts
+#: for more than a couple of upcoming questions in one breath.
+_MAX_ENRICH_TARGETS = 12
+
+
+def _enrich_targets(dispatcher: Any, current_id: str) -> list[Node]:
+    """The other askable, mappable nodes a patient might volunteer facts for.
+
+    Only option/number nodes (the interpreter can only return a value those accept)
+    that are not yet answered and are not the current question. Capped for prompt
+    size; order is the tree's own, so it is deterministic."""
+    answered = set(dispatcher.walk.answers)
+    targets = [
+        node
+        for node in dispatcher.tree.nodes.values()
+        if node.id != current_id
+        and node.id not in answered
+        and (node.type.wants_options or node.type.wants_range)
+    ]
+    return targets[:_MAX_ENRICH_TARGETS]
+
+
 async def _interpret_voice_answer(
     interpreter: Interpreter,
+    engine: IntakeEngine,
     dispatcher: Any,
     state: SessionState,
     payload: AnswerIn,
 ) -> _VoiceOutcome:
-    """Map a spoken answer onto the current node (doc 11 §2), metered per turn.
+    """Map a spoken answer onto the current node (doc 11 §2/§3), metered per turn.
 
-    Returns a candidate value to save, or a terminal reply — one spoken clarify
-    (first vague answer) or a fall-back-to-taps once the clarify budget is spent
-    (doc 11 §5). The interpreter never advances the walk: only `walk.save` does.
+    Returns a candidate value to save, or a terminal reply — one spoken clarify /
+    adaptive follow-up (first attempt) or a fall-back-to-taps once the budget is
+    spent (doc 11 §5). Any facts the patient volunteered for OTHER nodes are
+    validated and stashed as pending pre-fills (V2 enrichment); the interpreter
+    never advances the walk — only `walk.save` does.
     """
     node = dispatcher.walk.current
     if node is None or node.id != payload.node_id:
@@ -333,6 +360,7 @@ async def _interpret_voice_answer(
         # stale utterance against a different question — let the kiosk re-render.
         return _VoiceOutcome(reply=await _exhausted(payload.node_id, dispatcher))
 
+    others = _enrich_targets(dispatcher, node.id)
     with usage_scope(
         session_id=state.session_id,
         intake_id=state.intake_id,
@@ -340,18 +368,9 @@ async def _interpret_voice_answer(
         channel=Channel.KIOSK,
         tier=state.active_tier,
     ):
-        interpretation = await interpreter.interpret(node, payload.raw_text or "", state.lang)
-
-    # V2's whole input (doc 11 §6): what each spoken turn produced, per node. The
-    # priced usage_event is emitted by the LLM call above; this is the outcome label.
-    logger.info(
-        "adaptive_intake node=%s outcome=%s confidence=%.2f attempt=%d session=%s",
-        node.id,
-        interpretation.outcome,
-        interpretation.confidence,
-        payload.attempt,
-        state.session_id,
-    )
+        interpretation = await interpreter.interpret(
+            node, payload.raw_text or "", state.lang, others=others
+        )
 
     if interpretation.has_value:
         try:
@@ -367,12 +386,18 @@ async def _interpret_voice_answer(
                 state.session_id,
             )
         else:
+            enriched = _stash_enrichment(dispatcher, interpretation.extra, current_id=node.id)
+            dispatcher._record_adaptive_turn(node.id, "interpreted", enriched=enriched)
             return _VoiceOutcome(value=interpretation.value)
 
-    # A vague answer, or a candidate the node rejected. One clarify, then taps
-    # (doc 11 §5) — never an invented option, never an infinite loop.
+    # A vague answer, an adaptive follow-up, or a candidate the node rejected.
+    # One clarify, then taps (doc 11 §5) — never an invented option, never a loop.
     if payload.attempt >= _MAX_CLARIFY_ATTEMPTS or not interpretation.clarify:
+        dispatcher._record_adaptive_turn(node.id, "exhausted")
+        await engine.store.save(state)
         return _VoiceOutcome(reply=await _exhausted(node.id, dispatcher))
+    dispatcher._record_adaptive_turn(node.id, "clarify")
+    await engine.store.save(state)
     return _VoiceOutcome(
         reply=AnswerOut(
             ok=False,
@@ -382,6 +407,32 @@ async def _interpret_voice_answer(
             node=_node_out(await dispatcher.get_next_node()),
         )
     )
+
+
+def _stash_enrichment(
+    dispatcher: Any, extra: tuple[tuple[str, Any], ...], *, current_id: str
+) -> int:
+    """Validate each volunteered (node_id, value) and hold it as a pending pre-fill
+    (doc 11 §3). Returns how many were accepted. Nothing is written to the walk here
+    — the dispatcher auto-applies a pre-fill (through `walk.save`) only when the walk
+    actually reaches that node, so an enrichment for a branch never taken stays inert
+    and never lands in the summary."""
+    accepted = 0
+    for node_id, value in extra:
+        # Skip the current node (it is being answered now) and anything already
+        # answered — enrichment is only for questions still to come.
+        if node_id == current_id or node_id in dispatcher.walk.answers:
+            continue
+        target = dispatcher.tree.nodes.get(node_id)
+        if target is None:
+            continue
+        try:
+            normalized = validate_answer(target, value)
+        except AnswerError:
+            continue
+        dispatcher.state.pending_prefills[node_id] = {"value": normalized}
+        accepted += 1
+    return accepted
 
 
 async def _exhausted(node_id: str, dispatcher: Any) -> AnswerOut:

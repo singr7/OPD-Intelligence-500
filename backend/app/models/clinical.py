@@ -73,6 +73,13 @@ class Intake(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     answers: Mapped[dict[str, Any]] = mapped_column(default=dict)
     red_flags: Mapped[list[Any]] = mapped_column(default=list)
 
+    # Adaptive-intake telemetry (S-ADAPT.2, doc 11 §3): one record per interpret
+    # event — [{node_id, outcome, enriched, at}]. Feeds the S18 tree-improvement
+    # report (per-node clarify / mis-map / enrichment rates); the LLM-call turns
+    # reconcile to this intake's INTAKE_TURN usage_events. Empty for a pure-tap
+    # or non-adaptive intake, so existing rows and the offline floor are unaffected.
+    adaptive_events: Mapped[list[Any]] = mapped_column(default=list)
+
     chief_complaint: Mapped[str | None] = mapped_column(Text)
     chief_complaint_en: Mapped[str | None] = mapped_column(Text)
     summary_md: Mapped[str | None] = mapped_column(Text)

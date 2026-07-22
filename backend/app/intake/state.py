@@ -97,6 +97,16 @@ class SessionState:
     #: Finalised on completion by summing usage_events for this intake_id.
     cost_inr: Decimal | None = None
 
+    #: Adaptive-intake enrichment (S-ADAPT.2, doc 11 §3): facts a patient
+    #: volunteered for questions not yet asked, waiting for the walk to reach them.
+    #: {node_id: {"value": ..., "text": ...}}. Each is still validated by
+    #: `walk.save` when auto-applied, so nothing here bypasses the tree or a rule.
+    pending_prefills: dict[str, Any] = field(default_factory=dict)
+    #: One record per adaptive interpret event, for the V2 telemetry report (doc 11
+    #: §3): [{node_id, outcome, enriched, at}]. Persisted onto `Intake.adaptive_events`
+    #: at finalize; the LLM-call turns reconcile to the intake's INTAKE_TURN usage_events.
+    adaptive_turns: list[dict[str, Any]] = field(default_factory=list)
+
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -146,6 +156,8 @@ class SessionState:
             "summary_md": self.summary_md,
             "summary_lang_versions": self.summary_lang_versions,
             "cost_inr": str(self.cost_inr) if self.cost_inr is not None else None,
+            "pending_prefills": self.pending_prefills,
+            "adaptive_turns": self.adaptive_turns,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -177,6 +189,8 @@ class SessionState:
             summary_md=data.get("summary_md"),
             summary_lang_versions=data.get("summary_lang_versions") or {},
             cost_inr=Decimal(data["cost_inr"]) if data.get("cost_inr") is not None else None,
+            pending_prefills=data.get("pending_prefills") or {},
+            adaptive_turns=data.get("adaptive_turns") or [],
             created_at=_parse_dt(data.get("created_at")),
             updated_at=_parse_dt(data.get("updated_at")),
         )
