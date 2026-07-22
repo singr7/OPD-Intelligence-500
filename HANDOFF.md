@@ -1,5 +1,17 @@
 # HANDOFF — after Session S8 (queue + board + coordinator console)
 
+> **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
+> an on-prem RTX 4090 box with **STT + LLM fully local** (kiosk voice-in via
+> Whisper, routing/summaries via Qwen3, zero cloud AI) at
+> `https://opd.radpretation.ai`. The **next build is local "Dhara" TTS** so the
+> read-aloud is on-box too — full spec, ops runbook, and the exact wiring seams
+> are in **[docs/10-LOCAL-GPU-DEPLOYMENT-AND-TTS-NEXT.md](docs/10-LOCAL-GPU-DEPLOYMENT-AND-TTS-NEXT.md)**.
+> Also shipped since S8 close: `POST /kiosk/stt` (local Whisper server-STT) +
+> parameterized compose ports + web build args (commits after `50153f3`). S9
+> (doctor console) remains the main-line build when TTS is done.
+
+
+
 **Repo state:** branch `main`. `make test` green: backend **577** (was 541),
 voice-gw 1, web typecheck+lint clean, **48** conformance. Postgres on host port
 **5433**; voice-gw on 8090. **No migration this session** — `Queue`/`QueueEntry`
