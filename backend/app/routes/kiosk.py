@@ -43,7 +43,7 @@ from app.models.enums import Channel, Lang, UsagePurpose
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import get_meter, usage_scope
-from app.providers.registry import stt_chain
+from app.providers.registry import stt_chain, tts_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
 
@@ -423,6 +423,76 @@ async def stt(
         lang=transcript.lang,
         confidence=transcript.confidence,
         uncertain=transcript.is_uncertain,
+    )
+
+
+# -- server TTS (local/Voicebox "Dhara" voice on a V-OSS box) -----------------
+
+
+class TtsIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    lang: Lang = Lang.HI
+
+
+class TtsOut(BaseModel):
+    #: base64-encoded audio (WAV from the local/Voicebox engine) for the kiosk to
+    #: play. Base64 rather than raw bytes so the read-aloud carries the provider +
+    #: voice alongside it (the kiosk logs which voice spoke; batch tooling reuses it).
+    audio: str
+    mime: str
+    sample_rate: int
+    provider: str
+    voice: str
+
+
+#: The kiosk reads a question or the summary read-back — a couple of sentences.
+#: A higher rate than the 8 kHz telephony default: this is browser playback, and
+#: the branded Dhara voice should sound natural, not like a phone line.
+_KIOSK_TTS_SAMPLE_RATE = 24000
+
+
+@router.post("/tts", response_model=TtsOut)
+async def tts(
+    payload: TtsIn,
+    settings: Settings = Depends(get_settings),
+) -> TtsOut:
+    """Server-side text-to-speech for the kiosk read-aloud (doc 03 §1a, doc 10 §6).
+
+    Mirrors `/kiosk/stt`: on a V-OSS box the configured TTS chain is Voicebox (or a
+    local `/tts` service) speaking the cloned **Dhara** voice, so the read-aloud is
+    on-premises and one identity across every channel — instead of the browser's
+    SpeechSynthesis. A single multilingual Dhara clone covers both English and
+    Hindi (the languages the pilot reads aloud); the vendor picks the accent from
+    `lang`. Unauthenticated for the same reason as STT: a public terminal carries
+    no credential, and the text is a clinical prompt, not a stored record. The
+    kiosk keeps the browser voice behind this (flag off / offline / on error).
+    """
+    try:
+        with usage_scope(channel=Channel.KIOSK):
+            speech = await with_fallback(
+                tts_chain(settings),
+                lambda p: p.synthesize(
+                    payload.text,
+                    str(payload.lang),
+                    sample_rate=_KIOSK_TTS_SAMPLE_RATE,
+                    purpose=UsagePurpose.INTAKE_TURN,
+                ),
+            )
+    except ProviderBadRequest as exc:
+        raise HTTPException(
+            status_code=422, detail=f"could not synthesize that text: {exc}"
+        ) from exc
+    except ProviderError as exc:
+        # The kiosk always has the browser voice behind this (doc 04 law 1); a 503
+        # tells it to fall back rather than sit silent.
+        raise HTTPException(status_code=503, detail="speech synthesis is unavailable") from exc
+
+    return TtsOut(
+        audio=speech.audio.b64(),
+        mime=speech.audio.mime,
+        sample_rate=speech.audio.sample_rate,
+        provider=speech.provider,
+        voice=speech.voice,
     )
 
 

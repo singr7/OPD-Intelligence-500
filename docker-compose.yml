@@ -119,10 +119,12 @@ services:
       # web/Dockerfile). The browser talks to the api at its *published* host
       # port, so on a box where the api isn't on 8000, set NEXT_PUBLIC_API_BASE
       # in .env to match API_HOST_PORT. NEXT_PUBLIC_KIOSK_SERVER_STT=1 turns on
-      # local Whisper for the kiosk mic (doc 08).
+      # local Whisper for the kiosk mic; NEXT_PUBLIC_KIOSK_SERVER_TTS=1 turns on
+      # the on-box Dhara voice for the read-aloud (doc 08, doc 10 §6).
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
         NEXT_PUBLIC_KIOSK_SERVER_STT: ${NEXT_PUBLIC_KIOSK_SERVER_STT:-0}
+        NEXT_PUBLIC_KIOSK_SERVER_TTS: ${NEXT_PUBLIC_KIOSK_SERVER_TTS:-0}
     <<: *restart
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}

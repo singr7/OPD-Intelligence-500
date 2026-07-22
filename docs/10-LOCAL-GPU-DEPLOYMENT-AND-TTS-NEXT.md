@@ -19,7 +19,7 @@ web `:13000`, api `:18080` under `/api/` (prefix stripped). See §5.
 | App stack | `docker compose` in `~/projects/opd` | postgres `:15432`, redis `:16379`, api `:18080`, web `:13000` (caddy **not** used — nginx fronts it) |
 | LLM | container `opd-vllm` (vLLM/Qwen3-8B-AWQ) | on network `opd_default`, host `:18000`, `--gpu-memory-utilization 0.48`, tool-calling on |
 | STT | container `opd-stt` (faster-whisper-server) | on `opd_default`, host `:18010`, model **`Systran/faster-whisper-large-v3`** int8 |
-| TTS | **browser SpeechSynthesis** (not on-box yet) | the next-session target |
+| TTS | **browser SpeechSynthesis** (kiosk `/kiosk/tts` code is merged; flip on with the §6 deploy step) | on-box Dhara voice via Voicebox |
 
 Both model containers are attached to the compose network `opd_default` and the
 api reaches them **by name**: `LOCAL_VLLM_BASE_URL=http://opd-vllm:8000/v1`,
@@ -167,17 +167,21 @@ SpeechSynthesis — completing "fully local voice" (STT ✅ + LLM ✅ + TTS).
 - `app/providers/local_oss/tts.py` — `LocalTTSProvider` (`POST {LOCAL_TTS_URL}/tts → {"audio": "<base64 wav>"}`) and `VoiceboxTTSProvider` (Voicebox REST). Config-selectable: `TTS_PROVIDER=local_tts|voicebox`, `LOCAL_TTS_URL`, `LOCAL_TTS_VOICE`, `VOICEBOX_URL`, `VOICEBOX_VOICE` (default `dhara_hi_v1`).
 - `app/providers/registry.py` — `tts_chain()` / `get_tts_provider()`.
 
-**So the missing pieces are just the kiosk wiring (mirror what `/kiosk/stt` did):**
-1. **Backend: `POST /kiosk/tts`** in `app/routes/kiosk.py` — body `{text, lang}` →
-   `with_fallback(tts_chain(settings), lambda p: p.synthesize(text, lang))` inside
-   `usage_scope(channel=KIOSK)` → return the audio (base64 or `audio/wav` bytes).
-   Unauthenticated, same as `/kiosk/stt`. Add a fake-provider test.
-2. **Frontend:** in `web/app/(kiosk)/kiosk/_lib/speech.ts`, give `speak()` a server
-   path — when `NEXT_PUBLIC_KIOSK_SERVER_TTS=1`, `fetch('/kiosk/tts')`, play the
-   returned audio via an `Audio`/`AudioContext` element instead of
-   `speechSynthesis`. Keep the browser voice as the fallback (offline / flag off).
-   Add the build arg to `web/Dockerfile` + `docker-compose.yml` like the STT flag.
-3. **The engine on the box** — two ways to get a natural voice quickly:
+**The kiosk wiring is DONE (mirrors `/kiosk/stt`):**
+1. ✅ **Backend: `POST /kiosk/tts`** in `app/routes/kiosk.py` — body `{text, lang}` →
+   `with_fallback(tts_chain(settings), lambda p: p.synthesize(...))` inside
+   `usage_scope(channel=KIOSK)` → returns `{audio (base64), mime, sample_rate,
+   provider, voice}`. Unauthenticated, 24 kHz for natural browser playback.
+   Fake-provider tests in `tests/test_kiosk.py`.
+2. ✅ **Frontend:** `web/app/(kiosk)/kiosk/_lib/speech.ts` — `speak()` takes a server
+   path when `NEXT_PUBLIC_KIOSK_SERVER_TTS=1` (`speakServer()` POSTs `/kiosk/tts`
+   and plays the clip via an `Audio` element); the browser voice (`speakBrowser()`)
+   is the fallback on flag-off / offline / any fetch-or-decode error. Build arg
+   `NEXT_PUBLIC_KIOSK_SERVER_TTS` wired into `web/Dockerfile` + `docker-compose.yml`
+   + `.env.example`.
+3. **The engine on the box — REMAINING deploy step.** Two ways to get a natural
+   voice; **decision made: go with Voicebox + a single cloned Dhara voice (a)** so
+   it works now, one identity for en+hi. Bake-off (below) is the quality follow-up.
    - **(a) Voicebox (recommended — it's already installed on `omen`):** clone a
      warm "Dhara" voice from a short human sample (doc 08 §1), expose Voicebox's
      REST API, set `TTS_PROVIDER=voicebox` + `VOICEBOX_URL=http://<voicebox>:PORT`.
@@ -189,10 +193,32 @@ SpeechSynthesis — completing "fully local voice" (STT ✅ + LLM ✅ + TTS).
      Parler — doc 08 §6). Until the bake-off, per-language routing can keep weak
      languages on the browser voice.
 
-**Open design decision (not code):** which TTS engine for hi/mr/te — decided by
-the S-OSS.1 **measured bake-off** on the box (RTF ≤0.35, MOS), not from a desk.
-For "works now," start with Voicebox + a cloned Dhara voice (a) and treat the
-bake-off as the quality-optimization follow-up.
+**Deploy checklist — WORKS-NOW path is a Kokoro `/tts` container (all code merged).**
+Decision (operator): stand up a default on-box voice first with **Kokoro-82M**
+(`TTS_PROVIDER=local_tts`, no cloning); the branded **Dhara** clone via Voicebox is
+a **reserved later iteration**. Kokoro runs as a standalone container on
+`opd_default`, a peer of `opd-vllm`/`opd-stt` — full step-by-step in
+**[deploy/tts-kokoro/README.md](../deploy/tts-kokoro/README.md)**. In short:
+1. `docker build -t opd-tts:latest deploy/tts-kokoro`
+2. `docker run -d --name opd-tts --gpus all --network opd_default --restart
+   unless-stopped -p 18020:8000 -v /opt/opd/hf:/root/.cache/huggingface opd-tts:latest`
+3. Smoke-test: `curl localhost:18020/tts …` writes a playable wav (README step 3).
+4. `.env`: `TTS_PROVIDER=local_tts`, `LOCAL_TTS_URL=http://opd-tts:8000`,
+   `LOCAL_TTS_VOICE=` (blank = per-lang default), `NEXT_PUBLIC_KIOSK_SERVER_TTS=1`.
+5. `docker compose up -d --build api web` (web rebuild required — build-time flag).
+   Reconnect `opd-tts` to `opd_default` if you ever `down` (§2).
+6. **VRAM:** vLLM (11.5) + Whisper (3) + Kokoro (~0.3) ≈ 15 GB — comfortable on the
+   4090. (Voicebox later would be ~4.5 GB, ≈19 GB total — see §4 gotcha 5.)
+
+**Reserved later iteration — the branded Dhara clone (Voicebox):** clone a warm
+human voice once (doc 08 §1), expose Voicebox REST, switch `TTS_PROVIDER=voicebox`
++ `VOICEBOX_URL` + `VOICEBOX_VOICE`. ⚠️ The adapter's `POST /api/tts →
+{"audio": …}` shape has **never been validated against a live Voicebox**
+(STATE.md) — confirm it against the instance's `/openapi.json` first and adjust
+`local_oss/tts.py` if it differs. **Quality follow-up (S-OSS.1 bake-off):** the
+measured RTF/MOS bake-off (Qwen3-TTS / Chatterbox / IndicF5 / Parler) picks the
+best hi/mr/te engine; it swaps in behind the same `local_tts` config, no code
+change. Until then Kokoro is en+hi and mr/te 400 back to the browser voice.
 
 **Verification (mirror STT):** `curl POST /kiosk/tts` returns audio;
 `usage_events` shows `provider=voicebox`/`local-tts`; the kiosk reads a question

@@ -213,3 +213,23 @@ async def test_stt_rejects_an_empty_upload(client: AsyncClient) -> None:
         data={"lang": "hi"},
     )
     assert resp.status_code == 422
+
+
+async def test_tts_synthesizes_the_read_aloud(client: AsyncClient) -> None:
+    """The server-TTS path: text comes back as playable audio via the TTS chain.
+
+    With the default `fake` provider the clip is deterministic silence; on a V-OSS
+    box the same route runs Voicebox's cloned Dhara voice on the premises, so the
+    read-aloud never leaves the box (doc 10 §6).
+    """
+    resp = await client.post("/kiosk/tts", json={"text": "aap kaise hain", "lang": "hi"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["audio"]  # base64 audio present
+    assert body["provider"] == "fake-tts"
+    assert body["sample_rate"] == 24000
+
+
+async def test_tts_rejects_empty_text(client: AsyncClient) -> None:
+    resp = await client.post("/kiosk/tts", json={"text": "   ", "lang": "hi"})
+    assert resp.status_code == 422

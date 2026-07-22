@@ -31,6 +31,18 @@ export function serverSttEnabled(): boolean {
   return v === "1" || v === "true";
 }
 
+/**
+ * Server-TTS mode (doc 08 / V-OSS, doc 10 §6): when on, the read-aloud posts the
+ * text to `/kiosk/tts` — which runs Voicebox's cloned "Dhara" voice on the box —
+ * and plays the returned clip, so the voice is on-premises and one branded
+ * identity across every channel. Off (default), the kiosk uses the browser's
+ * SpeechSynthesis. Build-time flag: `NEXT_PUBLIC_KIOSK_SERVER_TTS=1`.
+ */
+export function serverTtsEnabled(): boolean {
+  const v = (process.env.NEXT_PUBLIC_KIOSK_SERVER_TTS ?? "").toLowerCase();
+  return v === "1" || v === "true";
+}
+
 export function recorderSupported(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -92,11 +104,46 @@ export async function recordToServer(
 }
 
 let _current: SpeechSynthesisUtterance | null = null;
+let _serverAudio: HTMLAudioElement | null = null;
 
-/** Speak `text`; resolves when playback ends (or immediately if unsupported). */
+/**
+ * Speak `text`; resolves when playback ends (or immediately if unsupported).
+ * In server-TTS mode the on-box Dhara voice speaks; any failure (flag off is
+ * handled before we get here, but network/decode errors are not) falls back to
+ * the browser voice so a TTS outage never leaves the kiosk silent (doc 04 law 1).
+ */
 export function speak(text: string, lang: string): Promise<void> {
-  if (!speechSupported() || !text) return Promise.resolve();
+  if (!text) return Promise.resolve();
   cancelSpeech();
+  if (serverTtsEnabled()) {
+    return speakServer(text, lang).catch(() => speakBrowser(text, lang));
+  }
+  return speakBrowser(text, lang);
+}
+
+/** POST the text to `/kiosk/tts`, play the returned Dhara clip. Rejects on any
+ * failure so the caller can fall back to the browser voice. */
+async function speakServer(text: string, lang: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/kiosk/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, lang }),
+  });
+  if (!res.ok) throw new Error(String(res.status));
+  const body = (await res.json()) as { audio?: string; mime?: string };
+  if (!body.audio) throw new Error("no-audio");
+  const audio = new Audio(`data:${body.mime || "audio/wav"};base64,${body.audio}`);
+  _serverAudio = audio;
+  await new Promise<void>((resolve, reject) => {
+    audio.onended = () => resolve();
+    audio.onerror = () => reject(new Error("play-failed"));
+    audio.play().catch(reject);
+  });
+}
+
+/** The browser SpeechSynthesis voice — the offline / flag-off / fallback path. */
+function speakBrowser(text: string, lang: string): Promise<void> {
+  if (!speechSupported() || !text) return Promise.resolve();
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = BCP47[lang] ?? lang;
@@ -111,6 +158,10 @@ export function speak(text: string, lang: string): Promise<void> {
 export function cancelSpeech(): void {
   if (speechSupported()) window.speechSynthesis.cancel();
   _current = null;
+  if (_serverAudio) {
+    _serverAudio.pause();
+    _serverAudio = null;
+  }
 }
 
 type Recognition = {

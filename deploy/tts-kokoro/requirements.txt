@@ -1,0 +1,6 @@
+# torch is provided by the base image (pytorch/pytorch CUDA runtime).
+kokoro>=0.9.4
+soundfile>=0.12.1
+numpy>=1.24
+fastapi>=0.110
+uvicorn[standard]>=0.27
