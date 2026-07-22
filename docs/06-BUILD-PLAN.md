@@ -64,6 +64,34 @@ A **peer of V2** that runs the whole voice pipeline (STT→LLM→TTS) on an on-p
 
 **S-OSS.3 — Dhara voice cloning + V3 pack regeneration (folds into S21).** doc 08 §6: record human samples, clone in Voicebox, regenerate all V3 packs via `VoiceboxTTSProvider` batch mode. Replaces S21's "recording script sheets" plan.
 
+### Parallel track — S-ADAPT: adaptive intake turn (local-LLM answer interpreter)
+
+Adds an **LLM answer-interpreter** so a patient can *answer intake questions by
+voice* (mapped to the node's structured value) and gets **one clarifying
+follow-up** when vague — turn-based, on the live local stack (doc 10). It is the
+**intelligence layer under any later full-duplex V2V** (S-OSS.2 wraps it in
+streaming) and closes the operator-flagged routing/adaptivity debt with telemetry.
+Full spec in **[doc 11](11-ADAPTIVE-INTAKE.md)**. Builds on S3 (tool contract +
+prompt loader), S5 (engine/dispatcher), S6 (kiosk), S-OSS.0/1 (live local LLM/TTS).
+Taps stay the zero-AI floor; the tree/validator/red-flag rules are untouched (the
+interpreter proposes, the deterministic engine decides — doc 11 §5).
+
+**S-ADAPT.1 — V1: clarify-only voice answers.** Load: docs 03 §1a, 11 §2, 02 §5.
+Build: `AnswerInterpreter` (+ `FakeInterpreter`); `prompts/interpret_answer/v1.md`;
+extend `POST /kiosk/{sid}/answer` for the voice→value + clarify path (no new
+route/engine); `intake_adaptive` config + `NEXT_PUBLIC_KIOSK_ADAPTIVE` web flag;
+per-node interpret telemetry. AC (doc 11 §2): voice maps to correct value on
+fake + Qwen3; a vague answer yields exactly one spoken clarify then falls back to
+taps; candidate always passes `walk.save` (invalid ⇒ clarify); red-flag invariant
+holds; flag-off = today's tap flow; suite green.
+
+**S-ADAPT.2 — V2: enrichment + adaptive follow-ups.** Load: doc 11 §3 + V1
+telemetry (scope finalised from V1 data before coding). Build: multi-fact capture
+across nodes (each validated), opt-in per-node bounded micro-follow-ups, skip-logic
+proposals the walker still adjudicates, tree-improvement report. AC (doc 11 §3):
+one spoken turn fills two nodes; same answers JSONB as a pure-tap walk; report
+reconciles to usage_events.
+
 ### Phase C — Doctor loop (S9–S11)
 
 **S9 — Doctor console + summary view**

@@ -1,14 +1,18 @@
 # HANDOFF — after Session S8 (queue + board + coordinator console)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
-> an on-prem RTX 4090 box with **STT + LLM fully local** (kiosk voice-in via
-> Whisper, routing/summaries via Qwen3, zero cloud AI) at
-> `https://opd.radpretation.ai`. The **next build is local "Dhara" TTS** so the
-> read-aloud is on-box too — full spec, ops runbook, and the exact wiring seams
-> are in **[docs/10-LOCAL-GPU-DEPLOYMENT-AND-TTS-NEXT.md](docs/10-LOCAL-GPU-DEPLOYMENT-AND-TTS-NEXT.md)**.
-> Also shipped since S8 close: `POST /kiosk/stt` (local Whisper server-STT) +
-> parameterized compose ports + web build args (commits after `50153f3`). S9
-> (doctor console) remains the main-line build when TTS is done.
+> an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
+> Whisper, routing/summaries via Qwen3, read-aloud via a Kokoro `/tts` container —
+> zero cloud AI) at `https://opd.radpretation.ai`. Local voice is **done**:
+> `POST /kiosk/tts` + the Kokoro container (`deploy/tts-kokoro/`, doc 10 §6) are
+> live; the branded-Dhara Voicebox clone is a reserved later iteration. Also fixed
+> live: `/finish` 500 (rule-flag dicts vs summary strings, `dispatch.py`).
+>
+> **Next build decided: S-ADAPT.1 — adaptive intake turn V1** (answer questions by
+> voice + one clarifying follow-up, on the live local stack). Full V1→V2 design,
+> sequencing, seams and guardrails in **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**;
+> integrated into the build plan as the **S-ADAPT** track (doc 06). S9 (doctor
+> console) remains the main-line build; S-ADAPT runs as a parallel track like V-OSS.
 
 
 
@@ -97,3 +101,12 @@ is echoed in the response and shown as a hint on the login screen.
 - **Staff auth hardening** — the coordinator token is localStorage, not an
   httpOnly cookie (S19/S20).
 - **A `/queue/ws` unit test** — currently covered only by the live `queue` e2e.
+- **Intake routing + question adaptivity — stress-test & improve (operator-flagged,
+  2026-07-22).** On the live local stack the department routing (Q1 classifier) and
+  the per-node question flow sometimes feel under-adapted — the tree asks a fixed
+  path where a smarter follow-up/clarification would fit. Needs: (a) a routing
+  stress set (varied/ambiguous/misspelt complaints in hi+en) measuring mis-route
+  rate + `needs_human` calibration against Qwen3; (b) adaptive questioning without
+  losing the deterministic offline floor. **(b) is now designed** as the S-ADAPT
+  track — **[doc 11](docs/11-ADAPTIVE-INTAKE.md)** (V1 clarify-only voice answers →
+  V2 enrichment); its per-node telemetry is what turns (a) from vibes into data.
