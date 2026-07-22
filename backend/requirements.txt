@@ -1,5 +1,8 @@
 # Pinned-ish runtime deps for docker + CI (mirrors pyproject).
 fastapi>=0.115
+# FastAPI multipart form/file uploads — the kiosk /stt audio upload needs it, and
+# FastAPI raises at startup if a route uses Form/File without it.
+python-multipart>=0.0.9
 uvicorn[standard]>=0.32
 pydantic>=2.9
 pydantic-settings>=2.6
