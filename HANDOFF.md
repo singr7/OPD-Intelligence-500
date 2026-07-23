@@ -13,19 +13,18 @@
 > `push`/`pull_request` block. **Nothing is checking your pushes now — `make test`
 > locally is the only gate.**
 >
-> **Two tracks are open besides the main line. Neither is merged to `main`:**
+> **One track is still open besides the main line, and it is not merged:**
+> **S-ADAPT (adaptive intake) — `feat/adaptive-intake`.** V1 and V2 both built,
+> neither has run on the omen box. Design: **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**.
+> Logs: `sessions/SESSION-ADAPT-1.md`, `-2.md`. ⚠️ **Branch-only until proven on omen
+> (operator instruction).** The stated plan is to club the omen validation with the
+> next "fully conversational" step.
 >
-> 1. **S-ADAPT (adaptive intake) — `feat/adaptive-intake`.** V1 and V2 both built,
->    neither has run on the omen box. Design: **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**.
->    Logs: `sessions/SESSION-ADAPT-1.md`, `-2.md`. ⚠️ **Branch-only until proven on
->    omen (operator instruction).** The stated plan is to club the omen validation
->    with the next "fully conversational" step.
-> 2. **`feat/doctor-console` — now carries BOTH S9 and S10** (7 commits off `main`
->    @ `04fe8c7`). S10 was built here on the operator's instruction rather than
->    branching off `main`.
+> `feat/doctor-console` (S9 + S10) was **merged to `main` on 2026-07-23**, so `main`
+> is once again the single line the pilot deploys from.
 
-**Repo state:** branch **`feat/doctor-console`**, last commit `S 10: session close`.
-`make test` green: backend **708** (was 603), voice-gw 1, web typecheck+lint clean,
+**Repo state:** **`main`** — `feat/doctor-console` (S9 + S10, 10 commits)
+fast-forwarded in on 2026-07-23; start S11 from `main`. `make test` green: backend **708** (was 603), voice-gw 1, web typecheck+lint clean,
 48 conformance. **No migration in S10** (`Dictation` has existed since S2 and
 `structured` is JSONB). Postgres on host port **5433**; voice-gw on 8090.
 
@@ -67,7 +66,7 @@ out of alignment in danger-red when the two cannot be reconciled.
 - **The meds are already prescription-shaped:** `structured["fields"]["meds"]` carries
   name / dose / route / freq / duration plus the formulary verdict. The `known: false`
   ones are *acknowledged*, not resolved — decide how the printed Rx shows that.
-- **Decide first:** merge order (see "Decisions needed").
+- **Start from `main`** — it now carries S9 + S10; the branch is merged.
 - Exact first commands:
 ```
 docker compose exec -T postgres psql -U opd -d opd_test \
@@ -110,24 +109,20 @@ console, pick a patient and press **D**.
   fails with a message saying so.
 
 ## Decisions needed from the human
-- **Merge order for three live branches.** `main` carries the deployed pilot;
-  `feat/doctor-console` now carries **S9 + S10**; `feat/adaptive-intake` carries
-  S-ADAPT V1+V2. S9+S10 remain additive and low-risk — no migration, no changes to
-  existing routes or models, and the only shared file touched is `FakeLLMProvider`
-  (a test/demo fake). **Recommend: merge `feat/doctor-console` to `main` now**, since
-  S11 builds directly on the signed dictation and a third session stacked on an
-  unmerged branch gets harder to land each time. S-ADAPT stays gated on omen.
-- **Should a real Qwen3 run score the ten fixtures?** They currently gate *our* layer
-  with the model faked, which is the safety property. What they do not measure is how
-  often the box's Qwen3 renames a drug in the first place — i.e. how often `_was_said`
-  will fire in real use. That is a half-day eval (`make eval-dictation`, mirroring
-  `eval-routing`) and it needs the omen box.
+- *(Resolved 2026-07-23 — `feat/doctor-console` (S9 + S10) merged to `main`. Only
+  `feat/adaptive-intake` is still unmerged, and it stays gated on omen validation.)*
 - When the GPU box work resumes, S-OSS.1 is unblocked and unchanged.
 
 ## Backlog additions
-- **`make eval-dictation`** — score a real model against the ten fixtures on the omen
-  box: rename rate, hallucination rate, dose-inference rate. Turns `_was_said`'s
-  firing rate from a guess into a number. (S18, or alongside the omen validation.)
+- **`make eval-dictation` — score a real Qwen3 against the ten fixtures (debt,
+  deferred 2026-07-23 by the operator).** The fixtures gate *our* layer with the model
+  faked, which is the safety property and is done. What is **not** measured is how
+  often the box's Qwen3 renames or invents a drug in the first place — i.e. how often
+  `_was_said` fires in real use, and therefore how much acknowledgement tapping a
+  doctor actually faces. Mirrors `app/evals.py` / `make eval-routing`; needs the omen
+  box. Report rename rate, hallucination rate and dose-inference rate. Until this
+  runs, the flag-firing rate quoted anywhere is from fixtures, not from the clinic.
+  (Alongside the S-ADAPT omen validation, or S18.)
 - **Formulary in the DB + admin editing** — it is a seed file read at boot. A hospital
   adding a drug should not need a deploy, and S18's admin console is the place.
 - **Amendment of a signed note** — signing is terminal and there is still no rewind or
