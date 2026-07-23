@@ -36,7 +36,7 @@ from sqlalchemy import delete, select
 
 from app import queue as q
 from app.db import build_engine, build_sessionmaker
-from app.models.clinical import Intake, Visit
+from app.models.clinical import Dictation, Intake, Visit
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import (
     Channel,
@@ -364,6 +364,10 @@ async def _reset(session, hospital_id: uuid.UUID) -> None:
         await session.execute(delete(CheckinPlan).where(CheckinPlan.id.in_(plan_ids)))
     if visit_ids:
         await session.execute(delete(QueueEntry).where(QueueEntry.visit_id.in_(visit_ids)))
+        # S10: a consult note keeps its visit alive. Without this the second
+        # `seed_doctor_demo` of the day dies on a foreign key, which is a
+        # confusing way to learn that yesterday's demo signed something.
+        await session.execute(delete(Dictation).where(Dictation.visit_id.in_(visit_ids)))
         await session.execute(delete(Intake).where(Intake.visit_id.in_(visit_ids)))
         await session.execute(delete(Visit).where(Visit.id.in_(visit_ids)))
     await session.execute(delete(Patient).where(Patient.id.in_(patient_ids)))

@@ -1,9 +1,17 @@
 name: CI
 
+# Automatic runs are OFF (2026-07-23, operator: CI was burning the account's
+# free Actions minutes). Nothing about the pipeline has been deleted — only its
+# triggers. Run it by hand from the Actions tab ("CI" -> "Run workflow"), or
+# with `gh workflow run ci.yml`.
+#
+# To turn it back on, delete the comment markers below and drop
+# `workflow_dispatch` if you do not want the manual button.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
 
 jobs:
   backend:

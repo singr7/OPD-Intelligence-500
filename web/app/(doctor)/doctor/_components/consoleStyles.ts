@@ -298,8 +298,6 @@ export const DICTATION_CSS = `
 .prov-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .prov-written { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.45; }
 .prov-spoken { font-size: 14px; color: var(--ink-soft); line-height: var(--line-indic); }
-.prov.is-quiet .prov-spoken { display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden; }
 
 .dict-advice { padding-top: 4px; }
 .dict-advice ul { margin: 0; padding-left: 20px; }

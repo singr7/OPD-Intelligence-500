@@ -336,12 +336,12 @@ export function DictationPanel({ token, visitId, patientName, onClose, onSigned 
           )}
           {fields.meds.length === 0 && <p className="dict-nomeds">No medicines in this note.</p>}
 
-          <Provenance
-            label="Impression"
-            spoken={dictation?.transcript ?? ""}
-            written={fields.diagnosis ?? "—"}
-            quiet
-          />
+          {/* No provenance line here: the impression is drawn from the whole
+              note, so quoting "what it came from" reprints the transcript that
+              is already on screen a few centimetres above. A provenance line
+              that is always the same text stops being read, and then it stops
+              being read on the rows where it matters. */}
+          <Provenance label="Impression" spoken="" written={fields.diagnosis ?? "—"} />
 
           {fields.treatment_events.map((ev, i) => (
             <Provenance
@@ -507,20 +507,18 @@ function MedRow({
   );
 }
 
-/** A quieter provenance pair for the non-drug fields. */
+/** The same provenance idea at lower volume, for the non-drug fields. */
 function Provenance({
   label,
   spoken,
   written,
-  quiet,
 }: {
   label: string;
   spoken: string;
   written: string;
-  quiet?: boolean;
 }) {
   return (
-    <div className={`prov${quiet ? " is-quiet" : ""}`}>
+    <div className="prov">
       <span className="prov-label">{label}</span>
       <div className="prov-body">
         <span className="prov-written">{written}</span>

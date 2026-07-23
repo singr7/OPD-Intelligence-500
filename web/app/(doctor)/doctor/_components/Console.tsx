@@ -93,6 +93,10 @@ export function Console() {
     (async () => {
       const next = await loadDay(token);
       if (cancelled || !next || next.rows.length === 0) return;
+      // Only auto-open if the doctor has not already picked someone. The day
+      // fetch resolves after the page is interactive, and a load that yanks the
+      // stage away from the patient they just tapped is worse than a slow one.
+      if (selectedRef.current) return;
       const inRoom = next.rows.find((r) => r.state === "in_consult" || r.state === "called");
       await openPatient(token, (inRoom ?? next.rows[0]).visit_id);
     })();
@@ -170,10 +174,17 @@ export function Console() {
     return () => window.removeEventListener("keydown", onKey);
   }, [token, onCallNext]);
 
-  // Moving to another patient closes the note — it is that visit's, not a
-  // scratchpad that follows the doctor down the list.
+  // Moving to *another* patient closes the note — it is that visit's, not a
+  // scratchpad that follows the doctor down the list. Keyed on the value
+  // changing rather than on the effect running, because the first load resolves
+  // `selected` asynchronously: a plain dependency effect closes a note the
+  // doctor opened a moment earlier, and it does it often enough to look random.
+  const dictatingFor = useRef<string | null>(null);
   useEffect(() => {
-    setDictating(false);
+    if (dictatingFor.current !== null && dictatingFor.current !== selected) {
+      setDictating(false);
+    }
+    dictatingFor.current = selected;
   }, [selected]);
 
   if (!ready) return null;

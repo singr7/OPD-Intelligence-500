@@ -122,12 +122,81 @@ class FakeLLMScript:
     cached_tokens: int = 0
 
 
+#: Canned JSON for prompts whose callers cannot use the word "ok" (S10).
+#:
+#: The fakes exist so a whole flow can be demonstrated without a vendor — that
+#: is what makes the offline demo and the Playwright runs possible. A fake that
+#: answers "ok" to a `response_format: json` prompt can only ever demonstrate
+#: the failure path, so the ones with a strict output contract get a canned,
+#: contract-shaped reply here. Keyed by prompt id (the part of `prompt_ref`
+#: before `@`), so a new prompt version keeps working until it changes shape.
+#:
+#: These are demo fixtures, not test fixtures: tests that assert on content
+#: queue their own `FakeLLMScript`, which always wins over this.
+_CANNED_JSON: dict[str, str] = {
+    "dictation_map": json.dumps(
+        {
+            "diagnosis": "Carcinoma breast, post chemotherapy cycle 3, febrile neutropenia",
+            "treatment_events": [
+                {
+                    "cycle": 4,
+                    "regimen": "AC-T",
+                    "date": None,
+                    "next_due": None,
+                    "as_spoken": "next cycle 14 tareekh ko",
+                }
+            ],
+            "meds": [
+                {
+                    "name": "Inj Monocef 1 gm",
+                    "dose": "1 g",
+                    "route": "IV",
+                    "freq": "BD",
+                    "duration": "5 days",
+                    "known": True,
+                    "as_spoken": "Inj Monocef one gram IV BD five days",
+                },
+                {
+                    "name": "Tab Dolo 650",
+                    "dose": "650 mg",
+                    "route": "PO",
+                    "freq": "SOS",
+                    "duration": "",
+                    "known": True,
+                    "as_spoken": "Tab Dolo 650 SOS",
+                },
+                # Off-formulary on purpose: a demo where nothing is ever flagged
+                # teaches the wrong thing about this screen.
+                {
+                    "name": "Inj Ipilimumab 3 mg/kg",
+                    "dose": "3 mg/kg",
+                    "route": "IV",
+                    "freq": "3-weekly",
+                    "duration": "4 doses",
+                    "known": True,
+                    "as_spoken": "Inj Ipilimumab 3 mg per kg three weekly",
+                },
+            ],
+            "advice": ["Repeat CBC before the next cycle", "Come back at once if the fever climbs"],
+            "follow_up": {
+                "when": None,
+                "as_spoken": "14 tareekh",
+                "instructions": "Next chemotherapy cycle",
+            },
+            "unclear": [],
+        }
+    ),
+}
+
+
 class FakeLLMProvider(LLMProvider):
     """Deterministic LLM. Never touches the network.
 
     Default behaviour returns a fixed reply with plausible token counts, so the
     metering path is exercised end to end (S3 AC: every fake call produces a
-    priced usage_event). Tests that care about content queue scripts.
+    priced usage_event) — except for the prompts in `_CANNED_JSON`, which get a
+    contract-shaped reply so a demo can run the whole way through. Tests that
+    care about content queue scripts, and a queued script always wins.
     """
 
     name: ClassVar[str] = "fake-llm"
@@ -148,7 +217,12 @@ class FakeLLMProvider(LLMProvider):
         if self.fail_with is not None:
             raise self.fail_with
 
-        step = self._script.pop(0) if self._script else FakeLLMScript()
+        if self._script:
+            step = self._script.pop(0)
+        else:
+            prompt_id = (request.prompt_ref or "").split("@")[0]
+            canned = _CANNED_JSON.get(prompt_id)
+            step = FakeLLMScript(text=canned) if canned else FakeLLMScript()
         call.usage = UsageDelta(
             tokens_in=step.tokens_in, tokens_out=step.tokens_out, cached_tokens=step.cached_tokens
         )
