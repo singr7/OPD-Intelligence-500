@@ -111,6 +111,24 @@ shortcuts N (call next) and D (dictation → honest "S10"). 581→**603 tests** 
 `web/e2e/doctor.spec.ts` (project `doctor`, the session AC as a test) +
 `scripts/seed_doctor_demo.py`. No migration.
 
+**Built (S10):** **Dictation → structured fields** (doc 03 §7). `app/formulary.py` +
+`seeds/formulary.json` (189 generics / 617 dictatable names, chemo through supportive
+care): `known` is set by **exact match only**, fuzzy matching produces advisory
+`suggestions` and an `ambiguous` flag, and there is no code path from a score to a
+written name. `app/dictation.py` = the doc 03 §7 contract, `validate_meds` (which
+discards the model's own `known` claim), `_was_said` (a drug name absent from the
+doctor's own words is flagged — the only way to catch a model that *renamed* a drug
+into another real one), `DictationMapper` (the `dictation_map@v1` prompt on the LLM
+chain, so `LLM_PROVIDER=local_vllm` runs it on the box's Qwen3 unchanged), and the
+record's state machine `start → map → correct → sign`. `mapped` is frozen and `fields`
+carries the doctor's corrections with an append-only `edits` trail, which is what makes
+the review diff-style. Signing locks the record and refuses while any flagged drug is
+unacknowledged. `app/routes/dictation.py` = six routes, all `require_doctor`. Web:
+`_components/DictationPanel.tsx` — the consult note on the console stage, where every
+written value hangs under the phrase it came from. 603→**708 tests** +
+`web/e2e/dictation.spec.ts` (project `dictation`) + `backend/tests/fixtures/dictations.json`
+(ten Hinglish notes). No migration.
+
 **Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
 voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
 `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
@@ -183,15 +201,24 @@ in-memory flag, not env).
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
-Doctor console (S9): served at `/doctor` (staff, phone-OTP). Needs a live api with S9 code
-and a seeded demo morning:
+Doctor console (S9) + consult note (S10): served at `/doctor` (staff, phone-OTP). Needs a
+live api with S9/S10 code and a seeded demo morning. **Re-seed before every e2e run** —
+signing a note is terminal, and the seed hard-deletes its own dictations to stay repeatable:
 ```
 cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
   .venv/bin/python -m scripts.seed_doctor_demo      # 5 MEDONC walk-ins, one urgent
 cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
   npm run e2e:doctor                                # the full-morning AC + screenshots
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:dictation                             # the S10 AC + screenshots
 ```
 Doctor login: `+915550001001` (seeded Dr. Anil Gupta, MEDONC); the OTP is echoed locally.
+In the console, pick a patient and press **D** for the consult note.
+
+CI (GitHub Actions) is **manual-only** since 2026-07-23 (operator: it was burning free
+Actions minutes). `.github/workflows/ci.yml` is intact; only its `push`/`pull_request`
+triggers are commented out. `gh workflow run ci.yml` to run it. **`make test` locally is
+the only gate right now.**
 
 ## Invariants (don't quietly break these)
 - **Anything patient-affecting subclasses `Clinical`** (`app/models/base.py`) — that alone makes
@@ -210,6 +237,13 @@ Doctor login: `+915550001001` (seeded Dr. Anil Gupta, MEDONC); the OTP is echoed
   bypasses it.
 - **Never edit a `price_book` rate in place** — add a row with a later `effective_from`. Editing
   silently re-interprets every historical cost computed at the old rate.
+- **A dictated drug name is never rewritten** (S10) — `app.formulary` sets `known` on an
+  exact match alone; fuzzy neighbours are `suggestions` shown to the doctor and never a
+  value in a field, and `app.dictation.validate_meds` copies `name` through verbatim.
+  "Auto-apply the closest match" would delete the S10 acceptance criterion.
+- **A signed dictation does not change** — every mutating entry point in `app.dictation`
+  raises `DictationLocked` once `status=signed`. Correcting one is an amendment, and this
+  system has no amendment anywhere yet.
 - **A published prompt version is immutable** — to change a prompt, add `v<N+1>.md`. Outputs are
   traced back to `id@vN`.
 - **The tool contract is versioned** (`app/prompts/tools.py`) — changing a tool's shape means a
@@ -286,6 +320,20 @@ Doctor login: `+915550001001` (seeded Dr. Anil Gupta, MEDONC); the OTP is echoed
   would under-sell a screen whose whole job is a 20-second read. The **answers and red
   flags in the same seed are genuinely derived** (a real `Walk`, real `walk.red_flags()`).
   Like `seed_queue_demo` it hard-deletes its own rows to stay repeatable.
+- **`FakeLLMProvider` answers `dictation_map` with a canned, contract-shaped payload**
+  (S10, `_CANNED_JSON` in `app/providers/llm.py`) — a fake that says "ok" to a
+  `response_format: json` prompt can only ever demonstrate the failure path, and the
+  fakes exist so whole flows can be demoed without a vendor. It is a **demo** fixture:
+  tests asserting on mapped content queue their own `FakeLLMScript`, which always wins.
+  The canned reply carries one off-formulary drug on purpose.
+- **`_was_said` is token presence, not alignment** (S10) — a drug the doctor said in a
+  *different* sentence than the one the model quoted still passes. Tighter matching needs
+  word timings from the STT, which we do not store.
+- **Signing a dictation emits nothing** (S10) — doc 03 §7 says it generates the
+  prescription (§8) and the check-in plan draft (§9); those are S11 and S17. Writing a
+  half-shaped `Prescription` row now would be a migration for a later session to undo.
+- **The formulary is a seed file read at boot**, not a table — a hospital adding a drug
+  needs a deploy until S18's admin console owns it.
 - **The doctor's day list has no appointments** — doc 03 §5 says "appointments+walk-ins",
   but the S8 queue holds walk-ins and `Appointment` has no check-in flow until S15, so the
   worklist is the queue only. Not faked; backlog for S15/S18.
