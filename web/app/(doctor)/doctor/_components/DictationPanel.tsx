@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
 import type { Dictation, MappedFields, Med } from "../_lib/dictation";
+import { RxPanel } from "./RxPanel";
 import {
   correct,
   fetchDictation,
@@ -259,6 +260,16 @@ export function DictationPanel({ token, visitId, patientName, onClose, onSigned 
           Signed{dictation?.signed_at ? ` at ${new Date(dictation.signed_at).toLocaleTimeString()}` : ""}.
           This note is locked.
         </p>
+      )}
+
+      {/* doc 03 §8: what the signature produced, in the same column as the act. */}
+      {signed && (
+        <RxPanel
+          token={token}
+          visitId={visitId}
+          signedAt={dictation?.signed_at ?? null}
+          onAuthError={onClose}
+        />
       )}
 
       {/* 3 (but first in time): capture. Shrinks to a quiet strip once mapped. */}

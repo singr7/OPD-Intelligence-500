@@ -312,6 +312,58 @@ export const DICTATION_CSS = `
 .dict-sign:disabled { background: var(--line); color: var(--ink-soft); cursor: default; }
 .dict-block { margin: 0; font-size: 14px; font-weight: 600; color: var(--danger); line-height: 1.5; }
 
+/* prescription (S11, doc 03 §8) — the consequence of the signature, in the same
+   column. Deliberately quiet: nothing here changes a dose, so it reads as a
+   receipt rather than a second form. The one loud element is the flag, which is
+   the only thing on the panel a human still has to act on. */
+.rx { margin: 18px 22px 0; border-top: 1px solid var(--line); padding-top: 16px; }
+.rx-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rx-head h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-soft); }
+.rx-count { font-size: 13px; color: var(--ink-soft); }
+
+.rx-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.rx-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px;
+  align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rx-row.is-flagged { border-left: 3px solid var(--danger); padding-left: 11px;
+  background: var(--danger-soft); }
+.rx-name { font-size: 16px; font-weight: 700; color: var(--ink); }
+.rx-row.is-flagged .rx-name { color: var(--danger); }
+.rx-dose { font-weight: 500; color: var(--ink-soft); }
+.rx-when { display: flex; align-items: center; gap: 12px; justify-self: end; }
+.rx-dur { font-size: 13px; color: var(--ink-soft); }
+
+/* Icons mirror the printed sheet exactly — same slots_known rule, so what the
+   doctor previews is what the patient is handed. */
+.rx-slots { display: inline-flex; gap: 7px; }
+.rx-slots i { font-style: normal; font-size: 19px; line-height: 1; color: var(--line); }
+.rx-slots i.on { color: var(--accent); }
+.rx-slots i.night.on { color: var(--primary-d); }
+/* A stated count with no stated time of day. Never drawn as icons. */
+.rx-count-only { font-size: 14px; font-weight: 700; color: var(--ink); }
+/* Not readable as a schedule: the doctor's own words, verbatim. */
+.rx-words { font-size: 14px; color: var(--ink); border-bottom: 1px dashed var(--line); }
+.rx-why { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--danger); }
+
+.rx-flagnote { margin: 12px 0 0; font-size: 14px; font-weight: 600; color: var(--danger);
+  line-height: 1.5; }
+
+.rx-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.rx-print { border: 1.5px solid var(--primary); background: #fff; color: var(--primary-d);
+  font: inherit; font-size: 15px; font-weight: 700; padding: 11px 20px; border-radius: 11px;
+  cursor: pointer; }
+.rx-print.is-patient { background: var(--primary); border-color: var(--primary); color: #fff; }
+.rx-print:disabled { border-color: var(--line); background: var(--line); color: var(--ink-soft);
+  cursor: default; }
+
+.rx-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.rx-send button { border: 1px solid var(--line); background: #fff; color: var(--ink);
+  font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+.rx-send button:disabled { color: var(--ink-soft); cursor: default; }
+.rx-deliv { font-size: 13px; font-weight: 700; color: var(--primary-d); }
+.rx-deliv.is-failed { color: var(--danger); }
+.rx-err { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--danger); }
+
 @media (prefers-reduced-motion: reduce) {
   .dict-mic.is-rec .dict-dot { animation: none; }
 }
