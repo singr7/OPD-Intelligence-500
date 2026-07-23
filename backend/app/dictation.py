@@ -613,9 +613,14 @@ async def sign(session: AsyncSession, *, dictation: Dictation, doctor: Doctor) -
     dictation.signed_at = _now()
     dictation.signed_by = doctor.id
     await session.flush()
-    # §8's prescription PDF and §9's check-in plan draft hang off this moment.
-    # Neither exists yet (S11, S17); signing deliberately emits nothing rather
-    # than writing a half-shaped Prescription row for a later session to migrate.
+    # doc 03 §8: the signature is what produces the prescription, so it is
+    # generated here rather than behind a verb a client could call without one.
+    # Imported locally because `app.prescription` reads this module's contract —
+    # a module-level import would be a cycle. §9's check-in plan draft hangs off
+    # this same moment and is still S17.
+    from app import prescription as prescription_svc
+
+    await prescription_svc.generate(session, dictation=dictation, doctor=doctor)
     logger.info("dictation %s signed by doctor %s", dictation.id, doctor.id)
     return dictation
 
