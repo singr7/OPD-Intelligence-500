@@ -129,6 +129,25 @@ written value hangs under the phrase it came from. 603→**708 tests** +
 `web/e2e/dictation.spec.ts` (project `dictation`) + `backend/tests/fixtures/dictations.json`
 (ten Hinglish notes). No migration.
 
+**Built (S11):** **Digital prescription** (doc 03 §8) — what a signed note becomes.
+`app/prescription.py` is generated *inside* `dictation.sign` (idempotent per dictation),
+so a prescription cannot exist without a signature and there is no `POST /prescriptions`.
+The one piece of interpretation on the page is the dosing schedule, and it has the hard
+rule: `parse_schedule` reports **only what the doctor's words state**, keeping *slots*
+("1-0-1", "subah aur raat") apart from a bare *count* ("BD") — a count-without-a-time
+renders as N tablet glyphs, never a sun and a moon, and an unreadable frequency ("SOS",
+"alternate days") returns `None` and prints the doctor's words with no icon at all.
+`app/rx_sheets.py` renders the snapshot twice: a letterhead **clinical copy** (drug table,
+`as_spoken` under each line, signature block naming whoever *signed*) and a large-type
+**patient copy** (one band per drug, morning/afternoon/night pictograms, en+hi). A flagged
+drug prints flagged on both — `RxLine.flagged` deliberately does not mirror
+`meds_needing_attention`, because acknowledgement unlocked signing and did not make the
+drug known. `app/routes/prescription.py` = read / history / print / deliver, all
+`require_doctor`; delivery goes through the provider layer and a vendor outage is
+**recorded as `failed`, not raised**. Web: `_components/RxPanel.tsx` under the signed note,
+previewing the schedule with the same three branches the sheet uses. 726→**781 tests**.
+No migration (`Prescription` has existed since S2; `meds`/`delivered_via` are JSONB).
+
 **Built (S-ADAPT.1 + .2):** **Adaptive intake** (doc 11) — a patient can answer a tap
 node **by voice**, and one spoken turn can fill more than the node that was asked.
 `app/intake/interpret.py` is the whole idea: given a node (its question + the answers
@@ -262,6 +281,21 @@ the only gate right now.**
   bypasses it.
 - **Never edit a `price_book` rate in place** — add a row with a later `effective_from`. Editing
   silently re-interprets every historical cost computed at the old rate.
+- **A dosing schedule is never inferred** (S11, `app.prescription.parse_schedule`) —
+  the patient copy's pictograms are read by someone who cannot read the caption under
+  them, so an icon *is* the instruction. Slots are drawn only when the dictation names a
+  time of day; a bare count ("BD" — conventionally morning-and-night in Indian practice)
+  draws tablet glyphs and no time, and an unreadable frequency draws nothing. Encoding
+  the convention would put a time of day on the page that no clinician wrote.
+  `lines_of` reads the stored snapshot rather than re-parsing, so tightening the parser
+  can never re-interpret a prescription already in a patient's hand.
+- **A prescription is created by signing, never by a client** (S11) — `generate` is
+  called inside `dictation.sign` and there is no `POST /prescriptions`. A prescription
+  that exists without a signature is one nobody stands behind.
+- **A flagged drug prints flagged** (S11) — `RxLine.flagged` is `not known or unsaid`,
+  deliberately *not* `meds_needing_attention` (which drops acknowledged drugs). The
+  acknowledgement let the doctor sign; it did not make the drug known, and the
+  pharmacist reading the sheet never saw the console.
 - **A dictated drug name is never rewritten** (S10) — `app.formulary` sets `known` on an
   exact match alone; fuzzy neighbours are `suggestions` shown to the doctor and never a
   value in a field, and `app.dictation.validate_meds` copies `name` through verbatim.
@@ -339,6 +373,22 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **No live vendor has ever delivered a prescription** (S11) — WhatsApp/SMS run on the
+  provider fakes like every other channel, and Meta needs a registered template for
+  out-of-window sends (the template registry is S12). `delivered_via` records what was
+  attempted, which is real; the send is not.
+- **The pictogram copy has never been read by a low-literacy patient** (S11) — the three
+  glyphs were chosen to survive a laser printer without a webfont, and the sheet was
+  self-critiqued against doc 04 §5, not tested with anyone. The low-literacy checklist in
+  doc 06's S11 AC needs the S21 clinical/design review before it is really met.
+- **Prescriptions print doses and durations in the doctor's own words** (S11) — a Hindi
+  patient copy can carry "5 days" and "8 mg" in English, because those strings come from
+  the dictation and translating them would be inventing. Per-value localisation is S13.
+- **A prescription cannot be amended** (S11) — it hangs off a signature and signing is
+  terminal, so the S10 amendment gap now has a printed artifact attached to it (S18/S19).
+- **`Prescription.pdf_url` is unused** (S11) — nothing is archived to object storage; a
+  reprint re-renders from the stored `meds` snapshot, which is why the snapshot exists
+  rather than a view over the dictation.
 - **Adaptive intake has never run with its flags on** (S-ADAPT, 2026-07-23). It is
   merged to `main` and deployed to omen, but only ever exercised there with
   `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` — that pass proved the *absence*

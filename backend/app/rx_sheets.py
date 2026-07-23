@@ -50,7 +50,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "night": "Night",
         "per_day": "times a day",
         "as_told": "as the doctor said",
-        "duration": "for",
+        # A sentence fragment, not a form label — see `_duration_text`.
+        "duration": "for {d}",
         "advice": "Also remember",
         "follow_up": "Come back on",
         "ask": "Ask the pharmacist if anything here is unclear.",
@@ -64,7 +65,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "night": "रात",
         "per_day": "बार रोज़",
         "as_told": "जैसा डॉक्टर ने कहा",
-        "duration": "कितने दिन",
+        "duration": "{d} तक",
         "advice": "यह भी ध्यान रखें",
         "follow_up": "अगली बार आइए",
         "ask": "कुछ समझ न आए तो फार्मासिस्ट से पूछें।",
@@ -111,6 +112,7 @@ body {
   padding: 6px 12px; border-radius: 6px; font-size: 10pt; text-transform: uppercase;
 }
 .who { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px;
+  align-items: baseline;
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
 .who .label { color: var(--ink-soft); font-size: 8.5pt; text-transform: uppercase;
   letter-spacing: .04em; }
@@ -147,6 +149,7 @@ tr.flagged .name { color: var(--danger); }
 .foot { margin-top: 12px; color: var(--ink-soft); font-size: 8.5pt;
   border-top: 1px solid var(--line); padding-top: 6px; }
 /* patient copy — large type, icon-led */
+.who.p-who { grid-template-columns: 1fr auto; }
 .p-title { font-size: 22pt; font-weight: 800; color: var(--primary-d); margin: 0 0 10px; }
 .med { border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px;
   margin-bottom: 12px; break-inside: avoid; display: grid;
@@ -158,6 +161,11 @@ tr.flagged .name { color: var(--danger); }
 .slots { display: flex; gap: 14px; }
 .slot { text-align: center; min-width: 62px; }
 .slot .icon { font-size: 30pt; line-height: 1; color: var(--line); }
+/* Morning and midday are both suns, and this sheet is read by someone who
+   cannot read the caption under them — so the morning sun sits on a horizon
+   line and the midday one does not. Shape, not just position, carries it. */
+.slot.morning .icon { border-bottom: 3px solid currentColor; padding-bottom: 2px;
+  display: inline-block; line-height: .8; }
 .slot.on .icon { color: var(--accent); }
 .slot.on.night .icon { color: var(--primary-d); }
 .slot .cap { font-size: 10.5pt; color: var(--ink-soft); }
@@ -301,9 +309,9 @@ def render_patient_copy(
         "<div class='sheet'>",
         _masthead(hospital, department, _s(lang, "patient_copy")),
         f"<div class='p-title'>{escape(_s(lang, 'title'))}</div>",
-        "<div class='who'>",
-        _field("", patient_name),
-        _field("", _date_token(visit_date, token_no)),
+        "<div class='who p-who'>",
+        f"<div class='value'>{escape(patient_name)}</div>",
+        f"<div class='value'>{escape(_date_token(visit_date, token_no))}</div>",
         "</div>",
         bands or "",
     ]
@@ -325,7 +333,7 @@ def render_patient_copy(
 def _patient_band(line: RxLine, lang: Lang | str) -> str:
     med = line.med
     duration = (
-        f"<div class='mdur'>{escape(_s(lang, 'duration'))} {escape(med.duration)}</div>"
+        f"<div class='mdur'>{escape(_duration_text(lang, med.duration))}</div>"
         if med.duration
         else ""
     )
@@ -360,7 +368,7 @@ def _schedule_art(schedule: Schedule | None, lang: Lang | str, freq: str | None)
     if schedule.slots_known:
         return (
             "<div class='slots'>"
-            + _slot(_SUN, _s(lang, "morning"), schedule.morning, "")
+            + _slot(_SUN, _s(lang, "morning"), schedule.morning, "morning")
             + _slot(_MIDDAY, _s(lang, "afternoon"), schedule.afternoon, "")
             + _slot(_MOON, _s(lang, "night"), schedule.night, "night")
             + "</div>"
@@ -374,6 +382,16 @@ def _schedule_art(schedule: Schedule | None, lang: Lang | str, freq: str | None)
         f"<div class='cap'>{count} {escape(_s(lang, 'per_day'))}</div>"
         "</div>"
     )
+
+
+def _duration_text(lang: Lang | str, duration: str) -> str:
+    """"for 5 days" / "5 days तक".
+
+    A `{d}` template per language rather than a label + value, because Hindi puts
+    the postposition after the duration and a leading label reads as a form field
+    asking the patient a question.
+    """
+    return _s(lang, "duration").replace("{d}", duration)
 
 
 def _slot(icon: str, caption: str, on: bool, extra: str) -> str:

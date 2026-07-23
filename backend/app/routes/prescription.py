@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -134,6 +135,20 @@ async def _load(session: AsyncSession, prescription_id: uuid.UUID, doctor: Docto
     return prescription
 
 
+def _readable_when(when: str | None) -> str | None:
+    """`2026-08-14` → `14 Aug 2026`, for a patient reading it on paper.
+
+    Anything that is not an ISO date is passed through untouched — the doctor may
+    have said "after the next cycle", and that is the follow-up.
+    """
+    if not when:
+        return None
+    try:
+        return date.fromisoformat(when.strip()).strftime("%d %b %Y")
+    except ValueError:
+        return when
+
+
 class _Context:
     """Everything the sheets need, loaded once."""
 
@@ -184,7 +199,9 @@ async def _context(session: AsyncSession, prescription: Prescription, fallback: 
                 extras = {
                     "diagnosis": mapping.diagnosis,
                     "advice": mapping.advice,
-                    "follow_up": mapping.follow_up.when or mapping.follow_up.instructions or None,
+                    "follow_up": _readable_when(mapping.follow_up.when)
+                    or mapping.follow_up.instructions
+                    or None,
                 }
     return _Context(
         visit=visit,

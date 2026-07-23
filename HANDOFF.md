@@ -1,4 +1,4 @@
-# HANDOFF — after Session S10 (dictation → structured mapping)
+# HANDOFF — after Session S11 (digital prescription)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
@@ -15,8 +15,9 @@
 > `push`/`pull_request` block. **Nothing is checking your pushes now — `make test`
 > locally is the only gate.**
 >
-> **S-ADAPT.1 (V1) and S-ADAPT.2 (V2) are BOTH BUILT** on `feat/adaptive-intake`
-> (session logs: sessions/SESSION-ADAPT-1.md, sessions/SESSION-ADAPT-2.md). **V1:**
+> **S-ADAPT.1 (V1) and S-ADAPT.2 (V2) are BOTH BUILT** and now on `main` (the
+> branch is merged and deleted; session logs: sessions/SESSION-ADAPT-1.md,
+> sessions/SESSION-ADAPT-2.md). **V1:**
 > answer any tap node by voice; one spoken clarify then taps. **V2:** one spoken
 > turn also fills *other* nodes it volunteers (enrichment → `pending_prefills`,
 > auto-applied by the dispatcher through the unchanged `walk.save` when the walk
@@ -72,66 +73,50 @@
 >   rates. **Rollback is the flags back to `0` + a web rebuild — never a redeploy.**
 > - While on the box: `make eval-dictation` (backlog below) wants the same session.
 
-**Repo state:** **`main`** — everything is on one line again. `feat/doctor-console`
-(S9 + S10) fast-forwarded in, then `feat/adaptive-intake` (S-ADAPT V1 + V2) merged
-and fast-forwarded in, both 2026-07-23. **Start S11 from `main`.** `make test`
-green: backend **726** (708 main + the S-ADAPT suite), voice-gw 1, web
-typecheck+lint clean, 48 conformance. Migration head is **`a1b2c3d4e5f6`**
-(S-ADAPT's `Intake.adaptive_events`); S9/S10 added none. Postgres on host port
-**5433**; voice-gw on 8090. Both feature branches can be deleted.
+**Repo state:** **`main`** — everything is on one line. `feat/doctor-console` (S9 +
+S10) and `feat/adaptive-intake` (S-ADAPT V1 + V2) were both merged and the branches
+deleted on 2026-07-23; S11 built straight on `main`. **Start S12 from `main`.**
+`make test` green: backend **781** (726 → 781), voice-gw 1, web typecheck+lint clean,
+48 conformance. **No migration in S11** (`Prescription` has existed since S2 and
+`meds`/`delivered_via` are JSONB); head is still S-ADAPT's `a1b2c3d4e5f6`. Postgres on
+host port **5433**; voice-gw on 8090.
 
-⚠️ **The ~259-DB-error baseline is gone** now that `a1b2c3d4e5f6` is on `main` —
-there is no longer a branch whose migration `main` cannot locate. If it ever
-reappears (checking out a pre-merge commit), the fix is unchanged:
-```
-docker compose exec -T postgres psql -U opd -d opd_test \
-  -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-```
+⚠️ `make lint` is **failing on 11 pre-existing unformatted files**, none of them S11's
+(`ruff format --check`). It is not part of `make test`, so it has been red for a while
+without anyone noticing. Worth one `ruff format .` commit before it grows.
 
-**One paragraph:** S10 turned the doctor's voice into a signed record (doc 03 §7).
-`app/dictation.py` maps a Hinglish consult note to structured fields on the LLM
-chain — **`LLM_PROVIDER=local_vllm` runs the whole thing on the box's Qwen3, no code
-change**, which is the point for the most private text in the system. What the module
-really owns is *what the model does not get to decide*: `validate_meds` throws away
-the model's `known` flag and asks `app/formulary.py`, where **`known` is exact-match
-only and there is no code path from a fuzzy score to a written name**. Writing the ten
-Hinglish fixtures exposed the hole a formulary cannot cover — when the doctor says
-"Vinblastin" and the model helpfully writes "vinblastine", the result is a real drug
-and every check passes — so every name is also checked back against the doctor's own
-words (`_was_said`). On the fixtures it fires exactly twice: the helpful correction
-and the hallucination. Signing locks the record and refuses while any flagged drug is
-unacknowledged; off-formulary stays signable, but as an act. Web: the consult note on
-the console stage, where every written value hangs under the phrase it came from —
-**the diff is speech against record, not form-v1 against form-v2** — and the row steps
-out of alignment in danger-red when the two cannot be reconciled.
+**One paragraph:** S11 gave the signature its consequence. doc 03 §7 always said signing
+generates the prescription; S10 deliberately emitted nothing rather than write a
+half-shaped row, and `app/prescription.py` is now what it emits — generated *inside*
+`dictation.sign`, so a prescription cannot exist without a signature and there is no
+`POST /prescriptions`. The interesting problem turned out not to be the PDF but the
+**dosing schedule**, because the patient copy's pictograms are read by someone who cannot
+read the caption under them: an icon *is* the instruction. So `parse_schedule` keeps the
+*slots* a dictation names ("1-0-1", "subah aur raat") strictly apart from a bare *count*
+("BD"), and refuses the conventional reading — BD is morning-and-night in Indian practice,
+and encoding that convention would print a time of day no clinician wrote. A count draws
+tablet glyphs and no sun; "SOS" or "alternate days" draws nothing and prints the doctor's
+words. The S10 boundary continues onto paper: a drug the doctor acknowledged to sign still
+prints flagged, because the acknowledgement was about their intent and the pharmacist
+never saw the console.
 
-## Next session — S11 (Digital prescription)
-- Objective: Rx PDF (letterhead + large-type pictogram patient copy); print endpoint;
-  WhatsApp/SMS delivery hooks via the provider layer; Rx history on the patient file.
-  Load doc 03 §8.
-- **This is where signing finally does something.** doc 03 §7 says signing generates
-  the prescription; S10 deliberately emits nothing (see below). The `Prescription`
-  model already exists (S2 — `visit_id`, `dictation_id`, `meds`, `pdf_url`,
-  `delivered_via`), so S11 should hook `app.dictation.sign` rather than add a verb.
-- **Reuse:** `app/print_sheets.py` (S8) is the HTML→browser-print pattern and the
-  closest precedent for a letterhead.
-- **The meds are already prescription-shaped:** `structured["fields"]["meds"]` carries
-  name / dose / route / freq / duration plus the formulary verdict. The `known: false`
-  ones are *acknowledged*, not resolved — decide how the printed Rx shows that.
-- **Start from `main`** — it now carries S9 + S10 **and** S-ADAPT; both branches are
-  merged and there is nothing else in flight.
-- ⚠️ **S11 does not unblock the omen work.** The adaptive + doctor-console on-box
-  validation above is owed and independent; S11 touches neither the kiosk intake
-  turn nor the flags, so the two can be sequenced in either order. Whoever next
-  has the box should run "Owed on omen" first — it is a session's tail, not a
-  session — and it is the only thing standing between adaptive being *merged* and
-  adaptive being *trusted*.
+## Next session — S12 (WhatsApp channel)
+- Objective: the intake engine's second channel — Meta WhatsApp inbound/outbound over
+  `MessagingProvider`, the 24h window + registered template registry, voice notes via
+  `download_media`. Load doc 03 §1d.
+- **The provider and its fake already exist** (S3). What does not: the template registry
+  S11's delivery hooks also need, and any webhook.
+- **S11 left a customer waiting for it** — `POST /prescriptions/{id}/deliver` sends free
+  text, which Meta only accepts inside the 24h window. Out-of-window needs a registered
+  template, so S12 should make the prescription send template-aware rather than leaving
+  a hook that works only in tests.
+- **Start from `main`.**
 - Exact first commands:
 ```
-make dev && make migrate && make seed && make test    # expect 726 backend green
+make dev && make migrate && make seed && make test    # expect 781 backend green
 ```
 
-## Run the S10 dictation demo (needs a live api with S10 code)
+## Run the S10/S11 consult demo (needs a live api)
 ```
 cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
   OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 ENV=local \
@@ -143,9 +128,24 @@ cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
   npm run e2e:dictation                            # the S10 AC + screenshots
 ```
 Doctor login: `+915550001001` (Dr. Anil Gupta, MEDONC); the OTP is echoed. In the
-console, pick a patient and press **D**.
+console, pick a patient and press **D**. **Sign the note** and the S11 prescription
+panel appears under it — print either copy, or send it over the fake WhatsApp/SMS.
+The two rendered sheets are in `sessions/screenshots/s11/`.
 
 ## Watch out for
+- **Nothing infers a dosing schedule, and nothing may start to.** The patient copy's
+  pictograms are read by someone who cannot read the caption, so an icon is the
+  instruction. `parse_schedule` draws a time of day only when the dictation names one;
+  "BD" draws tablet glyphs and no sun, however conventional morning-and-night is. The
+  tests that catch a regression are
+  `test_prescription.py::test_a_count_without_a_time_of_day_reports_the_count_and_no_slots`
+  and `::test_an_unreadable_frequency_yields_no_schedule`.
+- **`lines_of` must not re-parse.** It reads the stored `meds` snapshot, so tightening
+  the parser cannot re-interpret a prescription already in a patient's hand
+  (`::test_the_schedule_is_not_re_derived_when_a_stored_prescription_is_read`).
+- **`RxLine.flagged` is deliberately not `meds_needing_attention`.** The latter drops
+  acknowledged drugs — that is what let the doctor sign. "Simplifying" the page to reuse
+  it would silently un-flag every acknowledged drug on the pharmacist's copy.
 - **Nothing rewrites a drug name, and nothing may start to.** `known` is exact-match
   only; `suggestions` are advice on a screen. If a future session adds "auto-apply the
   top suggestion", the S10 AC is gone — the tests that catch it are
@@ -176,6 +176,14 @@ console, pick a patient and press **D**.
 - When the GPU box work resumes, S-OSS.1 is unblocked and unchanged.
 
 ## Backlog additions
+- **Server-side PDF** — both sheet families (S8 downtime, S11 prescriptions) return HTML
+  the browser prints. One decision, one native dependency (WeasyPrint/pango + Indic
+  fonts), S19/S21.
+- **`make lint` is red on 11 pre-existing unformatted files** — one `ruff format .`
+  commit clears it. It is not in `make test`, which is why it drifted.
+- **The pictogram copy needs a real low-literacy review** (S21) — doc 06's S11 AC asks
+  for a checklist pass; what it has had is a self-critique against doc 04 §5.
+- **Prescription delivery is not template-aware** — see the S12 note above.
 - **`make eval-dictation` — score a real Qwen3 against the ten fixtures (debt,
   deferred 2026-07-23 by the operator).** The fixtures gate *our* layer with the model
   faked, which is the safety property and is done. What is **not** measured is how
