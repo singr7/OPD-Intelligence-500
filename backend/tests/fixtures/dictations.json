@@ -1,0 +1,628 @@
+{
+  "version": 1,
+  "description": "Ten Hinglish consult notes as an oncologist in Alwar actually dictates them, each paired with a plausible model output for the dictation_map prompt. The model output is deliberately imperfect in the ways models are imperfect — it 'helpfully' corrects a drug name, claims known:true for something invented, drops a dose it did not hear. The tests assert that our layer neither repeats nor launders any of it. Note: `model_output` is what a model returns; `expect` is what the record must say after app.dictation.validate_meds has had it. `unsaid_names` are meds whose name does not appear in what the doctor actually said — the only way this layer can catch a model that renamed a drug.",
+  "cases": [
+    {
+      "id": "d1-augmentin-febrile",
+      "note": "The ordinary case: everything is on the formulary and nothing goes wrong.",
+      "transcript": "Haan to ye patient hai, breast carcinoma post cycle three, do din se fever hai, neutropenia hai. Start karo Inj Monocef one gram IV BD five days, aur Tab Dolo 650 SOS. Injection Grafeel 300 mcg subcutaneous daily three days. Next cycle 14 tareekh ko, tab tak CBC repeat karwa lena. Bahut zyada bukhar ho to turant aana.",
+      "model_output": {
+        "diagnosis": "Carcinoma breast, post chemotherapy cycle 3, febrile neutropenia",
+        "treatment_events": [
+          {
+            "cycle": 4,
+            "regimen": "AC-T",
+            "date": null,
+            "next_due": "2026-08-14",
+            "as_spoken": "next cycle 14 tareekh ko"
+          }
+        ],
+        "meds": [
+          {
+            "name": "Inj Monocef 1 gm",
+            "dose": "1 g",
+            "route": "IV",
+            "freq": "BD",
+            "duration": "5 days",
+            "known": true,
+            "as_spoken": "Inj Monocef one gram IV BD five days"
+          },
+          {
+            "name": "Tab Dolo 650",
+            "dose": "650 mg",
+            "route": "PO",
+            "freq": "SOS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Dolo 650 SOS"
+          },
+          {
+            "name": "Inj Grafeel 300 mcg",
+            "dose": "300 mcg",
+            "route": "SC",
+            "freq": "OD",
+            "duration": "3 days",
+            "known": true,
+            "as_spoken": "Injection Grafeel 300 mcg subcutaneous daily three days"
+          }
+        ],
+        "advice": [
+          "Repeat CBC before the next cycle",
+          "Come immediately if the fever goes very high"
+        ],
+        "follow_up": {
+          "when": "2026-08-14",
+          "as_spoken": "14 tareekh",
+          "instructions": "Next chemotherapy cycle"
+        },
+        "unclear": []
+      },
+      "expect": {
+        "known_names": [
+          "Inj Monocef 1 gm",
+          "Tab Dolo 650",
+          "Inj Grafeel 300 mcg"
+        ],
+        "unknown_names": [],
+        "med_count": 3,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d2-model-corrects-a-drug",
+      "note": "The dangerous one. The doctor says 'Vinblastin'; the model writes 'vinblastine' into `name` because it is being helpful. Our layer must keep the doctor's characters — the transcript, not the model, is the record of what was said.",
+      "transcript": "Hodgkin lymphoma, ABVD ka cycle two aaj diya. Inj Vinblastin 6 mg per meter square, Inj Adriamycin 25, Bleocip 10 units, aur DTIC. Mouth ulcer ke liye Tantum gargle karwana. Agla cycle do hafte baad.",
+      "model_output": {
+        "diagnosis": "Hodgkin lymphoma on ABVD",
+        "treatment_events": [
+          {
+            "cycle": 2,
+            "regimen": "ABVD",
+            "date": "2026-07-23",
+            "next_due": "2026-08-06",
+            "as_spoken": "cycle two aaj diya, agla cycle do hafte baad"
+          }
+        ],
+        "meds": [
+          {
+            "name": "vinblastine",
+            "dose": "6 mg/m2",
+            "route": "IV",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Inj Vinblastin 6 mg per meter square"
+          },
+          {
+            "name": "Inj Adriamycin 25",
+            "dose": "25 mg/m2",
+            "route": "IV",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Inj Adriamycin 25"
+          },
+          {
+            "name": "Bleocip 10 units",
+            "dose": "10 units",
+            "route": "IV",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Bleocip 10 units"
+          },
+          {
+            "name": "Tantum",
+            "dose": "",
+            "route": "gargle",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tantum gargle karwana"
+          }
+        ],
+        "advice": [
+          "Gargle for mouth ulcers"
+        ],
+        "follow_up": {
+          "when": "2026-08-06",
+          "as_spoken": "do hafte baad",
+          "instructions": "Next ABVD cycle"
+        },
+        "unclear": [
+          "DTIC dose"
+        ]
+      },
+      "expect": {
+        "transcript_contains_name": "Vinblastin",
+        "model_renamed_to": "vinblastine",
+        "known_names": [
+          "vinblastine",
+          "Inj Adriamycin 25",
+          "Bleocip 10 units",
+          "Tantum"
+        ],
+        "unknown_names": [],
+        "med_count": 4,
+        "unsaid_names": [
+          "vinblastine"
+        ],
+        "blocks_signing": true
+      }
+    },
+    {
+      "id": "d3-off-formulary-drug",
+      "note": "A real drug this hospital does not stock. Must come back unknown, with the name untouched, and must block signing until acknowledged.",
+      "transcript": "Metastatic melanoma, immunotherapy start kar rahe hain. Inj Zolgensma nahi, Inj Ipilimumab 3 mg per kg three weekly four doses. Thyroid profile baseline karwa lena.",
+      "model_output": {
+        "diagnosis": "Metastatic melanoma, starting immunotherapy",
+        "treatment_events": [
+          {
+            "cycle": 1,
+            "regimen": "ipilimumab",
+            "date": "2026-07-23",
+            "next_due": "2026-08-13",
+            "as_spoken": "three weekly four doses"
+          }
+        ],
+        "meds": [
+          {
+            "name": "Inj Ipilimumab 3 mg/kg",
+            "dose": "3 mg/kg",
+            "route": "IV",
+            "freq": "3-weekly",
+            "duration": "4 doses",
+            "known": true,
+            "as_spoken": "Inj Ipilimumab 3 mg per kg three weekly four doses"
+          }
+        ],
+        "advice": [
+          "Baseline thyroid profile"
+        ],
+        "follow_up": {
+          "when": "2026-08-13",
+          "as_spoken": "three weekly",
+          "instructions": "Second dose"
+        },
+        "unclear": []
+      },
+      "expect": {
+        "known_names": [],
+        "unknown_names": [
+          "Inj Ipilimumab 3 mg/kg"
+        ],
+        "med_count": 1,
+        "blocks_signing": true,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d4-hallucinated-drug",
+      "note": "The model invents a drug that was never said and asserts known:true. The formulary is the only thing standing between this and a prescription.",
+      "transcript": "Ca lung, chemotherapy ke baad se ulti ho rahi hai. Tab Emeset 4 mg TDS, Tab Pantocid 40 OD khali pet, aur Syp Duphalac 15 ml raat ko.",
+      "model_output": {
+        "diagnosis": "Carcinoma lung, chemotherapy-induced vomiting",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tab Emeset 4 mg",
+            "dose": "4 mg",
+            "route": "PO",
+            "freq": "TDS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Emeset 4 mg TDS"
+          },
+          {
+            "name": "Tab Pantocid 40",
+            "dose": "40 mg",
+            "route": "PO",
+            "freq": "OD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Pantocid 40 OD khali pet"
+          },
+          {
+            "name": "Syp Duphalac 15 ml",
+            "dose": "15 ml",
+            "route": "PO",
+            "freq": "HS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Syp Duphalac 15 ml raat ko"
+          },
+          {
+            "name": "Tab Ondanzelin 8 mg",
+            "dose": "8 mg",
+            "route": "PO",
+            "freq": "BD",
+            "duration": "5 days",
+            "known": true,
+            "as_spoken": ""
+          }
+        ],
+        "advice": [
+          "Take the PPI on an empty stomach"
+        ],
+        "follow_up": {
+          "when": null,
+          "as_spoken": "",
+          "instructions": ""
+        },
+        "unclear": []
+      },
+      "expect": {
+        "known_names": [
+          "Tab Emeset 4 mg",
+          "Tab Pantocid 40",
+          "Syp Duphalac 15 ml"
+        ],
+        "unknown_names": [
+          "Tab Ondanzelin 8 mg"
+        ],
+        "med_count": 4,
+        "blocks_signing": true,
+        "unsaid_names": [
+          "Tab Ondanzelin 8 mg"
+        ]
+      }
+    },
+    {
+      "id": "d5-palliative-opioids",
+      "note": "Palliative pain. Opioid titration in mixed language, plus the laxative that must always accompany it.",
+      "transcript": "Ca pancreas, palliative. Dard bahut hai, ESAS pe eight. Tab Morcontin 30 mg BD start karo, breakthrough ke liye morphine syrup 5 ml SOS. Constipation na ho isliye Syp Looz 15 ml HS roz. Tab Pregeb 75 raat ko neuropathic pain ke liye. Ek hafte baad dikhana.",
+      "model_output": {
+        "diagnosis": "Carcinoma pancreas, palliative — severe pain (ESAS 8/10)",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tab Morcontin 30 mg",
+            "dose": "30 mg",
+            "route": "PO",
+            "freq": "BD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Morcontin 30 mg BD start karo"
+          },
+          {
+            "name": "Syp Morphine",
+            "dose": "5 ml",
+            "route": "PO",
+            "freq": "SOS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "breakthrough ke liye morphine syrup 5 ml SOS"
+          },
+          {
+            "name": "Syp Looz 15 ml",
+            "dose": "15 ml",
+            "route": "PO",
+            "freq": "HS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Syp Looz 15 ml HS roz"
+          },
+          {
+            "name": "Tab Pregeb 75",
+            "dose": "75 mg",
+            "route": "PO",
+            "freq": "HS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Pregeb 75 raat ko"
+          }
+        ],
+        "advice": [
+          "Laxative daily while on morphine"
+        ],
+        "follow_up": {
+          "when": "2026-07-30",
+          "as_spoken": "ek hafte baad",
+          "instructions": "Pain review"
+        },
+        "unclear": []
+      },
+      "expect": {
+        "known_names": [
+          "Tab Morcontin 30 mg",
+          "Syp Morphine",
+          "Syp Looz 15 ml",
+          "Tab Pregeb 75"
+        ],
+        "unknown_names": [],
+        "med_count": 4,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d6-missing-dose-stays-missing",
+      "note": "The doctor never says the dose. The model must leave it null and flag it, not fill in a standard dose. A silently inferred dose is the same class of harm as a silently corrected name.",
+      "transcript": "Ca breast, hormone receptor positive, post surgery. Tamoxifen start kar do, aur Shelcal roz. Har teen mahine follow up.",
+      "model_output": {
+        "diagnosis": "Carcinoma breast, HR positive, post surgery — adjuvant hormonal therapy",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tamoxifen",
+            "dose": null,
+            "route": "PO",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tamoxifen start kar do"
+          },
+          {
+            "name": "Shelcal",
+            "dose": null,
+            "route": "PO",
+            "freq": "OD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Shelcal roz"
+          }
+        ],
+        "advice": [],
+        "follow_up": {
+          "when": "2026-10-23",
+          "as_spoken": "har teen mahine",
+          "instructions": "Three-monthly review"
+        },
+        "unclear": [
+          "tamoxifen dose",
+          "Shelcal dose"
+        ]
+      },
+      "expect": {
+        "known_names": [
+          "Tamoxifen",
+          "Shelcal"
+        ],
+        "unknown_names": [],
+        "med_count": 2,
+        "unclear_not_empty": true,
+        "null_doses": [
+          "Tamoxifen",
+          "Shelcal"
+        ],
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d7-lookalike-ambiguous",
+      "note": "A garbled brand that sits between two different generics. Must be unknown AND ambiguous — the console shows both candidates and picks neither.",
+      "transcript": "CLL ka patient, purani parchi pe likha hai Tab Lukeran, mujhe theek se pata nahi kaunsi hai, confirm karke likhenge. Abhi ke liye Tab Zyloric 300 OD.",
+      "model_output": {
+        "diagnosis": "Chronic lymphocytic leukaemia",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tab Lukeran",
+            "dose": null,
+            "route": "PO",
+            "freq": "",
+            "duration": "",
+            "known": true,
+            "as_spoken": "purani parchi pe likha hai Tab Lukeran"
+          },
+          {
+            "name": "Tab Zyloric 300",
+            "dose": "300 mg",
+            "route": "PO",
+            "freq": "OD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Zyloric 300 OD"
+          }
+        ],
+        "advice": [
+          "Confirm the old prescription before continuing"
+        ],
+        "follow_up": {
+          "when": null,
+          "as_spoken": "",
+          "instructions": ""
+        },
+        "unclear": [
+          "Lukeran — name not confirmed",
+          "Lukeran dose"
+        ]
+      },
+      "expect": {
+        "known_names": [
+          "Tab Zyloric 300"
+        ],
+        "unknown_names": [
+          "Tab Lukeran"
+        ],
+        "ambiguous_names": [
+          "Tab Lukeran"
+        ],
+        "med_count": 2,
+        "blocks_signing": true,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d8-radiation-review",
+      "note": "Rad-onc review, mostly supportive care and skin toilet — the half of a real prescription a chemo-only formulary would flag wrongly.",
+      "transcript": "Ca cervix, external beam radiation, twenty fractions me se twelve ho gaye. Skin reaction grade two hai. Venusia cream lagana din me do baar, Tab Zerodol SP dard ke liye BD, aur Hexidine mouthwash. Radiation continue karenge, agle hafte dubara dekhenge.",
+      "model_output": {
+        "diagnosis": "Carcinoma cervix on external beam radiotherapy (12/20 fractions), grade 2 skin reaction",
+        "treatment_events": [
+          {
+            "cycle": null,
+            "regimen": "EBRT 20 fractions",
+            "date": "2026-07-23",
+            "next_due": "2026-07-30",
+            "as_spoken": "twenty fractions me se twelve ho gaye"
+          }
+        ],
+        "meds": [
+          {
+            "name": "Venusia cream",
+            "dose": "",
+            "route": "topical",
+            "freq": "BD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Venusia cream lagana din me do baar"
+          },
+          {
+            "name": "Tab Zerodol SP",
+            "dose": "",
+            "route": "PO",
+            "freq": "BD",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Zerodol SP dard ke liye BD"
+          },
+          {
+            "name": "Hexidine mouthwash",
+            "dose": "",
+            "route": "gargle",
+            "freq": "TDS",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Hexidine mouthwash"
+          }
+        ],
+        "advice": [
+          "Continue radiotherapy",
+          "Review the skin next week"
+        ],
+        "follow_up": {
+          "when": "2026-07-30",
+          "as_spoken": "agle hafte",
+          "instructions": "Skin review"
+        },
+        "unclear": [
+          "Zerodol SP dose"
+        ]
+      },
+      "expect": {
+        "known_names": [
+          "Venusia cream",
+          "Hexidine mouthwash"
+        ],
+        "unknown_names": [
+          "Tab Zerodol SP"
+        ],
+        "med_count": 3,
+        "blocks_signing": true,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d9-nameless-line-dropped",
+      "note": "The model emits a med with an empty name. A nameless line in a prescription cannot be reviewed — it is dropped rather than carried through as a blank row.",
+      "transcript": "Multiple myeloma, VRd protocol chalu hai. Tab Lenalid 25 mg daily twenty one days, Inj Bortenat weekly, Tab Omnacortil 40 weekly. Zometa monthly bhi dena hai.",
+      "model_output": {
+        "diagnosis": "Multiple myeloma on VRd",
+        "treatment_events": [
+          {
+            "cycle": null,
+            "regimen": "VRd",
+            "date": "2026-07-23",
+            "next_due": null,
+            "as_spoken": "VRd protocol chalu hai"
+          }
+        ],
+        "meds": [
+          {
+            "name": "Tab Lenalid 25 mg",
+            "dose": "25 mg",
+            "route": "PO",
+            "freq": "OD",
+            "duration": "21 days",
+            "known": true,
+            "as_spoken": "Tab Lenalid 25 mg daily twenty one days"
+          },
+          {
+            "name": "Inj Bortenat",
+            "dose": null,
+            "route": "SC",
+            "freq": "weekly",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Inj Bortenat weekly"
+          },
+          {
+            "name": "Tab Omnacortil 40",
+            "dose": "40 mg",
+            "route": "PO",
+            "freq": "weekly",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Tab Omnacortil 40 weekly"
+          },
+          {
+            "name": "Inj Zometa",
+            "dose": null,
+            "route": "IV",
+            "freq": "monthly",
+            "duration": "",
+            "known": true,
+            "as_spoken": "Zometa monthly bhi dena hai"
+          },
+          {
+            "name": "",
+            "dose": "10 mg",
+            "route": "PO",
+            "freq": "OD",
+            "duration": "",
+            "known": false,
+            "as_spoken": ""
+          }
+        ],
+        "advice": [],
+        "follow_up": {
+          "when": null,
+          "as_spoken": "",
+          "instructions": ""
+        },
+        "unclear": [
+          "Bortenat dose",
+          "Zometa dose"
+        ]
+      },
+      "expect": {
+        "known_names": [
+          "Tab Lenalid 25 mg",
+          "Inj Bortenat",
+          "Tab Omnacortil 40",
+          "Inj Zometa"
+        ],
+        "unknown_names": [],
+        "med_count": 4,
+        "unsaid_names": []
+      }
+    },
+    {
+      "id": "d10-no-meds-at-all",
+      "note": "A consult that prescribes nothing. Empty meds is a legitimate outcome and must not be padded — a model that always returns drugs is a model that invents them.",
+      "transcript": "Follow up hai, colon cancer, surgery ke do saal ho gaye. Sab reports normal hain, CEA bhi normal. Koi dawai nahi chahiye abhi. Chhe mahine baad CT karwa ke aana, aur weight kam ho to pehle aa jana.",
+      "model_output": {
+        "diagnosis": "Carcinoma colon, 2 years post surgery — no evidence of disease",
+        "treatment_events": [],
+        "meds": [],
+        "advice": [
+          "Repeat CT in six months",
+          "Return earlier if weight drops"
+        ],
+        "follow_up": {
+          "when": "2027-01-23",
+          "as_spoken": "chhe mahine baad",
+          "instructions": "CT scan then review"
+        },
+        "unclear": []
+      },
+      "expect": {
+        "known_names": [],
+        "unknown_names": [],
+        "med_count": 0,
+        "signable": true,
+        "unsaid_names": []
+      }
+    }
+  ]
+}

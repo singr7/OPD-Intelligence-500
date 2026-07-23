@@ -40,6 +40,24 @@ export default defineConfig({
       testMatch: /queue\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The S9 doctor console (doc 03 §4/§5). Live stack + `seed_doctor_demo`;
+      // this project *is* the session AC — a doctor working a full morning.
+      // Screenshots for doc 04 §5 self-critique. Run explicitly
+      // (`npm run e2e:doctor`).
+      name: "doctor",
+      testMatch: /doctor\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // The S10 consult note (doc 03 §7). Same live stack + `seed_doctor_demo`
+      // as `doctor`; this project *is* the session AC — the flag is seen, the
+      // signature is refused, the drug keeps its name. Run explicitly
+      // (`npm run e2e:dictation`).
+      name: "dictation",
+      testMatch: /dictation\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

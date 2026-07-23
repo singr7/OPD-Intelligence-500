@@ -95,6 +95,40 @@ paper-entry form, print tab); shared `app/_lib/queue.ts` + `useQueueSocket.ts`.
 541→**577 tests** + `web/e2e/queue.spec.ts` (live) + `scripts/seed_queue_demo.py`.
 No migration (Queue/QueueEntry existed since S2).
 
+**Built (S9):** The **doctor console** (doc 03 §4/§5). `app/doctor.py` is two reads and
+no writes: `day_list` (the doctor's own department queue, in the queue's own urgent-first
+order, with the patient behind each token) and `patient_card` (the stored doc 03 §4
+summary, the rule engine's red flags, the answers rendered against the tree in `tree_ref`,
+the visit timeline, and the check-in trendline). `app/routes/doctor.py` exposes
+`GET /doctor/day` + `GET /doctor/patients/{visit_id}`, both `require_doctor`. **S9 added no
+action endpoints** — call-next / no-show / lab-requeue are the S8 `/queue/*` verbs the
+coordinator console already drives. Web: `app/(doctor)/doctor` — phone-OTP login lifted
+from S8, the day list as a **vertical clinical spine** (tokens as stations, the patient in
+the room the one filled marigold node, urgent tokens ringed in danger), and the patient
+card ordered by clinical urgency: red-flag **stamps** carrying the rule's own instruction,
+then chief concern + compact symptoms table, then everything else collapsed. Keyboard
+shortcuts N (call next) and D (dictation → honest "S10"). 581→**603 tests** +
+`web/e2e/doctor.spec.ts` (project `doctor`, the session AC as a test) +
+`scripts/seed_doctor_demo.py`. No migration.
+
+**Built (S10):** **Dictation → structured fields** (doc 03 §7). `app/formulary.py` +
+`seeds/formulary.json` (189 generics / 617 dictatable names, chemo through supportive
+care): `known` is set by **exact match only**, fuzzy matching produces advisory
+`suggestions` and an `ambiguous` flag, and there is no code path from a score to a
+written name. `app/dictation.py` = the doc 03 §7 contract, `validate_meds` (which
+discards the model's own `known` claim), `_was_said` (a drug name absent from the
+doctor's own words is flagged — the only way to catch a model that *renamed* a drug
+into another real one), `DictationMapper` (the `dictation_map@v1` prompt on the LLM
+chain, so `LLM_PROVIDER=local_vllm` runs it on the box's Qwen3 unchanged), and the
+record's state machine `start → map → correct → sign`. `mapped` is frozen and `fields`
+carries the doctor's corrections with an append-only `edits` trail, which is what makes
+the review diff-style. Signing locks the record and refuses while any flagged drug is
+unacknowledged. `app/routes/dictation.py` = six routes, all `require_doctor`. Web:
+`_components/DictationPanel.tsx` — the consult note on the console stage, where every
+written value hangs under the phrase it came from. 603→**708 tests** +
+`web/e2e/dictation.spec.ts` (project `dictation`) + `backend/tests/fixtures/dictations.json`
+(ten Hinglish notes). No migration.
+
 **Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
 voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
 `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
@@ -107,7 +141,7 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** the doctor console (S9); channel adapters for WhatsApp (S12) and
+**Not built yet:** channel adapters for WhatsApp (S12) and
 telephony (S14); real voice packs / the voice-pack manifest + `/kiosk/stt` (S7
 carryover → backlog); the real Gemini Live impl (S14); the V-OSS **GPU half**
 (S-OSS.1/.2/.3 — needs the GPU box).
@@ -167,6 +201,25 @@ in-memory flag, not env).
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
+Doctor console (S9) + consult note (S10): served at `/doctor` (staff, phone-OTP). Needs a
+live api with S9/S10 code and a seeded demo morning. **Re-seed before every e2e run** —
+signing a note is terminal, and the seed hard-deletes its own dictations to stay repeatable:
+```
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  .venv/bin/python -m scripts.seed_doctor_demo      # 5 MEDONC walk-ins, one urgent
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:doctor                                # the full-morning AC + screenshots
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:dictation                             # the S10 AC + screenshots
+```
+Doctor login: `+915550001001` (seeded Dr. Anil Gupta, MEDONC); the OTP is echoed locally.
+In the console, pick a patient and press **D** for the consult note.
+
+CI (GitHub Actions) is **manual-only** since 2026-07-23 (operator: it was burning free
+Actions minutes). `.github/workflows/ci.yml` is intact; only its `push`/`pull_request`
+triggers are commented out. `gh workflow run ci.yml` to run it. **`make test` locally is
+the only gate right now.**
+
 ## Invariants (don't quietly break these)
 - **Anything patient-affecting subclasses `Clinical`** (`app/models/base.py`) — that alone makes
   writes audited, via a `before_flush` hook on `AuditedSession`. There is no per-route audit call.
@@ -184,6 +237,13 @@ fallback).
   bypasses it.
 - **Never edit a `price_book` rate in place** — add a row with a later `effective_from`. Editing
   silently re-interprets every historical cost computed at the old rate.
+- **A dictated drug name is never rewritten** (S10) — `app.formulary` sets `known` on an
+  exact match alone; fuzzy neighbours are `suggestions` shown to the doctor and never a
+  value in a field, and `app.dictation.validate_meds` copies `name` through verbatim.
+  "Auto-apply the closest match" would delete the S10 acceptance criterion.
+- **A signed dictation does not change** — every mutating entry point in `app.dictation`
+  raises `DictationLocked` once `status=signed`. Correcting one is an amendment, and this
+  system has no amendment anywhere yet.
 - **A published prompt version is immutable** — to change a prompt, add `v<N+1>.md`. Outputs are
   traced back to `id@vN`.
 - **The tool contract is versioned** (`app/prompts/tools.py`) — changing a tool's shape means a
@@ -231,6 +291,17 @@ fallback).
 - **A WebSocket route reads app state directly, never via a `Request` dependency** — a WS
   scope has no `Request`, so `Depends(get_hub)` 500s the handshake. `/queue/ws` uses
   `ws.app.state.queue_hub`.
+- **The doctor console owns no queue mutation** (`app.doctor` is two reads). Call-next,
+  no-show and lab-requeue are the S8 `/queue/*` verbs, called with the doctor's own token.
+  Adding a `/doctor/call-next` gives the board and the console two state machines that
+  disagree the moment one is patched — and two audit trails to reconcile.
+- **The doctor's card never re-derives clinical judgement** — red flags are read from
+  `Intake.red_flags` (the rule engine) and the summary from
+  `summary_lang_versions[...]["structured"]` (the summarizer). A doctor screen that
+  recomputed either would show a different clinical picture than the kiosk told the
+  patient and than the queue prioritised on. The one thing `app.doctor` *does* ask the
+  tree is which nodes a **already-fired** rule's `when` condition referenced, to highlight
+  the answers behind it — that reads the rule, it does not evaluate it.
 - **Client components inject CSS via `dangerouslySetInnerHTML`, not a `<style>{text}` child**
   — the text child hydrates as a mismatch (quotes escape differently SSR vs client) and
   flickers the whole subtree to client rendering.
@@ -243,6 +314,39 @@ fallback).
   rather than re-issuing a number, because a token is a promise to a patient holding
   a slip. The offline blocks (`app.offline`, S7) still partition the number line so
   online and offline never collide. A gap-free / reserved-number scheme is not needed.
+- **`seed_doctor_demo`'s structured summaries are authored fixtures**, standing in for what
+  the LLM path (doc 03 §4) writes on a box with a real model — the deterministic V3
+  `TemplateSummarizer` emits only "question: answer" lines and no symptom table, which
+  would under-sell a screen whose whole job is a 20-second read. The **answers and red
+  flags in the same seed are genuinely derived** (a real `Walk`, real `walk.red_flags()`).
+  Like `seed_queue_demo` it hard-deletes its own rows to stay repeatable.
+- **`FakeLLMProvider` answers `dictation_map` with a canned, contract-shaped payload**
+  (S10, `_CANNED_JSON` in `app/providers/llm.py`) — a fake that says "ok" to a
+  `response_format: json` prompt can only ever demonstrate the failure path, and the
+  fakes exist so whole flows can be demoed without a vendor. It is a **demo** fixture:
+  tests asserting on mapped content queue their own `FakeLLMScript`, which always wins.
+  The canned reply carries one off-formulary drug on purpose.
+- **`_was_said` is token presence, not alignment** (S10) — a drug the doctor said in a
+  *different* sentence than the one the model quoted still passes. Tighter matching needs
+  word timings from the STT, which we do not store.
+- **Signing a dictation emits nothing** (S10) — doc 03 §7 says it generates the
+  prescription (§8) and the check-in plan draft (§9); those are S11 and S17. Writing a
+  half-shaped `Prescription` row now would be a migration for a later session to undo.
+- **The formulary is a seed file read at boot**, not a table — a hospital adding a drug
+  needs a deploy until S18's admin console owns it.
+- **The doctor's day list has no appointments** — doc 03 §5 says "appointments+walk-ins",
+  but the S8 queue holds walk-ins and `Appointment` has no check-in flow until S15, so the
+  worklist is the queue only. Not faked; backlog for S15/S18.
+- **The doctor console has no WebSocket** — it refetches after its own mutations, so a
+  coordinator moving the same line elsewhere is not pushed to the doctor until they next
+  act. The `/queue/ws` hub already exists to subscribe to (S18 polish).
+- **The doctor's staff token is localStorage**, and deliberately the *same* key as the
+  coordinator console so one staff session covers a shift — same S19/S20 httpOnly
+  hardening note.
+- **Symptom sparklines read a shape S17 does not write yet** — `Checkin.responses` is
+  S17's, so `app.doctor._trends` picks out numeric values defensively and needs ≥2 points
+  to draw. The trendline lights up when S17 starts writing check-ins; until then only
+  `seed_doctor_demo` produces one.
 - **The queue + downtime flag are in-memory, single-process** (`app.queue_hub`) —
   correct for the one pilot api container; a second replica would each hold their own
   WS clients and downtime flag and miss each other's. Fix is a Redis pub/sub channel
@@ -253,7 +357,7 @@ fallback).
   no `Request`, so `Depends` on a Request-typed provider 500s the handshake).
 - **The coordinator staff token is localStorage, not an httpOnly cookie** — fine for
   a pilot on a trusted LAN behind Caddy; a cookie hardening pass is S19/S20. The
-  minimal phone-OTP login was written to be lifted into S9's doctor console.
+  minimal phone-OTP login was lifted into S9's doctor console, which shares the key.
 - **Board/console reason chips + department names render in English** — the stored
   priority reason is the English clinical label; dept-name/chip localisation is S13.
 - **Downtime paper sheets are browser-printed HTML, not server PDFs** —
@@ -281,7 +385,9 @@ fallback).
   documented 58mm command set and unit-tested; the first real slip needs a human at a
   printer. Devanagari needs the printer codepage set on the box (prints `?` until then).
 - **No true "back" inside a kiosk walk** — the walk has no rewind endpoint; the
-  read-back "change something" restarts the intake. A per-node amend is S7/S9.
+  read-back "change something" restarts the intake. S9 did not add one either (the
+  doctor console is read-only over the answers), so a per-node amend — and the
+  summary regeneration doc 03 §4 wants after a coordinator edit — is S18.
 - **The kiosk icon set is a branded subset + aliases + a neutral fallback**, not the
   full ~65-key custom duotone set doc 04 law 4 wants; the full set + human review is
   a design-asset task (S7/S21). No option is ever iconless.

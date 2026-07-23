@@ -28,6 +28,8 @@ from app.providers.costguard import CostGuard, build_override_store, set_guard
 from app.providers.metering import UsageMeter, set_meter
 from app.providers.pricing import get_price_book
 from app.queue_hub import QueueHub
+from app.routes.dictation import router as dictation_router
+from app.routes.doctor import router as doctor_router
 from app.routes.health import router as health_router
 from app.routes.kiosk import router as kiosk_router
 from app.routes.providers import router as providers_router
@@ -109,6 +111,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(providers_router)
     app.include_router(kiosk_router)
     app.include_router(queue_router)
+    app.include_router(doctor_router)
+    app.include_router(dictation_router)
     return app
 
 
