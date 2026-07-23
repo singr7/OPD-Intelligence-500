@@ -143,6 +143,16 @@ for llm/stt (the `.env` switches reverted — recreate api).
 5. **Shared GPU.** The box is a workstation (Slicer, Jupyter, Voicebox, desktop).
    The pilot needs ~15 GB; keep other GPU jobs off during the pilot.
 6. **`docker compose down` removes `opd_default`** and disconnects the models (§2).
+7. **Run the migration *and read its output* before the first intake.** A deploy
+   that adds a column (e.g. S-ADAPT's `Intake.adaptive_events`) fails in a
+   confusing place if `alembic upgrade head` silently didn't take: the kiosk
+   records voice and transcribes **fine** (STT writes no rows), then `POST
+   /kiosk/start` 500s with `UndefinedColumn ... "adaptive_events" of relation
+   "intakes"` — because `/start` is the flow's **first write to `intakes`**. Verify
+   with `docker compose exec api alembic current` (must print the expected head)
+   rather than assuming; `docker compose exec -w /app api alembic upgrade head`
+   if the working directory is the problem, or run it from the host against
+   `localhost:15432` with `ALEMBIC_DATABASE_URL`. Hit live 2026-07-23.
 
 ---
 

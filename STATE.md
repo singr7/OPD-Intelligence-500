@@ -129,6 +129,28 @@ written value hangs under the phrase it came from. 603→**708 tests** +
 `web/e2e/dictation.spec.ts` (project `dictation`) + `backend/tests/fixtures/dictations.json`
 (ten Hinglish notes). No migration.
 
+**Built (S-ADAPT.1 + .2):** **Adaptive intake** (doc 11) — a patient can answer a tap
+node **by voice**, and one spoken turn can fill more than the node that was asked.
+`app/intake/interpret.py` is the whole idea: given a node (its question + the answers
+it accepts) and a transcribed utterance, the LLM returns **either a candidate value
+the node already accepts, or one short clarifying question** — it never returns free
+text, and every candidate still goes through the unchanged `walk.save()` validator and
+the unchanged deterministic rule engine. **The model proposes; the engine decides.**
+V2 adds *enrichment* (the interpreter returns `extra: [(node_id, value)]` for other
+nodes the patient volunteered; the route validates each and stashes it in
+`SessionState.pending_prefills`, and `ToolDispatcher._drain_prefills` auto-applies it
+through the same `walk.save` the moment the walk *reaches* that node — so the node is
+skipped, never re-asked, and an enrichment for a branch never taken stays inert and is
+pruned), an opt-in `Node.adaptive` that may ask one bounded sub-question, and per-node
+telemetry on `Intake.adaptive_events` (migration `a1b2c3d4e5f6`) that
+`app/intake/adaptive_report.py` aggregates into clarify / mis-map / enrichment rates
+and **reconciles against the intake's `INTAKE_TURN` usage_events**. Prompts
+`interpret_answer/v1+v2`; extended `POST /kiosk/{sid}/answer`. Gated on
+`INTAKE_ADAPTIVE` + a real LLM and `NEXT_PUBLIC_KIOSK_ADAPTIVE=1` — **both default
+off**, and with them off the kiosk is byte-for-byte the pure-tap V3 flow. 599→**726
+tests** (union with S9/S10). ⚠️ **Never run with the flags on against a live model
+(see below).**
+
 **Built (S-OSS.0):** The **V-OSS** software layer (doc 08) — the fully-open-source local
 voice tier as ordinary provider adapters, no GPU required to build. `app/providers/local_oss/`:
 `LocalLLMProvider` (vLLM, reusing the OpenAI wire, keyless), `LocalSTTProvider` (Whisper,
@@ -195,6 +217,9 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
 `config/tiers.yaml`, not env. **Offline kiosk (S7):** `KIOSK_OFFLINE_TOKEN_BASE` (default 500 —
 online tokens stay below it, offline blocks at/above) and `KIOSK_OFFLINE_BLOCK_SIZE` (default 50).
+**Adaptive intake (S-ADAPT):** `INTAKE_ADAPTIVE` (backend gate; needs a real,
+non-fake `LLM_PROVIDER`) + `NEXT_PUBLIC_KIOSK_ADAPTIVE` (**build-time** — the web
+image must be rebuilt to change it). Both default `0` = today's pure-tap kiosk.
 **Queue (S8):** `QUEUE_DEFAULT_CONSULT_MINUTES` (default 6) — the wait-estimator seed before
 a department has any completed consults to measure; no other queue config (downtime is an
 in-memory flag, not env).
@@ -302,11 +327,32 @@ the only gate right now.**
   patient and than the queue prioritised on. The one thing `app.doctor` *does* ask the
   tree is which nodes a **already-fired** rule's `when` condition referenced, to highlight
   the answers behind it — that reads the rule, it does not evaluate it.
+- **The answer interpreter proposes, it never writes** (S-ADAPT, `app/intake/
+  interpret.py`) — it may only return a value the node already accepts or one
+  clarifying question, and every candidate (including an enrichment pre-fill) goes
+  through the unchanged `walk.save()` and the unchanged rule engine. A path that let
+  interpreter output reach `Intake.answers` without that validation would put a model
+  inside the clinical record, and would make a red flag depend on the transcriber —
+  the same boundary `free_voice` rules and the summariser already hold.
 - **Client components inject CSS via `dangerouslySetInnerHTML`, not a `<style>{text}` child**
   — the text child hydrates as a mismatch (quotes escape differently SSR vs client) and
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **Adaptive intake has never run with its flags on** (S-ADAPT, 2026-07-23). It is
+  merged to `main` and deployed to omen, but only ever exercised there with
+  `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` — that pass proved the *absence*
+  of an effect (`adaptive_events = []`, zero `INTAKE_TURN` usage_events), which is the
+  safety property, not the feature. **No real patient utterance has ever reached the
+  interpreter, and no clarify/mis-map/enrichment rate quoted anywhere comes from the
+  clinic** — the numbers in the tests come from `FakeInterpreter`. Turning the flags on
+  is the outstanding on-box work (HANDOFF "Owed on omen"); until then treat every
+  adaptive quality claim as unmeasured. The *safety* claims (nothing bypasses
+  `walk.save`, no model decides a red flag) are structural and unit-tested.
+- **The doctor console + consult note have not been exercised on omen** — S9/S10 are
+  deployed there and green in tests, but the on-box pass (real Qwen3 mapping a real
+  dictation, `_was_said` firing on a real mis-hearing) was never run. Same session as
+  the adaptive validation.
 - **Kiosk token issuance is `max(token_no)+1` and stays that way** —
   `app.kiosk.allocate_token` allocates below the offline base (500), guarded by the
   unique constraint. S8 did **not** replace it: the queue (`app.queue`) *wraps* it

@@ -27,43 +27,62 @@
 > `a1b2c3d4e5f6`. Gated on `INTAKE_ADAPTIVE` + a real LLM and
 > `NEXT_PUBLIC_KIOSK_ADAPTIVE=1`. Design + guardrails:
 > **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**.
-> ⚠️ **S-ADAPT is still BRANCH-ONLY until proven on omen (operator instruction).**
-> `main` is what the pilot deploys from and adaptive-intake must not disrupt the
-> working local-voice kiosk, so `main` is fast-forwarded only on the operator's
-> explicit go-ahead after on-box validation.
 > (Session log: sessions/SESSION-ADAPT-DESIGN.md.)
 >
-> **Rollout in flight (2026-07-23).** `main` (S9 + S10, `feat/doctor-console`
-> merged 2026-07-23) has been **merged into `feat/adaptive-intake`**, so the branch
-> now carries the doctor console + consult note as well and is a strict superset of
-> what runs live. The branch — not `main` — is what goes to omen next, because
-> deploying the pre-merge branch would have taken S9/S10 *off* the box and stamped
-> the DB at `a1b2c3d4e5f6`, a revision `main`'s code cannot locate. Both new
-> surfaces are flag-gated and default-off, so one deploy is safe:
-> 1. omen: check out the branch, `docker compose exec api alembic upgrade head`,
->    `docker compose up -d --build api web` with `INTAKE_ADAPTIVE=0` and
->    `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` — then sanity-check that today's kiosk flow is
->    unchanged and `usage_events` still shows `local-*`, not `fake`.
-> 2. Flip `INTAKE_ADAPTIVE=1` + `NEXT_PUBLIC_KIOSK_ADAPTIVE=1` (web **rebuild**
->    required — build-time arg), mark a few live-tree nodes `adaptive: true`, run
->    scripted hi/en on Qwen3, tune wording from `adaptive_report`.
-> 3. Validate the doctor console + consult note on-box (`/doctor`, `+915550001001`).
-> 4. Only then fast-forward `main` and point omen back at it.
-> Rollback at any point is the flags back to `0` (plus a web rebuild), not a
-> redeploy; `git checkout main` returns the box to today's code, with the extra
-> `Intake.adaptive_events` column left inert.
+> **🚩 S-ADAPT IS MERGED TO `main` BUT NOT YET PROVEN ON THE BOX (2026-07-23).**
+> The branch-only rule was **lifted by the operator** partway through the rollout:
+> omen entered a maintenance window after the deploy landed and before the adaptive
+> flags were ever turned on, and blocking S11 behind the box was the worse trade.
+> What replaced the branch as the guard is the **flag**: `INTAKE_ADAPTIVE=0` and
+> `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults in `.env.example`, so `main` on
+> omen behaves exactly as it did before the merge until a human flips them. Do not
+> read the merge as validation — see **"Owed on omen"** below, which is the real
+> outstanding work and must be done before adaptive is enabled for any patient.
+>
+> **Rollout status (2026-07-23):**
+> 1. ✅ **Deployed.** `main` was merged into `feat/adaptive-intake` (the branch was
+>    cut before S9/S10, so deploying it unmerged would have taken the doctor console
+>    *off* the box and stamped the DB at `a1b2c3d4e5f6`, a revision `main`'s code
+>    cannot locate). Branch deployed to omen with both flags `0`; migration applied.
+> 2. ✅ **Sanity pass, flags off** — full kiosk intake welcome→token unchanged, all
+>    `usage_events` on `local-vllm`/`local-whisper`/`local-tts` (no `fake`),
+>    `adaptive_events = []` on every intake, zero `INTAKE_TURN` rows. The deployed
+>    code demonstrably does not change the kiosk while the flags are off.
+> 3. ⏳ **Adaptive on — NOT DONE** (maintenance window). See "Owed on omen".
+> 4. ⏳ **Doctor console on-box — NOT CONFIRMED.** Never reported as run; assume not.
+> 5. ✅ **`main` fast-forwarded** to the merged branch on the operator's explicit
+>    go-ahead, ahead of 3 and 4, so S11 starts from one line.
+>
+> **Owed on omen (do this before adaptive faces a patient):**
+> - Set `OTP_DEBUG_ECHO=true` + `OTP_RESEND_COOLDOWN_SECONDS=0` in `.env`,
+>   `docker compose up -d api` (env-only, no rebuild) — `FakeSMSProvider` logs an
+>   OTP's *length*, never its body, so without the echo no one can log in. Turn it
+>   back off afterwards (`ENV=local` is the only reason it is permitted at all).
+> - **Doctor console + consult note:** `/doctor`, `+915550001001` (Dr. Anil Gupta,
+>   MEDONC). Day list, red-flag stamps, **N** call-next repaints `/board`, then **D**
+>   → dictate Hinglish with a deliberately misspelt drug and confirm it is *flagged,
+>   never silently corrected*; signing refuses until acknowledged. Signing is
+>   terminal — use a throwaway visit. Expect a `DICTATION` usage_event on `local-vllm`.
+> - **Adaptive:** flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed,
+>   `docker compose up -d --build api web` (**web rebuild required** —
+>   `NEXT_PUBLIC_KIOSK_ADAPTIVE` is a build arg). Provoke a vague answer (one
+>   clarify then taps), a volunteered extra fact (later node pre-filled, not
+>   re-asked), and an unmappable answer (falls to taps, never guesses). Then read
+>   `app/intake/adaptive_report.py` and tune node wording from the clarify/mis-map
+>   rates. **Rollback is the flags back to `0` + a web rebuild — never a redeploy.**
+> - While on the box: `make eval-dictation` (backlog below) wants the same session.
 
-**Repo state:** **`feat/adaptive-intake`** — `feat/doctor-console` (S9 + S10, 10
-commits) was fast-forwarded into `main` on 2026-07-23, and `main` was then **merged
-into `feat/adaptive-intake`** the same day, so the branch = main + S-ADAPT V1/V2 and
-is what omen deploys next (see the rollout above). Start S11 from `main` **after**
-the fast-forward in step 4. `make test` green: backend **708** (was 603), voice-gw 1, web typecheck+lint clean,
-48 conformance. **No migration in S10** (`Dictation` has existed since S2 and
-`structured` is JSONB). Postgres on host port **5433**; voice-gw on 8090.
+**Repo state:** **`main`** — everything is on one line again. `feat/doctor-console`
+(S9 + S10) fast-forwarded in, then `feat/adaptive-intake` (S-ADAPT V1 + V2) merged
+and fast-forwarded in, both 2026-07-23. **Start S11 from `main`.** `make test`
+green: backend **726** (708 main + the S-ADAPT suite), voice-gw 1, web
+typecheck+lint clean, 48 conformance. Migration head is **`a1b2c3d4e5f6`**
+(S-ADAPT's `Intake.adaptive_events`); S9/S10 added none. Postgres on host port
+**5433**; voice-gw on 8090. Both feature branches can be deleted.
 
-⚠️ **If the baseline starts red with ~259 DB errors,** `opd_test` is stamped at the
-S-ADAPT migration (`a1b2c3d4e5f6`), which exists only on `feat/adaptive-intake`.
-Switching between that branch and anything off `main` does this. Fix:
+⚠️ **The ~259-DB-error baseline is gone** now that `a1b2c3d4e5f6` is on `main` —
+there is no longer a branch whose migration `main` cannot locate. If it ever
+reappears (checking out a pre-merge commit), the fix is unchanged:
 ```
 docker compose exec -T postgres psql -U opd -d opd_test \
   -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
@@ -99,12 +118,17 @@ out of alignment in danger-red when the two cannot be reconciled.
 - **The meds are already prescription-shaped:** `structured["fields"]["meds"]` carries
   name / dose / route / freq / duration plus the formulary verdict. The `known: false`
   ones are *acknowledged*, not resolved — decide how the printed Rx shows that.
-- **Start from `main`** — it now carries S9 + S10; the branch is merged.
+- **Start from `main`** — it now carries S9 + S10 **and** S-ADAPT; both branches are
+  merged and there is nothing else in flight.
+- ⚠️ **S11 does not unblock the omen work.** The adaptive + doctor-console on-box
+  validation above is owed and independent; S11 touches neither the kiosk intake
+  turn nor the flags, so the two can be sequenced in either order. Whoever next
+  has the box should run "Owed on omen" first — it is a session's tail, not a
+  session — and it is the only thing standing between adaptive being *merged* and
+  adaptive being *trusted*.
 - Exact first commands:
 ```
-docker compose exec -T postgres psql -U opd -d opd_test \
-  -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"   # only if the baseline is red
-make dev && make migrate && make seed && make test
+make dev && make migrate && make seed && make test    # expect 726 backend green
 ```
 
 ## Run the S10 dictation demo (needs a live api with S10 code)
@@ -142,8 +166,13 @@ console, pick a patient and press **D**.
   fails with a message saying so.
 
 ## Decisions needed from the human
-- *(Resolved 2026-07-23 — `feat/doctor-console` (S9 + S10) merged to `main`. Only
-  `feat/adaptive-intake` is still unmerged, and it stays gated on omen validation.)*
+- *(Resolved 2026-07-23 — both branches merged to `main`. `feat/doctor-console`
+  (S9 + S10) first, then `feat/adaptive-intake`. The branch-only gate on S-ADAPT
+  was lifted by the operator when omen went into maintenance mid-rollout; the
+  default-off flags now carry the guarantee the branch used to. Nothing is in
+  flight and there is no unmerged work.)*
+- **Whoever next has the box: "Owed on omen" at the top is unclaimed work**, and
+  it is the only remaining reason to doubt anything in `main`.
 - When the GPU box work resumes, S-OSS.1 is unblocked and unchanged.
 
 ## Backlog additions
