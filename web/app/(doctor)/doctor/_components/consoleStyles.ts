@@ -189,3 +189,132 @@ export const CONSOLE_CSS = `
   .fold-h .chev { transition: none; }
 }
 `;
+
+// ---- the dictation panel (S10, doc 03 §7) ---------------------------------
+//
+// One idea carries this surface: the **provenance line**. Every written value
+// sits above the doctor's own words, joined by a hairline down the left. When
+// the two agree the hairline is grey and the eye slides past; when they cannot
+// be reconciled it turns danger-red and the row steps out of alignment, so a
+// renamed drug is visibly out of line with the rest of the note before it is
+// even read.
+//
+// No cards, no shadows, no third colour. Danger and marigold already mean
+// something exact in this console and they keep meaning it here: red is "this
+// could hurt someone", marigold is "you have seen it and it still stands".
+
+export const DICTATION_CSS = `
+.dict { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 0 0 20px; overflow: hidden; }
+
+.dict-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+.dict-h h2 { margin: 0; font-size: 21px; line-height: 1.2; color: var(--ink); }
+.dict-sub { margin: 5px 0 0; font-size: 14px; color: var(--ink-soft); }
+.dict-model { opacity: .75; }
+.dict-close { border: none; background: none; color: var(--ink-soft); font-size: 14px;
+  cursor: pointer; padding: 4px 2px; }
+
+.dict-err { margin: 14px 22px 0; background: var(--danger-soft); color: var(--danger);
+  border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.dict-signed { margin: 14px 22px 0; background: var(--primary-soft); color: var(--primary-d);
+  border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 700; }
+
+/* capture — loud before the note exists, a quiet strip afterwards */
+.dict-capture { padding: 16px 22px 0; }
+.dict-caprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dict-mic { display: inline-flex; align-items: center; gap: 9px; border: 1.5px solid var(--line);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 15px; font-weight: 700;
+  padding: 11px 18px; border-radius: 12px; cursor: pointer; }
+.dict-mic .dict-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--ink-soft); }
+.dict-mic.is-rec { border-color: var(--danger); color: var(--danger); }
+.dict-mic.is-rec .dict-dot { background: var(--danger); animation: dictpulse 1.4s var(--ease) infinite; }
+@keyframes dictpulse { 0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .45; transform: scale(1.35); } }
+.dict-map { border: none; background: var(--primary); color: #fff; font: inherit; font-size: 15px;
+  font-weight: 700; padding: 12px 20px; border-radius: 12px; cursor: pointer; }
+.dict-map:disabled, .dict-mic:disabled { opacity: .5; cursor: default; }
+.dict-busy { font-size: 14px; color: var(--ink-soft); }
+.dict-transcript { display: block; width: 100%; margin-top: 12px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);
+  font: inherit; font-size: 15px; line-height: 1.6; resize: vertical; }
+.dict-capture.is-done .dict-transcript { font-size: 14px; color: var(--ink-soft); }
+
+/* review */
+.dict-review { padding: 4px 22px 0; }
+.dict-review h3 { margin: 22px 0 10px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--ink-soft); font-weight: 800; }
+.dict-flagged h3 { color: var(--danger); }
+.dict-nomeds { font-size: 14px; color: var(--ink-soft); margin: 18px 0 0; }
+
+/* one drug */
+.med { padding: 12px 0 12px 14px; border-left: 2px solid var(--line); margin-bottom: 4px; }
+.med-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.med-name { border: none; background: none; padding: 0; font: inherit; font-size: 17px;
+  font-weight: 800; color: var(--ink); cursor: pointer; text-align: left;
+  border-bottom: 1px dashed transparent; }
+.med-name:hover:not(:disabled) { border-bottom-color: var(--ink-soft); }
+.med-name:disabled { cursor: default; }
+.med-input { font: inherit; font-size: 17px; font-weight: 800; color: var(--ink); padding: 3px 8px;
+  border: 1.5px solid var(--primary); border-radius: 8px; background: var(--surface);
+  min-width: 220px; }
+.med-sig { font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.med-generic { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+/* the provenance line: what was said, hanging under what was written */
+.med-spoken { display: flex; align-items: flex-start; gap: 8px; margin-top: 5px; }
+.med-tick { flex: none; width: 10px; height: 10px; margin-top: 6px;
+  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 3px; }
+.med-heard { font-size: 14px; color: var(--ink-soft); line-height: var(--line-indic); }
+
+/* flagged: the hairline goes red and the row steps out of line */
+.med-flag { border-left-color: var(--danger); background: var(--danger-soft);
+  border-radius: 0 12px 12px 0; margin-left: -6px; padding-left: 20px; padding-right: 14px; }
+.med-flag .med-tick { border-color: var(--danger); }
+.med-flag .med-heard { color: var(--danger); }
+
+/* acknowledged: calms to marigold — seen and standing, not resolved */
+.med-ack { border-left-color: var(--accent); background: var(--accent-soft);
+  border-radius: 0 12px 12px 0; margin-left: -6px; padding-left: 20px; padding-right: 14px; }
+.med-ack .med-tick { border-color: var(--accent); }
+
+.med-why { margin-top: 9px; }
+.med-alert { margin: 0 0 6px; font-size: 14px; line-height: 1.55; color: var(--danger); }
+.med-alert strong { font-weight: 800; }
+.med-sugg { margin: 0 0 8px; font-size: 14px; color: var(--ink-soft); }
+.med-cand { display: inline-block; margin-right: 10px; font-weight: 700; color: var(--ink); }
+.med-cand em { font-weight: 500; font-style: italic; color: var(--ink-soft); }
+.med-confirm { border: 1.5px solid var(--danger); background: var(--surface); color: var(--danger);
+  font: inherit; font-size: 14px; font-weight: 700; padding: 9px 15px; border-radius: 11px;
+  cursor: pointer; }
+.med-acked { margin: 0; font-size: 13px; font-weight: 700; color: #7a4d0a; }
+
+/* the quieter fields, same provenance idea at lower volume */
+.prov { display: grid; grid-template-columns: 92px 1fr; gap: 14px; align-items: baseline;
+  padding: 11px 0; border-top: 1px solid var(--line); }
+.prov-label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-soft); font-weight: 700; }
+.prov-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.prov-written { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.45; }
+.prov-spoken { font-size: 14px; color: var(--ink-soft); line-height: var(--line-indic); }
+.prov.is-quiet .prov-spoken { display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+
+.dict-advice { padding-top: 4px; }
+.dict-advice ul { margin: 0; padding-left: 20px; }
+.dict-advice li { font-size: 14px; line-height: 1.6; color: var(--ink); margin-bottom: 5px; }
+.dict-unclear { margin: 14px 0 0; background: var(--accent-soft); color: #7a4d0a;
+  border-radius: 10px; padding: 9px 13px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+
+.dict-signbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.dict-sign { border: none; background: var(--primary); color: #fff; font: inherit; font-size: 16px;
+  font-weight: 800; padding: 14px 26px; border-radius: 12px; cursor: pointer; }
+.dict-sign:disabled { background: var(--line); color: var(--ink-soft); cursor: default; }
+.dict-block { margin: 0; font-size: 14px; font-weight: 600; color: var(--danger); line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dict-mic.is-rec .dict-dot { animation: none; }
+}
+`;

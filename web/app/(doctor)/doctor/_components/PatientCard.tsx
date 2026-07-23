@@ -24,10 +24,12 @@ export function PatientCard({
   card,
   busy,
   onAction,
+  onDictate,
 }: {
   card: Card;
   busy: boolean;
   onAction: (action: "in_consult" | "done" | "no_show" | "lab_requeue") => void;
+  onDictate: () => void;
 }) {
   const s = card.summary;
   const urgent = card.red_flags.filter((f) => f.severity === "urgent");
@@ -130,6 +132,11 @@ export function PatientCard({
         </button>
         <button className="act" disabled={busy} onClick={() => onAction("done")}>
           Done
+        </button>
+        {/* The note is a separate act from moving the queue, and is reachable
+            without the keyboard — D is a shortcut, not the only door. */}
+        <button className="act" onClick={onDictate} title="Dictate the consult note (D)">
+          Dictate note <kbd className="hint">D</kbd>
         </button>
       </div>
 

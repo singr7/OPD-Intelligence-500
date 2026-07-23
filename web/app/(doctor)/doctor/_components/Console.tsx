@@ -16,8 +16,9 @@ import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
 import type { Day, DayRow, PatientCard as Card } from "../_lib/doctor";
 import { fetchDay, fetchPatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
-import { CONSOLE_CSS } from "./consoleStyles";
+import { CONSOLE_CSS, DICTATION_CSS } from "./consoleStyles";
 import { DayRail } from "./DayRail";
+import { DictationPanel } from "./DictationPanel";
 import { Login } from "./Login";
 import { PatientCard } from "./PatientCard";
 
@@ -31,7 +32,10 @@ export function Console() {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dictationNote, setDictationNote] = useState(false);
+  // The consult note takes the stage rather than floating over it: by the time
+  // the doctor dictates they have finished reading the card, and a modal over a
+  // clinical summary invites signing a note while half-reading the patient.
+  const [dictating, setDictating] = useState(false);
   const selectedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +53,7 @@ export function Console() {
     setDay(null);
     setCard(null);
     setSelected(null);
+    setDictating(false);
   }, []);
 
   const loadDay = useCallback(
@@ -157,18 +162,19 @@ export function Console() {
         void onCallNext();
       } else if (key === "d") {
         e.preventDefault();
-        setDictationNote(true);
+        // Only with a patient on the stage: a consult note belongs to a visit.
+        setDictating((open) => (selectedRef.current ? !open : open));
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [token, onCallNext]);
 
+  // Moving to another patient closes the note — it is that visit's, not a
+  // scratchpad that follows the doctor down the list.
   useEffect(() => {
-    if (!dictationNote) return;
-    const t = setTimeout(() => setDictationNote(false), 3200);
-    return () => clearTimeout(t);
-  }, [dictationNote]);
+    setDictating(false);
+  }, [selected]);
 
   if (!ready) return null;
   if (!token) {
@@ -184,7 +190,7 @@ export function Console() {
 
   return (
     <div className="console">
-      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS }} />
 
       <header className="appbar">
         <div className="appbar-l">
@@ -203,9 +209,6 @@ export function Console() {
       </header>
 
       {error && <p className="err-toast">{error}</p>}
-      {dictationNote && (
-        <p className="note-toast">Dictation arrives in S10 — the shortcut is wired and waiting.</p>
-      )}
 
       <main className="split">
         {day ? (
@@ -219,8 +222,20 @@ export function Console() {
         )}
 
         <section className="stage">
-          {card ? (
-            <PatientCard card={card} busy={busy} onAction={onAction} />
+          {card && dictating ? (
+            <DictationPanel
+              token={token}
+              visitId={card.visit_id}
+              patientName={card.name}
+              onClose={() => setDictating(false)}
+            />
+          ) : card ? (
+            <PatientCard
+              card={card}
+              busy={busy}
+              onAction={onAction}
+              onDictate={() => setDictating(true)}
+            />
           ) : (
             <p className="empty-state">
               {day && day.rows.length > 0
