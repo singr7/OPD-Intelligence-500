@@ -21,6 +21,7 @@ import json
 from typing import Any
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,8 +29,10 @@ import tests.factories as f
 from app import dictation as dic
 from app import prescription as rx
 from app import queue as q
+from app.auth.tokens import create_access_token
+from app.config import Settings
 from app.models.clinical import Prescription
-from app.models.enums import Channel
+from app.models.enums import Channel, Role
 from app.providers.llm import FakeLLMProvider, FakeLLMScript
 
 TODAY = q.today()
@@ -370,3 +373,243 @@ async def test_history_does_not_leak_another_patients_prescription(
     await session.flush()
 
     assert await rx.history(session, patient_id=other.id) == []
+
+
+# =============================================================================
+# 5. HTTP: read, print, deliver, history
+# =============================================================================
+
+
+def _headers(settings: Settings, user) -> dict[str, str]:
+    token = create_access_token(
+        user_id=user.id,
+        role=user.role,
+        name=user.name,
+        settings=settings,
+        hospital_id=user.hospital_id,
+    ).token
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def test_routes_require_a_doctor(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, visit, _dictation = await _signed(session)
+    assert (await client.get(f"/prescriptions/visits/{visit.id}")).status_code == 401
+
+    coordinator = f.make_user(clinic["hospital"], role=Role.COORDINATOR)
+    session.add(coordinator)
+    await session.flush()
+    resp = await client.get(
+        f"/prescriptions/visits/{visit.id}", headers=_headers(settings, coordinator)
+    )
+    assert resp.status_code == 403
+
+
+async def test_reading_the_visits_prescription(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, visit, _dictation = await _signed(session)
+
+    resp = await client.get(
+        f"/prescriptions/visits/{visit.id}", headers=_headers(settings, clinic["user"])
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meds"][0]["name"] == "Ondansetron"
+    assert body["meds"][0]["schedule"]["slots_known"] is True
+
+
+async def test_an_unsigned_visit_has_no_prescription(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit = f.make_visit(clinic["patient"], clinic["department"], date=TODAY, channel=Channel.KIOSK)
+    session.add(visit)
+    await session.flush()
+
+    resp = await client.get(
+        f"/prescriptions/visits/{visit.id}", headers=_headers(settings, clinic["user"])
+    )
+
+    assert resp.status_code == 200 and resp.json() is None
+
+
+async def test_the_clinical_copy_prints_the_letterhead_and_the_dictated_name(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    resp = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=clinical",
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert clinic["hospital"].name in html
+    assert clinic["doctor"].reg_no in html  # the signature block
+    assert "Ondansetron" in html
+    assert "1-0-1" in html  # frequency printed as dictated
+
+
+async def test_the_patient_copy_draws_pictograms_only_for_a_stated_schedule(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The AC's low-literacy check, at the HTTP edge.
+
+    One drug states its slots and gets sun/moon; one gives only a count and gets
+    tablet glyphs; one is SOS and gets the doctor's words with no icon at all.
+    """
+    # `acknowledged` because these drugs are not in this test's transcript, so
+    # `_was_said` flags them (S10) and an unacknowledged flag blocks signing.
+    # The schedule is what is under test here, not the flag.
+    note = {
+        "diagnosis": "Ca breast",
+        "meds": [
+            {"name": "Ondansetron", "dose": "8 mg", "freq": "1-0-1", "duration": "5 days"},
+            {
+                "name": "Pantoprazole",
+                "dose": "40 mg",
+                "freq": "BD",
+                "duration": "7 days",
+                "acknowledged": True,
+            },
+            {
+                "name": "Paracetamol",
+                "dose": "650 mg",
+                "freq": "SOS",
+                "duration": "3 days",
+                "acknowledged": True,
+            },
+        ],
+    }
+    clinic, _visit, dictation = await _signed(session, note)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    resp = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=patient&lang=hi",
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    html = resp.text
+    # Slots stated -> the sun and moon are lit.
+    assert "slot on" in html
+    assert "सुबह" in html and "रात" in html
+    # Count only -> tablet glyphs, and no invented time of day for that band.
+    assert "⬤⬤" in html
+    # Unreadable -> the doctor's own word, no icon.
+    assert "SOS" in html
+
+
+async def test_a_flagged_drug_is_visibly_flagged_on_both_copies(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The pharmacist and the patient both learn that this one was acknowledged,
+    not confirmed."""
+    note = {
+        "meds": [
+            {"name": "Zolfenac", "dose": "50 mg", "freq": "1-0-1", "acknowledged": True},
+        ]
+    }
+    clinic, _visit, dictation = await _signed(session, note)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+    headers = _headers(settings, clinic["user"])
+
+    clinical = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=clinical", headers=headers
+    )
+    patient = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=patient", headers=headers
+    )
+
+    assert "flagged" in clinical.text and "formulary" in clinical.text
+    assert "flagged" in patient.text
+    # And the name is the dictated one on both.
+    assert "Zolfenac" in clinical.text and "Zolfenac" in patient.text
+
+
+async def test_delivery_over_whatsapp_is_recorded(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    resp = await client.post(
+        f"/prescriptions/{prescription.id}/deliver",
+        json={"channel": "whatsapp"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["delivered_via"]["whatsapp"]["status"] == "sent"
+
+
+async def test_a_failed_send_is_recorded_rather_than_raised(
+    client: AsyncClient, session: AsyncSession, settings: Settings, monkeypatch
+) -> None:
+    """The paper copy is the delivery that actually happened. A vendor outage
+    must show at the desk as "not sent", not as a 500 that loses the record."""
+    from app.providers.base import ProviderUnavailable
+    from app.providers.messaging import FakeMessagingProvider
+
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    broken = FakeMessagingProvider()
+    broken.fail_with = ProviderUnavailable("whatsapp is down")
+    monkeypatch.setattr(
+        "app.routes.prescription.get_messaging_provider", lambda settings=None: broken
+    )
+
+    resp = await client.post(
+        f"/prescriptions/{prescription.id}/deliver",
+        json={"channel": "whatsapp"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["delivered_via"]["whatsapp"]["status"] == "failed"
+
+
+async def test_delivery_to_a_missing_number_is_refused(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+    clinic["patient"].caregiver_phone = None
+    await session.flush()
+
+    resp = await client.post(
+        f"/prescriptions/{prescription.id}/deliver",
+        json={"channel": "sms", "to_caregiver": True},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_history_over_http(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, visit, _dictation = await _signed(session)
+
+    resp = await client.get(
+        f"/prescriptions/patients/{clinic['patient'].id}",
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["visit_id"] == str(visit.id)
+    assert rows[0]["med_names"] == ["Ondansetron"]
