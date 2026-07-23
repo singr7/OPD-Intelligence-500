@@ -73,11 +73,45 @@ MAX_SUGGESTIONS = 3
 #: Dosage forms as dictated, in every spelling heard on the ward. Stripped from
 #: both ends of a name — "Tab Dolo" and "Dolo tablet" are the same drug.
 _FORM_WORDS = {
-    "tab", "tabs", "tablet", "tablets", "cap", "caps", "capsule", "capsules",
-    "inj", "injection", "amp", "ampoule", "vial", "syp", "syr", "syrup",
-    "susp", "suspension", "sol", "solution", "drop", "drops", "oint", "ointment",
-    "cream", "gel", "lotion", "patch", "spray", "gargle", "mouthwash", "paint",
-    "powder", "sachet", "infusion", "iv", "im", "sc", "po",
+    "tab",
+    "tabs",
+    "tablet",
+    "tablets",
+    "cap",
+    "caps",
+    "capsule",
+    "capsules",
+    "inj",
+    "injection",
+    "amp",
+    "ampoule",
+    "vial",
+    "syp",
+    "syr",
+    "syrup",
+    "susp",
+    "suspension",
+    "sol",
+    "solution",
+    "drop",
+    "drops",
+    "oint",
+    "ointment",
+    "cream",
+    "gel",
+    "lotion",
+    "patch",
+    "spray",
+    "gargle",
+    "mouthwash",
+    "paint",
+    "powder",
+    "sachet",
+    "infusion",
+    "iv",
+    "im",
+    "sc",
+    "po",
 }
 
 #: "625", "500mg", "40 mg", "1.5g", "5000 iu", "0.9%" — a strength, not a name.
@@ -104,9 +138,7 @@ def normalise(name: str) -> str:
     lowered = _PUNCT.sub(" ", name.lower()).strip()
     tokens = [t for t in lowered.split() if t]
     kept = [
-        t
-        for t in tokens
-        if t not in _FORM_WORDS and t not in _UNITS and not _STRENGTH.match(t)
+        t for t in tokens if t not in _FORM_WORDS and t not in _UNITS and not _STRENGTH.match(t)
     ]
     return " ".join(kept)
 

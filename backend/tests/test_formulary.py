@@ -94,11 +94,11 @@ def test_a_known_lookup_reports_the_generic_behind_the_brand(book: Formulary) ->
 @pytest.mark.parametrize(
     "dictated",
     [
-        "Zolgensma",          # a real drug, not on this formulary
-        "paclitaxal",         # one letter off a real one
-        "ondansetran",        # ditto
-        "Vinblastin",         # ditto, and the dangerous family
-        "Tab Fantasyzole 10", # not a drug at all
+        "Zolgensma",  # a real drug, not on this formulary
+        "paclitaxal",  # one letter off a real one
+        "ondansetran",  # ditto
+        "Vinblastin",  # ditto, and the dangerous family
+        "Tab Fantasyzole 10",  # not a drug at all
     ],
 )
 def test_a_name_not_in_the_book_is_never_known(book: Formulary, dictated: str) -> None:
