@@ -217,6 +217,24 @@ class RedisConversationStore:
         await self._redis.delete(self.KEY.format(wa_id=wa_id))
 
 
+async def window_is_open(store: ConversationStore | None, wa_id: str) -> bool:
+    """Whether a free-form message may be sent to `wa_id` right now (doc 03 §1d).
+
+    The one question a *proactive* sender (the S11 Rx delivery) must ask before it
+    picks free text over a template. Conservative: no store or no thread → closed,
+    so a patient we have never heard from is reached only by a registered template.
+    """
+    if store is None:
+        return False
+    conversation = await store.get(wa_id)
+    return conversation.within_window() if conversation is not None else False
+
+
+def wa_id_of(phone: str) -> str:
+    """A stored phone (`+9198...`) → the `wa_id` Meta keys a thread by (digits only)."""
+    return "".join(ch for ch in phone if ch.isdigit())
+
+
 def build_conversation_store(settings) -> ConversationStore:
     """Redis outside local; in-memory for tests and single-process dev. Mirrors
     `build_session_store`."""

@@ -22,6 +22,8 @@ from app.whatsapp.conversation import (
     InMemoryConversationStore,
     RedisConversationStore,
     build_conversation_store,
+    wa_id_of,
+    window_is_open,
 )
 from app.whatsapp.templates import (
     Template,
@@ -41,4 +43,6 @@ __all__ = [
     "build_conversation_store",
     "get_template",
     "template_message",
+    "wa_id_of",
+    "window_is_open",
 ]

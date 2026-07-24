@@ -552,6 +552,70 @@ async def test_delivery_over_whatsapp_is_recorded(
     assert resp.json()["delivered_via"]["whatsapp"]["status"] == "sent"
 
 
+async def test_out_of_window_whatsapp_delivery_uses_the_template(
+    client: AsyncClient, session: AsyncSession, settings: Settings, monkeypatch
+) -> None:
+    """A proactive send to a closed 24h window (S12, doc 03 §1d): Meta rejects free
+    text, so the registered `prescription_ready` template goes instead."""
+    from app.providers.messaging import FakeMessagingProvider
+
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    fake = FakeMessagingProvider()
+    monkeypatch.setattr(
+        "app.routes.prescription.get_messaging_provider", lambda settings=None: fake
+    )
+
+    async def _closed(store, wa_id):
+        return False
+
+    monkeypatch.setattr("app.routes.prescription.window_is_open", _closed)
+
+    resp = await client.post(
+        f"/prescriptions/{prescription.id}/deliver",
+        json={"channel": "whatsapp"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    assert fake.last.template_name == "prescription_ready"
+    assert resp.json()["delivered_via"]["whatsapp"]["detail"].startswith("template:")
+
+
+async def test_in_window_whatsapp_delivery_sends_the_full_sheet(
+    client: AsyncClient, session: AsyncSession, settings: Settings, monkeypatch
+) -> None:
+    """Inside the window the whole sheet goes as free text — no template needed."""
+    from app.providers.messaging import FakeMessagingProvider
+
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    fake = FakeMessagingProvider()
+    monkeypatch.setattr(
+        "app.routes.prescription.get_messaging_provider", lambda settings=None: fake
+    )
+
+    async def _open(store, wa_id):
+        return True
+
+    monkeypatch.setattr("app.routes.prescription.window_is_open", _open)
+
+    resp = await client.post(
+        f"/prescriptions/{prescription.id}/deliver",
+        json={"channel": "whatsapp"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    assert fake.last.template_name is None
+    assert "Ondansetron" in fake.last.text
+    assert not resp.json()["delivered_via"]["whatsapp"]["detail"].startswith("template:")
+
+
 async def test_a_failed_send_is_recorded_rather_than_raised(
     client: AsyncClient, session: AsyncSession, settings: Settings, monkeypatch
 ) -> None:

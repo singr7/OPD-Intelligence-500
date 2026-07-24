@@ -21,7 +21,7 @@ import uuid
 from datetime import date
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from app.providers.messaging import OutboundMessage
 from app.providers.metering import usage_scope
 from app.providers.registry import get_messaging_provider, get_sms_provider
 from app.providers.sms import SmsMessage
+from app.whatsapp import template_message, wa_id_of, window_is_open
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +322,7 @@ async def print_sheet(
 async def deliver(
     prescription_id: uuid.UUID,
     body: DeliverIn,
+    request: Request,
     principal: Principal = Depends(require_doctor),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
@@ -331,6 +333,14 @@ async def deliver(
     vendor is a config change (doc 02 §9). A failed send is **recorded, not
     raised past a 502**: the paper copy is the delivery that actually happened,
     and the desk needs to see that the message did not.
+
+    WhatsApp is **window-aware** (S12, doc 03 §1d). This is a proactive send —
+    the doctor pressed the button, not the patient — so the 24h customer-service
+    window may well be closed, and Meta rejects free text outside it. When it is
+    closed we send the registered `prescription_ready` template, which invites the
+    patient to reply; that reply reopens the window and the bot answers it with the
+    full sheet (`WhatsAppBot._resend_rx`). Inside the window we send the sheet
+    directly, as before.
     """
     doctor = await _doctor(session, principal)
     prescription = await _load(session, prescription_id, doctor)
@@ -345,11 +355,7 @@ async def deliver(
     with usage_scope(channel=ctx.visit.channel, visit_id=ctx.visit.id):
         try:
             if body.channel == "whatsapp":
-                provider = get_messaging_provider(settings)
-                result = await provider.send(
-                    OutboundMessage(to=to, text=text), purpose=UsagePurpose.OTHER
-                )
-                detail = result.message_id
+                detail = await _deliver_whatsapp(request, settings, ctx=ctx, text=text, to=to)
             else:
                 provider = get_sms_provider(settings)
                 sms = await provider.send(SmsMessage(to=to, body=text), purpose=UsagePurpose.OTHER)
@@ -367,3 +373,24 @@ async def deliver(
     rx_svc.record_delivery(prescription, channel=body.channel, status="sent", detail=detail)
     await session.flush()
     return _out(prescription)
+
+
+async def _deliver_whatsapp(
+    request: Request, settings: Settings, *, ctx: _Context, text: str, to: str
+) -> str:
+    """Send the sheet in-window, or the out-of-window template. Returns a delivery
+    detail string that records which path was taken (the desk reads it to know the
+    patient got the full sheet vs. only the reply nudge)."""
+    provider = get_messaging_provider(settings)
+    store = getattr(request.app.state, "wa_conversation_store", None)
+    if await window_is_open(store, wa_id_of(to)):
+        result = await provider.send(OutboundMessage(to=to, text=text), purpose=UsagePurpose.OTHER)
+        return result.message_id
+    message = template_message(
+        to=to,
+        name="prescription_ready",
+        lang=ctx.patient.lang,
+        variables=[ctx.patient.name, ctx.signer.name, ctx.hospital.name],
+    )
+    result = await provider.send(message, purpose=UsagePurpose.OTHER)
+    return f"template:prescription_ready:{result.message_id}"
