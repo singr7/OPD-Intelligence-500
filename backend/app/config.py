@@ -94,6 +94,16 @@ class Settings(BaseSettings):
     # Meta WhatsApp Cloud API.
     meta_whatsapp_token: str = ""
     meta_phone_number_id: str = ""
+    # Webhook auth (S12, doc 03 §1d). `meta_verify_token` is the shared secret Meta
+    # echoes on the GET subscription handshake; `meta_app_secret` signs every inbound
+    # POST (X-Hub-Signature-256), which the webhook verifies. Both empty on a local
+    # fake stack — signature checking is skipped only when no secret is configured.
+    meta_verify_token: str = ""
+    meta_app_secret: str = ""
+    # Attach a synthesized voice note to each WhatsApp reply (doc 03 §1d) — the
+    # "WhatsApp calling" value for a patient who cannot read. Off by default: it
+    # spends a TTS call per turn, and the text reply is always sent regardless.
+    whatsapp_voice_notes: bool = False
 
     # --- V-OSS: local open-source voice tier (doc 08) ------------------------
     # The GPU box, reached over the WireGuard tunnel (doc 08 §4). A base URL is

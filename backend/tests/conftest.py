@@ -241,6 +241,11 @@ async def client(
     # The lifespan (which builds the hub in prod) does not run under
     # ASGITransport, so the queue routes' get_hub dependency needs it set here.
     app.state.queue_hub = QueueHub()
+    # Same story for the WhatsApp thread store (S12): the webhook's dependency
+    # reads it off app.state, which the absent lifespan would otherwise populate.
+    from app.whatsapp import InMemoryConversationStore
+
+    app.state.wa_conversation_store = InMemoryConversationStore()
 
     async def _session_override() -> AsyncIterator[AsyncSession]:
         yield session

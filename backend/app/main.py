@@ -35,6 +35,8 @@ from app.routes.kiosk import router as kiosk_router
 from app.routes.prescription import router as prescription_router
 from app.routes.providers import router as providers_router
 from app.routes.queue import router as queue_router
+from app.routes.whatsapp import router as whatsapp_router
+from app.whatsapp import build_conversation_store
 
 
 def _build_lifespan(settings: Settings):
@@ -65,9 +67,11 @@ def _build_lifespan(settings: Settings):
         # AND a real LLM is wired: a fake provider answering itself is exactly what
         # the interpreter must never do, so a fake keeps the kiosk on taps.
         adaptive = settings.intake_adaptive and settings.llm_provider != "fake"
-        app.state.intake_engine = IntakeEngine(
-            build_session_store(settings), adaptive=adaptive
-        )
+        app.state.intake_engine = IntakeEngine(build_session_store(settings), adaptive=adaptive)
+
+        # The WhatsApp thread store (S12): wa_id → live intake session + the 24h
+        # window. Redis in prod, in-memory local — same seam as the session store.
+        app.state.wa_conversation_store = build_conversation_store(settings)
 
         # The live-queue fan-out hub (S8): board + coordinator sockets and the
         # in-memory downtime flag. In-process — one api container at pilot scale
@@ -115,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(doctor_router)
     app.include_router(dictation_router)
     app.include_router(prescription_router)
+    app.include_router(whatsapp_router)
     return app
 
 

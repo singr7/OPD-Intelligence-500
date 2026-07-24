@@ -60,11 +60,19 @@ class Conversation:
     session_id: str | None = None
     patient_id: uuid.UUID | None = None
     visit_id: uuid.UUID | None = None
+    #: The chief complaint captured at the COMPLAINT step, held across the optional
+    #: department chooser so the intake keeps the patient's own words even when the
+    #: classifier was unsure and the department was picked by hand.
+    chief_complaint: str | None = None
     #: The chooser options last shown, as (dept_key, name); a button reply's id is
     #: matched against these so we never trust a key the patient's client invented.
     department_options: list[list[str]] = field(default_factory=list)
     #: The last time the *patient* messaged us — the anchor of the 24h window.
     last_inbound_at: datetime | None = None
+    #: Meta redelivers a message if the webhook does not 200 fast enough; the last
+    #: processed message id lets `WhatsAppBot.handle` drop an exact replay so a tap
+    #: is never counted twice (double-answering an intake question).
+    last_message_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -93,6 +101,7 @@ class Conversation:
         self.step = ConversationStep.IDLE
         self.session_id = None
         self.visit_id = None
+        self.chief_complaint = None
         self.department_options = []
 
     # -- serialisation --------------------------------------------------------
@@ -105,8 +114,10 @@ class Conversation:
             "session_id": self.session_id,
             "patient_id": str(self.patient_id) if self.patient_id else None,
             "visit_id": str(self.visit_id) if self.visit_id else None,
+            "chief_complaint": self.chief_complaint,
             "department_options": self.department_options,
             "last_inbound_at": self.last_inbound_at.isoformat() if self.last_inbound_at else None,
+            "last_message_id": self.last_message_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -131,8 +142,10 @@ class Conversation:
             session_id=data.get("session_id"),
             patient_id=as_uuid(data.get("patient_id")),
             visit_id=as_uuid(data.get("visit_id")),
+            chief_complaint=data.get("chief_complaint"),
             department_options=[list(o) for o in data.get("department_options") or []],
             last_inbound_at=as_dt(data.get("last_inbound_at")),
+            last_message_id=data.get("last_message_id"),
             created_at=as_dt(data.get("created_at")) or datetime.now(UTC),
             updated_at=as_dt(data.get("updated_at")) or datetime.now(UTC),
         )
