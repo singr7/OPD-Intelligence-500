@@ -176,6 +176,21 @@ The two rendered sheets are in `sessions/screenshots/s11/`.
 - When the GPU box work resumes, S-OSS.1 is unblocked and unchanged.
 
 ## Backlog additions
+- **Adaptive-intake trees need diligent scenario testing on-box (operator-flagged,
+  2026-07-24).** When adaptive is on, the tree behaviour must be exercised across real
+  scenarios — a vague answer that should clarify then fall back to taps, a volunteered
+  fact that should pre-fill and skip a later node, an unmappable answer that must land on
+  taps and never guess, plus a marked-`adaptive` node under branches that are and aren't
+  taken. The `FakeInterpreter` tests prove the plumbing; what is untested is whether real
+  Qwen3 clarifies sensibly and whether the marked nodes are the *right* nodes to mark.
+  Read `app/intake/adaptive_report.py` for the clarify/mis-map/enrichment rates and tune
+  which nodes carry `adaptive: true` from real transcripts. Pairs with the S-ADAPT omen
+  validation already in "Owed on omen".
+- **RxPanel swallows a non-auth read error silently (S11).** `readPrescription` failing
+  with anything other than 401/403 leaves the panel rendering nothing, indistinguishable
+  from an advice-only note. A signed note with meds should always surface *something* —
+  at least "couldn't load the prescription, the paper copy still works". Small fix in
+  `web/app/(doctor)/doctor/_components/RxPanel.tsx` `load()`.
 - **Server-side PDF** — both sheet families (S8 downtime, S11 prescriptions) return HTML
   the browser prints. One decision, one native dependency (WeasyPrint/pango + Indic
   fonts), S19/S21.
