@@ -49,10 +49,30 @@ class Button:
 
 
 @dataclass(frozen=True, slots=True)
+class ListRow:
+    """One row of an interactive list. Meta caps `title` at 24 chars and
+    `description` at 72; both truncate silently, so both are validated here."""
+
+    id: str
+    title: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if len(self.title) > 24:
+            raise ProviderBadRequest(f"list row title over 24 chars: {self.title!r}")
+        if len(self.description) > 72:
+            raise ProviderBadRequest(f"list row description over 72 chars: {self.description!r}")
+
+
+@dataclass(frozen=True, slots=True)
 class OutboundMessage:
     to: str
     text: str = ""
     buttons: Sequence[Button] = ()
+    #: An interactive list — for more options than Meta's 3-button cap (up to 10
+    #: rows). `list_button` is the label on the tap-to-open button (≤20 chars).
+    list_rows: Sequence[ListRow] = ()
+    list_button: str = ""
     audio: AudioClip | None = None
     #: Set for out-of-window sends — Meta only accepts a registered template
     #: after the 24h window closes. The template registry lands in S12.
@@ -84,6 +104,15 @@ class MessagingProvider(Provider):
     async def download_media(self, media_id: str) -> AudioClip:
         """Fetch an inbound voice note. S12's webhook gets an id, not the bytes."""
 
+    @abstractmethod
+    async def upload_media(self, clip: AudioClip) -> str:
+        """Upload an outbound voice note, returning Meta's media id.
+
+        A voice-note *reply* (TTS) cannot be sent inline — Meta wants the audio
+        uploaded first and then referenced by id (see `_send`). Not metered on its
+        own: the billable unit is the message send that follows, not the upload.
+        """
+
 
 class FakeMessagingProvider(MessagingProvider):
     """Deterministic WhatsApp. Records sends; never touches the network."""
@@ -94,6 +123,7 @@ class FakeMessagingProvider(MessagingProvider):
         super().__init__(**kwargs)
         self.sent: list[OutboundMessage] = []
         self.media: dict[str, AudioClip] = {}
+        self.uploaded: list[AudioClip] = []
         self.fail_with: Exception | None = None
 
     async def _send(self, message: OutboundMessage, call: MeterCall) -> MessageResult:
@@ -110,6 +140,12 @@ class FakeMessagingProvider(MessagingProvider):
             return self.media[media_id]
         except KeyError:
             raise ProviderBadRequest(f"fake messaging has no media {media_id!r}") from None
+
+    async def upload_media(self, clip: AudioClip) -> str:
+        self.uploaded.append(clip)
+        media_id = f"fake-media-{len(self.uploaded)}"
+        self.media[media_id] = clip
+        return media_id
 
     @property
     def last(self) -> OutboundMessage | None:
@@ -148,7 +184,7 @@ class MetaWhatsAppProvider(MessagingProvider):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
 
-    def _payload(self, message: OutboundMessage) -> dict[str, Any]:
+    def _payload(self, message: OutboundMessage, *, media_id: str | None = None) -> dict[str, Any]:
         base: dict[str, Any] = {"messaging_product": "whatsapp", "to": message.to}
 
         if message.template_name:
@@ -185,17 +221,43 @@ class MetaWhatsAppProvider(MessagingProvider):
                 },
             }
 
+        if message.list_rows:
+            return base | {
+                "type": "interactive",
+                "interactive": {
+                    "type": "list",
+                    "body": {"text": message.text},
+                    "action": {
+                        "button": message.list_button or "Choose",
+                        "sections": [
+                            {
+                                "rows": [
+                                    {"id": r.id, "title": r.title, "description": r.description}
+                                    if r.description
+                                    else {"id": r.id, "title": r.title}
+                                    for r in message.list_rows
+                                ]
+                            }
+                        ],
+                    },
+                },
+            }
+
         if message.audio is not None:
-            # Audio needs a prior /media upload; S12 owns that flow, and sending
-            # a voice note without it should fail loudly rather than send silence.
-            raise ProviderBadRequest(
-                "audio sends need a media upload first (S12); use text for now"
-            )
+            # Audio is sent by reference: the bytes were uploaded first (`_send`
+            # does this before calling `_payload`) and Meta is handed the id.
+            if not media_id:
+                raise ProviderBadRequest("audio send reached _payload without a media id")
+            return base | {"type": "audio", "audio": {"id": media_id}}
 
         return base | {"type": "text", "text": {"body": message.text}}
 
     async def _send(self, message: OutboundMessage, call: MeterCall) -> MessageResult:
-        payload = self._payload(message)
+        # A voice note must be uploaded before the send references it. Do it here,
+        # inside the metered send, so a bad clip fails the whole send rather than
+        # leaving a dangling media id (Meta's ids expire, so nothing is reusable).
+        media_id = await self.upload_media(message.audio) if message.audio is not None else None
+        payload = self._payload(message, media_id=media_id)
         try:
             response = await self._client.post(
                 f"/{self._phone_number_id}/messages", json=payload, headers=self._headers()
@@ -234,3 +296,35 @@ class MetaWhatsAppProvider(MessagingProvider):
             raise ProviderUnavailable(f"meta media transport error: {exc}") from exc
 
         return AudioClip(data=blob.content, mime=blob.headers.get("content-type", "audio/ogg"))
+
+    async def upload_media(self, clip: AudioClip) -> str:
+        """`POST /<phone_number_id>/media` — bytes in, a short-lived media id out.
+
+        A multipart upload: Meta wants `messaging_product`, the declared `type`
+        (the mime) and the `file` part together. The id it returns is what the
+        audio message then references; it expires, so this must run inside the send.
+        """
+        files = {
+            "messaging_product": (None, "whatsapp"),
+            "type": (None, clip.mime),
+            "file": ("voice-note", clip.data, clip.mime),
+        }
+        try:
+            response = await self._client.post(
+                f"/{self._phone_number_id}/media", files=files, headers=self._headers()
+            )
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(f"meta media upload transport error: {exc}") from exc
+
+        if response.status_code == 400:
+            detail = (response.json().get("error") or {}).get("message", response.text[:200])
+            raise ProviderBadRequest(f"meta rejected the media upload: {detail}")
+        if response.status_code >= 300:
+            raise ProviderUnavailable(
+                f"meta media upload http {response.status_code}: {response.text[:200]}"
+            )
+
+        media_id = response.json().get("id")
+        if not media_id:
+            raise ProviderUnavailable("meta media upload returned no id")
+        return str(media_id)

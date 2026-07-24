@@ -25,7 +25,7 @@ import pytest
 from app.prompts.tools import INTAKE_TOOLS
 from app.providers.audio import AudioClip
 from app.providers.llm import GeminiFlashProvider, LLMRequest, OpenAIProvider
-from app.providers.messaging import Button, MetaWhatsAppProvider, OutboundMessage
+from app.providers.messaging import Button, ListRow, MetaWhatsAppProvider, OutboundMessage
 from app.providers.resilience import ProviderBadRequest, ProviderUnavailable, RetryPolicy
 from app.providers.sms import ExotelSMSProvider, Msg91SMSProvider, SmsMessage
 from app.providers.stt import GoogleSTTProvider, SarvamSTTProvider
@@ -508,6 +508,60 @@ async def test_meta_surfaces_its_nested_error_message(meter):
 
     with pytest.raises(ProviderBadRequest, match="Recipient not in allowed list"):
         await wa.send(OutboundMessage(to="919876543210", text="hi"))
+
+
+async def test_meta_sends_an_interactive_list_for_many_options(meter):
+    """A node with more options than Meta's 3-button cap becomes a list."""
+    seen, handler = _captures(httpx.Response(200, json={"messages": [{"id": "wamid.3"}]}))
+    wa = MetaWhatsAppProvider(
+        access_token="t",
+        phone_number_id="1",
+        client=_client(handler, base_url=f"{MetaWhatsAppProvider.BASE_URL}/v21.0"),
+    )
+
+    await wa.send(
+        OutboundMessage(
+            to="919876543210",
+            text="Kaunsa vibhag?",
+            list_rows=[ListRow(id=f"d{i}", title=f"Dept {i}") for i in range(5)],
+            list_button="Chunein",
+        )
+    )
+
+    body = json.loads(seen[0].content)
+    assert body["interactive"]["type"] == "list"
+    assert body["interactive"]["action"]["button"] == "Chunein"
+    rows = body["interactive"]["action"]["sections"][0]["rows"]
+    assert [r["id"] for r in rows] == ["d0", "d1", "d2", "d3", "d4"]
+
+
+async def test_meta_uploads_a_voice_note_then_sends_it_by_id(meter):
+    """A voice-note reply (TTS out) cannot be inline: the bytes are uploaded to
+    /media first and the send references the returned id (doc 03 §1d)."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/media"):
+            return httpx.Response(200, json={"id": "media-9"})
+        return httpx.Response(200, json={"messages": [{"id": "wamid.4"}]})
+
+    wa = MetaWhatsAppProvider(
+        access_token="t",
+        phone_number_id="1",
+        client=_client(handler, base_url=f"{MetaWhatsAppProvider.BASE_URL}/v21.0"),
+    )
+
+    await wa.send(
+        OutboundMessage(to="919876543210", audio=AudioClip(data=b"ogg-bytes", mime="audio/ogg"))
+    )
+
+    upload, send = seen
+    assert upload.url.path.endswith("/media")
+    assert b"ogg-bytes" in upload.content  # multipart body carries the clip
+    payload = json.loads(send.content)
+    assert payload["type"] == "audio"
+    assert payload["audio"]["id"] == "media-9"
 
 
 # -- Exotel telephony ----------------------------------------------------------
