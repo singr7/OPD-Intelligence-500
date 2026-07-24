@@ -1,228 +1,128 @@
-# HANDOFF — after Session S11 (digital prescription)
+# HANDOFF — after Session S12 (WhatsApp bot)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
 > Whisper, routing/summaries via Qwen3, read-aloud via a Kokoro `/tts` container —
-> zero cloud AI) at `https://opd.radpretation.ai`. Local voice is **done**:
-> `POST /kiosk/tts` + the Kokoro container (`deploy/tts-kokoro/`, doc 10 §6) are
-> live; the branded-Dhara Voicebox clone is a reserved later iteration. Also fixed
-> live: `/finish` 500 (rule-flag dicts vs summary strings, `dispatch.py`).
+> zero cloud AI) at `https://opd.radpretation.ai`.
 >
-> **⚠️ CI is off (2026-07-23, operator).** `.github/workflows/ci.yml` was burning
-> the account's free Actions minutes. The pipeline is **fully intact** — only its
-> triggers are commented out and replaced by `workflow_dispatch`. Run it by hand
-> from the Actions tab or `gh workflow run ci.yml`; re-enable by uncommenting the
-> `push`/`pull_request` block. **Nothing is checking your pushes now — `make test`
-> locally is the only gate.**
+> **⚠️ CI is off (2026-07-23, operator).** `.github/workflows/ci.yml` is intact but
+> its `push`/`pull_request` triggers are commented out (they were burning free
+> Actions minutes). Run it by hand: `gh workflow run ci.yml`. **`make test` locally
+> is the only gate right now.**
 >
-> **S-ADAPT.1 (V1) and S-ADAPT.2 (V2) are BOTH BUILT** and now on `main` (the
-> branch is merged and deleted; session logs: sessions/SESSION-ADAPT-1.md,
-> sessions/SESSION-ADAPT-2.md). **V1:**
-> answer any tap node by voice; one spoken clarify then taps. **V2:** one spoken
-> turn also fills *other* nodes it volunteers (enrichment → `pending_prefills`,
-> auto-applied by the dispatcher through the unchanged `walk.save` when the walk
-> reaches them), an opt-in `Node.adaptive` may ask one bounded sub-question, and
-> per-node telemetry lands on `Intake.adaptive_events` with a reconciling report
-> (`app/intake/adaptive_report.py`). New `app/intake/interpret.py`, prompts
-> `interpret_answer/v1+v2`, extended `POST /kiosk/{sid}/answer`, migration
-> `a1b2c3d4e5f6`. Gated on `INTAKE_ADAPTIVE` + a real LLM and
-> `NEXT_PUBLIC_KIOSK_ADAPTIVE=1`. Design + guardrails:
-> **[docs/11-ADAPTIVE-INTAKE.md](docs/11-ADAPTIVE-INTAKE.md)**.
-> (Session log: sessions/SESSION-ADAPT-DESIGN.md.)
->
-> **🚩 S-ADAPT IS MERGED TO `main` BUT NOT YET PROVEN ON THE BOX (2026-07-23).**
-> The branch-only rule was **lifted by the operator** partway through the rollout:
-> omen entered a maintenance window after the deploy landed and before the adaptive
-> flags were ever turned on, and blocking S11 behind the box was the worse trade.
-> What replaced the branch as the guard is the **flag**: `INTAKE_ADAPTIVE=0` and
-> `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults in `.env.example`, so `main` on
-> omen behaves exactly as it did before the merge until a human flips them. Do not
-> read the merge as validation — see **"Owed on omen"** below, which is the real
-> outstanding work and must be done before adaptive is enabled for any patient.
->
-> **Rollout status (2026-07-23):**
-> 1. ✅ **Deployed.** `main` was merged into `feat/adaptive-intake` (the branch was
->    cut before S9/S10, so deploying it unmerged would have taken the doctor console
->    *off* the box and stamped the DB at `a1b2c3d4e5f6`, a revision `main`'s code
->    cannot locate). Branch deployed to omen with both flags `0`; migration applied.
-> 2. ✅ **Sanity pass, flags off** — full kiosk intake welcome→token unchanged, all
->    `usage_events` on `local-vllm`/`local-whisper`/`local-tts` (no `fake`),
->    `adaptive_events = []` on every intake, zero `INTAKE_TURN` rows. The deployed
->    code demonstrably does not change the kiosk while the flags are off.
-> 3. ⏳ **Adaptive on — NOT DONE** (maintenance window). See "Owed on omen".
-> 4. ⏳ **Doctor console on-box — NOT CONFIRMED.** Never reported as run; assume not.
-> 5. ✅ **`main` fast-forwarded** to the merged branch on the operator's explicit
->    go-ahead, ahead of 3 and 4, so S11 starts from one line.
->
-> **Owed on omen (do this before adaptive faces a patient):**
-> - Set `OTP_DEBUG_ECHO=true` + `OTP_RESEND_COOLDOWN_SECONDS=0` in `.env`,
->   `docker compose up -d api` (env-only, no rebuild) — `FakeSMSProvider` logs an
->   OTP's *length*, never its body, so without the echo no one can log in. Turn it
->   back off afterwards (`ENV=local` is the only reason it is permitted at all).
-> - **Doctor console + consult note:** `/doctor`, `+915550001001` (Dr. Anil Gupta,
->   MEDONC). Day list, red-flag stamps, **N** call-next repaints `/board`, then **D**
->   → dictate Hinglish with a deliberately misspelt drug and confirm it is *flagged,
->   never silently corrected*; signing refuses until acknowledged. Signing is
->   terminal — use a throwaway visit. Expect a `DICTATION` usage_event on `local-vllm`.
-> - **Adaptive:** flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed,
->   `docker compose up -d --build api web` (**web rebuild required** —
->   `NEXT_PUBLIC_KIOSK_ADAPTIVE` is a build arg). Provoke a vague answer (one
->   clarify then taps), a volunteered extra fact (later node pre-filled, not
->   re-asked), and an unmappable answer (falls to taps, never guesses). Then read
->   `app/intake/adaptive_report.py` and tune node wording from the clarify/mis-map
->   rates. **Rollback is the flags back to `0` + a web rebuild — never a redeploy.**
-> - While on the box: `make eval-dictation` (backlog below) wants the same session.
+> **🚩 Adaptive intake (S-ADAPT) is on `main` but NEVER PROVEN with its flags on
+> (2026-07-23).** `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the
+> defaults, so `main` behaves as the pure-tap kiosk until a human flips them. The
+> on-box validation is unclaimed work — see **"Owed on omen"** below. This is
+> unchanged by S12.
 
-**Repo state:** **`main`** — everything is on one line. `feat/doctor-console` (S9 +
-S10) and `feat/adaptive-intake` (S-ADAPT V1 + V2) were both merged and the branches
-deleted on 2026-07-23; S11 built straight on `main`. **Start S12 from `main`.**
-`make test` green: backend **781** (726 → 781), voice-gw 1, web typecheck+lint clean,
-48 conformance. **No migration in S11** (`Prescription` has existed since S2 and
-`meds`/`delivered_via` are JSONB); head is still S-ADAPT's `a1b2c3d4e5f6`. Postgres on
-host port **5433**; voice-gw on 8090.
+**Repo state:** **`main`** — S12 built straight on it (three feature commits +
+close). `make test` green: backend **816** (781 → 816), voice-gw 1, web
+typecheck+lint clean, 48 conformance. **No migration in S12** — the WhatsApp
+conversation state lives in Redis (like `SessionState`), not the DB. Head is still
+S-ADAPT's `a1b2c3d4e5f6`. Postgres on host port **5433**; voice-gw on 8090.
+**Start S13 from `main`.**
 
-⚠️ `make lint` is **failing on 11 pre-existing unformatted files**, none of them S11's
-(`ruff format --check`). It is not part of `make test`, so it has been red for a while
-without anyone noticing. Worth one `ruff format .` commit before it grows.
+⚠️ `make lint` is still **failing on 11 pre-existing unformatted files** (none of
+them S12's — the new code is `ruff format`-clean). It is not in `make test`, so it
+has been red a while. Worth one `ruff format .` commit before it grows.
 
-**One paragraph:** S11 gave the signature its consequence. doc 03 §7 always said signing
-generates the prescription; S10 deliberately emitted nothing rather than write a
-half-shaped row, and `app/prescription.py` is now what it emits — generated *inside*
-`dictation.sign`, so a prescription cannot exist without a signature and there is no
-`POST /prescriptions`. The interesting problem turned out not to be the PDF but the
-**dosing schedule**, because the patient copy's pictograms are read by someone who cannot
-read the caption under them: an icon *is* the instruction. So `parse_schedule` keeps the
-*slots* a dictation names ("1-0-1", "subah aur raat") strictly apart from a bare *count*
-("BD"), and refuses the conventional reading — BD is morning-and-night in Indian practice,
-and encoding that convention would print a time of day no clinician wrote. A count draws
-tablet glyphs and no sun; "SOS" or "alternate days" draws nothing and prints the doctor's
-words. The S10 boundary continues onto paper: a drug the doctor acknowledged to sign still
-prints flagged, because the acknowledgement was about their intent and the pharmacist
-never saw the console.
+**One paragraph:** S12 gave the intake engine its **second channel**. Where the
+kiosk (S6) was the engine's first HTTP surface, `app/whatsapp/bot.py` is its
+sibling — the same `IntakeEngine`, the same four-tool contract, the same tree
+walker and red-flag rules, driven one Meta webhook message at a time instead of
+one browser screen. The flow mirrors the kiosk's (language → chief complaint,
+typed or a voice note → STT → chooser → the tree as buttons/lists → read-back →
+confirm → token) and ends the same way: a Visit + QueueEntry on `Channel.WHATSAPP`.
+The one thing WhatsApp forces that no other channel has is the **24-hour session
+window** (doc 03 §1d): free text is allowed only within 24h of the patient's last
+message, so the window state and the wa_id → session mapping live in a
+`Conversation` (Redis, like `SessionState`). Two patient-initiated commands
+short-circuit at any idle point — "token status" and "resend prescription" — both
+free-text, because a patient who just messaged is in the window by definition. The
+out-of-window path is proactive-only: S11's Rx delivery now sends the registered
+`prescription_ready` **template** when the window is closed, inviting a reply that
+reopens it. The bot never sends — `handle` returns messages, the webhook sends and
+commits — so it is a pure function the tests drive without a live Meta.
 
-## Next session — S12 (WhatsApp channel)
-- Objective: the intake engine's second channel — Meta WhatsApp inbound/outbound over
-  `MessagingProvider`, the 24h window + registered template registry, voice notes via
-  `download_media`. Load doc 03 §1d.
-- **The provider and its fake already exist** (S3). What does not: the template registry
-  S11's delivery hooks also need, and any webhook.
-- **S11 left a customer waiting for it** — `POST /prescriptions/{id}/deliver` sends free
-  text, which Meta only accepts inside the 24h window. Out-of-window needs a registered
-  template, so S12 should make the prescription send template-aware rather than leaving
-  a hook that works only in tests.
+## Next session — S13 (Multilingual completion: mr, te + language QA harness)
+- Objective: mr + te text for **all trees**, UI strings, summaries and the WhatsApp
+  templates; a language QA harness (round-trip STT/TTS smoke per language, glossary
+  consistency check) that runs in CI; a font/line-height audit per doc 04 §4.
+- **Load:** doc 03 §1, the tree bank (`seeds/trees/`), doc 04 §4.
+- **S12 left mr/te template bodies unwritten** — `app/whatsapp/templates.py` carries
+  en + hi only, and `get_template` raises (deliberately, not a silent English
+  fallback) for a missing language. S13 must add mr + te bodies to every template,
+  or the harness will flag them. Same for the kiosk/board English-only strings
+  already logged (S13 in STATE.md → Stubs).
 - **Start from `main`.**
 - Exact first commands:
 ```
-make dev && make migrate && make seed && make test    # expect 781 backend green
+make dev && make migrate && make seed && make test    # expect 816 backend green
 ```
 
-## Run the S10/S11 consult demo (needs a live api)
-```
-cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
-  OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 ENV=local \
-  .venv/bin/uvicorn app.main:app --port 8123
-cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
-  .venv/bin/python -m scripts.seed_doctor_demo     # re-run before every e2e run
-cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
-cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
-  npm run e2e:dictation                            # the S10 AC + screenshots
-```
-Doctor login: `+915550001001` (Dr. Anil Gupta, MEDONC); the OTP is echoed. In the
-console, pick a patient and press **D**. **Sign the note** and the S11 prescription
-panel appears under it — print either copy, or send it over the fake WhatsApp/SMS.
-The two rendered sheets are in `sessions/screenshots/s11/`.
-
-## Watch out for
-- **Nothing infers a dosing schedule, and nothing may start to.** The patient copy's
-  pictograms are read by someone who cannot read the caption, so an icon is the
-  instruction. `parse_schedule` draws a time of day only when the dictation names one;
-  "BD" draws tablet glyphs and no sun, however conventional morning-and-night is. The
-  tests that catch a regression are
-  `test_prescription.py::test_a_count_without_a_time_of_day_reports_the_count_and_no_slots`
-  and `::test_an_unreadable_frequency_yields_no_schedule`.
-- **`lines_of` must not re-parse.** It reads the stored `meds` snapshot, so tightening
-  the parser cannot re-interpret a prescription already in a patient's hand
-  (`::test_the_schedule_is_not_re_derived_when_a_stored_prescription_is_read`).
-- **`RxLine.flagged` is deliberately not `meds_needing_attention`.** The latter drops
-  acknowledged drugs — that is what let the doctor sign. "Simplifying" the page to reuse
-  it would silently un-flag every acknowledged drug on the pharmacist's copy.
-- **Nothing rewrites a drug name, and nothing may start to.** `known` is exact-match
-  only; `suggestions` are advice on a screen. If a future session adds "auto-apply the
-  top suggestion", the S10 AC is gone — the tests that catch it are
-  `test_formulary.py::test_a_near_miss_keeps_the_dictated_spelling` and
-  `test_dictation.py::test_fixture_maps_without_rewriting_a_single_drug_name`.
-- **`_was_said` is a heuristic and must stay noisy-side.** It is token presence in
-  `as_spoken` (falling back to the transcript). Tuning it to fire less quietly
-  re-opens the rename hole; a false positive costs one acknowledgement tap.
-- **The doctor console's first load no longer steals the stage.** S10 fixed two races
-  (auto-open only when nothing is selected; close the note only when `selected` really
-  changes). Both looked random and both silently cleared a typed transcript. Do not
-  "simplify" those effects back.
-- **`seed_doctor_demo` must delete dictations before visits** or the second run of the
-  day dies on a foreign key. The same will be true of `Prescription` in S11.
-- **`make test` does NOT run the `dictation` e2e** (needs a live stack +
-  `seed_doctor_demo`), same as `doctor`, `queue`, `offline-demo` and `kiosk`. Its
-  signing test cannot repeat without a re-seed — signing is terminal by design; it now
-  fails with a message saying so.
+## Watch out for (S12 fragile edges)
+- **The bot never sends and must not start to.** `handle` returns `BotReply`; the
+  webhook does the sending and the single `session.commit()`. Moving a send into the
+  bot breaks the "pure function of (state, inbound)" property every bot test relies on.
+- **Commands reply free-text on purpose.** A patient who messaged is in the 24h
+  window; do not "consistently" route `_token_status`/`_resend_rx` through a template.
+  The template path is proactive-only (`prescription.deliver`, `window_is_open`).
+- **`get_template` raising on a missing language is the feature, not a bug** — an
+  out-of-window message a patient cannot read is worse than none. S13 fills mr/te
+  rather than adding an English fallback.
+- **Multi-select over WhatsApp wraps one tap into a one-element list** (`_parse_answer`,
+  `multi`/`body_map`). A list reply is single-select too; true multi-pick is backlog.
+- **Message-id dedup is conversation-scoped** (`Conversation.last_message_id`), not a
+  global seen-set. It catches Meta's *exact* redelivery of the last message, which is
+  the real retry case; it is not a general idempotency ledger.
 
 ## Decisions needed from the human
-- *(Resolved 2026-07-23 — both branches merged to `main`. `feat/doctor-console`
-  (S9 + S10) first, then `feat/adaptive-intake`. The branch-only gate on S-ADAPT
-  was lifted by the operator when omen went into maintenance mid-rollout; the
-  default-off flags now carry the guarantee the branch used to. Nothing is in
-  flight and there is no unmerged work.)*
-- **Whoever next has the box: "Owed on omen" at the top is unclaimed work**, and
-  it is the only remaining reason to doubt anything in `main`.
+- **Whoever next has the box: "Owed on omen" is still unclaimed** (below) — the only
+  remaining reason to doubt anything in `main`. S12 added nothing to it (WhatsApp runs
+  on the provider fakes; a live Meta number is a separate account action).
 - When the GPU box work resumes, S-OSS.1 is unblocked and unchanged.
 
-## Backlog additions
-- **Adaptive-intake trees need diligent scenario testing on-box (operator-flagged,
-  2026-07-24).** When adaptive is on, the tree behaviour must be exercised across real
-  scenarios — a vague answer that should clarify then fall back to taps, a volunteered
-  fact that should pre-fill and skip a later node, an unmappable answer that must land on
-  taps and never guess, plus a marked-`adaptive` node under branches that are and aren't
-  taken. The `FakeInterpreter` tests prove the plumbing; what is untested is whether real
-  Qwen3 clarifies sensibly and whether the marked nodes are the *right* nodes to mark.
-  Read `app/intake/adaptive_report.py` for the clarify/mis-map/enrichment rates and tune
-  which nodes carry `adaptive: true` from real transcripts. Pairs with the S-ADAPT omen
-  validation already in "Owed on omen".
-- **RxPanel swallows a non-auth read error silently (S11).** `readPrescription` failing
-  with anything other than 401/403 leaves the panel rendering nothing, indistinguishable
-  from an advice-only note. A signed note with meds should always surface *something* —
-  at least "couldn't load the prescription, the paper copy still works". Small fix in
-  `web/app/(doctor)/doctor/_components/RxPanel.tsx` `load()`.
-- **Server-side PDF** — both sheet families (S8 downtime, S11 prescriptions) return HTML
-  the browser prints. One decision, one native dependency (WeasyPrint/pango + Indic
-  fonts), S19/S21.
-- **`make lint` is red on 11 pre-existing unformatted files** — one `ruff format .`
-  commit clears it. It is not in `make test`, which is why it drifted.
-- **The pictogram copy needs a real low-literacy review** (S21) — doc 06's S11 AC asks
-  for a checklist pass; what it has had is a self-critique against doc 04 §5.
-- **Prescription delivery is not template-aware** — see the S12 note above.
-- **`make eval-dictation` — score a real Qwen3 against the ten fixtures (debt,
-  deferred 2026-07-23 by the operator).** The fixtures gate *our* layer with the model
-  faked, which is the safety property and is done. What is **not** measured is how
-  often the box's Qwen3 renames or invents a drug in the first place — i.e. how often
-  `_was_said` fires in real use, and therefore how much acknowledgement tapping a
-  doctor actually faces. Mirrors `app/evals.py` / `make eval-routing`; needs the omen
-  box. Report rename rate, hallucination rate and dose-inference rate. Until this
-  runs, the flag-firing rate quoted anywhere is from fixtures, not from the clinic.
-  (Alongside the S-ADAPT omen validation, or S18.)
-- **Formulary in the DB + admin editing** — it is a seed file read at boot. A hospital
-  adding a drug should not need a deploy, and S18's admin console is the place.
-- **Amendment of a signed note** — signing is terminal and there is still no rewind or
-  amend anywhere in the system (the same gap S9 logged for intake answers). A real
-  clinic needs one. (S18/S19.)
-- **Transcript timing for tighter provenance** — `_was_said` could align a drug to the
-  *sentence* it was said in if the STT returned word timings. (S14 touches STT.)
-- Carried over, unchanged: appointments in the doctor's day list (S15/S18); push the
-  doctor console over `/queue/ws` (S18); per-node amend + summary regeneration (S18);
-  real §4 summaries in the demo seed; server-side PDF for the paper sheets (S19/S21);
-  per-doctor queues + room assignment (S18); board/console localisation (S13); staff
-  auth hardening (S19/S20); a `/queue/ws` unit test.
-- **Intake routing + question adaptivity — stress-test & improve (operator-flagged,
-  2026-07-22).** (a) a routing stress set (varied/ambiguous/misspelt complaints in
-  hi+en) measuring mis-route rate + `needs_human` calibration against Qwen3; (b)
-  adaptive questioning without losing the deterministic offline floor — **(b) is built
-  as S-ADAPT V1+V2 on its branch, awaiting omen validation**; its per-node telemetry
-  ([doc 11](docs/11-ADAPTIVE-INTAKE.md)) is what turns (a) from vibes into data.
+## Owed on omen (unchanged from S11 — do before adaptive faces a patient)
+- **Adaptive on:** flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed,
+  `docker compose up -d --build api web` (**web rebuild required** — the flag is a
+  build arg). Provoke a vague answer (one clarify then taps), a volunteered fact
+  (later node pre-filled), an unmappable answer (falls to taps). Then read
+  `app/intake/adaptive_report.py` and tune node wording. **Rollback is the flags back
+  to `0` + a web rebuild.**
+- **Doctor console + consult note on-box** (`/doctor`, `+915550001001`) — never run on
+  omen; the real-Qwen3 dictation + `_was_said` pass is still owed.
+- `make eval-dictation` wants the same session.
+
+## Backlog additions (S12)
+- **WhatsApp templates lack mr/te bodies** — `app/whatsapp/templates.py` is en+hi;
+  S13 completes them (the registry raises for a missing language by design).
+- **No live Meta send has happened** — webhook + bot are proven on the fake and a
+  simulated payload. First live send + template approval in the WhatsApp Manager
+  needs a human on a real number (mirrors every other channel's first-send caveat).
+- **Multi-select over WhatsApp is single-pick** — a `multi` node wraps one tap; real
+  multi-select (Meta list replies are single-select) is a UX decision for later.
+- **Voice notes answer only the chief complaint** — a voice note on a tree question
+  falls back to buttons; spoken tree answers want the adaptive interpreter (doc 11),
+  which is flag-gated and off. Pairs with the S-ADAPT omen work.
+- **Conversation-level WhatsApp billing is still not attributed** — the messaging
+  provider still meters `messages=1` per send (over-counts vs Meta's per-conversation
+  billing). The window state now exists to fix it; deferred to S18's invoice reconcile
+  (`app/providers/messaging.py` docstring).
+- Carried, unchanged: `make lint` red on 11 pre-existing files (one `ruff format .`
+  clears it); RxPanel silent read error (S11); server-side PDF (S19/S21); adaptive-tree
+  on-box scenario testing; the S11/S10 backlog items in the prior handoff's list.
+
+## Run the WhatsApp bot locally (no live Meta)
+It has no browser surface — drive it by POSTing a Meta-shaped webhook payload:
+```
+# with a local api on :8123 (see the S10/S11 demo commands, unchanged)
+curl -X POST localhost:8123/whatsapp/webhook -H 'content-type: application/json' -d '{
+  "entry":[{"changes":[{"value":{
+    "contacts":[{"wa_id":"919812300001","profile":{"name":"Test"}}],
+    "messages":[{"from":"919812300001","id":"m1","type":"text","text":{"body":"hi"}}]}}]}]}'
+```
+With `MESSAGING_PROVIDER=fake` the reply is recorded on the fake, not sent. Signature
+checking is skipped when `META_APP_SECRET` is empty. The bot flow is fully covered by
+`tests/test_whatsapp_bot.py` (a buttons intake to a token, a voice-note complaint,
+token-status, Rx-resend) and `tests/test_whatsapp_webhook.py`.

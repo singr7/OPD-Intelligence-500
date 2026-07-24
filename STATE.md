@@ -148,6 +148,31 @@ drug known. `app/routes/prescription.py` = read / history / print / deliver, all
 previewing the schedule with the same three branches the sheet uses. 726→**781 tests**.
 No migration (`Prescription` has existed since S2; `meds`/`delivered_via` are JSONB).
 
+**Built (S12):** The **WhatsApp bot** (doc 03 §1d) — the intake engine's **second
+channel**, sibling of the kiosk. `app/whatsapp/`: `bot.py` (`WhatsAppBot`) drives one
+Meta webhook message at a time over the *unchanged* `IntakeEngine` / four-tool contract
+/ tree walker / red-flag rules — language → chief complaint (typed **or a voice note →
+STT**) → department chooser (only when the classifier is unsure) → the tree as **reply
+buttons (≤3) or a list (4–5)** → read-back → confirm → token, ending in a Visit +
+QueueEntry on `Channel.WHATSAPP`. `conversation.py` = `Conversation` state keyed by
+`wa_id` (Redis/in-memory, like `SessionState`): the wa_id → session mapping, the
+pre-intake step, and the **24h window** (`last_inbound_at`) that is WhatsApp's alone.
+`templates.py` = the pre-approved template registry ("templates in repo", bilingual,
+variable counts validated at import + before the wire; seeded `intake_invite`,
+`token_status`, `prescription_ready`). `render.py` = Node → interactive. Two
+patient-initiated commands short-circuit at any idle point — **token status** and
+**resend prescription** — both free-text (a patient who messaged is in-window by
+definition). `app/routes/whatsapp.py` = the GET verify handshake + the POST inbound
+webhook (**app-secret signature** verified, verify-token checked, always 200s, exact
+redeliveries dropped by message id). The **bot never sends** — `handle` returns messages
+and the webhook does the sending + the one commit, so it is a pure function of (state,
+inbound) the tests drive without a live Meta. `MetaWhatsAppProvider` gained
+`upload_media` (voice-note replies go by uploaded id) + an interactive-list payload.
+S11 Rx `deliver` is now **window-aware** (out-of-window → the `prescription_ready`
+template). Voice-note replies (TTS) behind `WHATSAPP_VOICE_NOTES` (default off). New
+config `META_VERIFY_TOKEN` / `META_APP_SECRET` / `WHATSAPP_VOICE_NOTES`. 781→**816
+tests**. No migration.
+
 **Built (S-ADAPT.1 + .2):** **Adaptive intake** (doc 11) — a patient can answer a tap
 node **by voice**, and one spoken turn can fill more than the node that was asked.
 `app/intake/interpret.py` is the whole idea: given a node (its question + the answers
@@ -182,8 +207,8 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** channel adapters for WhatsApp (S12) and
-telephony (S14); real voice packs / the voice-pack manifest + `/kiosk/stt` (S7
+**Not built yet:** the telephony channel adapter (S14); mr/te tree + UI + template
+strings (S13); real voice packs / the voice-pack manifest + `/kiosk/stt` (S7
 carryover → backlog); the real Gemini Live impl (S14); the V-OSS **GPU half**
 (S-OSS.1/.2/.3 — needs the GPU box).
 
@@ -242,6 +267,11 @@ image must be rebuilt to change it). Both default `0` = today's pure-tap kiosk.
 **Queue (S8):** `QUEUE_DEFAULT_CONSULT_MINUTES` (default 6) — the wait-estimator seed before
 a department has any completed consults to measure; no other queue config (downtime is an
 in-memory flag, not env).
+**WhatsApp (S12):** `MESSAGING_PROVIDER=fake|meta`, `META_WHATSAPP_TOKEN`,
+`META_PHONE_NUMBER_ID`, plus webhook auth `META_VERIFY_TOKEN` (GET handshake) +
+`META_APP_SECRET` (POST signature — signature checking is skipped only when it is empty).
+`WHATSAPP_VOICE_NOTES` (default `false`) attaches a synthesized voice note to each reply.
+The 24h window + wa_id→session state is Redis/in-memory, not env.
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
@@ -373,10 +403,34 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
-- **No live vendor has ever delivered a prescription** (S11) — WhatsApp/SMS run on the
-  provider fakes like every other channel, and Meta needs a registered template for
-  out-of-window sends (the template registry is S12). `delivered_via` records what was
-  attempted, which is real; the send is not.
+- **No live Meta number has ever answered** (S12) — the webhook + bot are proven
+  against the `FakeMessagingProvider` and a simulated Meta payload, exactly like every
+  other channel's first-send caveat. The first real inbound/outbound and **template
+  approval in the WhatsApp Manager** need a human on a real number. The repo template
+  registry (`app/whatsapp/templates.py`) only guarantees we never send a shape or
+  arg-count Meta has not seen from us — it is not proof Meta approved it.
+- **WhatsApp templates are en + hi only** (S12) — `get_template` **raises** for a
+  missing language rather than falling back to English (an unreadable out-of-window
+  message is worse than none). mr + te bodies are S13.
+- **Multi-select over WhatsApp picks one option** (S12) — a `multi`/`body_map` node
+  wraps a single tap into a one-element list (`bot._parse_answer`); a Meta list reply is
+  single-select too. True multi-pick is a UX decision for later.
+- **A WhatsApp voice note answers only the chief complaint** (S12) — a voice note on a
+  *tree* question falls back to the buttons; a spoken tree answer needs the adaptive
+  interpreter (doc 11), which is flag-gated and off by default. Pairs with S-ADAPT.
+- **WhatsApp billing is still per-message, not per-conversation** (S12) — the messaging
+  provider meters `messages=1` per send (over-counts vs Meta's 24h-conversation billing).
+  The window state now exists to fix it, but conversation attribution is deferred to
+  S18's invoice reconcile (`app/providers/messaging.py` docstring).
+- **The WhatsApp conversation store is Redis/in-memory, single-process** (S12) — same
+  multi-replica caveat as `SessionState` and the queue hub; a second api replica would
+  each hold their own threads. Fix is the shared Redis both already point at.
+- **No live vendor has ever delivered a prescription** (S11/S12) — WhatsApp/SMS run on
+  the provider fakes like every other channel. S12 made the WhatsApp send **window-aware**
+  (out-of-window → the registered `prescription_ready` template), but no template has
+  been approved at Meta. `delivered_via` records what was attempted (and which path — a
+  `template:` detail means only the reply-nudge went, not the full sheet), which is real;
+  the send is not.
 - **The pictogram copy has never been read by a low-literacy patient** (S11) — the three
   glyphs were chosen to survive a laser printer without a webfont, and the sheet was
   self-critiqued against doc 04 §5, not tested with anyone. The low-literacy checklist in
