@@ -22,7 +22,7 @@ import json
 import logging
 import random
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -34,10 +34,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import Actor, acting_as
 from app.db import build_engine, build_sessionmaker
 from app.models.content import QuestionTree
-from app.models.enums import Lang, PriceUnit, Role, Sex, TreeStatus
+from app.models.enums import Lang, PriceUnit, Role, Sex, SlotType, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
+from app.models.scheduling import SlotTemplate
 from app.trees.bank import TREES_DIR, load_bank
 
 logger = logging.getLogger("seed")
@@ -368,6 +369,64 @@ async def _upsert_trees(
     await session.flush()
 
 
+async def _upsert_slot_templates(
+    session: AsyncSession, rows: list[dict[str, Any]], report: SeedReport
+) -> None:
+    """The pilot's OPD clinic grid (S15, doc 03 §2).
+
+    Templates only — no `appointment_slots` are generated here. Inventory is
+    materialised for a date range by `app.scheduling.generate_slots` (the nightly
+    beat job, or `python -m app.scheduling` by hand), because a seed that also
+    wrote 60 days of slots would be a seed that quietly ages.
+    """
+    result = await session.execute(select(Doctor))
+    doctors = {doctor.reg_no: doctor for doctor in result.scalars()}
+
+    for row in rows:
+        doctor = doctors.get(row["doctor_reg_no"])
+        if doctor is None:
+            raise ValueError(
+                f"slot_templates.json references doctor {row['doctor_reg_no']!r}, "
+                f"which is not in doctors.json"
+            )
+        for clinic in row["clinics"]:
+            start_time = time.fromisoformat(clinic["start_time"])
+            slot_type = SlotType(clinic["slot_type"])
+            found = await session.execute(
+                select(SlotTemplate).where(
+                    SlotTemplate.doctor_id == doctor.id,
+                    SlotTemplate.weekday == clinic["weekday"],
+                    SlotTemplate.start_time == start_time,
+                    SlotTemplate.slot_type == slot_type,
+                )
+            )
+            template = found.scalar_one_or_none()
+            values = {
+                "department_id": doctor.department_id,
+                "end_time": time.fromisoformat(clinic["end_time"]),
+                "slot_minutes": clinic["slot_minutes"],
+                "capacity": clinic["capacity"],
+                "active": True,
+            }
+            if template is None:
+                session.add(
+                    SlotTemplate(
+                        doctor_id=doctor.id,
+                        weekday=clinic["weekday"],
+                        start_time=start_time,
+                        slot_type=slot_type,
+                        **values,
+                    )
+                )
+                report.record(report.created, "slot_template")
+            elif _apply(template, values):
+                report.record(report.updated, "slot_template")
+            else:
+                report.record(report.unchanged, "slot_template")
+
+    await session.flush()
+
+
 async def seed(
     session: AsyncSession, *, patients: int = 50, publish_trees: bool = False
 ) -> SeedReport:
@@ -377,6 +436,7 @@ async def seed(
     hospital_data = _load("hospital.json")
     staff_data = _load("doctors.json")
     price_data = _load("price_book.json")
+    slot_data = _load("slot_templates.json")
 
     with acting_as(SEED_ACTOR):
         hospital = await _upsert_hospital(session, hospital_data, report)
@@ -386,6 +446,7 @@ async def seed(
         for row in staff_data["staff"]:
             await _upsert_user(session, hospital, row, report)
         await _upsert_doctors(session, hospital, departments, staff_data["doctors"], report)
+        await _upsert_slot_templates(session, slot_data["templates"], report)
         await _upsert_patients(session, hospital, patients, report)
         await _upsert_price_book(session, price_data["entries"], report)
         await _upsert_trees(session, departments, report, publish=publish_trees)

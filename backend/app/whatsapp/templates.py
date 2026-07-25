@@ -224,6 +224,140 @@ _register(
         ),
         variables=("patient_name", "doctor", "hospital"),
     ),
+    # -- appointments (S15, doc 03 §2) ---------------------------------------
+    #
+    # A booking made on a phone call is, by definition, out of the WhatsApp
+    # window — the patient has not messaged us. So the confirmation has to be a
+    # template. The one-tap confirm/cancel buttons (doc 03 §2) ride on the
+    # *in-window* variant `app.notify` sends when a thread is already open; this
+    # template invites the reply that opens one.
+    Template(
+        name="appointment_confirmed",
+        lang=Lang.EN,
+        category="UTILITY",
+        body=(
+            "Namaste {{1}}. Your appointment with Dr. {{2}} at {{3}} is confirmed for "
+            "{{4}}. Reply CHANGE to reschedule or CANCEL to cancel."
+        ),
+        variables=("patient_name", "doctor", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_confirmed",
+        lang=Lang.HI,
+        category="UTILITY",
+        body=(
+            "नमस्ते {{1}}। डॉ. {{2}} के साथ {{3}} में आपका अपॉइंटमेंट {{4}} के लिए पक्का हो "
+            "गया है। बदलने के लिए CHANGE और रद्द करने के लिए CANCEL लिखें।"
+        ),
+        variables=("patient_name", "doctor", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_confirmed",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. डॉ. {{2}} यांच्यासोबत {{3}} मधील तुमची अपॉइंटमेंट {{4}} रोजी "
+            "निश्चित झाली आहे. बदलण्यासाठी CHANGE किंवा रद्द करण्यासाठी CANCEL लिहा."
+        ),
+        variables=("patient_name", "doctor", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_confirmed",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. డా. {{2}} తో {{3}}లో మీ అపాయింట్‌మెంట్ {{4}}కు ఖరారైంది. "
+            "మార్చడానికి CHANGE అని, రద్దు చేయడానికి CANCEL అని ప్రత్యుత్తరం ఇవ్వండి."
+        ),
+        variables=("patient_name", "doctor", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_cancelled",
+        lang=Lang.EN,
+        category="UTILITY",
+        body=(
+            "Namaste {{1}}. Your appointment at {{2}} on {{3}} is cancelled. Reply to "
+            "this message to book another time."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_cancelled",
+        lang=Lang.HI,
+        category="UTILITY",
+        body=(
+            "नमस्ते {{1}}। {{2}} में {{3}} का आपका अपॉइंटमेंट रद्द कर दिया गया है। दूसरा "
+            "समय लेने के लिए इस संदेश का उत्तर दें।"
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_cancelled",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. {{2}} मधील {{3}} रोजीची तुमची अपॉइंटमेंट रद्द झाली आहे. दुसरी "
+            "वेळ घेण्यासाठी या संदेशाला उत्तर द्या."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="appointment_cancelled",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. {{2}}లో {{3}} నాటి మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మరో సమయం "
+            "తీసుకోవడానికి ఈ సందేశానికి ప్రత్యుత్తరం ఇవ్వండి."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    # The D-1 campaign's last rung (doc 03 §1b: "2 attempts then WhatsApp
+    # fallback message"). Deliberately not an apology for calling — it offers the
+    # same intake by the channel the patient still has open.
+    Template(
+        name="intake_call_missed",
+        lang=Lang.EN,
+        category="UTILITY",
+        body=(
+            "Namaste {{1}}. We tried to call about your visit to {{2}} on {{3}}. Reply "
+            "to this message and answer a few questions here instead — it saves you "
+            "time at the hospital."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="intake_call_missed",
+        lang=Lang.HI,
+        category="UTILITY",
+        body=(
+            "नमस्ते {{1}}। {{3}} को {{2}} में आपकी विजिट के बारे में हमने आपको कॉल करने की "
+            "कोशिश की। इस संदेश का उत्तर दें और यहीं कुछ सवालों के जवाब दें — इससे "
+            "अस्पताल में आपका समय बचेगा।"
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="intake_call_missed",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. {{3}} रोजी {{2}} मधील तुमच्या भेटीबद्दल आम्ही तुम्हाला फोन "
+            "करण्याचा प्रयत्न केला. या संदेशाला उत्तर द्या आणि इथेच काही प्रश्नांची उत्तरे "
+            "द्या — त्यामुळे रुग्णालयात तुमचा वेळ वाचेल."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="intake_call_missed",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. {{3}} నాడు {{2}}కు మీ సందర్శన గురించి మేము ఫోన్ చేయడానికి "
+            "ప్రయత్నించాము. ఈ సందేశానికి ప్రత్యుత్తరం ఇచ్చి ఇక్కడే కొన్ని ప్రశ్నలకు సమాధానం "
+            "ఇవ్వండి — దీనివల్ల ఆసుపత్రిలో మీ సమయం ఆదా అవుతుంది."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
 )
 
 

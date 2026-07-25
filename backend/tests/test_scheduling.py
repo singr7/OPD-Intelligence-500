@@ -79,9 +79,7 @@ async def test_regeneration_does_not_reset_a_booked_slot(session):
     await session.flush()
     [slot, *_] = await scheduling.generate_slots(session, start=date(2026, 8, 3), days=7)
 
-    await scheduling.book(
-        session, patient=clinic["patient"], slot_id=slot.id, source=Channel.PHONE
-    )
+    await scheduling.book(session, patient=clinic["patient"], slot_id=slot.id, source=Channel.PHONE)
     await scheduling.generate_slots(session, start=date(2026, 8, 3), days=7)
 
     await session.refresh(slot)

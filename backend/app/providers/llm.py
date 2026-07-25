@@ -186,6 +186,11 @@ _CANNED_JSON: dict[str, str] = {
             "unclear": [],
         }
     ),
+    # The inbound receptionist's intent classifier (S15). "book" so a local demo
+    # call with LLM_PROVIDER=fake reaches the slot offer instead of a coordinator.
+    "receptionist": json.dumps(
+        {"intent": "book", "confidence": 0.9, "when_hint": "", "reason": "canned fake reply"}
+    ),
 }
 
 

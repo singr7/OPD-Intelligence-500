@@ -1,0 +1,52 @@
+{
+  "_note": [
+    "The pilot's OPD clinic grid (doc 03 §2). A template is one doctor's recurring",
+    "weekly clinic; app.scheduling.generate_slots materialises real bookable slots",
+    "from these for a date range. Weekday is Monday=0, matching date.weekday().",
+    "Times are wall-clock in the hospital timezone (Asia/Kolkata).",
+    "Capacity > 1 is deliberate and not sloppiness: an Indian government-hospital",
+    "OPD genuinely runs 2-3 patients per 15-minute review slot, and pretending",
+    "otherwise would make the AI receptionist tell callers a full clinic is closed.",
+    "New-consult slots stay at capacity 1 — a first oncology consult is not shared.",
+    "Edited through the admin console's slot-template editor (S18-late)."
+  ],
+  "templates": [
+    {
+      "doctor_reg_no": "RMC-ONC-1001",
+      "clinics": [
+        { "weekday": 0, "start_time": "09:30", "end_time": "12:30", "slot_minutes": 15, "capacity": 3, "slot_type": "follow_up" },
+        { "weekday": 2, "start_time": "09:30", "end_time": "11:30", "slot_minutes": 30, "capacity": 1, "slot_type": "new_consult" },
+        { "weekday": 4, "start_time": "10:00", "end_time": "13:00", "slot_minutes": 15, "capacity": 2, "slot_type": "chemo_review" }
+      ]
+    },
+    {
+      "doctor_reg_no": "RMC-ONC-1002",
+      "clinics": [
+        { "weekday": 1, "start_time": "09:30", "end_time": "12:30", "slot_minutes": 15, "capacity": 3, "slot_type": "follow_up" },
+        { "weekday": 3, "start_time": "09:30", "end_time": "11:30", "slot_minutes": 30, "capacity": 1, "slot_type": "new_consult" },
+        { "weekday": 5, "start_time": "10:00", "end_time": "12:00", "slot_minutes": 15, "capacity": 2, "slot_type": "chemo_review" }
+      ]
+    },
+    {
+      "doctor_reg_no": "RMC-RAD-1003",
+      "clinics": [
+        { "weekday": 1, "start_time": "10:00", "end_time": "13:00", "slot_minutes": 15, "capacity": 2, "slot_type": "follow_up" },
+        { "weekday": 4, "start_time": "09:30", "end_time": "11:30", "slot_minutes": 30, "capacity": 1, "slot_type": "new_consult" }
+      ]
+    },
+    {
+      "doctor_reg_no": "RMC-SUR-1004",
+      "clinics": [
+        { "weekday": 0, "start_time": "14:00", "end_time": "16:00", "slot_minutes": 15, "capacity": 2, "slot_type": "follow_up" },
+        { "weekday": 3, "start_time": "14:00", "end_time": "16:00", "slot_minutes": 30, "capacity": 1, "slot_type": "new_consult" }
+      ]
+    },
+    {
+      "doctor_reg_no": "RMC-PAL-1005",
+      "clinics": [
+        { "weekday": 2, "start_time": "14:00", "end_time": "16:30", "slot_minutes": 20, "capacity": 2, "slot_type": "follow_up" },
+        { "weekday": 5, "start_time": "09:30", "end_time": "11:30", "slot_minutes": 20, "capacity": 2, "slot_type": "follow_up" }
+      ]
+    }
+  ]
+}
