@@ -224,9 +224,10 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** the telephony channel adapter (S14); mr/te tree + UI + template
-strings (S13); real voice packs / the voice-pack manifest + `/kiosk/stt` (S7
-carryover → backlog); the real Gemini Live impl (S14); the V-OSS **GPU half**
+**Not built yet:** the real Exotel vendor WS + status-callback and inbound/outbound campaigns
+(S14 built the phone pipeline over a fake client; the vendor + slot booking are S15); the real
+Gemini Live vendor impl (S14 wired the bridge, the vendor is still fake); real voice packs / the
+voice-pack manifest + `/kiosk/stt` (S7 carryover → backlog); the V-OSS **GPU half**
 (S-OSS.1/.2/.3 — needs the GPU box).
 
 ## How to run
@@ -589,16 +590,27 @@ the only gate right now.**
   through `httpx.MockTransport` — real request-building and response-parsing, mocked wire.
   Endpoints, DLT template ids, sender ids and auth are per-account. **The first live send of each
   needs a human watching a real handset/number.**
-- **Realtime (Gemini Live / tier V1): session manager built (S5), impl still fake only.**
-  `IntakeEngine._run_v1` drives the `RealtimeVoiceProvider` interface and is proven against
-  the fake; the real websocket session + the Exotel↔Live audio bridge are S14.
-  `REALTIME_PROVIDER=gemini-live` still raises rather than pretending.
+- **Realtime (Gemini Live / tier V1): session manager built (S5), the Exotel↔engine bridge
+  built (S14), the real Gemini Live vendor impl still fake only.** `IntakeEngine._run_v1` drives
+  the `RealtimeVoiceProvider` interface and `voice-gw` (S14) now bridges the Exotel Voicebot
+  websocket to it end-to-end (proven against the fake, both V1 and V2). What is still fake is the
+  **vendor**: `REALTIME_PROVIDER=gemini-live` raises rather than pretending, and V1 continuous
+  caller-audio streaming into a live session (the fake scripts turns from the opening kick, so
+  `_pump_v1` consumes only the opening) waits on that impl.
 - **V2 is a turn pipeline, not token streaming, and does not feed tool results back to the
   LLM within a turn** — the request/response `LLMProvider` has no tool-result message type, so
   the engine mediates `get_next_node` by injecting the current question into the prompt. Fine
   for kiosk/WhatsApp; S14's real-time telephony wants true streaming + a tool-result turn.
-- **The intake engine is not wired to any route** — it is a service class; channel adapters
-  (kiosk S6, WhatsApp S12, telephony S14) will construct it and feed it turns.
+- **The intake engine drives three channels now** — kiosk (S6, HTTP), WhatsApp (S12, webhook)
+  and **telephony (S14, the Exotel WS in `voice-gw`)**, all over the one service class. S14 added
+  a **streaming turn-source**: `IntakeEngine.run(turn_source=…)` for a live call whose turns are
+  not known up front; the fixed-`turns` path (kiosk, tests) is unchanged.
+- **Telephony vendor + call-state are partly fake (S14).** The Exotel Voicebot WS protocol,
+  the call driver, barge-in, DTMF, consent, partial-save and per-intake cost are built and proven
+  against a fake replay client; the **real Exotel vendor WS + the status-callback webhook**
+  (`TelephonyProvider.record_call_completed`) are S15, and the `PhoneCallRecord` store is
+  in-memory until then. **Barge-in and the DTMF trigger key off channel-side audio energy**
+  (`SILENCE_PEAK` / `UNCLEAR_PEAK`), a tunable stand-in for real VAD / STT confidence.
 - **No node has real V3 audio** — `app/intake/voicepack.resolve` falls back to TTS for every
   prompt; the pack format is S7, recordings S21 (already noted below for the tree nodes).
 - **`Intake.answers[*].text_en` is not filled during intake** — the per-answer English gloss

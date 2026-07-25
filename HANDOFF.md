@@ -1,4 +1,4 @@
-# HANDOFF — after Session S18E (Admin console + analytics, pulled ahead of S14)
+# HANDOFF — after Session S14 (Telephony voice gateway (Exotel) part 1: pipeline)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
@@ -11,98 +11,88 @@
 > S13 added `make lang-qa` (also a CI step and a pytest test).
 >
 > **🚩 Adaptive intake (S-ADAPT) is on `main` but NEVER PROVEN with its flags on.**
-> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults, so `main`
-> behaves as the pure-tap kiosk until a human flips them. See "Owed on omen". Unchanged by S18E.
+> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults. Unchanged by S14.
 
-**Repo state:** **`main`** — S18E built straight on it (two feature commits + close).
-`make test` green: backend **840** (826→840), voice-gw 1, web typecheck+lint clean, 48
-conformance. `make lang-qa` clean across [en, hi, mr, te]. **No migration in S18E** — the
-console reuses existing tables (`question_trees`, `price_book`, `usage_events`, `audit_log`);
-no schema change. Postgres on host port **5433**; voice-gw on 8090.
-**Return to S14 next** (S18E was pulled ahead of it; the mainline sequence resumes at S14).
+**Repo state:** **`main`** — S14 built on it. `make test` green: backend **840**, voice-gw
+**15** (was 1), web typecheck+lint+**48** conformance. `make lang-qa` clean across [en,hi,mr,te].
+**No migration in S14** — phone intakes reuse the existing `patients/visits/intakes/usage_events`
+tables (`Channel.PHONE` already existed). Postgres on host port **5433**; voice-gw on **8090**.
+**The mainline sequence resumes at S15.**
 
-⚠️ `make lint` is still **failing on 11 pre-existing unformatted files** (none S18E's — the
-new code is `ruff format`-clean). Not in `make test`, red a while. Worth one `ruff format .`
-commit before it grows.
+⚠️ `make lint` is still **failing on the same 11 pre-existing unformatted files** (none S14's —
+the new code is `ruff format`-clean). Not in `make test`. Worth one `ruff format .` commit.
 
-**One paragraph:** S18E is the admin console + cost/usage analytics, pulled ahead of S14 at
-the operator's request (see "Why out of sequence"). It ships every S18 panel whose model
-exists today and defers the two that don't (protocol templates → S17, slot templates → S15)
-as honest in-console placeholders. The load-bearing win is two-sided: the **analytics
-dashboard reconciles to `usage_events` to the paisa** on a seeded replay day (proven), and a
-**tree publish is live on the kiosk on the next intake with no deploy** — because the intake
-path now reads DB-published trees (`app.trees.store.resolve_tree`) with the disk bank as the
-floor, instead of only ever reading disk. Every editor write validates and self-audits
-(`audit.record_admin_action`, since these content tables aren't `Clinical`). The dashboard's
-filters are the five `usage_events` dimensions, so S14/S15/S17 usage flows in as new filter
-values with **no dashboard change** — the only additive step per channel is extending the
-seeded replay day.
+**One paragraph:** S14 turned `voice-gw` from a bare health route into the **phone channel
+adapter over the shared `IntakeEngine`**, in-process (doc 02 §5; no network hop in the turn
+loop). The Exotel Voicebot websocket (`gw/exotel.py` codec, `gw/call.py` driver, `WS
+/exotel/voicebot`) bridges phone audio to the same engine the kiosk and WhatsApp use — V1
+Gemini Live and V2 STT↔TTS both proven, with barge-in, DTMF fallback, a consent line, an
+8-minute cap, partial-save-on-hangup, per-minute metering and per-intake cost. A `channel=phone`
+usage row now flows straight into the S18E admin dashboard with **no dashboard change** — proven
+live: a real WS call persisted a phone `Intake` with cost and the dashboard's phone-filtered
+breakdown returns it. The one engine change is additive: `IntakeEngine.run(turn_source=)` for
+streaming turns; the fixed-`turns` path (kiosk, all existing callers) is byte-for-byte unchanged.
 
-## Why out of sequence (S18E, not S18, not S14)
-Built as **S18-early**: the panels backed by models that exist now. Two panels were left as
-markers because building them now is rework — their models are set by later sessions:
-**protocol-template editor → S17** (regimen families; only `CheckinPlan` exists), **slot-
-template editor → S15** (no slot inventory yet). Those two + the visual node editor + editable
-template registry + voice-pack upload are **S18-late**, to fold in after S15/S17.
-
-## Next session — S14 (Telephony voice gateway (Exotel) part 1: pipeline)
-- Objective: `voice-gw` — Exotel Voicebot WS ↔ **V1 Gemini Live bridge** + a **V2 STT↔TTS**
-  path per tier config; per-minute audio metering into `usage_events`; barge-in; DTMF
-  fallback; consent line; call-state persistence; a local fake-Exotel replay harness.
-- **Load:** docs 02 §5, 03 §1b.
-- **AC:** fake-client e2e on both V1 and V2 (V1 <1.5s, V2 <3.5s p90 turn latency, measured);
-  barge-in; partial saves on hangup; call cost recorded per intake.
-- **S18E gives S14 a live dashboard to watch itself land in.** As soon as voice-gw emits
-  `channel=phone` usage_events, they appear under the admin dashboard's channel filter with no
-  work — a free instrument for the latency/cost ACs. Extend the seeded replay day
-  (`tests/test_analytics.py`) to include a phone row so the reconciliation test covers it.
+## Next session — S15 (Telephony part 2: inbound appointments + outbound campaigns)
+- Objective: slot inventory + booking APIs (constraint-safe); inbound AI receptionist intents
+  (route the caller's spoken chief complaint to a department/tree — S14 deferred this); human
+  handoff with whisper summary; D-1 outbound intake campaign (Celery beat, retry ladder,
+  WhatsApp fallback); confirmations WhatsApp+SMS.
+- **Load:** doc 03 §2, doc 01 §4.2/4.4.
+- **AC:** fake-client books/reschedules/cancels against real slots; double-booking test fails
+  safely; campaign dry-run produces correct call list.
+- **S14 gives S15 its dialer:** `voice-gw`'s `handle_call` + `PhoneCallRecord` are the call
+  runtime; S15 wires the **Exotel status-callback webhook → `TelephonyProvider.record_call_completed`**
+  (the per-call duration metering the provider stub already models) and reconciles it against the
+  in-memory `PhoneCallStore` (make it Redis-backed here).
 - **Start from `main`.** First commands:
 ```
-make dev && make migrate && make seed && make test    # expect 840 backend green
+make dev && make migrate && make seed && make test    # expect 840 backend / 15 voice-gw green
 make lang-qa                                           # expect clean across [en,hi,mr,te]
 ```
 
-## Watch out for (S18E fragile edges)
-- **The kiosk reads trees from the DB now** (`store.resolve_tree`), disk bank only as
-  fallback. If a box has trees in `question_trees` but none **published**, the kiosk falls
-  through to disk — so on a fresh box run `make seed` (draft) then publish from the console,
-  or `make seed` with `--publish-trees`. A published-but-unparseable row is skipped, not fatal.
-- **Publishing demotes every other version of that key to draft** (one live version per key).
-  Intended — it makes rollback work — but means "publish" is also "unpublish the old one".
-- **What-if is the price-book recompute, not tier-mix.** Do not wire a tier-mix button to it;
-  tier-mix is a different (harder) recompute deferred with S14.
-- **Cost-guard `clear` needs the running guard process** (Redis override store) — 503s under
-  the test transport / a process with no guard. Works in prod and `make dev`.
-- **Money is a wire string** through the whole admin path (`Decimal` server-side). Keep it
-  that way — no `Number()` arithmetic on ₹ in the browser; display only.
+## Watch out for (S14 fragile edges)
+- **voice-gw now bundles `backend/`** via a **root build context** (`docker-compose` →
+  `voice-gw.build.context: .`, `dockerfile: voice-gw/Dockerfile`; a root `.dockerignore` keeps
+  it lean). The repo tree is mirrored under `/app` (backend at `/app/backend`) so `app.tiers`
+  config (`/app/config`) and `app.trees.bank` (`/app/seeds`) resolve — **both are mounted** in
+  compose. A fresh box needs `make seed` for the tree bank, same as api.
+- **`make test-voicegw` runs on the *backend* venv** (voice-gw shares the engine) via
+  `PYTHONPATH`. A stale `voice-gw/.venv` is no longer used for tests.
+- **Barge-in / DTMF are channel-side energy heuristics, not engine signals** — `SILENCE_PEAK`
+  ends an utterance, `UNCLEAR_PEAK`×2 triggers the keypad. They stand in for real VAD / STT
+  confidence and want tuning on real telephony audio (S13 harness).
+- **The streaming turn-source is additive** — `run(turns=…)` is unchanged; only `run(turn_source=…)`
+  is new. Do not "simplify" by removing the fixed-`turns` path; kiosk/tests depend on it.
+- **`finalize_cost` needs `intake.visit` eager-loaded** in a fresh session (async lazy loads
+  raise `MissingGreenlet`); the driver `refresh`es it — mirror that in any new voice-gw DB path.
 
 ## Decisions needed from the human
-- **mr/te still need a native + clinical review before a patient reads them** (carried from
-  S13; S21). Unchanged by S18E.
-- **Whoever next has the box: "Owed on omen" is still unclaimed** (below). S18E adds one item:
-  the console has not been seen rendered on a screen (typecheck/lint only) — a visual pass is owed.
+- **mr/te still need a native + clinical review before a patient reads them** (S21). S14 adds the
+  **phone consent line + DTMF prompts** to that pile — currently romanized placeholders.
+- A **live Exotel number + creds** to smoke the real vendor bridge on the box (fakes only so far).
 
-## Owed on omen (before adaptive / mr-te / the console face real use)
-- **Admin console visual pass** — bring the stack up, sign in as admin (+915550000001), walk
-  the six tabs, publish a tree edit and confirm it changes a live kiosk intake. Cheapest proof
-  of the S18E headline AC on a real screen. *(new)*
-- **Telugu kiosk render** — switch to తెలుగు, confirm glyphs (not tofu) and ≥1.6 line-height at
-  200% font scale (doc 04 §4). Carried from S13.
-- **Adaptive on:** flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed,
-  `docker compose up -d --build api web` (**web rebuild required** — the flag is a build arg).
-  Provoke a vague answer, a volunteered fact, an unmappable answer. Rollback = flags to `0` + rebuild.
-- **Doctor console + consult note on-box** (`/doctor`, `+915550001001`) — the real-Qwen3
-  dictation + `_was_said` pass is still owed. `make eval-dictation` wants the same session.
+## Owed on omen (before adaptive / mr-te / the phone path face real use)
+- **Live Exotel smoke** — point a real Exotel Voicebot applet at `wss://…/exotel/voicebot`, take
+  one call each on V1 and V2, confirm audio both ways, barge-in, and a phone intake on the board
+  + the cost dashboard. Cheapest proof of the S14 headline on real telephony. *(new)*
+- **Phone-on-GPU contention** — phone's `[v_oss, v2, v3]` ladder shares the kiosk's local-GPU
+  `max_oss_sessions: 12` pool. Watch admission shedding under real concurrent load (S-OSS.2). *(new)*
+- **Admin console visual pass** (S18E) — walk the six tabs, publish a tree edit, confirm it
+  changes a live kiosk intake. Carried.
+- **Telugu kiosk render** — తెలుగు glyphs (not tofu), ≥1.6 line-height at 200% (doc 04 §4). Carried from S13.
+- **Adaptive on** — flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed, rebuild
+  api+web. Rollback = flags to `0` + rebuild. Carried.
+- **Doctor console + consult note on-box** (`/doctor`, `+915550001001`) — real-Qwen3 dictation
+  `_was_said` pass still owed; `make eval-dictation` wants the same session. Carried.
 
-## Backlog additions (S18E) → S18-late
-- **Visual tree node editor** (WYSIWYG add/edit option, drag branch) — this session shipped
-  version-list + publish + JSON inspect + a server `test-run` endpoint; the graphical builder is owed.
-- **Editable message-template registry** (DB-backed, replacing the code registry) — pairs with S15.
-- **Voice-pack upload/re-record** — needs S7's pack storage format; coverage view only today.
-- **Protocol-template editor** → S17; **slot-template editor** → S15 (deferred markers live now).
-- **Node-level abandonment + tree-improvement report** (doc 03 §11) — needs per-node answer
-  timestamps; pairs with the visual editor.
-- **Tier-mix what-if** — needs a cross-tier provider mapping (S14 gives telephony real V1/V2 shapes).
-- **Latency-degradation anomaly** — S19 provider-health telemetry.
-- Carried, unchanged: `make lint` red on 11 pre-existing files (one `ruff format .` clears it);
-  mr/te unreviewed (S21); Telugu never seen rendered; no mr/te STT/TTS on a live vendor.
+## Backlog additions (S14)
+- **Speech→department routing for inbound calls** (doc 03 §2) — S15 (the receptionist intents).
+- **Redis-backed `PhoneCallStore`** — pairs with the S15 status-callback webhook.
+- **Real Exotel `TelephonyProvider` impl + status callback** → `record_call_completed` — S15.
+- **V1 continuous caller-audio streaming** into a live Gemini Live session (the fake scripts turns
+  from the opening kick today) — with the real realtime vendor impl.
+- **Surface STT confidence to the channel** so DTMF fallback keys off it instead of the energy proxy.
+- **Tune VAD/DTMF thresholds** on real Alwar-accented telephony audio (S13 harness).
+- Carried, unchanged: `make lint` red on 11 pre-existing files; mr/te unreviewed (S21); Telugu
+  never seen rendered; admin console never seen on a screen (S18E); tier-mix what-if (S18-late).
