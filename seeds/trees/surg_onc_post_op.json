@@ -2,10 +2,17 @@
   "key": "surg_onc_post_op",
   "version": 1,
   "department": "SURGONC",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Surgical Oncology — post-operative review",
-    "hi": "सर्जिकल ऑन्कोलॉजी — ऑपरेशन के बाद जाँच"
+    "hi": "सर्जिकल ऑन्कोलॉजी — ऑपरेशन के बाद जाँच",
+    "mr": "सर्जिकल ऑन्कोलॉजी — ऑपरेशननंतरची तपासणी",
+    "te": "సర్జికల్ ఆంకాలజీ — ఆపరేషన్ తర్వాత సమీక్ష"
   },
   "root": "so.op.days_since",
   "nodes": [
@@ -14,12 +21,16 @@
       "type": "number",
       "text": {
         "en": "How many days ago was your operation?",
-        "hi": "आपका ऑपरेशन कितने दिन पहले हुआ था?"
+        "hi": "आपका ऑपरेशन कितने दिन पहले हुआ था?",
+        "mr": "तुमचं ऑपरेशन किती दिवसांपूर्वी झालं?",
+        "te": "మీ ఆపరేషన్ ఎన్ని రోజుల క్రితం జరిగింది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "so.op.wound" },
+      "next": {
+        "default": "so.op.wound"
+      },
       "adaptive_hints": "Patients date it by a festival or a relative's visit — convert to a day count."
     },
     {
@@ -27,32 +38,71 @@
       "type": "single",
       "text": {
         "en": "How does the wound look?",
-        "hi": "टाँके वाली जगह कैसी दिख रही है?"
+        "hi": "टाँके वाली जगह कैसी दिख रही है?",
+        "mr": "जखम कशी दिसते?",
+        "te": "గాయం ఎలా కనిపిస్తోంది?"
       },
       "options": [
-        { "id": "clean", "icon": "ok", "text": { "en": "Clean and dry", "hi": "साफ़ और सूखी" } },
-        { "id": "red", "icon": "skin", "text": { "en": "Red around it", "hi": "आसपास लाल है" } },
+        {
+          "id": "clean",
+          "icon": "ok",
+          "text": {
+            "en": "Clean and dry",
+            "hi": "साफ़ और सूखी",
+            "mr": "स्वच्छ आणि कोरडी",
+            "te": "శుభ్రంగా, పొడిగా"
+          }
+        },
+        {
+          "id": "red",
+          "icon": "skin",
+          "text": {
+            "en": "Red around it",
+            "hi": "आसपास लाल है",
+            "mr": "त्याच्याभोवती लालसरपणा",
+            "te": "దాని చుట్టూ ఎరుపు"
+          }
+        },
         {
           "id": "discharge",
           "icon": "alert",
-          "text": { "en": "Something is leaking from it", "hi": "उसमें से कुछ रिस रहा है" },
+          "text": {
+            "en": "Something is leaking from it",
+            "hi": "उसमें से कुछ रिस रहा है",
+            "mr": "त्यातून काहीतरी स्रवतंय",
+            "te": "దాని నుండి ఏదో స్రవిస్తోంది"
+          },
           "flag": true
         },
         {
           "id": "open",
           "icon": "alert",
-          "text": { "en": "It has opened up", "hi": "टाँके खुल गए हैं" },
+          "text": {
+            "en": "It has opened up",
+            "hi": "टाँके खुल गए हैं",
+            "mr": "टाके उघडले आहेत",
+            "te": "కుట్లు విడిపోయాయి"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "so.op.fever_temp" },
+      "next": {
+        "default": "so.op.fever_temp"
+      },
       "red_flag": {
         "id": "so.op.wound_problem",
         "severity": "urgent",
-        "label": { "en": "Wound leaking or opened", "hi": "घाव रिस रहा है या खुल गया है" },
+        "label": {
+          "en": "Wound leaking or opened",
+          "hi": "घाव रिस रहा है या खुल गया है",
+          "mr": "जखम स्रवतेय किंवा उघडली आहे",
+          "te": "గాయం స్రవిస్తోంది లేదా విడిపోయింది"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -61,12 +111,16 @@
       "type": "number",
       "text": {
         "en": "Have you had fever since the operation? If you measured it, what was the highest? Say 0 if there was no fever.",
-        "hi": "ऑपरेशन के बाद बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।"
+        "hi": "ऑपरेशन के बाद बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।",
+        "mr": "ऑपरेशननंतर ताप आला का? मोजला असेल तर सर्वात जास्त किती होता? ताप नसेल तर ० म्हणा.",
+        "te": "ఆపరేషన్ తర్వాత జ్వరం వచ్చిందా? కొలిచి ఉంటే గరిష్ఠంగా ఎంత ఉంది? జ్వరం లేకపోతే 0 చెప్పండి."
       },
       "min": 0,
       "max": 43,
       "unit": "C",
-      "next": { "default": "so.op.pain" },
+      "next": {
+        "default": "so.op.pain"
+      },
       "adaptive_hints": "0 means no fever, not 0°C."
     },
     {
@@ -74,19 +128,34 @@
       "type": "scale",
       "text": {
         "en": "How bad is the pain at the operation site? Zero is none, ten is the worst.",
-        "hi": "ऑपरेशन वाली जगह पर दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "ऑपरेशन वाली जगह पर दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "ऑपरेशनच्या जागी वेदना किती आहे? शून्य म्हणजे नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఆపరేషన్ చోట నొప్పి ఎంత ఉంది? సున్నా అంటే లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "so.op.eating" },
-      "red_flag_if": { "node": "so.op.pain", "op": "gte", "value": 8 },
+      "next": {
+        "default": "so.op.eating"
+      },
+      "red_flag_if": {
+        "node": "so.op.pain",
+        "op": "gte",
+        "value": 8
+      },
       "red_flag": {
         "id": "so.op.severe_pain",
         "severity": "urgent",
-        "label": { "en": "Severe pain at the wound (8+/10)", "hi": "घाव पर तेज़ दर्द (8+/10)" },
+        "label": {
+          "en": "Severe pain at the wound (8+/10)",
+          "hi": "घाव पर तेज़ दर्द (8+/10)",
+          "mr": "जखमेवर तीव्र वेदना (८+/१०)",
+          "te": "గాయం వద్ద తీవ్రమైన నొప్పి (8+/10)"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you should not have to wait in this much pain.",
-          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।"
+          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — एवढ्या वेदनेत तुम्हाला थांबावं लागू नये.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — ఇంత నొప్పిలో మీరు వేచి ఉండాల్సిన అవసరం లేదు."
         }
       }
     },
@@ -95,27 +164,70 @@
       "type": "single",
       "text": {
         "en": "Are you able to eat and drink?",
-        "hi": "क्या आप खा-पी पा रहे हैं?"
+        "hi": "क्या आप खा-पी पा रहे हैं?",
+        "mr": "तुम्ही खाऊ-पिऊ शकता का?",
+        "te": "మీరు తినగలుగుతున్నారా, తాగగలుగుతున్నారా?"
       },
       "options": [
-        { "id": "normal", "icon": "plate", "text": { "en": "Normally", "hi": "सामान्य रूप से" } },
-        { "id": "less", "icon": "plate-half", "text": { "en": "Less than before", "hi": "पहले से कम" } },
-        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids", "hi": "सिर्फ़ तरल" } },
+        {
+          "id": "normal",
+          "icon": "plate",
+          "text": {
+            "en": "Normally",
+            "hi": "सामान्य रूप से",
+            "mr": "नेहमीप्रमाणे",
+            "te": "సాధారణంగా"
+          }
+        },
+        {
+          "id": "less",
+          "icon": "plate-half",
+          "text": {
+            "en": "Less than before",
+            "hi": "पहले से कम",
+            "mr": "आधीपेक्षा कमी",
+            "te": "ఇంతకుముందు కంటే తక్కువ"
+          }
+        },
+        {
+          "id": "liquids_only",
+          "icon": "water",
+          "text": {
+            "en": "Only liquids",
+            "hi": "सिर्फ़ तरल",
+            "mr": "फक्त द्रव पदार्थ",
+            "te": "ద్రవాలు మాత్రమే"
+          }
+        },
         {
           "id": "nothing",
           "icon": "alert",
-          "text": { "en": "Nothing at all", "hi": "कुछ भी नहीं" },
+          "text": {
+            "en": "Nothing at all",
+            "hi": "कुछ भी नहीं",
+            "mr": "काहीच नाही",
+            "te": "ఏమీ లేదు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "so.op.bowels" },
+      "next": {
+        "default": "so.op.bowels"
+      },
       "red_flag": {
         "id": "so.op.not_eating",
         "severity": "urgent",
-        "label": { "en": "Taking nothing by mouth after surgery", "hi": "ऑपरेशन के बाद कुछ भी नहीं ले पा रहे" },
+        "label": {
+          "en": "Taking nothing by mouth after surgery",
+          "hi": "ऑपरेशन के बाद कुछ भी नहीं ले पा रहे",
+          "mr": "ऑपरेशननंतर तोंडावाटे काहीही घेत नाही",
+          "te": "ఆపరేషన్ తర్వాత నోటి ద్వారా ఏమీ తీసుకోవడం లేదు"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
-          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — डॉक्टरांना भेटण्यापूर्वी तुम्हाला सलाईनची गरज लागू शकते.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — డాక్టర్‌ను కలిసే ముందు మీకు సెలైన్ అవసరం కావచ్చు."
         }
       }
     },
@@ -124,29 +236,60 @@
       "type": "single",
       "text": {
         "en": "Have your bowels moved, and are you passing gas?",
-        "hi": "क्या शौच हुआ है, और गैस निकल रही है?"
+        "hi": "क्या शौच हुआ है, और गैस निकल रही है?",
+        "mr": "शौचास झालं का, आणि गॅस बाहेर पडतोय का?",
+        "te": "మలవిసర్జన జరిగిందా, గ్యాస్ బయటకు వస్తోందా?"
       },
       "options": [
-        { "id": "yes", "icon": "ok", "text": { "en": "Yes, both", "hi": "हाँ, दोनों" } },
-        { "id": "gas_only", "icon": "wind", "text": { "en": "Only gas", "hi": "सिर्फ़ गैस" } },
+        {
+          "id": "yes",
+          "icon": "ok",
+          "text": {
+            "en": "Yes, both",
+            "hi": "हाँ, दोनों",
+            "mr": "होय, दोन्ही",
+            "te": "అవును, రెండూ"
+          }
+        },
+        {
+          "id": "gas_only",
+          "icon": "wind",
+          "text": {
+            "en": "Only gas",
+            "hi": "सिर्फ़ गैस",
+            "mr": "फक्त गॅस",
+            "te": "గ్యాస్ మాత్రమే"
+          }
+        },
         {
           "id": "neither",
           "icon": "alert",
-          "text": { "en": "Neither", "hi": "दोनों नहीं" },
+          "text": {
+            "en": "Neither",
+            "hi": "दोनों नहीं",
+            "mr": "दोन्हीही नाही",
+            "te": "రెండూ కాదు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "so.op.swelling" },
+      "next": {
+        "default": "so.op.swelling"
+      },
       "red_flag": {
         "id": "so.op.obstruction",
         "severity": "urgent",
         "label": {
           "en": "No stool and no gas after surgery",
-          "hi": "ऑपरेशन के बाद न शौच, न गैस"
+          "hi": "ऑपरेशन के बाद न शौच, न गैस",
+          "mr": "ऑपरेशननंतर शौचही नाही, गॅसही नाही",
+          "te": "ఆపరేషన్ తర్వాత మలం లేదు, గ్యాస్ లేదు"
         },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       },
       "adaptive_hints": "An embarrassing question asked plainly. Do not skip it — with the day count it is what catches an obstruction."
@@ -156,26 +299,60 @@
       "type": "single",
       "text": {
         "en": "Any new swelling or pain in your legs?",
-        "hi": "क्या टाँगों में नई सूजन या दर्द है?"
+        "hi": "क्या टाँगों में नई सूजन या दर्द है?",
+        "mr": "पायांमध्ये नवीन सूज किंवा वेदना आहे का?",
+        "te": "కాళ్లలో కొత్త వాపు లేదా నొప్పి ఉందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "both", "icon": "leg", "text": { "en": "Yes, in both legs", "hi": "हाँ, दोनों टाँगों में" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "both",
+          "icon": "leg",
+          "text": {
+            "en": "Yes, in both legs",
+            "hi": "हाँ, दोनों टाँगों में",
+            "mr": "होय, दोन्ही पायांत",
+            "te": "అవును, రెండు కాళ్లలో"
+          }
+        },
         {
           "id": "one_leg",
           "icon": "alert",
-          "text": { "en": "Yes, in one leg only", "hi": "हाँ, सिर्फ़ एक टाँग में" },
+          "text": {
+            "en": "Yes, in one leg only",
+            "hi": "हाँ, सिर्फ़ एक टाँग में",
+            "mr": "होय, फक्त एका पायात",
+            "te": "అవును, ఒక కాలిలో మాత్రమే"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "so.op.drain" },
+      "next": {
+        "default": "so.op.drain"
+      },
       "red_flag": {
         "id": "so.op.dvt",
         "severity": "urgent",
-        "label": { "en": "New swelling in one leg", "hi": "एक टाँग में नई सूजन" },
+        "label": {
+          "en": "New swelling in one leg",
+          "hi": "एक टाँग में नई सूजन",
+          "mr": "एका पायात नवीन सूज",
+          "te": "ఒక కాలిలో కొత్త వాపు"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       },
       "adaptive_hints": "One leg versus both is the whole point of the question — do not let it be answered as a general 'yes'."
@@ -185,21 +362,54 @@
       "type": "single",
       "text": {
         "en": "Do you still have a tube or drain in place?",
-        "hi": "क्या अभी भी कोई नली या ड्रेन लगी है?"
+        "hi": "क्या अभी भी कोई नली या ड्रेन लगी है?",
+        "mr": "अजूनही एखादी नळी किंवा ड्रेन लावलेली आहे का?",
+        "te": "ఇప్పటికీ ఏదైనా గొట్టం లేదా డ్రెయిన్ అమర్చి ఉందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "yes", "icon": "tube", "text": { "en": "Yes", "hi": "हाँ" } },
-        { "id": "not_sure", "icon": "question", "text": { "en": "I am not sure", "hi": "पता नहीं" } }
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "yes",
+          "icon": "tube",
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          }
+        },
+        {
+          "id": "not_sure",
+          "icon": "question",
+          "text": {
+            "en": "I am not sure",
+            "hi": "पता नहीं",
+            "mr": "मला खात्री नाही",
+            "te": "నాకు ఖచ్చితంగా తెలియదు"
+          }
+        }
       ],
-      "next": { "default": "so.op.words" }
+      "next": {
+        "default": "so.op.words"
+      }
     },
     {
       "id": "so.op.words",
       "type": "free_voice",
       "text": {
         "en": "Is there anything else you want the doctor to know?",
-        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "आणखी काही डॉक्टरांना सांगायचं आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకునే మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }
@@ -211,17 +421,33 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "so.op.fever_temp", "op": "gte", "value": 38 },
-          { "node": "so.op.wound", "op": "in", "value": ["red", "discharge", "open"] }
+          {
+            "node": "so.op.fever_temp",
+            "op": "gte",
+            "value": 38
+          },
+          {
+            "node": "so.op.wound",
+            "op": "in",
+            "value": [
+              "red",
+              "discharge",
+              "open"
+            ]
+          }
         ]
       },
       "label": {
         "en": "Fever with a red or leaking wound",
-        "hi": "बुखार के साथ लाल या रिसता घाव"
+        "hi": "बुखार के साथ लाल या रिसता घाव",
+        "mr": "लाल किंवा स्रवणाऱ्या जखमेसह ताप",
+        "te": "ఎర్రబడిన లేదా స్రవించే గాయంతో జ్వరం"
       },
       "instruction": {
         "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
       }
     },
     {
@@ -230,14 +456,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "so.op.fever_temp", "op": "gte", "value": 38 },
-          { "node": "so.op.wound", "op": "eq", "value": "clean" }
+          {
+            "node": "so.op.fever_temp",
+            "op": "gte",
+            "value": 38
+          },
+          {
+            "node": "so.op.wound",
+            "op": "eq",
+            "value": "clean"
+          }
         ]
       },
-      "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+      "label": {
+        "en": "Fever 38°C or above",
+        "hi": "38°C या उससे ऊपर बुखार",
+        "mr": "३८°C किंवा त्याहून जास्त ताप",
+        "te": "38°C లేదా అంతకంటే ఎక్కువ జ్వరం"
+      },
       "instruction": {
         "en": "Please tell the staff at the desk that you have a fever today.",
-        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।",
+        "mr": "कृपया डेस्कवरील कर्मचाऱ्यांना सांगा की आज तुम्हाला ताप आहे.",
+        "te": "దయచేసి ఈ రోజు మీకు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
       }
     }
   ]

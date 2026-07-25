@@ -2,10 +2,17 @@
   "key": "general_medicine_routing",
   "version": 1,
   "department": "GENMED",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "General Medicine — walk-in",
-    "hi": "जनरल मेडिसिन — बिना अपॉइंटमेंट"
+    "hi": "जनरल मेडिसिन — बिना अपॉइंटमेंट",
+    "mr": "जनरल मेडिसिन — अपॉइंटमेंटशिवाय",
+    "te": "జనరల్ మెడిసిన్ — అపాయింట్‌మెంట్ లేకుండా"
   },
   "root": "gm.problem",
   "nodes": [
@@ -14,28 +21,80 @@
       "type": "single",
       "text": {
         "en": "What is troubling you most today?",
-        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
+        "mr": "आज तुम्हाला सर्वात जास्त काय त्रास देतंय?",
+        "te": "ఈ రోజు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి?"
       },
       "options": [
-        { "id": "fever", "icon": "thermometer", "text": { "en": "Fever", "hi": "बुखार" } },
-        { "id": "pain", "icon": "pain", "text": { "en": "Pain somewhere", "hi": "कहीं दर्द" } },
-        { "id": "weakness", "icon": "tired", "text": { "en": "Weakness or tiredness", "hi": "कमज़ोरी या थकान" } },
-        { "id": "stomach", "icon": "belly", "text": { "en": "Stomach trouble", "hi": "पेट की तकलीफ़" } },
+        {
+          "id": "fever",
+          "icon": "thermometer",
+          "text": {
+            "en": "Fever",
+            "hi": "बुखार",
+            "mr": "ताप",
+            "te": "జ్వరం"
+          }
+        },
+        {
+          "id": "pain",
+          "icon": "pain",
+          "text": {
+            "en": "Pain somewhere",
+            "hi": "कहीं दर्द",
+            "mr": "कुठेतरी दुखणं",
+            "te": "ఎక్కడో నొప్పి"
+          }
+        },
+        {
+          "id": "weakness",
+          "icon": "tired",
+          "text": {
+            "en": "Weakness or tiredness",
+            "hi": "कमज़ोरी या थकान",
+            "mr": "अशक्तपणा किंवा थकवा",
+            "te": "బలహీనత లేదా అలసట"
+          }
+        },
+        {
+          "id": "stomach",
+          "icon": "belly",
+          "text": {
+            "en": "Stomach trouble",
+            "hi": "पेट की तकलीफ़",
+            "mr": "पोटाचा त्रास",
+            "te": "కడుపు సమస్య"
+          }
+        },
         {
           "id": "breathing",
           "icon": "lungs",
-          "text": { "en": "Trouble breathing", "hi": "साँस लेने में तकलीफ़" },
+          "text": {
+            "en": "Trouble breathing",
+            "hi": "साँस लेने में तकलीफ़",
+            "mr": "श्वास घ्यायला त्रास",
+            "te": "శ్వాస తీసుకోవడంలో ఇబ్బంది"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "gm.duration" },
+      "next": {
+        "default": "gm.duration"
+      },
       "red_flag": {
         "id": "gm.breathless",
         "severity": "urgent",
-        "label": { "en": "Trouble breathing", "hi": "साँस लेने में तकलीफ़" },
+        "label": {
+          "en": "Trouble breathing",
+          "hi": "साँस लेने में तकलीफ़",
+          "mr": "श्वास घ्यायला त्रास",
+          "te": "శ్వాస తీసుకోవడంలో ఇబ్బంది"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -44,32 +103,51 @@
       "type": "number",
       "text": {
         "en": "For how many days?",
-        "hi": "कितने दिनों से?"
+        "hi": "कितने दिनों से?",
+        "mr": "किती दिवसांपासून?",
+        "te": "ఎన్ని రోజుల నుండి?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "gm.fever_temp" }
+      "next": {
+        "default": "gm.fever_temp"
+      }
     },
     {
       "id": "gm.fever_temp",
       "type": "number",
       "text": {
         "en": "If you measured your temperature, what was it? Say 0 if you have not.",
-        "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।"
+        "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।",
+        "mr": "तुम्ही ताप मोजला असेल तर किती होता? नसेल मोजला तर ० म्हणा.",
+        "te": "మీరు జ్వరం కొలిచి ఉంటే ఎంత ఉంది? కొలవకపోతే 0 చెప్పండి."
       },
       "min": 0,
       "max": 43,
       "unit": "C",
-      "next": { "default": "gm.severity" },
-      "red_flag_if": { "node": "gm.fever_temp", "op": "gte", "value": 38 },
+      "next": {
+        "default": "gm.severity"
+      },
+      "red_flag_if": {
+        "node": "gm.fever_temp",
+        "op": "gte",
+        "value": 38
+      },
       "red_flag": {
         "id": "gm.fever",
         "severity": "semi",
-        "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+        "label": {
+          "en": "Fever 38°C or above",
+          "hi": "38°C या उससे ऊपर बुखार",
+          "mr": "३८°C किंवा त्याहून जास्त ताप",
+          "te": "38°C లేదా అంతకంటే ఎక్కువ జ్వరం"
+        },
         "instruction": {
           "en": "Please tell the staff at the desk that you have a fever today.",
-          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।",
+          "mr": "कृपया डेस्कवरील कर्मचाऱ्यांना सांगा की आज तुम्हाला ताप आहे.",
+          "te": "దయచేసి ఈ రోజు మీకు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
         }
       },
       "adaptive_hints": "0 means not measured, not 0°C."
@@ -79,18 +157,24 @@
       "type": "scale",
       "text": {
         "en": "How bad is it right now? Zero is fine, ten is the worst.",
-        "hi": "अभी कितनी तकलीफ़ है? शून्य मतलब ठीक हूँ, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी कितनी तकलीफ़ है? शून्य मतलब ठीक हूँ, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता किती त्रास आहे? शून्य म्हणजे ठीक आहे, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు ఎంత బాధగా ఉంది? సున్నా అంటే బాగుంది, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "gm.words" }
+      "next": {
+        "default": "gm.words"
+      }
     },
     {
       "id": "gm.words",
       "type": "free_voice",
       "text": {
         "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
+        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
+        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

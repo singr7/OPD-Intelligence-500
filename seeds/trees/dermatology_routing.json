@@ -2,10 +2,17 @@
   "key": "dermatology_routing",
   "version": 1,
   "department": "DERM",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Dermatology — walk-in",
-    "hi": "त्वचा रोग — बिना अपॉइंटमेंट"
+    "hi": "त्वचा रोग — बिना अपॉइंटमेंट",
+    "mr": "त्वचारोग — अपॉइंटमेंटशिवाय",
+    "te": "చర్మవ్యాధి — అపాయింట్‌మెంట్ లేకుండా"
   },
   "root": "de.problem",
   "nodes": [
@@ -14,47 +21,136 @@
       "type": "single",
       "text": {
         "en": "What is troubling you most today?",
-        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
+        "mr": "आज तुम्हाला सर्वात जास्त काय त्रास देतंय?",
+        "te": "ఈ రోజు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి?"
       },
       "options": [
-        { "id": "rash", "icon": "skin", "text": { "en": "A rash", "hi": "चकत्ते" } },
-        { "id": "itching", "icon": "hand", "text": { "en": "Itching", "hi": "खुजली" } },
-        { "id": "lump", "icon": "lump", "text": { "en": "A lump or growth on the skin", "hi": "त्वचा पर गाँठ या उभार" } },
-        { "id": "ulcer", "icon": "alert", "text": { "en": "A sore that will not heal", "hi": "घाव जो ठीक नहीं हो रहा" } },
-        { "id": "mole", "icon": "dot", "text": { "en": "A mole that has changed", "hi": "तिल जो बदल गया है" } }
+        {
+          "id": "rash",
+          "icon": "skin",
+          "text": {
+            "en": "A rash",
+            "hi": "चकत्ते",
+            "mr": "पुरळ",
+            "te": "దద్దుర్లు"
+          }
+        },
+        {
+          "id": "itching",
+          "icon": "hand",
+          "text": {
+            "en": "Itching",
+            "hi": "खुजली",
+            "mr": "खाज",
+            "te": "దురద"
+          }
+        },
+        {
+          "id": "lump",
+          "icon": "lump",
+          "text": {
+            "en": "A lump or growth on the skin",
+            "hi": "त्वचा पर गाँठ या उभार",
+            "mr": "त्वचेवर गाठ किंवा वाढ",
+            "te": "చర్మంపై గడ్డ లేదా పెరుగుదల"
+          }
+        },
+        {
+          "id": "ulcer",
+          "icon": "alert",
+          "text": {
+            "en": "A sore that will not heal",
+            "hi": "घाव जो ठीक नहीं हो रहा",
+            "mr": "न भरणारी जखम",
+            "te": "నయం కాని పుండు"
+          }
+        },
+        {
+          "id": "mole",
+          "icon": "dot",
+          "text": {
+            "en": "A mole that has changed",
+            "hi": "तिल जो बदल गया है",
+            "mr": "बदललेला तीळ",
+            "te": "మారిన పుట్టుమచ్చ"
+          }
+        }
       ],
-      "next": { "default": "de.duration" }
+      "next": {
+        "default": "de.duration"
+      }
     },
     {
       "id": "de.duration",
       "type": "number",
       "text": {
         "en": "For how many days has it been there?",
-        "hi": "यह कितने दिनों से है?"
+        "hi": "यह कितने दिनों से है?",
+        "mr": "हे किती दिवसांपासून आहे?",
+        "te": "ఇది ఎన్ని రోజుల నుండి ఉంది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "de.changing" }
+      "next": {
+        "default": "de.changing"
+      }
     },
     {
       "id": "de.changing",
       "type": "single",
       "text": {
         "en": "Has it been changing — growing, bleeding, or changing colour?",
-        "hi": "क्या इसमें बदलाव हो रहा है — बढ़ रहा है, खून आता है, या रंग बदल रहा है?"
+        "hi": "क्या इसमें बदलाव हो रहा है — बढ़ रहा है, खून आता है, या रंग बदल रहा है?",
+        "mr": "त्यात बदल होतोय का — वाढतंय, रक्त येतंय, किंवा रंग बदलतोय?",
+        "te": "ఇది మారుతోందా — పెరుగుతోందా, రక్తస్రావం అవుతోందా, లేదా రంగు మారుతోందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No, it stays the same", "hi": "नहीं, वैसा ही रहता है" } },
-        { "id": "growing", "icon": "grow", "text": { "en": "It is growing", "hi": "बढ़ रहा है" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No, it stays the same",
+            "hi": "नहीं, वैसा ही रहता है",
+            "mr": "नाही, ते तसंच राहतं",
+            "te": "లేదు, అది అలాగే ఉంటుంది"
+          }
+        },
+        {
+          "id": "growing",
+          "icon": "grow",
+          "text": {
+            "en": "It is growing",
+            "hi": "बढ़ रहा है",
+            "mr": "ते वाढतंय",
+            "te": "అది పెరుగుతోంది"
+          }
+        },
         {
           "id": "bleeding",
           "icon": "blood",
-          "text": { "en": "It bleeds", "hi": "उससे खून आता है" }
+          "text": {
+            "en": "It bleeds",
+            "hi": "उससे खून आता है",
+            "mr": "त्यातून रक्त येतं",
+            "te": "దాని నుండి రక్తం వస్తోంది"
+          }
         },
-        { "id": "colour", "icon": "palette", "text": { "en": "The colour has changed", "hi": "रंग बदल गया है" } }
+        {
+          "id": "colour",
+          "icon": "palette",
+          "text": {
+            "en": "The colour has changed",
+            "hi": "रंग बदल गया है",
+            "mr": "रंग बदलला आहे",
+            "te": "రంగు మారింది"
+          }
+        }
       ],
-      "next": { "default": "de.spread" },
+      "next": {
+        "default": "de.spread"
+      },
       "adaptive_hints": "Growth, bleeding and colour change are why a skin lesion reaches a cancer centre. Record which one — do not summarise them as 'changing'."
     },
     {
@@ -62,21 +158,54 @@
       "type": "single",
       "text": {
         "en": "Is it in one place, or spreading over your body?",
-        "hi": "क्या यह एक ही जगह है, या शरीर पर फैल रहा है?"
+        "hi": "क्या यह एक ही जगह है, या शरीर पर फैल रहा है?",
+        "mr": "हे एकाच ठिकाणी आहे, की अंगावर पसरतंय?",
+        "te": "ఇది ఒకే చోట ఉందా, లేదా శరీరమంతా వ్యాపిస్తోందా?"
       },
       "options": [
-        { "id": "one_place", "icon": "dot", "text": { "en": "One place", "hi": "एक ही जगह" } },
-        { "id": "few_places", "icon": "dots", "text": { "en": "A few places", "hi": "कुछ जगहों पर" } },
-        { "id": "all_over", "icon": "body", "text": { "en": "All over", "hi": "पूरे शरीर पर" } }
+        {
+          "id": "one_place",
+          "icon": "dot",
+          "text": {
+            "en": "One place",
+            "hi": "एक ही जगह",
+            "mr": "एकाच ठिकाणी",
+            "te": "ఒకే చోట"
+          }
+        },
+        {
+          "id": "few_places",
+          "icon": "dots",
+          "text": {
+            "en": "A few places",
+            "hi": "कुछ जगहों पर",
+            "mr": "काही ठिकाणी",
+            "te": "కొన్ని చోట్ల"
+          }
+        },
+        {
+          "id": "all_over",
+          "icon": "body",
+          "text": {
+            "en": "All over",
+            "hi": "पूरे शरीर पर",
+            "mr": "सर्व अंगावर",
+            "te": "శరీరమంతా"
+          }
+        }
       ],
-      "next": { "default": "de.words" }
+      "next": {
+        "default": "de.words"
+      }
     },
     {
       "id": "de.words",
       "type": "free_voice",
       "text": {
         "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
+        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
+        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }
@@ -88,17 +217,37 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "de.problem", "op": "in", "value": ["lump", "ulcer", "mole"] },
-          { "node": "de.changing", "op": "in", "value": ["growing", "bleeding", "colour"] }
+          {
+            "node": "de.problem",
+            "op": "in",
+            "value": [
+              "lump",
+              "ulcer",
+              "mole"
+            ]
+          },
+          {
+            "node": "de.changing",
+            "op": "in",
+            "value": [
+              "growing",
+              "bleeding",
+              "colour"
+            ]
+          }
         ]
       },
       "label": {
         "en": "Skin lesion that is growing, bleeding or changing colour",
-        "hi": "त्वचा का घाव जो बढ़ रहा है, खून आ रहा है या रंग बदल रहा है"
+        "hi": "त्वचा का घाव जो बढ़ रहा है, खून आ रहा है या रंग बदल रहा है",
+        "mr": "त्वचेवरील जखम जी वाढतेय, रक्त येतंय किंवा रंग बदलतोय",
+        "te": "పెరుగుతున్న, రక్తస్రావం అవుతున్న లేదా రంగు మారుతున్న చర్మ గాయం"
       },
       "instruction": {
         "en": "Please mention this to the staff at the desk when you check in.",
-        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+        "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+        "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
       }
     },
     {
@@ -107,17 +256,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "de.problem", "op": "eq", "value": "ulcer" },
-          { "node": "de.duration", "op": "gte", "value": 42 }
+          {
+            "node": "de.problem",
+            "op": "eq",
+            "value": "ulcer"
+          },
+          {
+            "node": "de.duration",
+            "op": "gte",
+            "value": 42
+          }
         ]
       },
       "label": {
         "en": "Sore not healing for 6+ weeks",
-        "hi": "घाव 6+ हफ़्तों से ठीक नहीं हो रहा"
+        "hi": "घाव 6+ हफ़्तों से ठीक नहीं हो रहा",
+        "mr": "जखम ६+ आठवड्यांपासून भरत नाही",
+        "te": "పుండు 6+ వారాలుగా నయం కావడం లేదు"
       },
       "instruction": {
         "en": "Please mention this to the staff at the desk when you check in.",
-        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+        "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+        "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
       }
     }
   ]

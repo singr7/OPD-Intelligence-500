@@ -2,10 +2,17 @@
   "key": "rad_onc_review",
   "version": 1,
   "department": "RADONC",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Radiation Oncology — on-treatment review",
-    "hi": "रेडिएशन ऑन्कोलॉजी — इलाज के दौरान जाँच"
+    "hi": "रेडिएशन ऑन्कोलॉजी — इलाज के दौरान जाँच",
+    "mr": "रेडिएशन ऑन्कोलॉजी — उपचारादरम्यान तपासणी",
+    "te": "రేడియేషన్ ఆంకాలజీ — చికిత్స సమయంలో సమీక్ష"
   },
   "root": "rt.site",
   "nodes": [
@@ -14,14 +21,61 @@
       "type": "single",
       "text": {
         "en": "Which part of your body is getting the radiation?",
-        "hi": "आपके शरीर के किस हिस्से पर सिकाई हो रही है?"
+        "hi": "आपके शरीर के किस हिस्से पर सिकाई हो रही है?",
+        "mr": "तुमच्या शरीराच्या कोणत्या भागावर शेक दिला जातोय?",
+        "te": "మీ శరీరంలో ఏ భాగానికి రేడియేషన్ ఇస్తున్నారు?"
       },
       "options": [
-        { "id": "head_neck", "icon": "head", "text": { "en": "Head or neck", "hi": "सिर या गला" } },
-        { "id": "chest", "icon": "chest", "text": { "en": "Chest", "hi": "छाती" } },
-        { "id": "breast", "icon": "breast", "text": { "en": "Breast", "hi": "स्तन" } },
-        { "id": "pelvis", "icon": "pelvis", "text": { "en": "Lower stomach or hip", "hi": "पेट का निचला हिस्सा या कूल्हा" } },
-        { "id": "other", "icon": "body", "text": { "en": "Somewhere else", "hi": "कोई और जगह" } }
+        {
+          "id": "head_neck",
+          "icon": "head",
+          "text": {
+            "en": "Head or neck",
+            "hi": "सिर या गला",
+            "mr": "डोकं किंवा मान",
+            "te": "తల లేదా మెడ"
+          }
+        },
+        {
+          "id": "chest",
+          "icon": "chest",
+          "text": {
+            "en": "Chest",
+            "hi": "छाती",
+            "mr": "छाती",
+            "te": "ఛాతీ"
+          }
+        },
+        {
+          "id": "breast",
+          "icon": "breast",
+          "text": {
+            "en": "Breast",
+            "hi": "स्तन",
+            "mr": "स्तन",
+            "te": "రొమ్ము"
+          }
+        },
+        {
+          "id": "pelvis",
+          "icon": "pelvis",
+          "text": {
+            "en": "Lower stomach or hip",
+            "hi": "पेट का निचला हिस्सा या कूल्हा",
+            "mr": "पोटाचा खालचा भाग किंवा कंबर",
+            "te": "కడుపు కింది భాగం లేదా తుంటి"
+          }
+        },
+        {
+          "id": "other",
+          "icon": "body",
+          "text": {
+            "en": "Somewhere else",
+            "hi": "कोई और जगह",
+            "mr": "दुसरीकडे कुठेतरी",
+            "te": "మరెక్కడో"
+          }
+        }
       ],
       "next": {
         "head_neck": "rt.hn.swallow",
@@ -38,27 +92,70 @@
       "type": "single",
       "text": {
         "en": "How is your swallowing?",
-        "hi": "आपको निगलने में कैसा लग रहा है?"
+        "hi": "आपको निगलने में कैसा लग रहा है?",
+        "mr": "तुम्हाला गिळताना कसं वाटतंय?",
+        "te": "మీకు మింగడం ఎలా ఉంది?"
       },
       "options": [
-        { "id": "no_trouble", "icon": "ok", "text": { "en": "No trouble", "hi": "कोई दिक्कत नहीं" } },
-        { "id": "solids_hard", "icon": "food", "text": { "en": "Solid food is hard", "hi": "ठोस खाना मुश्किल है" } },
-        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids go down", "hi": "सिर्फ़ तरल ही जाता है" } },
+        {
+          "id": "no_trouble",
+          "icon": "ok",
+          "text": {
+            "en": "No trouble",
+            "hi": "कोई दिक्कत नहीं",
+            "mr": "काही त्रास नाही",
+            "te": "ఇబ్బంది లేదు"
+          }
+        },
+        {
+          "id": "solids_hard",
+          "icon": "food",
+          "text": {
+            "en": "Solid food is hard",
+            "hi": "ठोस खाना मुश्किल है",
+            "mr": "घन अन्न खाणं कठीण आहे",
+            "te": "ఘనాహారం కష్టంగా ఉంది"
+          }
+        },
+        {
+          "id": "liquids_only",
+          "icon": "water",
+          "text": {
+            "en": "Only liquids go down",
+            "hi": "सिर्फ़ तरल ही जाता है",
+            "mr": "फक्त द्रव पदार्थ घशाखाली उतरतात",
+            "te": "ద్రవాలు మాత్రమే లోపలికి వెళ్తాయి"
+          }
+        },
         {
           "id": "nothing",
           "icon": "alert",
-          "text": { "en": "Nothing goes down", "hi": "कुछ भी नहीं जाता" },
+          "text": {
+            "en": "Nothing goes down",
+            "hi": "कुछ भी नहीं जाता",
+            "mr": "काहीच घशाखाली उतरत नाही",
+            "te": "ఏదీ లోపలికి వెళ్లడం లేదు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "rt.hn.mouth" },
+      "next": {
+        "default": "rt.hn.mouth"
+      },
       "red_flag": {
         "id": "rt.hn.no_swallow",
         "severity": "urgent",
-        "label": { "en": "Unable to swallow anything", "hi": "कुछ भी निगल नहीं पा रहे" },
+        "label": {
+          "en": "Unable to swallow anything",
+          "hi": "कुछ भी निगल नहीं पा रहे",
+          "mr": "काहीही गिळता येत नाही",
+          "te": "ఏదీ మింగలేకపోవడం"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
-          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — डॉक्टरांना भेटण्यापूर्वी तुम्हाला सलाईनची गरज लागू शकते.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — డాక్టర్‌ను కలిసే ముందు మీకు సెలైన్ అవసరం కావచ్చు."
         }
       }
     },
@@ -67,42 +164,125 @@
       "type": "single",
       "text": {
         "en": "Do you have mouth ulcers or soreness?",
-        "hi": "क्या मुँह में छाले या जलन है?"
+        "hi": "क्या मुँह में छाले या जलन है?",
+        "mr": "तुमच्या तोंडात फोड किंवा जळजळ आहे का?",
+        "te": "మీకు నోటి పుండ్లు లేదా మంట ఉందా?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "mild", "icon": "mouth", "text": { "en": "Yes, but I can eat", "hi": "हाँ, पर खा लेता हूँ" } },
-        { "id": "soft_only", "icon": "mouth", "text": { "en": "Only soft food or liquids", "hi": "सिर्फ़ नरम खाना या तरल" } },
-        { "id": "cannot_eat", "icon": "alert", "text": { "en": "I cannot eat at all", "hi": "कुछ भी नहीं खा पाता" } }
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "mild",
+          "icon": "mouth",
+          "text": {
+            "en": "Yes, but I can eat",
+            "hi": "हाँ, पर खा लेता हूँ",
+            "mr": "होय, पण मी खाऊ शकतो",
+            "te": "అవును, కానీ నేను తినగలను"
+          }
+        },
+        {
+          "id": "soft_only",
+          "icon": "mouth",
+          "text": {
+            "en": "Only soft food or liquids",
+            "hi": "सिर्फ़ नरम खाना या तरल",
+            "mr": "फक्त मऊ अन्न किंवा द्रव पदार्थ",
+            "te": "మెత్తని ఆహారం లేదా ద్రవాలు మాత్రమే"
+          }
+        },
+        {
+          "id": "cannot_eat",
+          "icon": "alert",
+          "text": {
+            "en": "I cannot eat at all",
+            "hi": "कुछ भी नहीं खा पाता",
+            "mr": "मला काहीच खाता येत नाही",
+            "te": "నేను అస్సలు తినలేను"
+          }
+        }
       ],
-      "next": { "default": "rt.skin" }
+      "next": {
+        "default": "rt.skin"
+      }
     },
     {
       "id": "rt.chest.cough",
       "type": "single",
       "text": {
         "en": "Do you have a cough?",
-        "hi": "क्या आपको खाँसी है?"
+        "hi": "क्या आपको खाँसी है?",
+        "mr": "तुम्हाला खोकला आहे का?",
+        "te": "మీకు దగ్గు ఉందా?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "dry", "icon": "cough", "text": { "en": "A dry cough", "hi": "सूखी खाँसी" } },
-        { "id": "phlegm", "icon": "cough", "text": { "en": "With phlegm", "hi": "बलगम के साथ" } },
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "dry",
+          "icon": "cough",
+          "text": {
+            "en": "A dry cough",
+            "hi": "सूखी खाँसी",
+            "mr": "कोरडा खोकला",
+            "te": "పొడి దగ్గు"
+          }
+        },
+        {
+          "id": "phlegm",
+          "icon": "cough",
+          "text": {
+            "en": "With phlegm",
+            "hi": "बलगम के साथ",
+            "mr": "कफासह",
+            "te": "కఫంతో"
+          }
+        },
         {
           "id": "blood",
           "icon": "alert",
-          "text": { "en": "With blood", "hi": "खून के साथ" },
+          "text": {
+            "en": "With blood",
+            "hi": "खून के साथ",
+            "mr": "रक्तासह",
+            "te": "రక్తంతో"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "rt.chest.swallow" },
+      "next": {
+        "default": "rt.chest.swallow"
+      },
       "red_flag": {
         "id": "rt.chest.haemoptysis",
         "severity": "urgent",
-        "label": { "en": "Coughing blood", "hi": "खाँसी में खून" },
+        "label": {
+          "en": "Coughing blood",
+          "hi": "खाँसी में खून",
+          "mr": "खोकताना रक्त",
+          "te": "దగ్గులో రక్తం"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -111,48 +291,136 @@
       "type": "single",
       "text": {
         "en": "Does it hurt or burn when you swallow?",
-        "hi": "निगलते समय दर्द या जलन होती है?"
+        "hi": "निगलते समय दर्द या जलन होती है?",
+        "mr": "गिळताना दुखतं किंवा जळजळतं का?",
+        "te": "మింగేటప్పుడు నొప్పి లేదా మంట ఉందా?"
       },
       "options": [
-        { "id": "no_trouble", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "burning", "icon": "fire", "text": { "en": "Burning", "hi": "जलन होती है" } },
-        { "id": "solids_hard", "icon": "food", "text": { "en": "Solid food is hard", "hi": "ठोस खाना मुश्किल है" } },
-        { "id": "liquids_only", "icon": "water", "text": { "en": "Only liquids go down", "hi": "सिर्फ़ तरल ही जाता है" } }
+        {
+          "id": "no_trouble",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "burning",
+          "icon": "fire",
+          "text": {
+            "en": "Burning",
+            "hi": "जलन होती है",
+            "mr": "जळजळ",
+            "te": "మంట"
+          }
+        },
+        {
+          "id": "solids_hard",
+          "icon": "food",
+          "text": {
+            "en": "Solid food is hard",
+            "hi": "ठोस खाना मुश्किल है",
+            "mr": "घन अन्न खाणं कठीण आहे",
+            "te": "ఘనాహారం కష్టంగా ఉంది"
+          }
+        },
+        {
+          "id": "liquids_only",
+          "icon": "water",
+          "text": {
+            "en": "Only liquids go down",
+            "hi": "सिर्फ़ तरल ही जाता है",
+            "mr": "फक्त द्रव पदार्थ घशाखाली उतरतात",
+            "te": "ద్రవాలు మాత్రమే లోపలికి వెళ్తాయి"
+          }
+        }
       ],
-      "next": { "default": "rt.skin" }
+      "next": {
+        "default": "rt.skin"
+      }
     },
     {
       "id": "rt.pelvis.urinary",
       "type": "single",
       "text": {
         "en": "How is passing urine?",
-        "hi": "पेशाब करने में कैसा लग रहा है?"
+        "hi": "पेशाब करने में कैसा लग रहा है?",
+        "mr": "लघवी करताना कसं वाटतंय?",
+        "te": "మూత్రం పోయడం ఎలా ఉంది?"
       },
       "options": [
-        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
-        { "id": "burning", "icon": "fire", "text": { "en": "Burning", "hi": "जलन होती है" } },
-        { "id": "frequent", "icon": "clock", "text": { "en": "Going very often", "hi": "बार-बार जाना पड़ता है" } },
+        {
+          "id": "normal",
+          "icon": "ok",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "burning",
+          "icon": "fire",
+          "text": {
+            "en": "Burning",
+            "hi": "जलन होती है",
+            "mr": "जळजळ",
+            "te": "మంట"
+          }
+        },
+        {
+          "id": "frequent",
+          "icon": "clock",
+          "text": {
+            "en": "Going very often",
+            "hi": "बार-बार जाना पड़ता है",
+            "mr": "वारंवार जावं लागतं",
+            "te": "చాలా తరచుగా వెళ్లాల్సి వస్తోంది"
+          }
+        },
         {
           "id": "blood",
           "icon": "blood",
-          "text": { "en": "Blood in the urine", "hi": "पेशाब में खून" },
+          "text": {
+            "en": "Blood in the urine",
+            "hi": "पेशाब में खून",
+            "mr": "लघवीत रक्त",
+            "te": "మూత్రంలో రక్తం"
+          },
           "flag": true
         },
         {
           "id": "cannot_pass",
           "icon": "alert",
-          "text": { "en": "I cannot pass urine", "hi": "पेशाब नहीं आ रहा" },
+          "text": {
+            "en": "I cannot pass urine",
+            "hi": "पेशाब नहीं आ रहा",
+            "mr": "मला लघवी होत नाही",
+            "te": "నాకు మూత్రం రావడం లేదు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "rt.pelvis.bowel" },
+      "next": {
+        "default": "rt.pelvis.bowel"
+      },
       "red_flag": {
         "id": "rt.pelvis.urinary_urgent",
         "severity": "urgent",
-        "label": { "en": "Blood in urine, or cannot pass urine", "hi": "पेशाब में खून, या पेशाब बंद" },
+        "label": {
+          "en": "Blood in urine, or cannot pass urine",
+          "hi": "पेशाब में खून, या पेशाब बंद",
+          "mr": "लघवीत रक्त, किंवा लघवी होत नाही",
+          "te": "మూత్రంలో రక్తం, లేదా మూత్రం రావడం లేదు"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -161,27 +429,70 @@
       "type": "single",
       "text": {
         "en": "How are your bowels?",
-        "hi": "पेट कैसा चल रहा है?"
+        "hi": "पेट कैसा चल रहा है?",
+        "mr": "तुमचं पोट कसं चाललंय?",
+        "te": "మీ మలవిసర్జన ఎలా ఉంది?"
       },
       "options": [
-        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
-        { "id": "loose", "icon": "loose", "text": { "en": "Loose motions", "hi": "दस्त" } },
-        { "id": "pain", "icon": "pain", "text": { "en": "Painful to pass", "hi": "करते समय दर्द" } },
+        {
+          "id": "normal",
+          "icon": "ok",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "loose",
+          "icon": "loose",
+          "text": {
+            "en": "Loose motions",
+            "hi": "दस्त",
+            "mr": "जुलाब",
+            "te": "విరేచనాలు"
+          }
+        },
+        {
+          "id": "pain",
+          "icon": "pain",
+          "text": {
+            "en": "Painful to pass",
+            "hi": "करते समय दर्द",
+            "mr": "करताना दुखतं",
+            "te": "పోసేటప్పుడు నొప్పి"
+          }
+        },
         {
           "id": "blood",
           "icon": "blood",
-          "text": { "en": "Blood when I pass stool", "hi": "शौच में खून" },
+          "text": {
+            "en": "Blood when I pass stool",
+            "hi": "शौच में खून",
+            "mr": "शौचास रक्त",
+            "te": "మలవిసర్జనలో రక్తం"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "rt.skin" },
+      "next": {
+        "default": "rt.skin"
+      },
       "red_flag": {
         "id": "rt.pelvis.pr_bleed",
         "severity": "urgent",
-        "label": { "en": "Bleeding from the back passage", "hi": "शौच के रास्ते से खून" },
+        "label": {
+          "en": "Bleeding from the back passage",
+          "hi": "शौच के रास्ते से खून",
+          "mr": "गुदद्वारातून रक्त",
+          "te": "మల ద్వారం నుండి రక్తస్రావం"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -190,33 +501,81 @@
       "type": "single",
       "text": {
         "en": "How does the skin look where the radiation goes?",
-        "hi": "जहाँ सिकाई हो रही है, वहाँ की त्वचा कैसी दिख रही है?"
+        "hi": "जहाँ सिकाई हो रही है, वहाँ की त्वचा कैसी दिख रही है?",
+        "mr": "जिथे शेक दिला जातो तिथली त्वचा कशी दिसते?",
+        "te": "రేడియేషన్ ఇచ్చే చోట చర్మం ఎలా కనిపిస్తోంది?"
       },
       "options": [
-        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
-        { "id": "pink", "icon": "skin", "text": { "en": "Pink or red", "hi": "गुलाबी या लाल" } },
-        { "id": "dry_peeling", "icon": "skin", "text": { "en": "Dry and peeling", "hi": "सूखी और छिल रही है" } },
+        {
+          "id": "normal",
+          "icon": "ok",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "pink",
+          "icon": "skin",
+          "text": {
+            "en": "Pink or red",
+            "hi": "गुलाबी या लाल",
+            "mr": "गुलाबी किंवा लाल",
+            "te": "గులాబీ లేదా ఎరుపు"
+          }
+        },
+        {
+          "id": "dry_peeling",
+          "icon": "skin",
+          "text": {
+            "en": "Dry and peeling",
+            "hi": "सूखी और छिल रही है",
+            "mr": "कोरडी आणि सोलणारी",
+            "te": "పొడిగా, పొట్టు రాలుతూ"
+          }
+        },
         {
           "id": "wet_peeling",
           "icon": "alert",
-          "text": { "en": "Wet, weeping or raw", "hi": "गीली, रिस रही या छिली हुई" },
+          "text": {
+            "en": "Wet, weeping or raw",
+            "hi": "गीली, रिस रही या छिली हुई",
+            "mr": "ओली, स्रवणारी किंवा सोललेली",
+            "te": "తడిగా, స్రవిస్తూ లేదా పచ్చిగా"
+          },
           "flag": true
         },
         {
           "id": "ulcer",
           "icon": "alert",
-          "text": { "en": "There is an open sore", "hi": "खुला घाव है" },
+          "text": {
+            "en": "There is an open sore",
+            "hi": "खुला घाव है",
+            "mr": "उघडी जखम आहे",
+            "te": "తెరిచిన పుండు ఉంది"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "rt.fatigue" },
+      "next": {
+        "default": "rt.fatigue"
+      },
       "red_flag": {
         "id": "rt.skin_breakdown",
         "severity": "semi",
-        "label": { "en": "Skin broken down in the treated area", "hi": "सिकाई वाली जगह की त्वचा फट गई है" },
+        "label": {
+          "en": "Skin broken down in the treated area",
+          "hi": "सिकाई वाली जगह की त्वचा फट गई है",
+          "mr": "शेक दिलेल्या भागाची त्वचा फाटली आहे",
+          "te": "చికిత్స చేసిన ప్రాంతంలో చర్మం చిట్లింది"
+        },
         "instruction": {
           "en": "Please mention this to the staff at the desk when you check in.",
-          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+          "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+          "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
         }
       }
     },
@@ -225,23 +584,31 @@
       "type": "scale",
       "text": {
         "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
-        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।"
+        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।",
+        "mr": "तुम्हाला किती थकवा जाणवतोय? शून्य म्हणजे सामान्य, दहा म्हणजे अंथरुणातून उठताही येत नाही.",
+        "te": "మీకు ఎంత అలసటగా ఉంది? సున్నా అంటే సాధారణం, పది అంటే మంచం నుండి లేవలేకపోవడం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "rt.sessions" }
+      "next": {
+        "default": "rt.sessions"
+      }
     },
     {
       "id": "rt.sessions",
       "type": "number",
       "text": {
         "en": "How many radiation sessions have you had so far?",
-        "hi": "अब तक कितनी सिकाई हो चुकी है?"
+        "hi": "अब तक कितनी सिकाई हो चुकी है?",
+        "mr": "आतापर्यंत किती वेळा शेक झाला आहे?",
+        "te": "ఇప్పటివరకు ఎన్ని రేడియేషన్ సెషన్లు జరిగాయి?"
       },
       "min": 0,
       "max": 60,
       "unit": "sessions",
-      "next": { "default": "rt.words" },
+      "next": {
+        "default": "rt.words"
+      },
       "adaptive_hints": "If they do not know, the card they carry has it — but do not hold up the intake for it. Save 0 and note it in raw_text."
     },
     {
@@ -249,7 +616,9 @@
       "type": "free_voice",
       "text": {
         "en": "Is there anything else you want the doctor to know?",
-        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "आणखी काही डॉक्टरांना सांगायचं आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకునే మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

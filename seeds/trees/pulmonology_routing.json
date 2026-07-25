@@ -2,10 +2,17 @@
   "key": "pulmonology_routing",
   "version": 1,
   "department": "PULM",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Pulmonology — walk-in",
-    "hi": "फेफड़ा रोग — बिना अपॉइंटमेंट"
+    "hi": "फेफड़ा रोग — बिना अपॉइंटमेंट",
+    "mr": "फुफ्फुसरोग — अपॉइंटमेंटशिवाय",
+    "te": "పల్మనాలజీ — అపాయింట్‌మెంట్ లేకుండా"
   },
   "root": "pu.problem",
   "nodes": [
@@ -14,28 +21,80 @@
       "type": "single",
       "text": {
         "en": "What is troubling you most today?",
-        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
+        "mr": "आज तुम्हाला सर्वात जास्त काय त्रास देतंय?",
+        "te": "ఈ రోజు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి?"
       },
       "options": [
-        { "id": "cough", "icon": "cough", "text": { "en": "Cough", "hi": "खाँसी" } },
-        { "id": "breathless", "icon": "lungs", "text": { "en": "Breathlessness", "hi": "साँस फूलना" } },
-        { "id": "chest_pain", "icon": "chest", "text": { "en": "Chest pain", "hi": "सीने में दर्द" } },
-        { "id": "wheeze", "icon": "wind", "text": { "en": "Wheezing", "hi": "साँस में सीटी" } },
+        {
+          "id": "cough",
+          "icon": "cough",
+          "text": {
+            "en": "Cough",
+            "hi": "खाँसी",
+            "mr": "खोकला",
+            "te": "దగ్గు"
+          }
+        },
+        {
+          "id": "breathless",
+          "icon": "lungs",
+          "text": {
+            "en": "Breathlessness",
+            "hi": "साँस फूलना",
+            "mr": "धाप लागणं",
+            "te": "శ్వాస ఆడకపోవడం"
+          }
+        },
+        {
+          "id": "chest_pain",
+          "icon": "chest",
+          "text": {
+            "en": "Chest pain",
+            "hi": "सीने में दर्द",
+            "mr": "छातीत दुखणं",
+            "te": "ఛాతీ నొప్పి"
+          }
+        },
+        {
+          "id": "wheeze",
+          "icon": "wind",
+          "text": {
+            "en": "Wheezing",
+            "hi": "साँस में सीटी",
+            "mr": "श्वासात सीटीसारखा आवाज",
+            "te": "శ్వాసలో విజిల్ శబ్దం"
+          }
+        },
         {
           "id": "blood",
           "icon": "alert",
-          "text": { "en": "Blood when I cough", "hi": "खाँसी में खून" },
+          "text": {
+            "en": "Blood when I cough",
+            "hi": "खाँसी में खून",
+            "mr": "खोकताना रक्त",
+            "te": "దగ్గినప్పుడు రక్తం"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "pu.duration" },
+      "next": {
+        "default": "pu.duration"
+      },
       "red_flag": {
         "id": "pu.haemoptysis",
         "severity": "urgent",
-        "label": { "en": "Coughing blood", "hi": "खाँसी में खून" },
+        "label": {
+          "en": "Coughing blood",
+          "hi": "खाँसी में खून",
+          "mr": "खोकताना रक्त",
+          "te": "దగ్గులో రక్తం"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -44,38 +103,76 @@
       "type": "number",
       "text": {
         "en": "For how many days has this been going on?",
-        "hi": "यह कितने दिनों से है?"
+        "hi": "यह कितने दिनों से है?",
+        "mr": "हे किती दिवसांपासून चालू आहे?",
+        "te": "ఇది ఎన్ని రోజుల నుండి జరుగుతోంది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "pu.breathless_now" }
+      "next": {
+        "default": "pu.breathless_now"
+      }
     },
     {
       "id": "pu.breathless_now",
       "type": "single",
       "text": {
         "en": "Right now, can you speak a full sentence in one breath?",
-        "hi": "अभी, क्या आप एक साँस में पूरा वाक्य बोल सकते हैं?"
+        "hi": "अभी, क्या आप एक साँस में पूरा वाक्य बोल सकते हैं?",
+        "mr": "आत्ता, तुम्ही एका श्वासात पूर्ण वाक्य बोलू शकता का?",
+        "te": "ఇప్పుడు, మీరు ఒక్క శ్వాసలో పూర్తి వాక్యం మాట్లాడగలరా?"
       },
       "options": [
-        { "id": "yes", "icon": "ok", "text": { "en": "Yes", "hi": "हाँ" } },
-        { "id": "few_words", "icon": "wind", "text": { "en": "Only a few words", "hi": "सिर्फ़ कुछ शब्द" } },
+        {
+          "id": "yes",
+          "icon": "ok",
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          }
+        },
+        {
+          "id": "few_words",
+          "icon": "wind",
+          "text": {
+            "en": "Only a few words",
+            "hi": "सिर्फ़ कुछ शब्द",
+            "mr": "फक्त काही शब्द",
+            "te": "కొన్ని పదాలు మాత్రమే"
+          }
+        },
         {
           "id": "no",
           "icon": "alert",
-          "text": { "en": "No, I am too breathless", "hi": "नहीं, साँस बहुत फूल रही है" },
+          "text": {
+            "en": "No, I am too breathless",
+            "hi": "नहीं, साँस बहुत फूल रही है",
+            "mr": "नाही, मला खूप धाप लागतेय",
+            "te": "లేదు, నాకు చాలా శ్వాస ఆడటం లేదు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "pu.tobacco" },
+      "next": {
+        "default": "pu.tobacco"
+      },
       "red_flag": {
         "id": "pu.severe_breathless",
         "severity": "urgent",
-        "label": { "en": "Too breathless to speak a sentence", "hi": "साँस इतनी फूली कि वाक्य नहीं बोल पाते" },
+        "label": {
+          "en": "Too breathless to speak a sentence",
+          "hi": "साँस इतनी फूली कि वाक्य नहीं बोल पाते",
+          "mr": "वाक्य बोलता येणार नाही एवढी धाप",
+          "te": "వాక్యం మాట్లాడలేనంత శ్వాస ఆడకపోవడం"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       },
       "adaptive_hints": "How much they can say in one breath is the measurement — and on a voice channel you can hear the answer while they give it."
@@ -85,14 +182,45 @@
       "type": "single",
       "text": {
         "en": "Do you smoke, or did you ever?",
-        "hi": "क्या आप धूम्रपान करते हैं, या कभी करते थे?"
+        "hi": "क्या आप धूम्रपान करते हैं, या कभी करते थे?",
+        "mr": "तुम्ही धूम्रपान करता का, किंवा कधी करत होता का?",
+        "te": "మీరు పొగ తాగుతారా, లేదా ఎప్పుడైనా తాగారా?"
       },
       "options": [
-        { "id": "never", "icon": "ok", "text": { "en": "Never", "hi": "कभी नहीं" } },
-        { "id": "past", "icon": "stop", "text": { "en": "I used to", "hi": "पहले करता था" } },
-        { "id": "current", "icon": "smoke", "text": { "en": "Yes, currently", "hi": "हाँ, अभी करता हूँ" } }
+        {
+          "id": "never",
+          "icon": "ok",
+          "text": {
+            "en": "Never",
+            "hi": "कभी नहीं",
+            "mr": "कधीच नाही",
+            "te": "ఎప్పుడూ లేదు"
+          }
+        },
+        {
+          "id": "past",
+          "icon": "stop",
+          "text": {
+            "en": "I used to",
+            "hi": "पहले करता था",
+            "mr": "मी आधी करत होतो",
+            "te": "నేను ఇంతకుముందు చేసేవాడిని"
+          }
+        },
+        {
+          "id": "current",
+          "icon": "smoke",
+          "text": {
+            "en": "Yes, currently",
+            "hi": "हाँ, अभी करता हूँ",
+            "mr": "होय, सध्या करतो",
+            "te": "అవును, ప్రస్తుతం"
+          }
+        }
       ],
-      "next": { "default": "pu.words" },
+      "next": {
+        "default": "pu.words"
+      },
       "adaptive_hints": "Ask without judgement — a patient who feels judged under-reports."
     },
     {
@@ -100,7 +228,9 @@
       "type": "free_voice",
       "text": {
         "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
+        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
+        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

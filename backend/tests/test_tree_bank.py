@@ -15,9 +15,10 @@ The checks worth understanding:
 - **doc 03 §1's starter flags exist and fire on a real scenario**, rather than
   merely parsing.
 
-The Hindi here was authored by a model and has **not** been reviewed by a native
-speaker or a clinician — see HANDOFF. These tests check that text is *present* and
-structurally sound. They cannot check that it is good Hindi or good medicine.
+The hi/mr/te here was authored by a model and has **not** been reviewed by a native
+speaker or a clinician — see HANDOFF. These tests (and the `app.lang_qa` harness)
+check that text is *present*, in the right script, and structurally sound. They
+cannot check that it is good Marathi, good Telugu, or good medicine.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import json
 
 import pytest
 
+from app.languages import PILOT_LANGUAGES
 from app.models.enums import Lang, Priority
 from app.seed import SEEDS_DIR
 from app.trees import rules as rule_lang
@@ -51,8 +53,8 @@ ROUTING_TREES = {
 }
 PILOT_BANK = CLINICAL_TREES | ROUTING_TREES
 
-#: S4 authors en+hi; mr and te are S13's.
-PILOT_LANGUAGES = (Lang.EN, Lang.HI)
+# PILOT_LANGUAGES is now `app.languages` — one source of truth shared with the seed
+# and the language QA harness. S4 authored en+hi; S13 completed mr+te.
 
 
 @pytest.fixture(scope="module")
@@ -134,9 +136,10 @@ def test_each_tree_belongs_to_a_real_department(bank, key):
 
 
 @pytest.mark.parametrize("key", tree_ids())
-def test_each_tree_speaks_english_and_hindi(bank, key):
-    """doc 06 S4: "in en+hi first (mr/te text in S13)". The validator already
-    enforces that a declared language is *complete*; this pins which ones."""
+def test_each_tree_speaks_every_pilot_language(bank, key):
+    """doc 03 §1: all four pilot languages, switchable at any time. S4 authored
+    en+hi; S13 completed mr+te. The validator already enforces that a declared
+    language is *complete*; this pins which ones a tree must declare, in order."""
     assert bank[key].languages == PILOT_LANGUAGES
 
 

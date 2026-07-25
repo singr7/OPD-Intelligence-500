@@ -2,10 +2,17 @@
   "key": "med_onc_pain",
   "version": 1,
   "department": "MEDONC",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Pain assessment",
-    "hi": "दर्द की जाँच"
+    "hi": "दर्द की जाँच",
+    "mr": "वेदनेची तपासणी",
+    "te": "నొప్పి మదింపు"
   },
   "root": "pain.where",
   "nodes": [
@@ -14,20 +21,105 @@
       "type": "body_map",
       "text": {
         "en": "Where is the pain? Touch the place on the picture.",
-        "hi": "दर्द कहाँ है? तस्वीर पर उस जगह को छुएँ।"
+        "hi": "दर्द कहाँ है? तस्वीर पर उस जगह को छुएँ।",
+        "mr": "वेदना कुठे आहे? चित्रावर ती जागा स्पर्श करा.",
+        "te": "నొప్పి ఎక్కడ ఉంది? చిత్రంలో ఆ స్థలాన్ని తాకండి."
       },
       "options": [
-        { "id": "head", "icon": "head", "text": { "en": "Head", "hi": "सिर" } },
-        { "id": "mouth", "icon": "mouth", "text": { "en": "Mouth or throat", "hi": "मुँह या गला" } },
-        { "id": "chest", "icon": "chest", "text": { "en": "Chest", "hi": "छाती" } },
-        { "id": "abdomen", "icon": "belly", "text": { "en": "Stomach", "hi": "पेट" } },
-        { "id": "back", "icon": "back", "text": { "en": "Back", "hi": "पीठ" } },
-        { "id": "pelvis", "icon": "pelvis", "text": { "en": "Lower stomach or hip", "hi": "पेट का निचला हिस्सा या कूल्हा" } },
-        { "id": "arms", "icon": "arm", "text": { "en": "Arms", "hi": "बाँहें" } },
-        { "id": "legs", "icon": "leg", "text": { "en": "Legs", "hi": "टाँगें" } },
-        { "id": "bones", "icon": "bone", "text": { "en": "All over my bones", "hi": "पूरे शरीर की हड्डियों में" } }
+        {
+          "id": "head",
+          "icon": "head",
+          "text": {
+            "en": "Head",
+            "hi": "सिर",
+            "mr": "डोकं",
+            "te": "తల"
+          }
+        },
+        {
+          "id": "mouth",
+          "icon": "mouth",
+          "text": {
+            "en": "Mouth or throat",
+            "hi": "मुँह या गला",
+            "mr": "तोंड किंवा घसा",
+            "te": "నోరు లేదా గొంతు"
+          }
+        },
+        {
+          "id": "chest",
+          "icon": "chest",
+          "text": {
+            "en": "Chest",
+            "hi": "छाती",
+            "mr": "छाती",
+            "te": "ఛాతీ"
+          }
+        },
+        {
+          "id": "abdomen",
+          "icon": "belly",
+          "text": {
+            "en": "Stomach",
+            "hi": "पेट",
+            "mr": "पोट",
+            "te": "కడుపు"
+          }
+        },
+        {
+          "id": "back",
+          "icon": "back",
+          "text": {
+            "en": "Back",
+            "hi": "पीठ",
+            "mr": "पाठ",
+            "te": "వీపు"
+          }
+        },
+        {
+          "id": "pelvis",
+          "icon": "pelvis",
+          "text": {
+            "en": "Lower stomach or hip",
+            "hi": "पेट का निचला हिस्सा या कूल्हा",
+            "mr": "पोटाचा खालचा भाग किंवा कंबर",
+            "te": "కడుపు కింది భాగం లేదా తుంటి"
+          }
+        },
+        {
+          "id": "arms",
+          "icon": "arm",
+          "text": {
+            "en": "Arms",
+            "hi": "बाँहें",
+            "mr": "हात",
+            "te": "చేతులు"
+          }
+        },
+        {
+          "id": "legs",
+          "icon": "leg",
+          "text": {
+            "en": "Legs",
+            "hi": "टाँगें",
+            "mr": "पाय",
+            "te": "కాళ్లు"
+          }
+        },
+        {
+          "id": "bones",
+          "icon": "bone",
+          "text": {
+            "en": "All over my bones",
+            "hi": "पूरे शरीर की हड्डियों में",
+            "mr": "सर्व हाडांमध्ये",
+            "te": "శరీరమంతటి ఎముకల్లో"
+          }
+        }
       ],
-      "next": { "default": "pain.severity" },
+      "next": {
+        "default": "pain.severity"
+      },
       "adaptive_hints": "On voice channels there is no picture — ask them to name the place and map it."
     },
     {
@@ -35,19 +127,34 @@
       "type": "scale",
       "text": {
         "en": "How bad is the pain right now? Zero is no pain, ten is the worst pain you can imagine.",
-        "hi": "अभी दर्द कितना है? शून्य मतलब दर्द नहीं, दस मतलब सबसे भयानक दर्द।"
+        "hi": "अभी दर्द कितना है? शून्य मतलब दर्द नहीं, दस मतलब सबसे भयानक दर्द।",
+        "mr": "आत्ता वेदना किती आहे? शून्य म्हणजे वेदना नाही, दहा म्हणजे कल्पनेतली सर्वात भयानक वेदना.",
+        "te": "ఇప్పుడు నొప్పి ఎంత ఉంది? సున్నా అంటే నొప్పి లేదు, పది అంటే ఊహించగల అత్యంత తీవ్రమైన నొప్పి."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pain.worst" },
-      "red_flag_if": { "node": "pain.severity", "op": "gte", "value": 8 },
+      "next": {
+        "default": "pain.worst"
+      },
+      "red_flag_if": {
+        "node": "pain.severity",
+        "op": "gte",
+        "value": 8
+      },
       "red_flag": {
         "id": "pain.severe",
         "severity": "urgent",
-        "label": { "en": "Severe pain (8+/10)", "hi": "तेज़ दर्द (8+/10)" },
+        "label": {
+          "en": "Severe pain (8+/10)",
+          "hi": "तेज़ दर्द (8+/10)",
+          "mr": "तीव्र वेदना (८+/१०)",
+          "te": "తీవ్రమైన నొప్పి (8+/10)"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you should not have to wait in this much pain.",
-          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।"
+          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — एवढ्या वेदनेत तुम्हाला थांबावं लागू नये.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — ఇంత నొప్పిలో మీరు వేచి ఉండాల్సిన అవసరం లేదు."
         }
       },
       "adaptive_hints": "Use the faces scale on the kiosk. Many patients under-report — if their words and their number disagree, save the number but keep their words in raw_text."
@@ -57,39 +164,96 @@
       "type": "scale",
       "text": {
         "en": "And at its worst in the last week?",
-        "hi": "और पिछले हफ़्ते में सबसे ज़्यादा कितना था?"
+        "hi": "और पिछले हफ़्ते में सबसे ज़्यादा कितना था?",
+        "mr": "आणि गेल्या आठवड्यात सर्वात जास्त किती होतं?",
+        "te": "గత వారంలో అత్యధికంగా ఎంత ఉంది?"
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pain.duration" }
+      "next": {
+        "default": "pain.duration"
+      }
     },
     {
       "id": "pain.duration",
       "type": "number",
       "text": {
         "en": "How many days have you had this pain?",
-        "hi": "यह दर्द कितने दिनों से है?"
+        "hi": "यह दर्द कितने दिनों से है?",
+        "mr": "ही वेदना किती दिवसांपासून आहे?",
+        "te": "ఈ నొప్పి ఎన్ని రోజుల నుండి ఉంది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "pain.character" }
+      "next": {
+        "default": "pain.character"
+      }
     },
     {
       "id": "pain.character",
       "type": "single",
       "text": {
         "en": "What kind of pain is it?",
-        "hi": "दर्द किस तरह का है?"
+        "hi": "दर्द किस तरह का है?",
+        "mr": "ही कोणत्या प्रकारची वेदना आहे?",
+        "te": "ఇది ఏ రకమైన నొప్పి?"
       },
       "options": [
-        { "id": "dull", "icon": "wave", "text": { "en": "Dull ache", "hi": "हल्का, लगातार दर्द" } },
-        { "id": "sharp", "icon": "needle", "text": { "en": "Sharp or stabbing", "hi": "तेज़, चुभने वाला" } },
-        { "id": "burning", "icon": "fire", "text": { "en": "Burning", "hi": "जलन वाला" } },
-        { "id": "cramping", "icon": "twist", "text": { "en": "Cramping", "hi": "मरोड़ वाला" } },
-        { "id": "shooting", "icon": "bolt", "text": { "en": "Shooting down a limb", "hi": "हाथ-पैर में उतरने वाला" } }
+        {
+          "id": "dull",
+          "icon": "wave",
+          "text": {
+            "en": "Dull ache",
+            "hi": "हल्का, लगातार दर्द",
+            "mr": "मंद, सततची कळ",
+            "te": "మెల్లని, నిरంతర నొప్పి"
+          }
+        },
+        {
+          "id": "sharp",
+          "icon": "needle",
+          "text": {
+            "en": "Sharp or stabbing",
+            "hi": "तेज़, चुभने वाला",
+            "mr": "तीक्ष्ण किंवा भोसकणारी",
+            "te": "పదునైన లేదా పొడిచినట్టు"
+          }
+        },
+        {
+          "id": "burning",
+          "icon": "fire",
+          "text": {
+            "en": "Burning",
+            "hi": "जलन वाला",
+            "mr": "जळजळ",
+            "te": "మంట"
+          }
+        },
+        {
+          "id": "cramping",
+          "icon": "twist",
+          "text": {
+            "en": "Cramping",
+            "hi": "मरोड़ वाला",
+            "mr": "पिळवटणारी",
+            "te": "పట్టేసినట్టు"
+          }
+        },
+        {
+          "id": "shooting",
+          "icon": "bolt",
+          "text": {
+            "en": "Shooting down a limb",
+            "hi": "हाथ-पैर में उतरने वाला",
+            "mr": "हात-पायात कळ मारणारी",
+            "te": "చేయి-కాలిలో లాగుతూ"
+          }
+        }
       ],
-      "next": { "default": "pain.night" },
+      "next": {
+        "default": "pain.night"
+      },
       "adaptive_hints": "Burning and shooting suggest neuropathic pain; the doctor treats it differently. Do not say so to the patient."
     },
     {
@@ -97,38 +261,113 @@
       "type": "single",
       "text": {
         "en": "Does the pain wake you at night?",
-        "hi": "क्या दर्द से रात में नींद खुल जाती है?"
+        "hi": "क्या दर्द से रात में नींद खुल जाती है?",
+        "mr": "वेदनेने रात्री जाग येते का?",
+        "te": "నొప్పితో రాత్రి మెలకువ వస్తుందా?"
       },
       "options": [
-        { "id": "no", "icon": "sleep", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "sometimes", "icon": "moon", "text": { "en": "Sometimes", "hi": "कभी-कभी" } },
-        { "id": "every_night", "icon": "moon", "text": { "en": "Every night", "hi": "हर रात" } }
+        {
+          "id": "no",
+          "icon": "sleep",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "sometimes",
+          "icon": "moon",
+          "text": {
+            "en": "Sometimes",
+            "hi": "कभी-कभी",
+            "mr": "कधीकधी",
+            "te": "కొన్నిసార్లు"
+          }
+        },
+        {
+          "id": "every_night",
+          "icon": "moon",
+          "text": {
+            "en": "Every night",
+            "hi": "हर रात",
+            "mr": "दररोज रात्री",
+            "te": "ప్రతి రాత్రి"
+          }
+        }
       ],
-      "next": { "default": "pain.medicine" }
+      "next": {
+        "default": "pain.medicine"
+      }
     },
     {
       "id": "pain.medicine",
       "type": "single",
       "text": {
         "en": "Are you taking anything for the pain, and does it help?",
-        "hi": "क्या आप दर्द के लिए कुछ ले रहे हैं, और क्या उससे आराम मिलता है?"
+        "hi": "क्या आप दर्द के लिए कुछ ले रहे हैं, और क्या उससे आराम मिलता है?",
+        "mr": "वेदनेसाठी तुम्ही काही घेता का, आणि त्याने आराम मिळतो का?",
+        "te": "నొప్పి కోసం మీరు ఏదైనా వేసుకుంటున్నారా, దానివల్ల ఉపశమనం ఉందా?"
       },
       "options": [
-        { "id": "nothing", "icon": "empty", "text": { "en": "Taking nothing", "hi": "कुछ नहीं ले रहा" } },
-        { "id": "helps", "icon": "pill", "text": { "en": "Yes, and it helps", "hi": "हाँ, और आराम मिलता है" } },
-        { "id": "helps_little", "icon": "pill", "text": { "en": "Yes, it helps a little", "hi": "हाँ, थोड़ा आराम मिलता है" } },
-        { "id": "no_help", "icon": "pill-off", "text": { "en": "Yes, but it does not help", "hi": "हाँ, पर आराम नहीं मिलता" } }
+        {
+          "id": "nothing",
+          "icon": "empty",
+          "text": {
+            "en": "Taking nothing",
+            "hi": "कुछ नहीं ले रहा",
+            "mr": "काहीच घेत नाही",
+            "te": "ఏమీ వేసుకోవడం లేదు"
+          }
+        },
+        {
+          "id": "helps",
+          "icon": "pill",
+          "text": {
+            "en": "Yes, and it helps",
+            "hi": "हाँ, और आराम मिलता है",
+            "mr": "होय, आणि आराम मिळतो",
+            "te": "అవును, ఉపశమనం కలుగుతోంది"
+          }
+        },
+        {
+          "id": "helps_little",
+          "icon": "pill",
+          "text": {
+            "en": "Yes, it helps a little",
+            "hi": "हाँ, थोड़ा आराम मिलता है",
+            "mr": "होय, थोडा आराम मिळतो",
+            "te": "అవును, కొంచెం ఉపశమనం కలుగుతోంది"
+          }
+        },
+        {
+          "id": "no_help",
+          "icon": "pill-off",
+          "text": {
+            "en": "Yes, but it does not help",
+            "hi": "हाँ, पर आराम नहीं मिलता",
+            "mr": "होय, पण आराम मिळत नाही",
+            "te": "అవును, కానీ ఉపశమనం లేదు"
+          }
+        }
       ],
-      "next": { "default": "pain.medicine_name" }
+      "next": {
+        "default": "pain.medicine_name"
+      }
     },
     {
       "id": "pain.medicine_name",
       "type": "free_voice",
       "text": {
         "en": "Which medicine is it? Say the name, or read it from the strip.",
-        "hi": "कौन सी दवा है? नाम बोलें, या पत्ते पर से पढ़कर बताएं।"
+        "hi": "कौन सी दवा है? नाम बोलें, या पत्ते पर से पढ़कर बताएं।",
+        "mr": "कोणतं औषध आहे? नाव सांगा, किंवा पट्टीवरून वाचून सांगा.",
+        "te": "ఇది ఏ మందు? పేరు చెప్పండి, లేదా స్ట్రిప్‌పై చదివి చెప్పండి."
       },
-      "next": { "default": "pain.words" },
+      "next": {
+        "default": "pain.words"
+      },
       "adaptive_hints": "Do not guess or correct a drug name. Mark unclear names as [unclear: ...] per doc 03 §4."
     },
     {
@@ -136,7 +375,9 @@
       "type": "free_voice",
       "text": {
         "en": "Anything else about the pain you want the doctor to know?",
-        "hi": "दर्द के बारे में और कुछ जो आप डॉक्टर को बताना चाहते हैं?"
+        "hi": "दर्द के बारे में और कुछ जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "वेदनेबद्दल आणखी काही डॉक्टरांना सांगायचं आहे का?",
+        "te": "నొప్పి గురించి డాక్టర్‌కు చెప్పాలనుకునే మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }
@@ -148,17 +389,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "pain.medicine", "op": "eq", "value": "no_help" },
-          { "node": "pain.severity", "op": "gte", "value": 5 }
+          {
+            "node": "pain.medicine",
+            "op": "eq",
+            "value": "no_help"
+          },
+          {
+            "node": "pain.severity",
+            "op": "gte",
+            "value": 5
+          }
         ]
       },
       "label": {
         "en": "Pain not controlled by current medicine",
-        "hi": "मौजूदा दवा से दर्द काबू में नहीं"
+        "hi": "मौजूदा दवा से दर्द काबू में नहीं",
+        "mr": "सध्याच्या औषधाने वेदना आटोक्यात नाही",
+        "te": "ప్రస్తుత మందుతో నొప్పి అదుపులో లేదు"
       },
       "instruction": {
         "en": "Please mention this to the staff at the desk when you check in.",
-        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+        "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+        "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
       }
     },
     {
@@ -167,18 +420,34 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "pain.where", "op": "contains", "value": "back" },
-          { "node": "pain.character", "op": "eq", "value": "shooting" },
-          { "node": "pain.night", "op": "eq", "value": "every_night" }
+          {
+            "node": "pain.where",
+            "op": "contains",
+            "value": "back"
+          },
+          {
+            "node": "pain.character",
+            "op": "eq",
+            "value": "shooting"
+          },
+          {
+            "node": "pain.night",
+            "op": "eq",
+            "value": "every_night"
+          }
         ]
       },
       "label": {
         "en": "Back pain, shooting, waking every night",
-        "hi": "पीठ का दर्द, उतरने वाला, हर रात नींद खुलती है"
+        "hi": "पीठ का दर्द, उतरने वाला, हर रात नींद खुलती है",
+        "mr": "पाठदुखी, कळ मारणारी, दररोज रात्री जाग येते",
+        "te": "వీపు నొప్పి, లాగుతూ, ప్రతి రాత్రి మెలకువ వస్తోంది"
       },
       "instruction": {
         "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
       }
     }
   ]

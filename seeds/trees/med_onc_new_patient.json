@@ -2,10 +2,17 @@
   "key": "med_onc_new_patient",
   "version": 1,
   "department": "MEDONC",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Medical Oncology — new patient",
-    "hi": "मेडिकल ऑन्कोलॉजी — नया मरीज़"
+    "hi": "मेडिकल ऑन्कोलॉजी — नया मरीज़",
+    "mr": "मेडिकल ऑन्कोलॉजी — नवीन रुग्ण",
+    "te": "మెడికల్ ఆంకాలజీ — కొత్త రోగి"
   },
   "root": "mo.new.diagnosis",
   "nodes": [
@@ -14,26 +21,45 @@
       "type": "single",
       "text": {
         "en": "Has a doctor already told you what the illness is?",
-        "hi": "क्या किसी डॉक्टर ने बताया है कि बीमारी क्या है?"
+        "hi": "क्या किसी डॉक्टर ने बताया है कि बीमारी क्या है?",
+        "mr": "आजार काय आहे हे डॉक्टरांनी आधीच सांगितलं आहे का?",
+        "te": "అనారోగ్యం ఏమిటో డాక్టర్ ఇప్పటికే మీకు చెప్పారా?"
       },
       "options": [
         {
           "id": "confirmed",
           "icon": "report",
-          "text": { "en": "Yes, it is confirmed", "hi": "हाँ, पक्का बताया है" }
+          "text": {
+            "en": "Yes, it is confirmed",
+            "hi": "हाँ, पक्का बताया है",
+            "mr": "होय, निश्चित झालं आहे",
+            "te": "అవును, నిర్ధారించబడింది"
+          }
         },
         {
           "id": "suspected",
           "icon": "question",
-          "text": { "en": "They suspect something", "hi": "शक बताया है" }
+          "text": {
+            "en": "They suspect something",
+            "hi": "शक बताया है",
+            "mr": "त्यांना काहीतरी शंका आहे",
+            "te": "వారికి ఏదో అనుమానం ఉంది"
+          }
         },
         {
           "id": "not_sure",
           "icon": "unknown",
-          "text": { "en": "I am not sure", "hi": "मुझे ठीक से पता नहीं" }
+          "text": {
+            "en": "I am not sure",
+            "hi": "मुझे ठीक से पता नहीं",
+            "mr": "मला खात्री नाही",
+            "te": "నాకు ఖచ్చితంగా తెలియదు"
+          }
         }
       ],
-      "next": { "default": "mo.new.reports" },
+      "next": {
+        "default": "mo.new.reports"
+      },
       "adaptive_hints": "If not_sure, do not push — the doctor will establish this. Move on."
     },
     {
@@ -41,42 +67,126 @@
       "type": "single",
       "text": {
         "en": "Have you brought your reports or files today?",
-        "hi": "क्या आज आप अपनी रिपोर्ट या फाइल लाए हैं?"
+        "hi": "क्या आज आप अपनी रिपोर्ट या फाइल लाए हैं?",
+        "mr": "तुम्ही आज तुमचे रिपोर्ट किंवा फाइल आणल्या आहेत का?",
+        "te": "మీరు ఈ రోజు మీ రిపోర్టులు లేదా ఫైళ్లు తెచ్చారా?"
       },
       "options": [
-        { "id": "yes", "icon": "folder", "text": { "en": "Yes", "hi": "हाँ" } },
-        { "id": "some", "icon": "paper", "text": { "en": "Some of them", "hi": "कुछ ही" } },
-        { "id": "no", "icon": "empty", "text": { "en": "No", "hi": "नहीं" } }
+        {
+          "id": "yes",
+          "icon": "folder",
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          }
+        },
+        {
+          "id": "some",
+          "icon": "paper",
+          "text": {
+            "en": "Some of them",
+            "hi": "कुछ ही",
+            "mr": "त्यांपैकी काही",
+            "te": "వాటిలో కొన్ని"
+          }
+        },
+        {
+          "id": "no",
+          "icon": "empty",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        }
       ],
-      "next": { "default": "mo.new.problems" }
+      "next": {
+        "default": "mo.new.problems"
+      }
     },
     {
       "id": "mo.new.problems",
       "type": "multi",
       "text": {
         "en": "What is troubling you most right now? Choose all that apply.",
-        "hi": "अभी आपको सबसे ज़्यादा क्या तकलीफ़ है? जो भी लागू हो चुनें।"
+        "hi": "अभी आपको सबसे ज़्यादा क्या तकलीफ़ है? जो भी लागू हो चुनें।",
+        "mr": "आत्ता तुम्हाला सर्वात जास्त काय त्रास देतंय? जे लागू असेल ते सर्व निवडा.",
+        "te": "ఇప్పుడు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి? వర్తించే అన్నింటినీ ఎంచుకోండి."
       },
       "options": [
-        { "id": "pain", "icon": "pain", "text": { "en": "Pain", "hi": "दर्द" } },
-        { "id": "lump", "icon": "lump", "text": { "en": "A lump or swelling", "hi": "गाँठ या सूजन" } },
-        { "id": "vomiting", "icon": "vomit", "text": { "en": "Vomiting", "hi": "उल्टी" } },
-        { "id": "fever", "icon": "thermometer", "text": { "en": "Fever", "hi": "बुखार" } },
-        { "id": "weakness", "icon": "tired", "text": { "en": "Weakness", "hi": "कमज़ोरी" } }
+        {
+          "id": "pain",
+          "icon": "pain",
+          "text": {
+            "en": "Pain",
+            "hi": "दर्द",
+            "mr": "वेदना",
+            "te": "నొప్పి"
+          }
+        },
+        {
+          "id": "lump",
+          "icon": "lump",
+          "text": {
+            "en": "A lump or swelling",
+            "hi": "गाँठ या सूजन",
+            "mr": "गाठ किंवा सूज",
+            "te": "గడ్డ లేదా వాపు"
+          }
+        },
+        {
+          "id": "vomiting",
+          "icon": "vomit",
+          "text": {
+            "en": "Vomiting",
+            "hi": "उल्टी",
+            "mr": "उलटी",
+            "te": "వాంతి"
+          }
+        },
+        {
+          "id": "fever",
+          "icon": "thermometer",
+          "text": {
+            "en": "Fever",
+            "hi": "बुखार",
+            "mr": "ताप",
+            "te": "జ్వరం"
+          }
+        },
+        {
+          "id": "weakness",
+          "icon": "tired",
+          "text": {
+            "en": "Weakness",
+            "hi": "कमज़ोरी",
+            "mr": "अशक्तपणा",
+            "te": "బలహీనత"
+          }
+        }
       ],
-      "next": { "default": "mo.new.duration" }
+      "next": {
+        "default": "mo.new.duration"
+      }
     },
     {
       "id": "mo.new.duration",
       "type": "number",
       "text": {
         "en": "For how many days has this been going on?",
-        "hi": "यह तकलीफ़ कितने दिनों से है?"
+        "hi": "यह तकलीफ़ कितने दिनों से है?",
+        "mr": "हे किती दिवसांपासून चालू आहे?",
+        "te": "ఇది ఎన్ని రోజుల నుండి జరుగుతోంది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "mo.new.weight_loss" },
+      "next": {
+        "default": "mo.new.weight_loss"
+      },
       "adaptive_hints": "Patients answer in months or years — convert to days before saving."
     },
     {
@@ -84,14 +194,45 @@
       "type": "single",
       "text": {
         "en": "Have your clothes become loose, or has your weight dropped?",
-        "hi": "क्या आपके कपड़े ढीले हो गए हैं, या वज़न घटा है?"
+        "hi": "क्या आपके कपड़े ढीले हो गए हैं, या वज़न घटा है?",
+        "mr": "तुमचे कपडे सैल झाले आहेत का, किंवा वजन कमी झालं आहे का?",
+        "te": "మీ బట్టలు వదులుగా అయ్యాయా, లేదా బరువు తగ్గిందా?"
       },
       "options": [
-        { "id": "a_lot", "icon": "scale-down", "text": { "en": "Yes, a lot", "hi": "हाँ, बहुत" } },
-        { "id": "a_little", "icon": "scale", "text": { "en": "A little", "hi": "थोड़ा" } },
-        { "id": "no", "icon": "scale-flat", "text": { "en": "No", "hi": "नहीं" } }
+        {
+          "id": "a_lot",
+          "icon": "scale-down",
+          "text": {
+            "en": "Yes, a lot",
+            "hi": "हाँ, बहुत",
+            "mr": "होय, खूप",
+            "te": "అవును, చాలా"
+          }
+        },
+        {
+          "id": "a_little",
+          "icon": "scale",
+          "text": {
+            "en": "A little",
+            "hi": "थोड़ा",
+            "mr": "थोडं",
+            "te": "కొంచెం"
+          }
+        },
+        {
+          "id": "no",
+          "icon": "scale-flat",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        }
       ],
-      "next": { "default": "mo.new.fever_temp" },
+      "next": {
+        "default": "mo.new.fever_temp"
+      },
       "adaptive_hints": "Asked by clothes fitting because most patients have not weighed themselves."
     },
     {
@@ -99,20 +240,35 @@
       "type": "number",
       "text": {
         "en": "If you have measured your temperature, what was it? Say 0 if you have not.",
-        "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।"
+        "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।",
+        "mr": "तुम्ही ताप मोजला असेल तर किती होता? नसेल मोजला तर ० म्हणा.",
+        "te": "మీరు జ్వరం కొలిచి ఉంటే ఎంత ఉంది? కొలవకపోతే 0 చెప్పండి."
       },
       "min": 0,
       "max": 43,
       "unit": "C",
-      "next": { "default": "mo.new.chest" },
-      "red_flag_if": { "node": "mo.new.fever_temp", "op": "gte", "value": 38 },
+      "next": {
+        "default": "mo.new.chest"
+      },
+      "red_flag_if": {
+        "node": "mo.new.fever_temp",
+        "op": "gte",
+        "value": 38
+      },
       "red_flag": {
         "id": "mo.new.fever",
         "severity": "semi",
-        "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+        "label": {
+          "en": "Fever 38°C or above",
+          "hi": "38°C या उससे ऊपर बुखार",
+          "mr": "३८°C किंवा त्याहून जास्त ताप",
+          "te": "38°C లేదా అంతకంటే ఎక్కువ జ్వరం"
+        },
         "instruction": {
           "en": "Please tell the staff at the desk that you have a fever today.",
-          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।",
+          "mr": "कृपया डेस्कवरील कर्मचाऱ्यांना सांगा की आज तुम्हाला ताप आहे.",
+          "te": "దయచేసి ఈ రోజు మీకు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
         }
       },
       "adaptive_hints": "0 means not measured, not 0°C. Do not read 0 back as a temperature."
@@ -122,40 +278,72 @@
       "type": "single",
       "text": {
         "en": "Do you have chest pain, or trouble breathing?",
-        "hi": "क्या आपको सीने में दर्द है, या साँस लेने में तकलीफ़?"
+        "hi": "क्या आपको सीने में दर्द है, या साँस लेने में तकलीफ़?",
+        "mr": "तुम्हाला छातीत दुखतंय का, किंवा श्वास घ्यायला त्रास होतोय का?",
+        "te": "మీకు ఛాతీ నొప్పి ఉందా, లేదా శ్వాస తీసుకోవడం కష్టంగా ఉందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "Neither", "hi": "दोनों नहीं" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "Neither",
+            "hi": "दोनों नहीं",
+            "mr": "दोन्हीही नाही",
+            "te": "రెండూ కాదు"
+          }
+        },
         {
           "id": "chest_pain",
           "icon": "heart",
-          "text": { "en": "Chest pain", "hi": "सीने में दर्द" },
+          "text": {
+            "en": "Chest pain",
+            "hi": "सीने में दर्द",
+            "mr": "छातीत दुखणं",
+            "te": "ఛాతీ నొప్పి"
+          },
           "flag": true
         },
         {
           "id": "breathless",
           "icon": "lungs",
-          "text": { "en": "Trouble breathing", "hi": "साँस लेने में तकलीफ़" },
+          "text": {
+            "en": "Trouble breathing",
+            "hi": "साँस लेने में तकलीफ़",
+            "mr": "श्वास घ्यायला त्रास",
+            "te": "శ్వాస తీసుకోవడంలో ఇబ్బంది"
+          },
           "flag": true
         },
         {
           "id": "both",
           "icon": "alert",
-          "text": { "en": "Both", "hi": "दोनों" },
+          "text": {
+            "en": "Both",
+            "hi": "दोनों",
+            "mr": "दोन्ही",
+            "te": "రెండూ"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.new.bleeding" },
+      "next": {
+        "default": "mo.new.bleeding"
+      },
       "red_flag": {
         "id": "mo.new.cardioresp",
         "severity": "urgent",
         "label": {
           "en": "Chest pain or breathlessness",
-          "hi": "सीने में दर्द या साँस फूलना"
+          "hi": "सीने में दर्द या साँस फूलना",
+          "mr": "छातीत दुखणं किंवा धाप लागणं",
+          "te": "ఛాతీ నొప్పి లేదా శ్వాస ఆడకపోవడం"
         },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -164,25 +352,50 @@
       "type": "single",
       "text": {
         "en": "Is there any bleeding right now — from anywhere?",
-        "hi": "क्या अभी कहीं से खून आ रहा है?"
+        "hi": "क्या अभी कहीं से खून आ रहा है?",
+        "mr": "आत्ता कुठून रक्त येतंय का — कुठूनही?",
+        "te": "ఇప్పుడు ఎక్కడైనా రక్తస్రావం అవుతోందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
         {
           "id": "yes",
           "icon": "blood",
-          "text": { "en": "Yes", "hi": "हाँ" },
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.new.vomiting_24" },
+      "next": {
+        "default": "mo.new.vomiting_24"
+      },
       "red_flag": {
         "id": "mo.new.bleeding",
         "severity": "urgent",
-        "label": { "en": "Active bleeding", "hi": "खून बह रहा है" },
+        "label": {
+          "en": "Active bleeding",
+          "hi": "खून बह रहा है",
+          "mr": "रक्त वाहत आहे",
+          "te": "రక్తస్రావం అవుతోంది"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -191,30 +404,60 @@
       "type": "single",
       "text": {
         "en": "Have you been vomiting? For how long?",
-        "hi": "क्या आपको उल्टी हो रही है? कितने समय से?"
+        "hi": "क्या आपको उल्टी हो रही है? कितने समय से?",
+        "mr": "तुम्हाला उलट्या होताहेत का? किती वेळापासून?",
+        "te": "మీకు వాంతులు అవుతున్నాయా? ఎంతకాలంగా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No vomiting", "hi": "उल्टी नहीं" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No vomiting",
+            "hi": "उल्टी नहीं",
+            "mr": "उलटी नाही",
+            "te": "వాంతి లేదు"
+          }
+        },
         {
           "id": "under_24",
           "icon": "clock",
-          "text": { "en": "Less than a day", "hi": "एक दिन से कम" }
+          "text": {
+            "en": "Less than a day",
+            "hi": "एक दिन से कम",
+            "mr": "एका दिवसापेक्षा कमी",
+            "te": "ఒక రోజు కంటే తక్కువ"
+          }
         },
         {
           "id": "over_24",
           "icon": "alert",
-          "text": { "en": "More than a day", "hi": "एक दिन से ज़्यादा" },
+          "text": {
+            "en": "More than a day",
+            "hi": "एक दिन से ज़्यादा",
+            "mr": "एका दिवसापेक्षा जास्त",
+            "te": "ఒక రోజు కంటే ఎక్కువ"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.new.confusion" },
+      "next": {
+        "default": "mo.new.confusion"
+      },
       "red_flag": {
         "id": "mo.new.vomiting",
         "severity": "urgent",
-        "label": { "en": "Vomiting over 24 hours", "hi": "24 घंटे से ज़्यादा उल्टी" },
+        "label": {
+          "en": "Vomiting over 24 hours",
+          "hi": "24 घंटे से ज़्यादा उल्टी",
+          "mr": "२४ तासांहून जास्त वेळ उलटी",
+          "te": "24 గంటలకు మించి వాంతులు"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
-          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — डॉक्टरांना भेटण्यापूर्वी तुम्हाला सलाईनची गरज लागू शकते.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — డాక్టర్‌ను కలిసే ముందు మీకు సెలైన్ అవసరం కావచ్చు."
         }
       }
     },
@@ -223,25 +466,50 @@
       "type": "single",
       "text": {
         "en": "Has anyone at home noticed you being confused or very drowsy?",
-        "hi": "क्या घर में किसी ने देखा कि आप उलझन में हैं या बहुत सुस्त हैं?"
+        "hi": "क्या घर में किसी ने देखा कि आप उलझन में हैं या बहुत सुस्त हैं?",
+        "mr": "घरात कुणी लक्षात घेतलं का की तुम्ही गोंधळलेले किंवा खूप सुस्त आहात?",
+        "te": "మీరు గందరగోళంగా లేదా బాగా మత్తుగా ఉన్నారని ఇంట్లో ఎవరైనా గమనించారా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
         {
           "id": "yes",
           "icon": "alert",
-          "text": { "en": "Yes", "hi": "हाँ" },
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.new.other_illness" },
+      "next": {
+        "default": "mo.new.other_illness"
+      },
       "red_flag": {
         "id": "mo.new.confusion",
         "severity": "urgent",
-        "label": { "en": "New confusion or drowsiness", "hi": "नई उलझन या सुस्ती" },
+        "label": {
+          "en": "New confusion or drowsiness",
+          "hi": "नई उलझन या सुस्ती",
+          "mr": "नवीन गोंधळ किंवा सुस्ती",
+          "te": "కొత్త గందరగోళం లేదా మత్తు"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       },
       "adaptive_hints": "Ask the caregiver if one is present — the patient may not notice this themselves."
@@ -251,25 +519,78 @@
       "type": "multi",
       "text": {
         "en": "Do you have any of these other illnesses?",
-        "hi": "क्या आपको इनमें से कोई और बीमारी है?"
+        "hi": "क्या आपको इनमें से कोई और बीमारी है?",
+        "mr": "तुम्हाला यांपैकी आणखी काही आजार आहे का?",
+        "te": "మీకు వీటిలో ఏదైనా ఇతర అనారోగ్యం ఉందా?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "None of these", "hi": "इनमें से कोई नहीं" } },
-        { "id": "diabetes", "icon": "sugar", "text": { "en": "Diabetes (sugar)", "hi": "मधुमेह (शुगर)" } },
-        { "id": "bp", "icon": "bp", "text": { "en": "High blood pressure", "hi": "उच्च रक्तचाप (बीपी)" } },
-        { "id": "heart", "icon": "heart", "text": { "en": "Heart problem", "hi": "दिल की बीमारी" } },
-        { "id": "tb_asthma", "icon": "lungs", "text": { "en": "TB or asthma", "hi": "टीबी या दमा" } }
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "None of these",
+            "hi": "इनमें से कोई नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ కాదు"
+          }
+        },
+        {
+          "id": "diabetes",
+          "icon": "sugar",
+          "text": {
+            "en": "Diabetes (sugar)",
+            "hi": "मधुमेह (शुगर)",
+            "mr": "मधुमेह (साखर)",
+            "te": "మధుమేహం (షుగర్)"
+          }
+        },
+        {
+          "id": "bp",
+          "icon": "bp",
+          "text": {
+            "en": "High blood pressure",
+            "hi": "उच्च रक्तचाप (बीपी)",
+            "mr": "उच्च रक्तदाब (बीपी)",
+            "te": "అధిక రక్తపోటు (బీపీ)"
+          }
+        },
+        {
+          "id": "heart",
+          "icon": "heart",
+          "text": {
+            "en": "Heart problem",
+            "hi": "दिल की बीमारी",
+            "mr": "हृदयाचा त्रास",
+            "te": "గుండె సమస్య"
+          }
+        },
+        {
+          "id": "tb_asthma",
+          "icon": "lungs",
+          "text": {
+            "en": "TB or asthma",
+            "hi": "टीबी या दमा",
+            "mr": "टीबी किंवा दमा",
+            "te": "టీబీ లేదా ఆస్తమా"
+          }
+        }
       ],
-      "next": { "default": "mo.new.meds" }
+      "next": {
+        "default": "mo.new.meds"
+      }
     },
     {
       "id": "mo.new.meds",
       "type": "free_voice",
       "text": {
         "en": "Which medicines are you taking now? Say their names, or read them from the strip.",
-        "hi": "आप अभी कौन सी दवाइयाँ ले रहे हैं? नाम बोलें, या पत्ते पर से पढ़कर बताएं।"
+        "hi": "आप अभी कौन सी दवाइयाँ ले रहे हैं? नाम बोलें, या पत्ते पर से पढ़कर बताएं।",
+        "mr": "तुम्ही आत्ता कोणती औषधं घेता? त्यांची नावं सांगा, किंवा पट्टीवरून वाचून सांगा.",
+        "te": "మీరు ఇప్పుడు ఏ మందులు వేసుకుంటున్నారు? వాటి పేర్లు చెప్పండి, లేదా స్ట్రిప్‌పై చదివి చెప్పండి."
       },
-      "next": { "default": "mo.new.words" },
+      "next": {
+        "default": "mo.new.words"
+      },
       "adaptive_hints": "Do not guess or correct a drug name. Record exactly what was said; mark unclear names as [unclear: ...] per doc 03 §4."
     },
     {
@@ -277,7 +598,9 @@
       "type": "free_voice",
       "text": {
         "en": "Is there anything else you want the doctor to know?",
-        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "आणखी काही डॉक्टरांना सांगायचं आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకునే మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. Let the patient finish without interrupting; this quote goes to the doctor verbatim."
     }

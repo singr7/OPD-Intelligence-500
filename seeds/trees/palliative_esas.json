@@ -2,10 +2,17 @@
   "key": "palliative_esas",
   "version": 1,
   "department": "PALL",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Palliative care — symptom burden (ESAS-lite)",
-    "hi": "उपशामक देखभाल — लक्षणों का बोझ (ESAS-lite)"
+    "hi": "उपशामक देखभाल — लक्षणों का बोझ (ESAS-lite)",
+    "mr": "उपशामक काळजी — लक्षणांचा भार (ESAS-lite)",
+    "te": "ఉపశమన సంరక్షణ — లక్షణాల భారం (ESAS-lite)"
   },
   "root": "pall.pain",
   "nodes": [
@@ -14,19 +21,34 @@
       "type": "scale",
       "text": {
         "en": "Right now, how bad is your pain? Zero is none, ten is the worst possible.",
-        "hi": "अभी आपका दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे भयानक।"
+        "hi": "अभी आपका दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे भयानक।",
+        "mr": "आत्ता, तुमची वेदना किती आहे? शून्य म्हणजे नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు, మీ నొప్పి ఎంత ఉంది? సున్నా అంటే లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.tired" },
-      "red_flag_if": { "node": "pall.pain", "op": "gte", "value": 8 },
+      "next": {
+        "default": "pall.tired"
+      },
+      "red_flag_if": {
+        "node": "pall.pain",
+        "op": "gte",
+        "value": 8
+      },
       "red_flag": {
         "id": "pall.severe_pain",
         "severity": "urgent",
-        "label": { "en": "Severe pain (8+/10)", "hi": "तेज़ दर्द (8+/10)" },
+        "label": {
+          "en": "Severe pain (8+/10)",
+          "hi": "तेज़ दर्द (8+/10)",
+          "mr": "तीव्र वेदना (८+/१०)",
+          "te": "తీవ్రమైన నొప్పి (8+/10)"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you should not have to wait in this much pain.",
-          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।"
+          "hi": "कृपया अभी नर्स को बताएं — इतने दर्द में आपको इंतज़ार नहीं करना चाहिए।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — एवढ्या वेदनेत तुम्हाला थांबावं लागू नये.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — ఇంత నొప్పిలో మీరు వేచి ఉండాల్సిన అవసరం లేదు."
         }
       },
       "adaptive_hints": "Every ESAS question is 'right now', not 'usually'. Keep that framing in every language."
@@ -36,33 +58,45 @@
       "type": "scale",
       "text": {
         "en": "How tired do you feel right now? Zero is not tired, ten is the most tired possible.",
-        "hi": "अभी आप कितना थका महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी आप कितना थका महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता तुम्हाला किती थकवा जाणवतोय? शून्य म्हणजे अजिबात नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు మీకు ఎంత అలసటగా ఉంది? సున్నా అంటే అలసట లేదు, పది అంటే అత్యధిక అలసట."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.nausea" }
+      "next": {
+        "default": "pall.nausea"
+      }
     },
     {
       "id": "pall.nausea",
       "type": "scale",
       "text": {
         "en": "How much nausea do you feel right now? Zero is none, ten is the worst possible.",
-        "hi": "अभी आपको कितना जी मिचला रहा है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी आपको कितना जी मिचला रहा है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता तुम्हाला किती मळमळ होतेय? शून्य म्हणजे नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు మీకు ఎంత వికారంగా ఉంది? సున్నా అంటే లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.appetite" }
+      "next": {
+        "default": "pall.appetite"
+      }
     },
     {
       "id": "pall.appetite",
       "type": "scale",
       "text": {
         "en": "How is your appetite right now? Zero is normal appetite, ten is no appetite at all.",
-        "hi": "अभी आपकी भूख कैसी है? शून्य मतलब सामान्य भूख, दस मतलब बिल्कुल भूख नहीं।"
+        "hi": "अभी आपकी भूख कैसी है? शून्य मतलब सामान्य भूख, दस मतलब बिल्कुल भूख नहीं।",
+        "mr": "आत्ता तुमची भूक कशी आहे? शून्य म्हणजे सामान्य भूक, दहा म्हणजे अजिबात भूक नाही.",
+        "te": "ఇప్పుడు మీ ఆకలి ఎలా ఉంది? సున్నా అంటే సాధారణ ఆకలి, పది అంటే అస్సలు ఆకలి లేదు."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.breath" },
+      "next": {
+        "default": "pall.breath"
+      },
       "adaptive_hints": "The scale runs the opposite way to how people talk about appetite — ten is the bad end. Read the anchors out every time."
     },
     {
@@ -70,19 +104,34 @@
       "type": "scale",
       "text": {
         "en": "How short of breath do you feel right now? Zero is not at all, ten is the worst possible.",
-        "hi": "अभी आपको साँस की कितनी तकलीफ़ है? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी आपको साँस की कितनी तकलीफ़ है? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता तुम्हाला किती धाप लागतेय? शून्य म्हणजे अजिबात नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు మీకు ఎంత శ్వాస ఆడకపోవడం ఉంది? సున్నా అంటే అస్సలు లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.drowsy" },
-      "red_flag_if": { "node": "pall.breath", "op": "gte", "value": 8 },
+      "next": {
+        "default": "pall.drowsy"
+      },
+      "red_flag_if": {
+        "node": "pall.breath",
+        "op": "gte",
+        "value": 8
+      },
       "red_flag": {
         "id": "pall.severe_breathless",
         "severity": "urgent",
-        "label": { "en": "Severe breathlessness (8+/10)", "hi": "साँस की तेज़ तकलीफ़ (8+/10)" },
+        "label": {
+          "en": "Severe breathlessness (8+/10)",
+          "hi": "साँस की तेज़ तकलीफ़ (8+/10)",
+          "mr": "तीव्र धाप (८+/१०)",
+          "te": "తీవ్రమైన శ్వాస ఆడకపోవడం (8+/10)"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -91,22 +140,30 @@
       "type": "scale",
       "text": {
         "en": "How drowsy do you feel right now? Zero is wide awake, ten is unable to stay awake.",
-        "hi": "अभी आपको कितनी सुस्ती लग रही है? शून्य मतलब पूरी तरह जागे हुए, दस मतलब जाग ही नहीं पाते।"
+        "hi": "अभी आपको कितनी सुस्ती लग रही है? शून्य मतलब पूरी तरह जागे हुए, दस मतलब जाग ही नहीं पाते।",
+        "mr": "आत्ता तुम्हाला किती सुस्ती वाटतेय? शून्य म्हणजे पूर्ण जागे, दहा म्हणजे जागंच राहता येत नाही.",
+        "te": "ఇప్పుడు మీకు ఎంత మత్తుగా ఉంది? సున్నా అంటే పూర్తిగా మెలకువగా, పది అంటే మెలకువగా ఉండలేకపోవడం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.low" }
+      "next": {
+        "default": "pall.low"
+      }
     },
     {
       "id": "pall.low",
       "type": "scale",
       "text": {
         "en": "How low or sad do you feel right now? Zero is not at all, ten is the worst possible.",
-        "hi": "अभी आप कितना उदास महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी आप कितना उदास महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता तुम्हाला किती उदास वाटतंय? शून्य म्हणजे अजिबात नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు మీకు ఎంత దిగులుగా లేదా దుఃఖంగా ఉంది? సున్నా అంటే అస్సలు లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.anxious" },
+      "next": {
+        "default": "pall.anxious"
+      },
       "adaptive_hints": "Ask it as plainly as the pain question. Do not soften it, do not skip it, and do not offer reassurance — just record the number and their words."
     },
     {
@@ -114,49 +171,100 @@
       "type": "scale",
       "text": {
         "en": "How anxious or worried do you feel right now? Zero is not at all, ten is the worst possible.",
-        "hi": "अभी आप कितना घबराहट या चिंता महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "अभी आप कितना घबराहट या चिंता महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता तुम्हाला किती काळजी किंवा चिंता वाटतेय? शून्य म्हणजे अजिबात नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు మీకు ఎంత ఆందోళన లేదా చింత ఉంది? సున్నా అంటే అస్సలు లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.wellbeing" }
+      "next": {
+        "default": "pall.wellbeing"
+      }
     },
     {
       "id": "pall.wellbeing",
       "type": "scale",
       "text": {
         "en": "Overall, how is your wellbeing right now? Zero is best, ten is worst.",
-        "hi": "कुल मिलाकर, अभी आपकी तबीयत कैसी है? शून्य मतलब सबसे अच्छी, दस मतलब सबसे खराब।"
+        "hi": "कुल मिलाकर, अभी आपकी तबीयत कैसी है? शून्य मतलब सबसे अच्छी, दस मतलब सबसे खराब।",
+        "mr": "एकंदरीत, आत्ता तुमची तब्येत कशी आहे? शून्य म्हणजे सर्वात चांगली, दहा म्हणजे सर्वात वाईट.",
+        "te": "మొత్తంగా, ఇప్పుడు మీ ఆరోగ్యం ఎలా ఉంది? సున్నా అంటే అత్యుత్తమం, పది అంటే అత్యంత చెడు."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "pall.bowels" }
+      "next": {
+        "default": "pall.bowels"
+      }
     },
     {
       "id": "pall.bowels",
       "type": "single",
       "text": {
         "en": "When did your bowels last move?",
-        "hi": "पिछली बार शौच कब हुआ था?"
+        "hi": "पिछली बार शौच कब हुआ था?",
+        "mr": "शेवटचं शौचास कधी झालं?",
+        "te": "చివరిసారి మలవిసర్జన ఎప్పుడు జరిగింది?"
       },
       "options": [
-        { "id": "today", "icon": "ok", "text": { "en": "Today", "hi": "आज" } },
-        { "id": "yesterday", "icon": "ok", "text": { "en": "Yesterday", "hi": "कल" } },
-        { "id": "two_three", "icon": "block", "text": { "en": "Two or three days ago", "hi": "दो-तीन दिन पहले" } },
+        {
+          "id": "today",
+          "icon": "ok",
+          "text": {
+            "en": "Today",
+            "hi": "आज",
+            "mr": "आज",
+            "te": "ఈ రోజు"
+          }
+        },
+        {
+          "id": "yesterday",
+          "icon": "ok",
+          "text": {
+            "en": "Yesterday",
+            "hi": "कल",
+            "mr": "काल",
+            "te": "నిన్న"
+          }
+        },
+        {
+          "id": "two_three",
+          "icon": "block",
+          "text": {
+            "en": "Two or three days ago",
+            "hi": "दो-तीन दिन पहले",
+            "mr": "दोन-तीन दिवसांपूर्वी",
+            "te": "రెండు లేదా మూడు రోజుల క్రితం"
+          }
+        },
         {
           "id": "over_three",
           "icon": "alert",
-          "text": { "en": "More than three days ago", "hi": "तीन दिन से ज़्यादा हो गए" },
+          "text": {
+            "en": "More than three days ago",
+            "hi": "तीन दिन से ज़्यादा हो गए",
+            "mr": "तीन दिवसांपेक्षा जास्त झाले",
+            "te": "మూడు రోజుల కంటే ఎక్కువ అయింది"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "pall.words" },
+      "next": {
+        "default": "pall.words"
+      },
       "red_flag": {
         "id": "pall.constipation",
         "severity": "semi",
-        "label": { "en": "No bowel movement for over 3 days", "hi": "3 दिन से ज़्यादा शौच नहीं" },
+        "label": {
+          "en": "No bowel movement for over 3 days",
+          "hi": "3 दिन से ज़्यादा शौच नहीं",
+          "mr": "३ दिवसांपेक्षा जास्त शौचास नाही",
+          "te": "3 రోజుల కంటే ఎక్కువ మలవిసర్జన లేదు"
+        },
         "instruction": {
           "en": "Please mention this to the staff at the desk when you check in.",
-          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+          "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+          "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
         }
       },
       "adaptive_hints": "Constipation on opioids is common, preventable and miserable — which is why it is asked here and not left to the doctor to remember."
@@ -166,7 +274,9 @@
       "type": "free_voice",
       "text": {
         "en": "What is troubling you most today? Say it in your own words.",
-        "hi": "आज आपको सबसे ज़्यादा क्या परेशान कर रहा है? अपने शब्दों में बताएं।"
+        "hi": "आज आपको सबसे ज़्यादा क्या परेशान कर रहा है? अपने शब्दों में बताएं।",
+        "mr": "आज तुम्हाला सर्वात जास्त काय त्रास देतंय? तुमच्या शब्दांत सांगा.",
+        "te": "ఈ రోజు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి? మీ మాటల్లో చెప్పండి."
       },
       "adaptive_hints": "Last node, and the most important one on this tree. Let them finish. This quote goes to the doctor verbatim."
     }
@@ -178,17 +288,29 @@
       "when": {
         "op": "or",
         "rules": [
-          { "node": "pall.low", "op": "gte", "value": 7 },
-          { "node": "pall.anxious", "op": "gte", "value": 7 }
+          {
+            "node": "pall.low",
+            "op": "gte",
+            "value": 7
+          },
+          {
+            "node": "pall.anxious",
+            "op": "gte",
+            "value": 7
+          }
         ]
       },
       "label": {
         "en": "High distress score (sadness or anxiety 7+/10)",
-        "hi": "मानसिक परेशानी का ऊँचा स्कोर (उदासी या चिंता 7+/10)"
+        "hi": "मानसिक परेशानी का ऊँचा स्कोर (उदासी या चिंता 7+/10)",
+        "mr": "मानसिक त्रासाचा उच्च स्कोअर (दुःख किंवा चिंता ७+/१०)",
+        "te": "అధిక మానసిక క్షోభ స్కోరు (దుఃఖం లేదా ఆందోళన 7+/10)"
       },
       "instruction": {
         "en": "Thank you for telling me. Please mention this to the staff at the desk when you check in.",
-        "hi": "बताने के लिए धन्यवाद। कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        "hi": "बताने के लिए धन्यवाद। कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+        "mr": "सांगितल्याबद्दल धन्यवाद. चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+        "te": "చెప్పినందుకు ధన్యవాదాలు. చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
       }
     }
   ]

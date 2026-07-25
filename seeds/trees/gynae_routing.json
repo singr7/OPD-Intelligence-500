@@ -2,10 +2,17 @@
   "key": "gynae_routing",
   "version": 1,
   "department": "GYNAE",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Gynecology — walk-in",
-    "hi": "स्त्री रोग — बिना अपॉइंटमेंट"
+    "hi": "स्त्री रोग — बिना अपॉइंटमेंट",
+    "mr": "स्त्रीरोग — अपॉइंटमेंटशिवाय",
+    "te": "స్త్రీవ్యాధి — అపాయింట్‌మెంట్ లేకుండా"
   },
   "root": "gy.problem",
   "nodes": [
@@ -14,16 +21,65 @@
       "type": "single",
       "text": {
         "en": "What is troubling you most today?",
-        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?"
+        "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
+        "mr": "आज तुम्हाला सर्वात जास्त काय त्रास देतंय?",
+        "te": "ఈ రోజు మిమ్మల్ని ఎక్కువగా బాధపెడుతున్నది ఏమిటి?"
       },
       "options": [
-        { "id": "bleeding", "icon": "blood", "text": { "en": "Bleeding that is not normal for me", "hi": "ऐसा खून आना जो मेरे लिए सामान्य नहीं" } },
-        { "id": "discharge", "icon": "drop", "text": { "en": "Discharge", "hi": "पानी या स्राव आना" } },
-        { "id": "pain", "icon": "pain", "text": { "en": "Pain in the lower stomach", "hi": "पेट के निचले हिस्से में दर्द" } },
-        { "id": "lump", "icon": "lump", "text": { "en": "A lump or swelling", "hi": "गाँठ या सूजन" } },
-        { "id": "other", "icon": "question", "text": { "en": "Something else", "hi": "कुछ और" } }
+        {
+          "id": "bleeding",
+          "icon": "blood",
+          "text": {
+            "en": "Bleeding that is not normal for me",
+            "hi": "ऐसा खून आना जो मेरे लिए सामान्य नहीं",
+            "mr": "माझ्यासाठी नेहमीचं नसलेलं रक्त येणं",
+            "te": "నాకు మామూలు కాని రక్తస్రావం"
+          }
+        },
+        {
+          "id": "discharge",
+          "icon": "drop",
+          "text": {
+            "en": "Discharge",
+            "hi": "पानी या स्राव आना",
+            "mr": "स्राव येणं",
+            "te": "స్రావం రావడం"
+          }
+        },
+        {
+          "id": "pain",
+          "icon": "pain",
+          "text": {
+            "en": "Pain in the lower stomach",
+            "hi": "पेट के निचले हिस्से में दर्द",
+            "mr": "पोटाच्या खालच्या भागात दुखणं",
+            "te": "కడుపు కింది భాగంలో నొప్పి"
+          }
+        },
+        {
+          "id": "lump",
+          "icon": "lump",
+          "text": {
+            "en": "A lump or swelling",
+            "hi": "गाँठ या सूजन",
+            "mr": "गाठ किंवा सूज",
+            "te": "గడ్డ లేదా వాపు"
+          }
+        },
+        {
+          "id": "other",
+          "icon": "question",
+          "text": {
+            "en": "Something else",
+            "hi": "कुछ और",
+            "mr": "आणखी काहीतरी",
+            "te": "మరేదైనా"
+          }
+        }
       ],
-      "next": { "default": "gy.bleeding_heavy" },
+      "next": {
+        "default": "gy.bleeding_heavy"
+      },
       "adaptive_hints": "This is a private question in a public room. Ask it quietly and do not repeat the answer back loudly on the kiosk."
     },
     {
@@ -31,26 +87,60 @@
       "type": "single",
       "text": {
         "en": "Are you bleeding heavily right now — soaking a pad in an hour or less?",
-        "hi": "क्या अभी बहुत खून बह रहा है — एक घंटे या उससे कम में पैड भीग जाता है?"
+        "hi": "क्या अभी बहुत खून बह रहा है — एक घंटे या उससे कम में पैड भीग जाता है?",
+        "mr": "आत्ता खूप रक्तस्राव होतोय का — एका तासात किंवा त्याहून कमी वेळात पॅड भिजतोय का?",
+        "te": "ఇప్పుడు ఎక్కువ రక్తస్రావం అవుతోందా — ఒక గంటలో లేదా అంతకంటే తక్కువలో ప్యాడ్ తడిసిపోతోందా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "not_bleeding", "icon": "ok", "text": { "en": "I am not bleeding", "hi": "मुझे खून नहीं आ रहा" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "not_bleeding",
+          "icon": "ok",
+          "text": {
+            "en": "I am not bleeding",
+            "hi": "मुझे खून नहीं आ रहा",
+            "mr": "मला रक्त येत नाही",
+            "te": "నాకు రక్తస్రావం లేదు"
+          }
+        },
         {
           "id": "yes",
           "icon": "alert",
-          "text": { "en": "Yes", "hi": "हाँ" },
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "gy.duration" },
+      "next": {
+        "default": "gy.duration"
+      },
       "red_flag": {
         "id": "gy.heavy_bleeding",
         "severity": "urgent",
-        "label": { "en": "Heavy vaginal bleeding", "hi": "बहुत ज़्यादा रक्तस्राव" },
+        "label": {
+          "en": "Heavy vaginal bleeding",
+          "hi": "बहुत ज़्यादा रक्तस्राव",
+          "mr": "खूप योनीमार्गे रक्तस्राव",
+          "te": "అధిక యోని రక్తస్రావం"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       },
       "adaptive_hints": "The pad-per-hour measure is the only reliable one — 'a lot' means different things to different women."
@@ -60,19 +150,25 @@
       "type": "number",
       "text": {
         "en": "For how many days has this been going on?",
-        "hi": "यह कितने दिनों से है?"
+        "hi": "यह कितने दिनों से है?",
+        "mr": "हे किती दिवसांपासून चालू आहे?",
+        "te": "ఇది ఎన్ని రోజుల నుండి జరుగుతోంది?"
       },
       "min": 0,
       "max": 3650,
       "unit": "days",
-      "next": { "default": "gy.words" }
+      "next": {
+        "default": "gy.words"
+      }
     },
     {
       "id": "gy.words",
       "type": "free_voice",
       "text": {
         "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।"
+        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
+        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
+        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

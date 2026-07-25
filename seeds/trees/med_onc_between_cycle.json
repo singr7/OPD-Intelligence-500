@@ -2,10 +2,17 @@
   "key": "med_onc_between_cycle",
   "version": 1,
   "department": "MEDONC",
-  "languages": ["en", "hi"],
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
   "title": {
     "en": "Medical Oncology — between-cycle review",
-    "hi": "मेडिकल ऑन्कोलॉजी — साइकिल के बीच जाँच"
+    "hi": "मेडिकल ऑन्कोलॉजी — साइकिल के बीच जाँच",
+    "mr": "मेडिकल ऑन्कोलॉजी — सायकलदरम्यान तपासणी",
+    "te": "మెడికల్ ఆంకాలజీ — సైకిల్‌ల మధ్య సమీక్ష"
   },
   "root": "mo.cyc.days_since",
   "nodes": [
@@ -14,12 +21,16 @@
       "type": "number",
       "text": {
         "en": "How many days ago was your last chemotherapy?",
-        "hi": "आपकी पिछली कीमोथेरेपी कितने दिन पहले हुई थी?"
+        "hi": "आपकी पिछली कीमोथेरेपी कितने दिन पहले हुई थी?",
+        "mr": "तुमची शेवटची केमोथेरपी किती दिवसांपूर्वी झाली?",
+        "te": "మీ చివరి కీమోథెరపీ ఎన్ని రోజుల క్రితం జరిగింది?"
       },
       "min": 0,
       "max": 365,
       "unit": "days",
-      "next": { "default": "mo.cyc.fever_temp" },
+      "next": {
+        "default": "mo.cyc.fever_temp"
+      },
       "adaptive_hints": "Patients say 'last Tuesday' or 'after Holi' — convert to a day count. If they cannot recall, ask the caregiver before guessing."
     },
     {
@@ -27,12 +38,16 @@
       "type": "number",
       "text": {
         "en": "Have you had fever since then? If you measured it, what was the highest? Say 0 if there was no fever.",
-        "hi": "उसके बाद क्या बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।"
+        "hi": "उसके बाद क्या बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।",
+        "mr": "तेव्हापासून ताप आला का? मोजला असेल तर सर्वात जास्त किती होता? ताप नसेल तर ० म्हणा.",
+        "te": "అప్పటి నుండి జ్వరం వచ్చిందా? కొలిచి ఉంటే గరిష్ఠంగా ఎంత ఉంది? జ్వరం లేకపోతే 0 చెప్పండి."
       },
       "min": 0,
       "max": 43,
       "unit": "C",
-      "next": { "default": "mo.cyc.nausea" },
+      "next": {
+        "default": "mo.cyc.nausea"
+      },
       "adaptive_hints": "0 means no fever, not 0°C. If they had fever but never measured it, save 38 only if they describe shivering/chills — otherwise save 0 and put their words in raw_text."
     },
     {
@@ -40,38 +55,85 @@
       "type": "scale",
       "text": {
         "en": "How bad has the nausea been? Zero is none, ten is the worst.",
-        "hi": "जी मिचलाना कितना रहा? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।"
+        "hi": "जी मिचलाना कितना रहा? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "मळमळ किती होती? शून्य म्हणजे अजिबात नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "వికారం ఎంత ఉంది? సున్నా అంటే లేదు, పది అంటే అత్యధికం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "mo.cyc.vomiting" }
+      "next": {
+        "default": "mo.cyc.vomiting"
+      }
     },
     {
       "id": "mo.cyc.vomiting",
       "type": "single",
       "text": {
         "en": "How many times have you vomited in the last day?",
-        "hi": "पिछले एक दिन में कितनी बार उल्टी हुई?"
+        "hi": "पिछले एक दिन में कितनी बार उल्टी हुई?",
+        "mr": "गेल्या एका दिवसात किती वेळा उलटी झाली?",
+        "te": "గత ఒక రోజులో ఎన్నిసార్లు వాంతి అయింది?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "Not at all", "hi": "बिल्कुल नहीं" } },
-        { "id": "one_two", "icon": "vomit", "text": { "en": "Once or twice", "hi": "एक-दो बार" } },
-        { "id": "three_five", "icon": "vomit", "text": { "en": "Three to five times", "hi": "तीन से पाँच बार" } },
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "Not at all",
+            "hi": "बिल्कुल नहीं",
+            "mr": "अजिबात नाही",
+            "te": "అస్సలు లేదు"
+          }
+        },
+        {
+          "id": "one_two",
+          "icon": "vomit",
+          "text": {
+            "en": "Once or twice",
+            "hi": "एक-दो बार",
+            "mr": "एक-दोन वेळा",
+            "te": "ఒకటి లేదా రెండుసార్లు"
+          }
+        },
+        {
+          "id": "three_five",
+          "icon": "vomit",
+          "text": {
+            "en": "Three to five times",
+            "hi": "तीन से पाँच बार",
+            "mr": "तीन ते पाच वेळा",
+            "te": "మూడు నుండి ఐదుసార్లు"
+          }
+        },
         {
           "id": "over_five",
           "icon": "alert",
-          "text": { "en": "More than five times", "hi": "पाँच से ज़्यादा बार" },
+          "text": {
+            "en": "More than five times",
+            "hi": "पाँच से ज़्यादा बार",
+            "mr": "पाचपेक्षा जास्त वेळा",
+            "te": "ఐదు సార్ల కంటే ఎక్కువ"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.cyc.fluids" },
+      "next": {
+        "default": "mo.cyc.fluids"
+      },
       "red_flag": {
         "id": "mo.cyc.vomiting_severe",
         "severity": "urgent",
-        "label": { "en": "Vomiting more than 5 times a day", "hi": "दिन में 5 से ज़्यादा बार उल्टी" },
+        "label": {
+          "en": "Vomiting more than 5 times a day",
+          "hi": "दिन में 5 से ज़्यादा बार उल्टी",
+          "mr": "दिवसातून ५ पेक्षा जास्त वेळा उलटी",
+          "te": "రోజుకు 5 సార్ల కంటే ఎక్కువ వాంతులు"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
-          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — डॉक्टरांना भेटण्यापूर्वी तुम्हाला सलाईनची गरज लागू शकते.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — డాక్టర్‌ను కలిసే ముందు మీకు సెలైన్ అవసరం కావచ్చు."
         }
       }
     },
@@ -80,26 +142,60 @@
       "type": "single",
       "text": {
         "en": "Are you able to keep water down?",
-        "hi": "क्या आप पानी पेट में रोक पा रहे हैं?"
+        "hi": "क्या आप पानी पेट में रोक पा रहे हैं?",
+        "mr": "तुम्ही पाणी पोटात ठेवू शकता का?",
+        "te": "మీరు నీళ్లు కడుపులో ఉంచుకోగలుగుతున్నారా?"
       },
       "options": [
-        { "id": "yes", "icon": "water", "text": { "en": "Yes", "hi": "हाँ" } },
-        { "id": "little", "icon": "water-low", "text": { "en": "Only a little", "hi": "थोड़ा ही" } },
+        {
+          "id": "yes",
+          "icon": "water",
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          }
+        },
+        {
+          "id": "little",
+          "icon": "water-low",
+          "text": {
+            "en": "Only a little",
+            "hi": "थोड़ा ही",
+            "mr": "फक्त थोडं",
+            "te": "కొంచెం మాత్రమే"
+          }
+        },
         {
           "id": "no",
           "icon": "alert",
-          "text": { "en": "No, it comes back up", "hi": "नहीं, वापस निकल जाता है" },
+          "text": {
+            "en": "No, it comes back up",
+            "hi": "नहीं, वापस निकल जाता है",
+            "mr": "नाही, ते परत बाहेर पडतं",
+            "te": "లేదు, అది తిరిగి బయటకు వస్తోంది"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.cyc.mucositis" },
+      "next": {
+        "default": "mo.cyc.mucositis"
+      },
       "red_flag": {
         "id": "mo.cyc.dehydration",
         "severity": "urgent",
-        "label": { "en": "Cannot keep fluids down", "hi": "पानी भी नहीं रुक रहा" },
+        "label": {
+          "en": "Cannot keep fluids down",
+          "hi": "पानी भी नहीं रुक रहा",
+          "mr": "पाणीही पोटात राहत नाही",
+          "te": "ద్రవాలు కూడా కడుపులో ఉండటం లేదు"
+        },
         "instruction": {
           "en": "Please tell a nurse now — you may need fluids before you see the doctor.",
-          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।"
+          "hi": "कृपया अभी नर्स को बताएं — डॉक्टर से मिलने से पहले आपको ड्रिप की ज़रूरत हो सकती है।",
+          "mr": "कृपया आत्ताच नर्सला सांगा — डॉक्टरांना भेटण्यापूर्वी तुम्हाला सलाईनची गरज लागू शकते.",
+          "te": "దయచేసి ఇప్పుడే నర్సుకు చెప్పండి — డాక్టర్‌ను కలిసే ముందు మీకు సెలైన్ అవసరం కావచ్చు."
         }
       }
     },
@@ -108,15 +204,55 @@
       "type": "single",
       "text": {
         "en": "Do you have mouth ulcers or soreness?",
-        "hi": "क्या मुँह में छाले या जलन है?"
+        "hi": "क्या मुँह में छाले या जलन है?",
+        "mr": "तुमच्या तोंडात फोड किंवा जळजळ आहे का?",
+        "te": "మీకు నోటి పుండ్లు లేదా మంట ఉందా?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "mild", "icon": "mouth", "text": { "en": "Yes, but I can eat", "hi": "हाँ, पर खा लेता हूँ" } },
-        { "id": "soft_only", "icon": "mouth", "text": { "en": "Only soft food or liquids", "hi": "सिर्फ़ नरम खाना या तरल" } },
-        { "id": "cannot_eat", "icon": "alert", "text": { "en": "I cannot eat at all", "hi": "कुछ भी नहीं खा पाता" } }
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "mild",
+          "icon": "mouth",
+          "text": {
+            "en": "Yes, but I can eat",
+            "hi": "हाँ, पर खा लेता हूँ",
+            "mr": "होय, पण मी खाऊ शकतो",
+            "te": "అవును, కానీ నేను తినగలను"
+          }
+        },
+        {
+          "id": "soft_only",
+          "icon": "mouth",
+          "text": {
+            "en": "Only soft food or liquids",
+            "hi": "सिर्फ़ नरम खाना या तरल",
+            "mr": "फक्त मऊ अन्न किंवा द्रव पदार्थ",
+            "te": "మెత్తని ఆహారం లేదా ద్రవాలు మాత్రమే"
+          }
+        },
+        {
+          "id": "cannot_eat",
+          "icon": "alert",
+          "text": {
+            "en": "I cannot eat at all",
+            "hi": "कुछ भी नहीं खा पाता",
+            "mr": "मला काहीच खाता येत नाही",
+            "te": "నేను అస్సలు తినలేను"
+          }
+        }
       ],
-      "next": { "default": "mo.cyc.neuropathy" },
+      "next": {
+        "default": "mo.cyc.neuropathy"
+      },
       "adaptive_hints": "This grades CTCAE mucositis by function, not by looking — nobody is looking in their mouth over the phone."
     },
     {
@@ -124,23 +260,55 @@
       "type": "single",
       "text": {
         "en": "Any numbness or tingling in your hands or feet?",
-        "hi": "क्या हाथ-पैर में सुन्नपन या झुनझुनी है?"
+        "hi": "क्या हाथ-पैर में सुन्नपन या झुनझुनी है?",
+        "mr": "हात किंवा पायांत बधिरपणा किंवा मुंग्या येतात का?",
+        "te": "చేతులు లేదా కాళ్లలో తిమ్మిరి లేదా జలదరింపు ఉందా?"
       },
       "options": [
-        { "id": "none", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
-        { "id": "mild", "icon": "hand", "text": { "en": "A little", "hi": "थोड़ी" } },
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
+        {
+          "id": "mild",
+          "icon": "hand",
+          "text": {
+            "en": "A little",
+            "hi": "थोड़ी",
+            "mr": "थोडं",
+            "te": "కొంచెం"
+          }
+        },
         {
           "id": "interferes",
           "icon": "hand",
-          "text": { "en": "It stops me doing things", "hi": "इससे काम करने में दिक्कत होती है" }
+          "text": {
+            "en": "It stops me doing things",
+            "hi": "इससे काम करने में दिक्कत होती है",
+            "mr": "त्यामुळे मला कामं करता येत नाहीत",
+            "te": "దానివల్ల నేను పనులు చేయలేకపోతున్నాను"
+          }
         },
         {
           "id": "buttons",
           "icon": "alert",
-          "text": { "en": "I cannot button clothes or hold things", "hi": "बटन नहीं लगा पाता, चीज़ें नहीं पकड़ पाता" }
+          "text": {
+            "en": "I cannot button clothes or hold things",
+            "hi": "बटन नहीं लगा पाता, चीज़ें नहीं पकड़ पाता",
+            "mr": "मला कपड्यांचे बटण लावता येत नाही, वस्तू पकडता येत नाहीत",
+            "te": "నేను బట్టల బొత్తాలు పెట్టలేను, వస్తువులు పట్టుకోలేను"
+          }
         }
       ],
-      "next": { "default": "mo.cyc.fatigue" },
+      "next": {
+        "default": "mo.cyc.fatigue"
+      },
       "adaptive_hints": "Buttons and holding a glass are the functional test — a dose change may follow, so record what they said."
     },
     {
@@ -148,53 +316,140 @@
       "type": "scale",
       "text": {
         "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
-        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।"
+        "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।",
+        "mr": "तुम्हाला किती थकवा जाणवतोय? शून्य म्हणजे सामान्य, दहा म्हणजे अंथरुणातून उठताही येत नाही.",
+        "te": "మీకు ఎంత అలసటగా ఉంది? సున్నా అంటే సాధారణం, పది అంటే మంచం నుండి లేవలేకపోవడం."
       },
       "min": 0,
       "max": 10,
-      "next": { "default": "mo.cyc.appetite" }
+      "next": {
+        "default": "mo.cyc.appetite"
+      }
     },
     {
       "id": "mo.cyc.appetite",
       "type": "single",
       "text": {
         "en": "How is your appetite compared to before?",
-        "hi": "पहले के मुकाबले आपकी भूख कैसी है?"
+        "hi": "पहले के मुकाबले आपकी भूख कैसी है?",
+        "mr": "आधीच्या तुलनेत तुमची भूक कशी आहे?",
+        "te": "ఇంతకుముందుతో పోలిస్తే మీ ఆకలి ఎలా ఉంది?"
       },
       "options": [
-        { "id": "same", "icon": "plate", "text": { "en": "The same", "hi": "पहले जैसी" } },
-        { "id": "less", "icon": "plate-half", "text": { "en": "Less", "hi": "कम" } },
-        { "id": "much_less", "icon": "plate-empty", "text": { "en": "Much less", "hi": "बहुत कम" } },
-        { "id": "nothing", "icon": "alert", "text": { "en": "I am eating nothing", "hi": "कुछ नहीं खा रहा" } }
+        {
+          "id": "same",
+          "icon": "plate",
+          "text": {
+            "en": "The same",
+            "hi": "पहले जैसी",
+            "mr": "पहिल्यासारखीच",
+            "te": "అలాగే ఉంది"
+          }
+        },
+        {
+          "id": "less",
+          "icon": "plate-half",
+          "text": {
+            "en": "Less",
+            "hi": "कम",
+            "mr": "कमी",
+            "te": "తక్కువ"
+          }
+        },
+        {
+          "id": "much_less",
+          "icon": "plate-empty",
+          "text": {
+            "en": "Much less",
+            "hi": "बहुत कम",
+            "mr": "खूप कमी",
+            "te": "చాలా తక్కువ"
+          }
+        },
+        {
+          "id": "nothing",
+          "icon": "alert",
+          "text": {
+            "en": "I am eating nothing",
+            "hi": "कुछ नहीं खा रहा",
+            "mr": "मी काहीच खात नाही",
+            "te": "నేను ఏమీ తినడం లేదు"
+          }
+        }
       ],
-      "next": { "default": "mo.cyc.bowel" }
+      "next": {
+        "default": "mo.cyc.bowel"
+      }
     },
     {
       "id": "mo.cyc.bowel",
       "type": "single",
       "text": {
         "en": "How have your bowels been?",
-        "hi": "आपका पेट कैसा चल रहा है?"
+        "hi": "आपका पेट कैसा चल रहा है?",
+        "mr": "तुमचं पोट कसं चाललं आहे?",
+        "te": "మీ మలవిసర్జన ఎలా ఉంది?"
       },
       "options": [
-        { "id": "normal", "icon": "ok", "text": { "en": "Normal", "hi": "सामान्य" } },
-        { "id": "constipated", "icon": "block", "text": { "en": "Constipated", "hi": "कब्ज़" } },
-        { "id": "loose", "icon": "loose", "text": { "en": "Loose motions", "hi": "दस्त" } },
+        {
+          "id": "normal",
+          "icon": "ok",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "constipated",
+          "icon": "block",
+          "text": {
+            "en": "Constipated",
+            "hi": "कब्ज़",
+            "mr": "बद्धकोष्ठता",
+            "te": "మలబద్ధకం"
+          }
+        },
+        {
+          "id": "loose",
+          "icon": "loose",
+          "text": {
+            "en": "Loose motions",
+            "hi": "दस्त",
+            "mr": "जुलाब",
+            "te": "విరేచనాలు"
+          }
+        },
         {
           "id": "loose_severe",
           "icon": "alert",
-          "text": { "en": "Many loose motions a day", "hi": "दिन में कई बार दस्त" },
+          "text": {
+            "en": "Many loose motions a day",
+            "hi": "दिन में कई बार दस्त",
+            "mr": "दिवसातून अनेक वेळा जुलाब",
+            "te": "రోజుకు చాలాసార్లు విరేచనాలు"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.cyc.bleeding" },
+      "next": {
+        "default": "mo.cyc.bleeding"
+      },
       "red_flag": {
         "id": "mo.cyc.diarrhoea",
         "severity": "semi",
-        "label": { "en": "Frequent diarrhoea", "hi": "बार-बार दस्त" },
+        "label": {
+          "en": "Frequent diarrhoea",
+          "hi": "बार-बार दस्त",
+          "mr": "वारंवार जुलाब",
+          "te": "తరచూ విరేచనాలు"
+        },
         "instruction": {
           "en": "Please mention this to the staff at the desk when you check in.",
-          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+          "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+          "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+          "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
         }
       }
     },
@@ -203,25 +458,50 @@
       "type": "single",
       "text": {
         "en": "Any bleeding, or new blue-black marks on your skin?",
-        "hi": "क्या कहीं से खून आ रहा है, या त्वचा पर नए नीले-काले निशान हैं?"
+        "hi": "क्या कहीं से खून आ रहा है, या त्वचा पर नए नीले-काले निशान हैं?",
+        "mr": "कुठून रक्त येतंय का, किंवा त्वचेवर नवीन निळे-काळे डाग आहेत का?",
+        "te": "ఎక్కడైనా రక్తస్రావం, లేదా చర్మంపై కొత్త నీలం-నలుపు మచ్చలు ఉన్నాయా?"
       },
       "options": [
-        { "id": "no", "icon": "ok", "text": { "en": "No", "hi": "नहीं" } },
+        {
+          "id": "no",
+          "icon": "ok",
+          "text": {
+            "en": "No",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        },
         {
           "id": "yes",
           "icon": "blood",
-          "text": { "en": "Yes", "hi": "हाँ" },
+          "text": {
+            "en": "Yes",
+            "hi": "हाँ",
+            "mr": "होय",
+            "te": "అవును"
+          },
           "flag": true
         }
       ],
-      "next": { "default": "mo.cyc.words" },
+      "next": {
+        "default": "mo.cyc.words"
+      },
       "red_flag": {
         "id": "mo.cyc.bleeding",
         "severity": "urgent",
-        "label": { "en": "Bleeding or bruising", "hi": "खून आना या नील पड़ना" },
+        "label": {
+          "en": "Bleeding or bruising",
+          "hi": "खून आना या नील पड़ना",
+          "mr": "रक्त येणं किंवा काळे-निळे डाग",
+          "te": "రక్తస్రావం లేదా గాయపు మచ్చలు"
+        },
         "instruction": {
           "en": "Please tell a nurse now, before you sit down. Do not wait for your turn.",
-          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।"
+          "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+          "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+          "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
         }
       }
     },
@@ -230,7 +510,9 @@
       "type": "free_voice",
       "text": {
         "en": "Is there anything else you want the doctor to know?",
-        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?"
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "आणखी काही डॉक्टरांना सांगायचं आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకునే మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }
@@ -242,17 +524,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "mo.cyc.fever_temp", "op": "gte", "value": 38 },
-          { "node": "mo.cyc.days_since", "op": "lte", "value": 14 }
+          {
+            "node": "mo.cyc.fever_temp",
+            "op": "gte",
+            "value": 38
+          },
+          {
+            "node": "mo.cyc.days_since",
+            "op": "lte",
+            "value": 14
+          }
         ]
       },
       "label": {
         "en": "Fever 38°C+ within 14 days of chemotherapy",
-        "hi": "कीमो के 14 दिन के भीतर 38°C+ बुखार"
+        "hi": "कीमो के 14 दिन के भीतर 38°C+ बुखार",
+        "mr": "केमोच्या १४ दिवसांच्या आत ३८°C+ ताप",
+        "te": "కీమో తర్వాత 14 రోజుల్లో 38°C+ జ్వరం"
       },
       "instruction": {
         "en": "Please tell a nurse now, before you sit down. A fever soon after chemotherapy needs to be seen straight away.",
-        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। कीमो के तुरंत बाद बुखार को फ़ौरन देखना ज़रूरी है।"
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। कीमो के तुरंत बाद बुखार को फ़ौरन देखना ज़रूरी है।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. केमोनंतर लगेच आलेला ताप तातडीने तपासणं गरजेचं आहे.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. కీమో తర్వాత వెంటనే వచ్చే జ్వరాన్ని తక్షణం చూడాలి."
       }
     },
     {
@@ -261,14 +555,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "mo.cyc.fever_temp", "op": "gte", "value": 38 },
-          { "node": "mo.cyc.days_since", "op": "gt", "value": 14 }
+          {
+            "node": "mo.cyc.fever_temp",
+            "op": "gte",
+            "value": 38
+          },
+          {
+            "node": "mo.cyc.days_since",
+            "op": "gt",
+            "value": 14
+          }
         ]
       },
-      "label": { "en": "Fever 38°C or above", "hi": "38°C या उससे ऊपर बुखार" },
+      "label": {
+        "en": "Fever 38°C or above",
+        "hi": "38°C या उससे ऊपर बुखार",
+        "mr": "३८°C किंवा त्याहून जास्त ताप",
+        "te": "38°C లేదా అంతకంటే ఎక్కువ జ్వరం"
+      },
       "instruction": {
         "en": "Please tell the staff at the desk that you have a fever today.",
-        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।"
+        "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज आपको बुखार है।",
+        "mr": "कृपया डेस्कवरील कर्मचाऱ्यांना सांगा की आज तुम्हाला ताप आहे.",
+        "te": "దయచేసి ఈ రోజు మీకు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
       }
     },
     {
@@ -277,14 +586,29 @@
       "when": {
         "op": "and",
         "rules": [
-          { "node": "mo.cyc.appetite", "op": "eq", "value": "nothing" },
-          { "node": "mo.cyc.mucositis", "op": "eq", "value": "cannot_eat" }
+          {
+            "node": "mo.cyc.appetite",
+            "op": "eq",
+            "value": "nothing"
+          },
+          {
+            "node": "mo.cyc.mucositis",
+            "op": "eq",
+            "value": "cannot_eat"
+          }
         ]
       },
-      "label": { "en": "Not eating — mouth too sore", "hi": "मुँह के छालों से खाना बंद" },
+      "label": {
+        "en": "Not eating — mouth too sore",
+        "hi": "मुँह के छालों से खाना बंद",
+        "mr": "खाणं बंद — तोंडात खूप फोड",
+        "te": "తినడం లేదు — నోరు చాలా పుండ్లతో"
+      },
       "instruction": {
         "en": "Please mention this to the staff at the desk when you check in.",
-        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।"
+        "hi": "कृपया चेक-इन के समय डेस्क पर स्टाफ को यह ज़रूर बताएं।",
+        "mr": "चेक-इनच्या वेळी डेस्कवरील कर्मचाऱ्यांना हे नक्की सांगा.",
+        "te": "చెక్-ఇన్ చేసేటప్పుడు డెస్క్ వద్ద సిబ్బందికి దీన్ని తప్పకుండా చెప్పండి."
       }
     }
   ]
