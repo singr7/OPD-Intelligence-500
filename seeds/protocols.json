@@ -1,27 +1,94 @@
 {
   "version": 1,
   "_comment": "S17 protocol templates (doc 03 §9/§10) — the clinical skeleton of a post-treatment check-in, per regimen family. A protocol names WHICH DAYS a patient is asked after treatment and WHICH QUESTION SET is asked on each; a question set names the questions and the deterministic grading rules over them. No model may add a day, drop a day, invent a question or decide a grade — the LLM personalisation (prompts/checkin_personalize) may only rewrite the covering MESSAGE in the patient's language. Grading `when` expressions are the S4 red-flag rule language (app.trees.rules), evaluated identically here. Patient-facing text is carried in all four pilot languages; grading `reason` text is the ENGLISH clinical label a nurse reads on the review queue, same stance as the queue's priority chips. All content is model-drafted and UNREVIEWED — an oncologist signs it off at S21, like the tree bank.",
-
   "option_sets": {
     "yes_no": [
-      {"id": "yes", "label": {"en": "Yes", "hi": "हाँ", "mr": "होय", "te": "అవును"}},
-      {"id": "no", "label": {"en": "No", "hi": "नहीं", "mr": "नाही", "te": "లేదు"}}
+      {
+        "id": "yes",
+        "label": {
+          "en": "Yes",
+          "hi": "हाँ",
+          "mr": "होय",
+          "te": "అవును"
+        }
+      },
+      {
+        "id": "no",
+        "label": {
+          "en": "No",
+          "hi": "नहीं",
+          "mr": "नाही",
+          "te": "లేదు"
+        }
+      }
     ],
     "none_mild_severe": [
-      {"id": "none", "label": {"en": "Not at all", "hi": "बिल्कुल नहीं", "mr": "अजिबात नाही", "te": "అస్సలు లేదు"}},
-      {"id": "mild", "label": {"en": "A little", "hi": "थोड़ा", "mr": "थोडं", "te": "కొంచెం"}},
-      {"id": "severe", "label": {"en": "A lot", "hi": "बहुत", "mr": "खूप", "te": "చాలా"}}
+      {
+        "id": "none",
+        "label": {
+          "en": "Not at all",
+          "hi": "बिल्कुल नहीं",
+          "mr": "अजिबात नाही",
+          "te": "అస్సలు లేదు"
+        }
+      },
+      {
+        "id": "mild",
+        "label": {
+          "en": "A little",
+          "hi": "थोड़ा",
+          "mr": "थोडं",
+          "te": "కొంచెం"
+        }
+      },
+      {
+        "id": "severe",
+        "label": {
+          "en": "A lot",
+          "hi": "बहुत",
+          "mr": "खूप",
+          "te": "చాలా"
+        }
+      }
     ],
     "intake": [
-      {"id": "normal", "label": {"en": "Normal", "hi": "सामान्य", "mr": "सामान्य", "te": "సాధారణం"}},
-      {"id": "half", "label": {"en": "Less than half", "hi": "आधे से कम", "mr": "निम्म्यापेक्षा कमी", "te": "సగం కంటే తక్కువ"}},
-      {"id": "almost_nothing", "label": {"en": "Almost nothing", "hi": "लगभग कुछ नहीं", "mr": "जवळजवळ काहीच नाही", "te": "దాదాపు ఏమీ లేదు"}}
+      {
+        "id": "normal",
+        "label": {
+          "en": "Normal",
+          "hi": "सामान्य",
+          "mr": "सामान्य",
+          "te": "సాధారణం"
+        }
+      },
+      {
+        "id": "half",
+        "label": {
+          "en": "Less than half",
+          "hi": "आधे से कम",
+          "mr": "निम्म्यापेक्षा कमी",
+          "te": "సగం కంటే తక్కువ"
+        }
+      },
+      {
+        "id": "almost_nothing",
+        "label": {
+          "en": "Almost nothing",
+          "hi": "लगभग कुछ नहीं",
+          "mr": "जवळजवळ काहीच नाही",
+          "te": "దాదాపు ఏమీ లేదు"
+        }
+      }
     ]
   },
-
   "question_sets": {
     "myelosuppression": {
-      "title": {"en": "Fever and infection watch", "hi": "बुखार और संक्रमण की निगरानी", "mr": "ताप आणि संसर्गाची तपासणी", "te": "జ్వరం మరియు ఇన్ఫెక్షన్ పరిశీలన"},
+      "title": {
+        "en": "Fever and infection watch",
+        "hi": "बुखार और संक्रमण की निगरानी",
+        "mr": "ताप आणि संसर्गाची तपासणी",
+        "te": "జ్వరం మరియు ఇన్ఫెక్షన్ పరిశీలన"
+      },
       "questions": [
         {
           "id": "ck.myelo.fever",
@@ -74,31 +141,51 @@
           "id": "myelo.fever",
           "grade": "red",
           "reason": "Fever reported after chemotherapy — possible neutropenic sepsis",
-          "when": {"op": "eq", "node": "ck.myelo.fever", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.myelo.fever",
+            "value": "yes"
+          }
         },
         {
           "id": "myelo.temp",
           "grade": "red",
           "reason": "Measured temperature 38°C or above after chemotherapy",
-          "when": {"op": "gte", "node": "ck.myelo.temp", "value": 38}
+          "when": {
+            "op": "gte",
+            "node": "ck.myelo.temp",
+            "value": 38
+          }
         },
         {
           "id": "myelo.bleeding",
           "grade": "red",
           "reason": "New bleeding or bruising — possible thrombocytopenia",
-          "when": {"op": "eq", "node": "ck.myelo.bleeding", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.myelo.bleeding",
+            "value": "yes"
+          }
         },
         {
           "id": "myelo.mucositis",
           "grade": "amber",
           "reason": "Severe mouth sores — check oral intake and analgesia",
-          "when": {"op": "eq", "node": "ck.myelo.mouth", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.myelo.mouth",
+            "value": "severe"
+          }
         }
       ]
     },
-
     "gi_platinum": {
-      "title": {"en": "Sickness, eating and urine", "hi": "उल्टी, खाना और पेशाब", "mr": "उलटी, जेवण आणि लघवी", "te": "వాంతి, ఆహారం మరియు మూత్రం"},
+      "title": {
+        "en": "Sickness, eating and urine",
+        "hi": "उल्टी, खाना और पेशाब",
+        "mr": "उलटी, जेवण आणि लघवी",
+        "te": "వాంతి, ఆహారం మరియు మూత్రం"
+      },
       "questions": [
         {
           "id": "ck.gi.vomit",
@@ -151,43 +238,74 @@
           "id": "gi.vomiting_severe",
           "grade": "red",
           "reason": "Five or more vomits in a day — dehydration risk",
-          "when": {"op": "gte", "node": "ck.gi.vomit", "value": 5}
+          "when": {
+            "op": "gte",
+            "node": "ck.gi.vomit",
+            "value": 5
+          }
         },
         {
           "id": "gi.not_drinking",
           "grade": "red",
           "reason": "Taking almost nothing by mouth",
-          "when": {"op": "eq", "node": "ck.gi.intake", "value": "almost_nothing"}
+          "when": {
+            "op": "eq",
+            "node": "ck.gi.intake",
+            "value": "almost_nothing"
+          }
         },
         {
           "id": "gi.oliguria",
           "grade": "red",
           "reason": "Urine much reduced after platinum — possible renal injury",
-          "when": {"op": "eq", "node": "ck.gi.urine", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.gi.urine",
+            "value": "yes"
+          }
         },
         {
           "id": "gi.vomiting",
           "grade": "amber",
           "reason": "Vomiting despite antiemetics — review the antiemetic plan",
-          "when": {"op": "gte", "node": "ck.gi.vomit", "value": 2}
+          "when": {
+            "op": "gte",
+            "node": "ck.gi.vomit",
+            "value": 2
+          }
         },
         {
           "id": "gi.eating_less",
           "grade": "amber",
           "reason": "Eating less than half of normal",
-          "when": {"op": "eq", "node": "ck.gi.intake", "value": "half"}
+          "when": {
+            "op": "eq",
+            "node": "ck.gi.intake",
+            "value": "half"
+          }
         },
         {
           "id": "gi.neuropathy",
           "grade": "amber",
           "reason": "Peripheral neuropathy reported — flag before the next cycle",
-          "when": {"op": "in", "node": "ck.gi.tingling", "value": ["mild", "severe"]}
+          "when": {
+            "op": "in",
+            "node": "ck.gi.tingling",
+            "value": [
+              "mild",
+              "severe"
+            ]
+          }
         }
       ]
     },
-
     "taxane_neuro": {
-      "title": {"en": "Hands, feet and body aches", "hi": "हाथ-पैर और बदन दर्द", "mr": "हात-पाय आणि अंगदुखी", "te": "చేతులు, కాళ్ళు మరియు ఒళ్ళు నొప్పులు"},
+      "title": {
+        "en": "Hands, feet and body aches",
+        "hi": "हाथ-पैर और बदन दर्द",
+        "mr": "हात-पाय आणि अंगदुखी",
+        "te": "చేతులు, కాళ్ళు మరియు ఒళ్ళు నొప్పులు"
+      },
       "questions": [
         {
           "id": "ck.neuro.tingling",
@@ -240,7 +358,11 @@
           "id": "neuro.hypersensitivity",
           "grade": "red",
           "reason": "New rash or facial swelling — possible delayed hypersensitivity",
-          "when": {"op": "eq", "node": "ck.neuro.rash", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.neuro.rash",
+            "value": "yes"
+          }
         },
         {
           "id": "neuro.functional_loss",
@@ -249,8 +371,16 @@
           "when": {
             "op": "and",
             "rules": [
-              {"op": "eq", "node": "ck.neuro.tingling", "value": "severe"},
-              {"op": "eq", "node": "ck.neuro.buttons", "value": "yes"}
+              {
+                "op": "eq",
+                "node": "ck.neuro.tingling",
+                "value": "severe"
+              },
+              {
+                "op": "eq",
+                "node": "ck.neuro.buttons",
+                "value": "yes"
+              }
             ]
           }
         },
@@ -258,19 +388,34 @@
           "id": "neuro.tingling",
           "grade": "amber",
           "reason": "Peripheral neuropathy reported — flag before the next cycle",
-          "when": {"op": "in", "node": "ck.neuro.tingling", "value": ["mild", "severe"]}
+          "when": {
+            "op": "in",
+            "node": "ck.neuro.tingling",
+            "value": [
+              "mild",
+              "severe"
+            ]
+          }
         },
         {
           "id": "neuro.myalgia",
           "grade": "amber",
           "reason": "Severe myalgia — review analgesia",
-          "when": {"op": "gte", "node": "ck.neuro.pain", "value": 7}
+          "when": {
+            "op": "gte",
+            "node": "ck.neuro.pain",
+            "value": 7
+          }
         }
       ]
     },
-
     "anthracycline_cardiac": {
-      "title": {"en": "Breathing and swelling", "hi": "साँस और सूजन", "mr": "श्वास आणि सूज", "te": "శ్వాస మరియు వాపు"},
+      "title": {
+        "en": "Breathing and swelling",
+        "hi": "साँस और सूजन",
+        "mr": "श्वास आणि सूज",
+        "te": "శ్వాస మరియు వాపు"
+      },
       "questions": [
         {
           "id": "ck.card.breathless",
@@ -322,37 +467,61 @@
           "id": "card.breathless_severe",
           "grade": "red",
           "reason": "Breathless at rest or on usual activity after anthracycline",
-          "when": {"op": "eq", "node": "ck.card.breathless", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.card.breathless",
+            "value": "severe"
+          }
         },
         {
           "id": "card.orthopnoea",
           "grade": "red",
           "reason": "Orthopnoea — possible cardiac failure, needs assessment",
-          "when": {"op": "eq", "node": "ck.card.lying_flat", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.card.lying_flat",
+            "value": "yes"
+          }
         },
         {
           "id": "card.oedema",
           "grade": "amber",
           "reason": "Peripheral oedema — check weight and cardiac function",
-          "when": {"op": "eq", "node": "ck.card.swelling", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.card.swelling",
+            "value": "yes"
+          }
         },
         {
           "id": "card.palpitations",
           "grade": "amber",
           "reason": "Palpitations reported — consider ECG before the next cycle",
-          "when": {"op": "eq", "node": "ck.card.palpitations", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.card.palpitations",
+            "value": "yes"
+          }
         },
         {
           "id": "card.breathless_mild",
           "grade": "amber",
           "reason": "New mild breathlessness after anthracycline",
-          "when": {"op": "eq", "node": "ck.card.breathless", "value": "mild"}
+          "when": {
+            "op": "eq",
+            "node": "ck.card.breathless",
+            "value": "mild"
+          }
         }
       ]
     },
-
     "rt_skin_mucosa": {
-      "title": {"en": "Skin and swallowing", "hi": "त्वचा और निगलना", "mr": "त्वचा आणि गिळणं", "te": "చర్మం మరియు మింగడం"},
+      "title": {
+        "en": "Skin and swallowing",
+        "hi": "त्वचा और निगलना",
+        "mr": "त्वचा आणि गिळणं",
+        "te": "చర్మం మరియు మింగడం"
+      },
       "questions": [
         {
           "id": "ck.rt.skin",
@@ -404,43 +573,71 @@
           "id": "rt.fever",
           "grade": "red",
           "reason": "Fever during radiotherapy — needs assessment",
-          "when": {"op": "eq", "node": "ck.rt.fever", "value": "yes"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.fever",
+            "value": "yes"
+          }
         },
         {
           "id": "rt.not_drinking",
           "grade": "red",
           "reason": "Taking almost nothing by mouth — dehydration risk",
-          "when": {"op": "eq", "node": "ck.rt.intake", "value": "almost_nothing"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.intake",
+            "value": "almost_nothing"
+          }
         },
         {
           "id": "rt.skin_severe",
           "grade": "red",
           "reason": "Severe radiation dermatitis — review the treatment field",
-          "when": {"op": "eq", "node": "ck.rt.skin", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.skin",
+            "value": "severe"
+          }
         },
         {
           "id": "rt.odynophagia",
           "grade": "amber",
           "reason": "Severe pain on swallowing — review analgesia and nutrition",
-          "when": {"op": "eq", "node": "ck.rt.swallow", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.swallow",
+            "value": "severe"
+          }
         },
         {
           "id": "rt.eating_less",
           "grade": "amber",
           "reason": "Eating less than half of normal",
-          "when": {"op": "eq", "node": "ck.rt.intake", "value": "half"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.intake",
+            "value": "half"
+          }
         },
         {
           "id": "rt.skin_mild",
           "grade": "amber",
           "reason": "Early radiation skin reaction — skin care advice",
-          "when": {"op": "eq", "node": "ck.rt.skin", "value": "mild"}
+          "when": {
+            "op": "eq",
+            "node": "ck.rt.skin",
+            "value": "mild"
+          }
         }
       ]
     },
-
     "post_op_wound": {
-      "title": {"en": "Your wound", "hi": "आपका ज़ख़्म", "mr": "तुमची जखम", "te": "మీ గాయం"},
+      "title": {
+        "en": "Your wound",
+        "hi": "आपका ज़ख़्म",
+        "mr": "तुमची जखम",
+        "te": "మీ గాయం"
+      },
       "questions": [
         {
           "id": "ck.op.wound",
@@ -496,8 +693,16 @@
           "when": {
             "op": "or",
             "rules": [
-              {"op": "eq", "node": "ck.op.discharge", "value": "yes"},
-              {"op": "eq", "node": "ck.op.fever", "value": "yes"}
+              {
+                "op": "eq",
+                "node": "ck.op.discharge",
+                "value": "yes"
+              },
+              {
+                "op": "eq",
+                "node": "ck.op.fever",
+                "value": "yes"
+              }
             ]
           }
         },
@@ -505,25 +710,41 @@
           "id": "op.wound_severe",
           "grade": "red",
           "reason": "Wound markedly red or swollen — needs to be seen",
-          "when": {"op": "eq", "node": "ck.op.wound", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.op.wound",
+            "value": "severe"
+          }
         },
         {
           "id": "op.wound_mild",
           "grade": "amber",
           "reason": "Mild wound redness — nurse to review the dressing",
-          "when": {"op": "eq", "node": "ck.op.wound", "value": "mild"}
+          "when": {
+            "op": "eq",
+            "node": "ck.op.wound",
+            "value": "mild"
+          }
         },
         {
           "id": "op.pain",
           "grade": "amber",
           "reason": "Poorly controlled post-operative pain",
-          "when": {"op": "gte", "node": "ck.op.pain", "value": 7}
+          "when": {
+            "op": "gte",
+            "node": "ck.op.pain",
+            "value": 7
+          }
         }
       ]
     },
-
     "palliative_comfort": {
-      "title": {"en": "Comfort", "hi": "आराम", "mr": "आराम", "te": "సౌకర్యం"},
+      "title": {
+        "en": "Comfort",
+        "hi": "आराम",
+        "mr": "आराम",
+        "te": "సౌకర్యం"
+      },
       "questions": [
         {
           "id": "ck.pall.pain",
@@ -575,95 +796,273 @@
           "id": "pall.pain_severe",
           "grade": "red",
           "reason": "Severe uncontrolled pain",
-          "when": {"op": "gte", "node": "ck.pall.pain", "value": 8}
+          "when": {
+            "op": "gte",
+            "node": "ck.pall.pain",
+            "value": 8
+          }
         },
         {
           "id": "pall.breathless_severe",
           "grade": "red",
           "reason": "Severe breathlessness",
-          "when": {"op": "eq", "node": "ck.pall.breathless", "value": "severe"}
+          "when": {
+            "op": "eq",
+            "node": "ck.pall.breathless",
+            "value": "severe"
+          }
         },
         {
           "id": "pall.pain",
           "grade": "amber",
           "reason": "Pain above the comfort threshold — review analgesia",
-          "when": {"op": "gte", "node": "ck.pall.pain", "value": 5}
+          "when": {
+            "op": "gte",
+            "node": "ck.pall.pain",
+            "value": 5
+          }
         },
         {
           "id": "pall.sleep",
           "grade": "amber",
           "reason": "Not sleeping at night",
-          "when": {"op": "eq", "node": "ck.pall.sleep", "value": "no"}
+          "when": {
+            "op": "eq",
+            "node": "ck.pall.sleep",
+            "value": "no"
+          }
         },
         {
           "id": "pall.breathless_mild",
           "grade": "amber",
           "reason": "Mild breathlessness reported",
-          "when": {"op": "eq", "node": "ck.pall.breathless", "value": "mild"}
+          "when": {
+            "op": "eq",
+            "node": "ck.pall.breathless",
+            "value": "mild"
+          }
         }
       ]
     }
   },
-
   "protocols": {
     "platinum": {
-      "label": {"en": "Platinum-based chemotherapy", "hi": "प्लैटिनम-आधारित कीमोथेरेपी", "mr": "प्लॅटिनम-आधारित केमोथेरपी", "te": "ప్లాటినం ఆధారిత కీమోథెరపీ"},
-      "match": {"drug_classes": ["cytotoxic-platinum"], "keywords": ["platinum", "cisplatin", "carboplatin", "oxaliplatin"]},
+      "label": {
+        "en": "Platinum-based chemotherapy",
+        "hi": "प्लैटिनम-आधारित कीमोथेरेपी",
+        "mr": "प्लॅटिनम-आधारित केमोथेरपी",
+        "te": "ప్లాటినం ఆధారిత కీమోథెరపీ"
+      },
+      "match": {
+        "drug_classes": [
+          "cytotoxic-platinum"
+        ],
+        "keywords": [
+          "platinum",
+          "cisplatin",
+          "carboplatin",
+          "oxaliplatin"
+        ]
+      },
+      "precedence": 20,
       "cycle_days": 21,
       "checkins": [
-        {"day_offset": 2, "question_set": "gi_platinum"},
-        {"day_offset": 7, "question_set": "myelosuppression"},
-        {"day_offset": 14, "question_set": "myelosuppression"}
+        {
+          "day_offset": 2,
+          "question_set": "gi_platinum"
+        },
+        {
+          "day_offset": 7,
+          "question_set": "myelosuppression"
+        },
+        {
+          "day_offset": 14,
+          "question_set": "myelosuppression"
+        }
       ]
     },
     "taxane": {
-      "label": {"en": "Taxane chemotherapy", "hi": "टैक्सेन कीमोथेरेपी", "mr": "टॅक्सेन केमोथेरपी", "te": "టాక్సేన్ కీమోథెరపీ"},
-      "match": {"drug_classes": ["cytotoxic-taxane"], "keywords": ["taxane", "paclitaxel", "docetaxel", "cabazitaxel"]},
+      "label": {
+        "en": "Taxane chemotherapy",
+        "hi": "टैक्सेन कीमोथेरेपी",
+        "mr": "टॅक्सेन केमोथेरपी",
+        "te": "టాక్సేన్ కీమోథెరపీ"
+      },
+      "match": {
+        "drug_classes": [
+          "cytotoxic-taxane"
+        ],
+        "keywords": [
+          "taxane",
+          "paclitaxel",
+          "docetaxel",
+          "cabazitaxel"
+        ]
+      },
+      "precedence": 30,
       "cycle_days": 21,
       "checkins": [
-        {"day_offset": 2, "question_set": "taxane_neuro"},
-        {"day_offset": 8, "question_set": "myelosuppression"},
-        {"day_offset": 14, "question_set": "taxane_neuro"}
+        {
+          "day_offset": 2,
+          "question_set": "taxane_neuro"
+        },
+        {
+          "day_offset": 8,
+          "question_set": "myelosuppression"
+        },
+        {
+          "day_offset": 14,
+          "question_set": "taxane_neuro"
+        }
       ]
     },
     "anthracycline": {
-      "label": {"en": "Anthracycline chemotherapy", "hi": "एंथ्रासाइक्लिन कीमोथेरेपी", "mr": "अँथ्रासायक्लिन केमोथेरपी", "te": "ఆంత్రాసైక్లిన్ కీమోథెరపీ"},
-      "match": {"drug_classes": ["cytotoxic-anthracycline"], "keywords": ["anthracycline", "doxorubicin", "adriamycin", "epirubicin", "ac ", "chop", "abvd"]},
+      "label": {
+        "en": "Anthracycline chemotherapy",
+        "hi": "एंथ्रासाइक्लिन कीमोथेरेपी",
+        "mr": "अँथ्रासायक्लिन केमोथेरपी",
+        "te": "ఆంత్రాసైక్లిన్ కీమోథెరపీ"
+      },
+      "match": {
+        "drug_classes": [
+          "cytotoxic-anthracycline"
+        ],
+        "keywords": [
+          "anthracycline",
+          "doxorubicin",
+          "adriamycin",
+          "epirubicin",
+          "ac-t",
+          "chop",
+          "abvd"
+        ]
+      },
+      "precedence": 40,
       "cycle_days": 21,
       "checkins": [
-        {"day_offset": 3, "question_set": "myelosuppression"},
-        {"day_offset": 7, "question_set": "anthracycline_cardiac"},
-        {"day_offset": 14, "question_set": "myelosuppression"}
+        {
+          "day_offset": 3,
+          "question_set": "myelosuppression"
+        },
+        {
+          "day_offset": 7,
+          "question_set": "anthracycline_cardiac"
+        },
+        {
+          "day_offset": 14,
+          "question_set": "myelosuppression"
+        }
       ]
     },
     "radiotherapy": {
-      "label": {"en": "Radiotherapy", "hi": "रेडियोथेरेपी (सिकाई)", "mr": "रेडिओथेरपी (शेक)", "te": "రేడియోథెరపీ"},
-      "match": {"drug_classes": [], "keywords": ["radiotherapy", "radiation", "rt ", "ebrt", "imrt", "brachytherapy", "sikai", "sekai"]},
+      "label": {
+        "en": "Radiotherapy",
+        "hi": "रेडियोथेरेपी (सिकाई)",
+        "mr": "रेडिओथेरपी (शेक)",
+        "te": "రేడియోథెరపీ"
+      },
+      "match": {
+        "drug_classes": [],
+        "keywords": [
+          "radiotherapy",
+          "radiation",
+          "rt ",
+          "ebrt",
+          "imrt",
+          "brachytherapy",
+          "sikai",
+          "sekai"
+        ]
+      },
+      "precedence": 15,
       "cycle_days": 0,
       "checkins": [
-        {"day_offset": 3, "question_set": "rt_skin_mucosa"},
-        {"day_offset": 7, "question_set": "rt_skin_mucosa"},
-        {"day_offset": 14, "question_set": "rt_skin_mucosa"}
+        {
+          "day_offset": 3,
+          "question_set": "rt_skin_mucosa"
+        },
+        {
+          "day_offset": 7,
+          "question_set": "rt_skin_mucosa"
+        },
+        {
+          "day_offset": 14,
+          "question_set": "rt_skin_mucosa"
+        }
       ]
     },
     "post_op": {
-      "label": {"en": "After an operation", "hi": "ऑपरेशन के बाद", "mr": "ऑपरेशननंतर", "te": "ఆపరేషన్ తర్వాత"},
-      "match": {"drug_classes": [], "keywords": ["post-op", "post op", "postop", "surgery", "operation", "resection", "mastectomy", "colectomy", "laparotomy"]},
+      "label": {
+        "en": "After an operation",
+        "hi": "ऑपरेशन के बाद",
+        "mr": "ऑपरेशननंतर",
+        "te": "ఆపరేషన్ తర్వాత"
+      },
+      "match": {
+        "drug_classes": [],
+        "keywords": [
+          "post-op",
+          "post op",
+          "postop",
+          "surgery",
+          "operation",
+          "resection",
+          "mastectomy",
+          "colectomy",
+          "laparotomy"
+        ]
+      },
+      "precedence": 10,
       "cycle_days": 0,
       "checkins": [
-        {"day_offset": 2, "question_set": "post_op_wound"},
-        {"day_offset": 5, "question_set": "post_op_wound"},
-        {"day_offset": 10, "question_set": "post_op_wound"}
+        {
+          "day_offset": 2,
+          "question_set": "post_op_wound"
+        },
+        {
+          "day_offset": 5,
+          "question_set": "post_op_wound"
+        },
+        {
+          "day_offset": 10,
+          "question_set": "post_op_wound"
+        }
       ]
     },
     "palliative": {
-      "label": {"en": "Comfort care", "hi": "आराम की देखभाल", "mr": "आरामाची काळजी", "te": "సౌకర్య సంరక్షణ"},
-      "match": {"drug_classes": ["analgesic-opioid"], "keywords": ["palliative", "best supportive care", "bsc", "comfort care", "hospice"]},
+      "label": {
+        "en": "Comfort care",
+        "hi": "आराम की देखभाल",
+        "mr": "आरामाची काळजी",
+        "te": "సౌకర్య సంరక్షణ"
+      },
+      "match": {
+        "drug_classes": [
+          "analgesic-opioid"
+        ],
+        "keywords": [
+          "palliative",
+          "best supportive care",
+          "bsc",
+          "comfort care",
+          "hospice"
+        ]
+      },
+      "precedence": 5,
       "cycle_days": 0,
       "checkins": [
-        {"day_offset": 3, "question_set": "palliative_comfort"},
-        {"day_offset": 7, "question_set": "palliative_comfort"},
-        {"day_offset": 14, "question_set": "palliative_comfort"}
+        {
+          "day_offset": 3,
+          "question_set": "palliative_comfort"
+        },
+        {
+          "day_offset": 7,
+          "question_set": "palliative_comfort"
+        },
+        {
+          "day_offset": 14,
+          "question_set": "palliative_comfort"
+        }
       ]
     }
   }

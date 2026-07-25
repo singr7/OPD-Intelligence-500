@@ -1,0 +1,110 @@
+{
+  "_comment": "S17 fixtures: signed consult notes, already in `DictationMapping` shape (what S10's mapper produces after validation), one per regimen family the AC exercises. Kept apart from `dictations.json` because those ten fixtures exist to prove the *mapper* never renames a drug and are parametrised as such; these exist to prove the *plan* is the right one. Hinglish as-spoken lines, same as S10.",
+  "cases": [
+    {
+      "id": "carboplatin-day-1",
+      "expect_protocol": "platinum",
+      "expect_days": [2, 7, 14],
+      "mapping": {
+        "diagnosis": "Ca ovary, stage III, on first-line chemotherapy",
+        "treatment_events": [
+          {
+            "cycle": 1,
+            "regimen": "carboplatin AUC 5",
+            "date": "2026-07-26",
+            "next_due": "2026-08-16",
+            "as_spoken": "carbo aaj chadha diya, cycle one, next cycle teen hafte baad"
+          }
+        ],
+        "meds": [
+          {
+            "name": "Inj Carboplatin 450 mg",
+            "dose": "450 mg",
+            "route": "IV",
+            "freq": "once",
+            "duration": "today",
+            "as_spoken": "carbo char sau pachaas IV aaj",
+            "known": true,
+            "generic": "carboplatin"
+          },
+          {
+            "name": "Tab Emeset 4 mg",
+            "dose": "4 mg",
+            "route": "PO",
+            "freq": "BD",
+            "duration": "5 days",
+            "as_spoken": "Emeset chaar mg din mein do baar paanch din",
+            "known": true,
+            "generic": "ondansetron"
+          }
+        ],
+        "advice": [
+          "Plenty of fluids for the next three days",
+          "Come to casualty if fever"
+        ],
+        "follow_up": {
+          "when": "2026-08-16",
+          "as_spoken": "teen hafte baad",
+          "instructions": "Review with CBC and creatinine before the next cycle"
+        },
+        "unclear": []
+      }
+    },
+    {
+      "id": "post-op-day-1",
+      "expect_protocol": "post_op",
+      "expect_days": [2, 5, 10],
+      "mapping": {
+        "diagnosis": "Post modified radical mastectomy, right breast",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tab Augmentin 625",
+            "dose": "625 mg",
+            "route": "PO",
+            "freq": "BD",
+            "duration": "5 days",
+            "as_spoken": "Augmentin chhe sau pachchees do baar paanch din",
+            "known": true,
+            "generic": "amoxicillin-clavulanate"
+          }
+        ],
+        "advice": ["Keep the dressing dry", "Drain output to be recorded daily"],
+        "follow_up": {
+          "when": "2026-08-02",
+          "as_spoken": "ek hafte baad",
+          "instructions": "Wound review and drain removal after the operation"
+        },
+        "unclear": []
+      }
+    },
+    {
+      "id": "routine-review-no-treatment",
+      "expect_protocol": null,
+      "expect_days": [],
+      "mapping": {
+        "diagnosis": "Hypothyroidism, on replacement, euthyroid",
+        "treatment_events": [],
+        "meds": [
+          {
+            "name": "Tab Thyronorm 50 mcg",
+            "dose": "50 mcg",
+            "route": "PO",
+            "freq": "OD",
+            "duration": "3 months",
+            "as_spoken": "Thyronorm pachaas subah khaali pet",
+            "known": true,
+            "generic": "levothyroxine"
+          }
+        ],
+        "advice": ["Repeat TSH in three months"],
+        "follow_up": {
+          "when": "2026-10-26",
+          "as_spoken": "teen mahine baad",
+          "instructions": "Routine review with TSH"
+        },
+        "unclear": []
+      }
+    }
+  ]
+}

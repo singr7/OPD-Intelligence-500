@@ -191,6 +191,23 @@ class Settings(BaseSettings):
     # How far ahead the nightly job materialises bookable slots from templates.
     slot_generation_horizon_days: int = 60
 
+    # --- Check-ins (S17, doc 03 §9) ------------------------------------------
+    # On by default, unlike the campaign: a check-in is answered by a patient who
+    # was told at the desk that we would message her, and the plan behind it was
+    # approved by a doctor one tap at a time. Nothing goes out that a human did
+    # not approve, so there is no "it started messaging by itself" failure to
+    # guard against — the flag is here to stop delivery on a box being restored
+    # or replayed.
+    checkins_enabled: bool = True
+    # Hospital-local hour a check-in is sent. Mid-morning: late enough that a
+    # patient recovering from chemotherapy has woken, early enough that a red
+    # answer reaches a nurse who is still on shift.
+    checkin_send_hour: int = 10
+    # doc 03 §9's quiet hours, hospital-local. Nothing is delivered inside them,
+    # on any channel — a 21:30 voice call to an oncology patient is a complaint.
+    checkin_quiet_start_hour: int = 21
+    checkin_quiet_end_hour: int = 8
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}

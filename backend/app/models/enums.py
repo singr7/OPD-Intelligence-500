@@ -43,6 +43,11 @@ class Channel(StrEnum):
     WHATSAPP = "whatsapp"
     APP = "app"
     PAPER = "paper"
+    #: S17. Outbound only — an intake never happens over SMS, but it is the last
+    #: rung of the check-in delivery ladder (doc 03 §9) and the one that reaches a
+    #: feature phone. Added rather than invented locally so `Checkin.channel`
+    #: says what actually carried the message.
+    SMS = "sms"
 
 
 class VisitStatus(StrEnum):

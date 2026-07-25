@@ -616,11 +616,17 @@ async def sign(session: AsyncSession, *, dictation: Dictation, doctor: Doctor) -
     # doc 03 §8: the signature is what produces the prescription, so it is
     # generated here rather than behind a verb a client could call without one.
     # Imported locally because `app.prescription` reads this module's contract —
-    # a module-level import would be a cycle. §9's check-in plan draft hangs off
-    # this same moment and is still S17.
+    # a module-level import would be a cycle. doc 03 §9's check-in plan draft
+    # hangs off the same moment (S17), for the same reason: a follow-up nobody
+    # prescribed is a follow-up nobody stands behind.
     from app import prescription as prescription_svc
+    from app.checkins import plan as checkin_plan
 
     await prescription_svc.generate(session, dictation=dictation, doctor=doctor)
+    # Never raises — see `draft_from_dictation`. A drafted plan messages nobody
+    # until a doctor approves it; drafting it here is what puts it in front of
+    # them at the moment they are still thinking about this patient.
+    await checkin_plan.draft_from_dictation(session, dictation=dictation, doctor=doctor)
     logger.info("dictation %s signed by doctor %s", dictation.id, doctor.id)
     return dictation
 

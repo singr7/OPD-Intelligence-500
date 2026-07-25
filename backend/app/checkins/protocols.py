@@ -165,6 +165,13 @@ class Protocol:
     drug_classes: frozenset[str]
     #: Lowercase substrings matched against the regimen / diagnosis / advice text.
     keywords: tuple[str, ...]
+    #: Which family wins when a note matches two (a carboplatin/paclitaxel
+    #: doublet matches both). Highest wins, and the order is a clinical call
+    #: authored in the bank: anthracycline (cardiac) over taxane (neuropathy)
+    #: over platinum (renal/GI), because that is the order in which missing the
+    #: signal is irreversible. `app.checkins.plan` records every family that
+    #: matched, so the choice is visible to the doctor approving the plan.
+    precedence: int
     #: Days between cycles, for the next-cycle reminders. 0 = not a cycled
     #: regimen (radiotherapy, post-op, palliative), so no cycle reminder is due.
     cycle_days: int
@@ -375,6 +382,10 @@ def _parse_protocol(key: str, payload: Any, *, sets: dict[str, QuestionSet]) -> 
         if not isinstance(word, str) or word != word.lower():
             raise ProtocolError(f"protocol {key!r}: keyword {word!r} must be a lowercase string")
 
+    precedence = payload.get("precedence")
+    if not isinstance(precedence, int):
+        raise ProtocolError(f"protocol {key!r}: needs an integer 'precedence'")
+
     cycle_days = payload.get("cycle_days", 0)
     if not isinstance(cycle_days, int) or cycle_days < 0:
         raise ProtocolError(f"protocol {key!r}: cycle_days must be a non-negative integer")
@@ -406,6 +417,7 @@ def _parse_protocol(key: str, payload: Any, *, sets: dict[str, QuestionSet]) -> 
         label=_langs(payload.get("label"), where=f"protocol {key}.label"),
         drug_classes=frozenset(str(c) for c in classes),
         keywords=tuple(str(w) for w in keywords),
+        precedence=precedence,
         cycle_days=cycle_days,
         checkins=tuple(sorted(checkins, key=lambda c: c.day_offset)),
     )
@@ -430,6 +442,12 @@ def parse(payload: dict[str, Any]) -> ProtocolBank:
     if not isinstance(raw_protocols, dict) or not raw_protocols:
         raise ProtocolError("protocols.json needs a non-empty 'protocols'")
     protocols = {key: _parse_protocol(key, raw, sets=sets) for key, raw in raw_protocols.items()}
+
+    precedences = [p.precedence for p in protocols.values()]
+    if len(set(precedences)) != len(precedences):
+        # A tie makes protocol choice depend on dict ordering — which is to say,
+        # on the order somebody happened to paste the JSON in.
+        raise ProtocolError("two protocols share a precedence; the tie-break must be total")
 
     used = {c.question_set for p in protocols.values() for c in p.checkins}
     orphans = sorted(set(sets) - used)
