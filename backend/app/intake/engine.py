@@ -40,7 +40,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,6 +106,48 @@ class PatientTurn:
     audio: AudioClip | None = None
     answer: Any = None
     text: str | None = None
+
+
+@runtime_checkable
+class TurnSource(Protocol):
+    """A live source of patient turns for a streaming channel (voice-gw, S14).
+
+    A phone call does not know its turns up front the way a scripted test does: the
+    caller speaks, we detect the end of the utterance, and only then is there a turn
+    to feed the pipeline. The channel adapter implements this — one `PatientTurn`
+    per utterance, then `None` when the caller hangs up. A fixed
+    `Sequence[PatientTurn]` (kiosk replays, unit tests) is adapted to the same shape
+    by `_Turns`, so the run loop has exactly one code path for both.
+    """
+
+    async def next_turn(self) -> PatientTurn | None: ...
+
+
+class _Turns:
+    """A fixed sequence or a live `TurnSource`, with pushback for the downgrade
+    re-ask. The pipeline pulls with `next()`; when a tier fails mid-turn it pushes
+    the un-answered turn back so the lower tier re-asks it — no answer is ever lost
+    (the invariant the old `deque.appendleft` carried)."""
+
+    def __init__(
+        self,
+        *,
+        turns: Sequence[PatientTurn] = (),
+        source: TurnSource | None = None,
+    ) -> None:
+        self._deque: deque[PatientTurn] = deque(turns)
+        self._source = source
+        self._pushback: deque[PatientTurn] = deque()
+
+    async def next(self) -> PatientTurn | None:
+        if self._pushback:
+            return self._pushback.popleft()
+        if self._source is not None:
+            return await self._source.next_turn()
+        return self._deque.popleft() if self._deque else None
+
+    def pushback(self, turn: PatientTurn) -> None:
+        self._pushback.appendleft(turn)
 
 
 class IntakeEngine:
@@ -240,8 +282,14 @@ class IntakeEngine:
         turns: Sequence[PatientTurn] = (),
         *,
         on_audio: AudioSink | None = None,
+        turn_source: TurnSource | None = None,
     ) -> SessionState:
-        """Drive the intake to completion (or graceful partial) over `turns`.
+        """Drive the intake to completion (or graceful partial).
+
+        Turns come either as a fixed `turns` sequence (scripted tests, kiosk replays)
+        or a live `turn_source` — the streaming case a phone call needs, where the
+        next turn only exists once the caller has finished speaking (voice-gw, S14).
+        Exactly one is used; `turn_source` wins if both are given.
 
         `on_audio` is the voice-gw passthrough sink (S14): every chunk of assistant
         speech is handed to it as it is produced. Left None, audio is synthesised
@@ -249,7 +297,7 @@ class IntakeEngine:
         plays audio itself wants.
         """
         tree = self._tree(state)
-        pending: deque[PatientTurn] = deque(turns)
+        pending = _Turns(turns=turns, source=turn_source)
 
         with usage_scope(
             session_id=state.session_id,
@@ -272,7 +320,7 @@ class IntakeEngine:
         self,
         state: SessionState,
         tree: Tree,
-        pending: deque[PatientTurn],
+        pending: _Turns,
         on_audio: AudioSink | None,
     ) -> None:
         """V2 and V3: one patient turn per question, with downgrade between turns.
@@ -280,7 +328,8 @@ class IntakeEngine:
         Rebuilds the dispatcher each iteration so that a downgrade mid-loop resumes
         from the stored answers on the new tier (the whole point of deriving
         position). The loop ends when the tree completes, the patient input runs
-        out (partial save, doc 03 §1b), or the session is otherwise closed.
+        out (partial save, doc 03 §1b — a hangup or an empty script), or the session
+        is otherwise closed.
         """
         guard_steps = 0
         while state.status is SessionStatus.ACTIVE:
@@ -290,11 +339,11 @@ class IntakeEngine:
             if dispatcher.walk.is_complete:
                 await self._finish(dispatcher, "complete")
                 break
-            if not pending:
+            turn = await pending.next()
+            if turn is None:
                 await self._finish(dispatcher, "patient_ended")
                 break
 
-            turn = pending.popleft()
             try:
                 with usage_scope(tier=state.active_tier):
                     if state.active_tier is V3:
@@ -308,7 +357,7 @@ class IntakeEngine:
                     exc,
                 )
                 await self._downgrade(state)
-                pending.appendleft(turn)  # no answer was lost; re-ask on the lower tier
+                pending.pushback(turn)  # no answer was lost; re-ask on the lower tier
 
             guard_steps += 1
             if guard_steps > _V1_MAX_EVENTS:  # pragma: no cover - runaway guard
@@ -440,7 +489,7 @@ class IntakeEngine:
         self,
         state: SessionState,
         tree: Tree,
-        pending: deque[PatientTurn],
+        pending: _Turns,
         on_audio: AudioSink | None,
     ) -> None:
         """Bridge a live speech-to-speech session to the tool dispatcher.
@@ -479,13 +528,13 @@ class IntakeEngine:
         session: RealtimeSession,
         dispatcher: ToolDispatcher,
         state: SessionState,
-        pending: deque[PatientTurn],
+        pending: _Turns,
         on_audio: AudioSink | None,
     ) -> None:
         events = session.events()
         # Kick the model off with the patient's opening audio (their chief
         # complaint was already captured at routing; this starts the turn loop).
-        opening = pending.popleft() if pending else PatientTurn(audio=AudioClip(data=b""))
+        opening = await pending.next() or PatientTurn(audio=AudioClip(data=b""))
         await session.send_audio(opening.audio or AudioClip(data=b""))
 
         for _ in range(_V1_MAX_EVENTS):

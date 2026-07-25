@@ -106,6 +106,20 @@ async def _seed_replay_day(session) -> Decimal:
             cost="0.9900",
             session_id="s3",
         ),
+        # Telephony (S14): a per-minute audio row from the voice gateway. The
+        # dashboard's five dimensions already carry `channel=phone`, so it reconciles
+        # with no dashboard change — the free instrument the S18E handoff promised.
+        _event(
+            at=REPLAY + timedelta(minutes=4),
+            provider="exotel",
+            model="voicebot",
+            channel=Channel.PHONE,
+            tier=IntakeTier.CONVERSATIONAL,
+            purpose=UsagePurpose.INTAKE_TURN,
+            audio="60",
+            cost="0.7500",
+            session_id="s4",
+        ),
     ]
     session.add_all(events)
     await session.flush()
@@ -155,9 +169,10 @@ async def test_what_if_matches_a_hand_calculation(session) -> None:
         end=end,
         overrides=[analytics.PriceOverride(provider="gemini", factor=Decimal("0"))],
     )
-    # gemini contributed 0.50 + 0.25 = 0.75; removing it leaves 0.12 + 0.99 = 1.11.
-    assert result.baseline_inr == Decimal("1.8600")
-    assert result.adjusted_inr == Decimal("1.1100")
+    # baseline = 0.50 + 0.25 (gemini) + 0.12 (sarvam) + 0.99 (openai) + 0.75 (exotel).
+    # gemini contributed 0.50 + 0.25 = 0.75; removing it leaves 0.12 + 0.99 + 0.75 = 1.86.
+    assert result.baseline_inr == Decimal("2.6100")
+    assert result.adjusted_inr == Decimal("1.8600")
     assert result.delta_inr == Decimal("-0.7500")
 
 
