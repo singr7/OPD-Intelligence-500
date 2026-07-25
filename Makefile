@@ -50,6 +50,9 @@ eval-routing: ## Score the routing classifier against its 60-utterance eval set
 	@echo "measures the harness, not a model — set a real provider + key first."
 	cd backend && .venv/bin/python -m app.evals --set routing
 
+lang-qa: ## Language QA harness (S13): completeness + script + glossary + audio round-trip
+	cd backend && .venv/bin/python -m app.lang_qa
+
 # --- Tests --------------------------------------------------------------------
 venv: ## Create the two Python venvs and install dev deps
 	python3 -m venv backend/.venv && backend/.venv/bin/pip install -q -r backend/requirements-dev.txt

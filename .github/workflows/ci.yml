@@ -49,6 +49,10 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: python -m pytest -q
+      # The language QA harness (S13) as its own named gate: completeness, script,
+      # glossary consistency and the STT/TTS round-trip across all four pilot
+      # languages. Also covered by pytest above; this line makes it a visible check.
+      - run: python -m app.lang_qa
 
   voice-gw:
     name: voice-gw · lint + test

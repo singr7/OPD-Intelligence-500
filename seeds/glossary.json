@@ -1,0 +1,16 @@
+{
+  "_comment": "S13 clinical glossary — the canonical rendering of a handful of core symptom words in each pilot language. The language QA harness (app.lang_qa) uses it two ways: it proves each entry is complete and in the right script, and wherever one of these words appears in the tree bank as a whole answer/label (e.g. an option that is exactly 'Fever'), it proves the tree used THIS translation and not a synonym. That is what keeps 'fever' from being ताप on one screen and बुखार-borrowed on another. en/hi were fixed by S4's authored text; mr/te are S13, model-drafted, pending native clinical review at S21.",
+  "terms": {
+    "fever": { "en": "Fever", "hi": "बुखार", "mr": "ताप", "te": "జ్వరం" },
+    "cough": { "en": "Cough", "hi": "खाँसी", "mr": "खोकला", "te": "దగ్గు" },
+    "pain": { "en": "Pain", "hi": "दर्द", "mr": "वेदना", "te": "నొప్పి" },
+    "vomiting": { "en": "Vomiting", "hi": "उल्टी", "mr": "उलटी", "te": "వాంతి" },
+    "breathlessness": { "en": "Breathlessness", "hi": "साँस फूलना", "mr": "धाप लागणं", "te": "శ్వాస ఆడకపోవడం" },
+    "weakness": { "en": "Weakness", "hi": "कमज़ोरी", "mr": "अशक्तपणा", "te": "బలహీనత" },
+    "itching": { "en": "Itching", "hi": "खुजली", "mr": "खाज", "te": "దురద" },
+    "constipated": { "en": "Constipated", "hi": "कब्ज़", "mr": "बद्धकोष्ठता", "te": "మలబద్ధకం" },
+    "normal": { "en": "Normal", "hi": "सामान्य", "mr": "सामान्य", "te": "సాధారణం" },
+    "yes": { "en": "Yes", "hi": "हाँ", "mr": "होय", "te": "అవును" },
+    "no": { "en": "No", "hi": "नहीं", "mr": "नाही", "te": "లేదు" }
+  }
+}
