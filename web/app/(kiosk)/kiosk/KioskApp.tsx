@@ -134,7 +134,7 @@ export function KioskApp() {
       await fn();
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
-      setError(lang === "hi" ? "कुछ गड़बड़ हुई — फिर कोशिश कीजिए।" : "Something went wrong — please try again.");
+      setError(t("genericError", lang));
       console.error(msg);
     } finally {
       setBusy(false);
@@ -178,11 +178,7 @@ export function KioskApp() {
           return;
         }
         if (e instanceof OfflineUnavailableForDept) {
-          setError(
-            lang === "hi"
-              ? "यह पर्ची कर्मचारी से लें — अभी ऑफ़लाइन सेवा उपलब्ध नहीं।"
-              : "Please see the staff desk — offline service is unavailable for this department."
-          );
+          setError(t("offlineDeptUnavailable", lang));
           return;
         }
         throw e;
@@ -993,10 +989,7 @@ function TokenScreen({
   say: (t: string) => void;
 }) {
   useEffect(() => {
-    const spoken =
-      lang === "hi"
-        ? `आपका टोकन नंबर ${token.token_no ?? ""}`
-        : `Your token number is ${token.token_no ?? ""}`;
+    const spoken = t("tokenSpoken", lang).replace("{n}", String(token.token_no ?? ""));
     say(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

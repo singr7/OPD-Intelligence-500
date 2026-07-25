@@ -97,7 +97,11 @@
   margin: 0 0 var(--sp-4);
   max-width: 22ch;
 }
-.question[lang="hi"] { line-height: var(--line-indic); }
+/* Devanagari (hi, mr) and Telugu (te) both need the taller line (doc 04 §4:
+   line-height ≥1.6); Latin (en) keeps the default. */
+.question[lang="hi"],
+.question[lang="mr"],
+.question[lang="te"] { line-height: var(--line-indic); }
 .lead {
   font-size: var(--fs-lead);
   line-height: 1.4;
@@ -466,7 +470,9 @@
   max-width: 760px;
   margin-bottom: var(--sp-4);
 }
-.readback[lang="hi"] { line-height: var(--line-indic); }
+.readback[lang="hi"],
+.readback[lang="mr"],
+.readback[lang="te"] { line-height: var(--line-indic); }
 
 /* --- red flag banner ------------------------------------------------------ */
 .redFlag {

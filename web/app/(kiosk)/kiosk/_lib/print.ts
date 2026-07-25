@@ -23,6 +23,8 @@
 // printers; the cut command and codepage for Devanagari are the two things most
 // likely to need per-printer tuning on the box.
 
+import type { KioskLang } from "./i18n";
+
 export type Slip = {
   tokenNo: number | null;
   departmentName: string;
@@ -32,7 +34,25 @@ export type Slip = {
   /** true when the intake raised a red flag — the slip says "show this at the
    *  desk now", the one place a downtime patient's urgency is visible on paper. */
   urgent: boolean;
-  lang: "hi" | "en";
+  lang: KioskLang;
+};
+
+// The slip's own two phrases, in every pilot language (S13). Kept here rather than
+// in the `T` table because the ESC/POS path is text-only and these never appear on
+// screen. The Indic lines still print as '?' until the printer codepage is set on
+// the box (see `encode` below) — correct on the browser fallback, degraded on
+// thermal, same as before mr/te existed.
+const SLIP_URGENT: Record<KioskLang, string> = {
+  hi: "** तुरंत डेस्क पर दिखाएँ **",
+  en: "** SHOW AT DESK NOW **",
+  mr: "** ताबडतोब डेस्कवर दाखवा **",
+  te: "** వెంటనే డెస్క్ వద్ద చూపించండి **",
+};
+const SLIP_WAIT: Record<KioskLang, string> = {
+  hi: "अपना नंबर आने तक बैठें",
+  en: "Please wait for your number",
+  mr: "तुमचा नंबर येईपर्यंत बसा",
+  te: "మీ నంబర్ వచ్చే వరకు వేచి ఉండండి",
 };
 
 // ESC/POS control bytes (Epson-compatible; the 58mm clones follow it).
@@ -71,14 +91,14 @@ export function escposSlip(slip: Slip): Uint8Array {
 
   if (slip.urgent) {
     bytes.push(...BOLD_ON);
-    line(slip.lang === "hi" ? "** तुरंत डेस्क पर दिखाएँ **" : "** SHOW AT DESK NOW **");
+    line(SLIP_URGENT[slip.lang]);
     bytes.push(...BOLD_OFF);
   }
 
   bytes.push(...ALIGN_LEFT);
   line(formatTime(slip.issuedAt));
   bytes.push(...ALIGN_CENTER);
-  line(slip.lang === "hi" ? "अपना नंबर आने तक बैठें" : "Please wait for your number");
+  line(SLIP_WAIT[slip.lang]);
 
   bytes.push(...FEED(3), ...CUT);
   return new Uint8Array(bytes);

@@ -62,8 +62,12 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans), var(--font-deva), "Noto Sans",
-    "Noto Sans Devanagari", system-ui, -apple-system, sans-serif;
+  /* Latin falls to font-sans, Devanagari (hi + mr) to font-deva, Telugu to
+     font-telugu — each script's glyphs live in exactly one, so ordering is a
+     fall-through, not a preference (S13). */
+  font-family: var(--font-sans), var(--font-deva), var(--font-telugu),
+    "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu", system-ui,
+    -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
