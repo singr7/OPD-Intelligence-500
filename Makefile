@@ -13,7 +13,8 @@ HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
 
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
         tf-validate build deploy venv clean migrate migration seed eval-routing \
-        slots campaign-dryrun \
+        slots campaign-dryrun app-demo \
+        android-test android-test-device android-apk android-emulator android-install \
         tree-fixtures check-tree-fixtures
 
 help: ## List targets
@@ -66,7 +67,7 @@ venv: ## Create the two Python venvs and install dev deps
 	python3 -m venv backend/.venv && backend/.venv/bin/pip install -q -r backend/requirements-dev.txt
 	python3 -m venv voice-gw/.venv && voice-gw/.venv/bin/pip install -q -r voice-gw/requirements.txt pytest httpx
 
-test: test-backend test-voicegw test-web ## Run the full test suite
+test: test-backend test-voicegw test-web android-test ## Run the full test suite
 
 test-backend: ## Backend pytest
 	cd backend && .venv/bin/python -m pytest -q
@@ -76,6 +77,30 @@ test-voicegw: ## voice-gw pytest (runs on the backend venv — voice-gw shares t
 
 test-web: check-tree-fixtures ## Web typecheck + lint + walker conformance (build is exercised in CI)
 	cd web && npm run typecheck && npm run lint && npm run conformance
+
+# --- Android (S16) ------------------------------------------------------------
+# JAVA_HOME is pinned: AGP 8.7 wants a JDK 17, and the machine's default `java`
+# is newer. ANDROID_HOME comes from the SDK the operator installed.
+ANDROID_JAVA_HOME ?= /opt/homebrew/opt/openjdk@17
+GRADLEW := JAVA_HOME=$(ANDROID_JAVA_HOME) ./gradlew
+
+android-test: ## Android JVM unit tests (no device needed) — part of `make test`
+	cd android && $(GRADLEW) testDebugUnitTest
+
+android-test-device: ## Instrumented tests: offline care file, reminders, home intake. Needs a booted emulator.
+	cd android && $(GRADLEW) connectedDebugAndroidTest
+
+android-apk: ## Release APK + the 15MB size gate (doc 03 §1c.7)
+	cd android && $(GRADLEW) checkApkSize
+
+android-emulator: ## Boot the pilot AVD headless (Ctrl-C to stop)
+	$${ANDROID_HOME:-$$HOME/Library/Android/sdk}/emulator/emulator -avd opd_pilot -no-window -no-audio -no-boot-anim
+
+android-install: ## Install the debug app on a booted device, pointed at the local stack
+	cd android && $(GRADLEW) installDebug -PopdApiBase=http://10.0.2.2:8000
+
+app-demo: ## Give the first seeded patient a prescription, a cycle and a caregiver (S16 demo)
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m scripts.seed_app_demo
 
 tree-fixtures: ## Regenerate the Python→TS walker conformance fixtures (S7)
 	cd backend && .venv/bin/python -m app.tree_fixtures

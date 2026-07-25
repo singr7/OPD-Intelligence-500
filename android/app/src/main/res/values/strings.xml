@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Every patient-facing string, in all four pilot languages (doc 07 §4's quality
+  gate). English is the default folder; hi/mr/te are complete siblings. mr and te
+  are owed the same native + clinical review as the rest of the tree bank (S21).
+
+  Tone follows doc 04 law 7: second person, warm, plain. No clinical register,
+  no "please contact your healthcare provider".
+-->
+<resources>
+    <string name="app_name">My Cancer Care</string>
+
+    <!-- onboarding (three spoken screens, doc 04 §3) -->
+    <string name="onboard_1_title">Your papers, always with you</string>
+    <string name="onboard_1_body">Every prescription and every summary is kept here. It opens even with no network.</string>
+    <string name="onboard_2_title">Answer the questions from home</string>
+    <string name="onboard_2_body">Do tomorrow\'s questions tonight, by speaking. On arrival you get your token faster.</string>
+    <string name="onboard_3_title">We will remind you</string>
+    <string name="onboard_3_body">Your phone will remind you about each medicine, and tell your family if a dose is missed.</string>
+    <string name="onboard_next">Next</string>
+    <string name="onboard_start">Let\'s begin</string>
+    <string name="onboard_replay">Listen again</string>
+
+    <!-- sign in -->
+    <string name="signin_title">Enter your phone number</string>
+    <string name="signin_help">We will send a 6-digit code by SMS. Nothing else is needed.</string>
+    <string name="signin_phone">Phone number</string>
+    <string name="signin_send">Send code</string>
+    <string name="signin_code_title">Enter the code</string>
+    <string name="signin_code_help">We sent it to %1$s.</string>
+    <string name="signin_verify">Open my file</string>
+    <string name="signin_resend">Send it again</string>
+    <string name="signin_failed">That code did not work. Let\'s try once more.</string>
+    <string name="signin_trust">Your file is seen only by you and your doctor.</string>
+
+    <!-- navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_file">My File</string>
+    <string name="tab_queue">Queue</string>
+    <string name="tab_reminders">Medicines</string>
+
+    <!-- home -->
+    <string name="home_greeting">Namaste, %1$s</string>
+    <string name="home_caregiver_banner">You are looking after %1$s\'s file.</string>
+    <string name="home_talk">Talk to Dhara</string>
+    <string name="home_talk_sub">Answer tomorrow\'s questions now</string>
+    <string name="home_arrived">I have arrived at the hospital</string>
+    <string name="home_calendar">Chemo calendar</string>
+    <string name="home_family">Family access</string>
+    <string name="home_appointments">My appointments</string>
+    <string name="home_signout">Sign out</string>
+
+    <!-- care file -->
+    <string name="file_title">My Cancer Care File</string>
+    <string name="file_empty">Nothing here yet. After your first visit, your prescription will appear here.</string>
+    <string name="file_offline">Showing what is saved on this phone.</string>
+    <string name="file_prescription">Prescription</string>
+    <string name="file_summary">Visit summary</string>
+    <string name="file_share">Share as PDF</string>
+    <string name="file_share_title">Share this file</string>
+    <string name="file_flagged">Ask the doctor about this line</string>
+
+    <!-- queue -->
+    <string name="queue_title">Your place in the queue</string>
+    <string name="queue_none">You are not in today\'s queue.</string>
+    <string name="queue_token">Token %1$d</string>
+    <string name="queue_ahead">%1$d people are ahead of you</string>
+    <string name="queue_ahead_none">You are next</string>
+    <string name="queue_wait">About %1$d–%2$d minutes</string>
+    <string name="queue_leave_by">Leave home by %1$s</string>
+    <string name="queue_now_serving">Now being seen: token %1$d</string>
+    <string name="queue_travel">My travel time: %1$d minutes</string>
+    <string name="queue_as_of">Last checked at %1$s</string>
+    <string name="queue_arrived_done">Your token is %1$d. Please wait for it to be called.</string>
+
+    <!-- intake -->
+    <string name="intake_title">Talk to Dhara</string>
+    <string name="intake_complaint">What is troubling you?</string>
+    <string name="intake_speak">Hold and speak</string>
+    <string name="intake_listening">Listening…</string>
+    <string name="intake_type">Or type it instead</string>
+    <string name="intake_no_hear">I could not hear that properly — let\'s try once more.</string>
+    <string name="intake_progress">%1$d of %2$d</string>
+    <string name="intake_readback">Is this right?</string>
+    <string name="intake_confirm">Yes, that is right</string>
+    <string name="intake_change">I want to change something</string>
+    <string name="intake_done">Saved. Show this when you arrive.</string>
+    <string name="intake_choose_dept">Which doctor do you need?</string>
+    <string name="intake_needs_network">This needs a network connection. Try again when you have signal.</string>
+
+    <!-- reminders -->
+    <string name="reminders_title">My medicines</string>
+    <string name="reminders_empty">No medicines to remind you about yet.</string>
+    <string name="reminders_taken">Taken</string>
+    <string name="reminders_missed">Not taken</string>
+    <string name="reminders_unscheduled">Your doctor said: %1$s</string>
+    <string name="reminders_unscheduled_help">No fixed time was given for this medicine. Ask at the hospital when to take it.</string>
+    <string name="reminders_notification_title">Time for your medicine</string>
+    <string name="reminders_notification_body">%1$s %2$s</string>
+    <string name="reminders_channel">Medicine reminders</string>
+    <string name="reminders_permission">Allow reminders so we can ring at the right time.</string>
+
+    <!-- chemo calendar -->
+    <string name="calendar_title">Chemo calendar</string>
+    <string name="calendar_empty">No chemo dates yet.</string>
+    <string name="calendar_cycle">Cycle %1$d</string>
+    <string name="calendar_listen">Listen</string>
+    <string name="calendar_stop">Stop</string>
+
+    <!-- family -->
+    <string name="family_title">Family access</string>
+    <string name="family_help">A family member you add can see this file and is told if a medicine is missed.</string>
+    <string name="family_add">Add a family member</string>
+    <string name="family_phone">Their phone number</string>
+    <string name="family_name">Their name</string>
+    <string name="family_relation">Relation (daughter, son…)</string>
+    <string name="family_save">Give access</string>
+    <string name="family_remove">Remove access</string>
+    <string name="family_empty">No one else can see this file.</string>
+    <string name="family_caregiver_readonly">Only %1$s can add or remove family members.</string>
+
+    <!-- appointments -->
+    <string name="appointments_title">My appointments</string>
+    <string name="appointments_empty">No appointments booked.</string>
+
+    <!-- shared -->
+    <string name="retry">Try again</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="offline_banner">No network. You are seeing what is saved on this phone.</string>
+    <string name="error_generic">Something did not work. Let\'s try again.</string>
+</resources>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- mr is owed a native + clinical review before a patient reads it (S21). -->
+<resources>
+    <string name="app_name">माझी कर्करोग काळजी</string>
+
+    <string name="onboard_1_title">तुमची कागदपत्रे, नेहमी सोबत</string>
+    <string name="onboard_1_body">प्रत्येक चिठ्ठी आणि प्रत्येक सारांश इथेच राहील. नेटवर्क नसतानाही उघडेल.</string>
+    <string name="onboard_2_title">घरूनच प्रश्नांची उत्तरे द्या</string>
+    <string name="onboard_2_body">उद्याचे प्रश्न आज रात्री बोलून पूर्ण करा. पोहोचल्यावर टोकन लवकर मिळेल.</string>
+    <string name="onboard_3_title">आम्ही तुम्हाला आठवण करून देऊ</string>
+    <string name="onboard_3_body">प्रत्येक औषधाची वेळ फोन आठवण करून देईल, आणि औषध राहिले तर घरच्यांना कळवेल.</string>
+    <string name="onboard_next">पुढे</string>
+    <string name="onboard_start">सुरू करा</string>
+    <string name="onboard_replay">पुन्हा ऐका</string>
+
+    <string name="signin_title">तुमचा फोन नंबर टाका</string>
+    <string name="signin_help">आम्ही SMS ने 6 अंकी कोड पाठवू. दुसरे काही लागणार नाही.</string>
+    <string name="signin_phone">फोन नंबर</string>
+    <string name="signin_send">कोड पाठवा</string>
+    <string name="signin_code_title">कोड टाका</string>
+    <string name="signin_code_help">आम्ही तो %1$s वर पाठवला आहे.</string>
+    <string name="signin_verify">माझी फाईल उघडा</string>
+    <string name="signin_resend">पुन्हा पाठवा</string>
+    <string name="signin_failed">हा कोड चालला नाही. आणखी एकदा प्रयत्न करू.</string>
+    <string name="signin_trust">तुमची फाईल फक्त तुम्ही आणि तुमचे डॉक्टर पाहतात.</string>
+
+    <string name="tab_home">होम</string>
+    <string name="tab_file">माझी फाईल</string>
+    <string name="tab_queue">रांग</string>
+    <string name="tab_reminders">औषधे</string>
+
+    <string name="home_greeting">नमस्कार, %1$s</string>
+    <string name="home_caregiver_banner">तुम्ही %1$s यांची फाईल पाहत आहात.</string>
+    <string name="home_talk">धारासोबत बोला</string>
+    <string name="home_talk_sub">उद्याचे प्रश्न आताच पूर्ण करा</string>
+    <string name="home_arrived">मी रुग्णालयात पोहोचलो/पोहोचले आहे</string>
+    <string name="home_calendar">किमो कॅलेंडर</string>
+    <string name="home_family">कुटुंबाचा प्रवेश</string>
+    <string name="home_appointments">माझ्या अपॉइंटमेंट</string>
+    <string name="home_signout">साइन आउट</string>
+
+    <string name="file_title">माझी कर्करोग काळजी फाईल</string>
+    <string name="file_empty">इथे अजून काही नाही. पहिल्या भेटीनंतर तुमची चिठ्ठी इथे दिसेल.</string>
+    <string name="file_offline">या फोनमध्ये जे साठवले आहे तेच दिसत आहे.</string>
+    <string name="file_prescription">चिठ्ठी</string>
+    <string name="file_summary">भेटीचा सारांश</string>
+    <string name="file_share">PDF पाठवा</string>
+    <string name="file_share_title">ही फाईल पाठवा</string>
+    <string name="file_flagged">या ओळीबद्दल डॉक्टरांना विचारा</string>
+
+    <string name="queue_title">रांगेतील तुमची जागा</string>
+    <string name="queue_none">तुम्ही आजच्या रांगेत नाही आहात.</string>
+    <string name="queue_token">टोकन %1$d</string>
+    <string name="queue_ahead">तुमच्या पुढे %1$d लोक आहेत</string>
+    <string name="queue_ahead_none">पुढचा नंबर तुमचा आहे</string>
+    <string name="queue_wait">सुमारे %1$d–%2$d मिनिटे</string>
+    <string name="queue_leave_by">%1$s पर्यंत घरातून निघा</string>
+    <string name="queue_now_serving">सध्या तपासले जात आहे: टोकन %1$d</string>
+    <string name="queue_travel">माझा प्रवासाचा वेळ: %1$d मिनिटे</string>
+    <string name="queue_as_of">शेवटचे %1$s वाजता पाहिले</string>
+    <string name="queue_arrived_done">तुमचे टोकन %1$d आहे. नंबर येईपर्यंत थांबा.</string>
+
+    <string name="intake_title">धारासोबत बोला</string>
+    <string name="intake_complaint">तुम्हाला काय त्रास होतो आहे?</string>
+    <string name="intake_speak">दाबून बोला</string>
+    <string name="intake_listening">ऐकत आहोत…</string>
+    <string name="intake_type">किंवा टाइप करा</string>
+    <string name="intake_no_hear">मला नीट ऐकू आले नाही — आणखी एकदा बोला.</string>
+    <string name="intake_progress">%2$d पैकी %1$d</string>
+    <string name="intake_readback">हे बरोबर आहे का?</string>
+    <string name="intake_confirm">होय, हेच बरोबर आहे</string>
+    <string name="intake_change">मला काही बदलायचे आहे</string>
+    <string name="intake_done">साठवले. पोहोचल्यावर हे दाखवा.</string>
+    <string name="intake_choose_dept">तुम्हाला कोणते डॉक्टर हवे आहेत?</string>
+    <string name="intake_needs_network">यासाठी नेटवर्क लागते. सिग्नल आल्यावर पुन्हा प्रयत्न करा.</string>
+
+    <string name="reminders_title">माझी औषधे</string>
+    <string name="reminders_empty">आठवण करून देण्यासाठी अजून कोणतेही औषध नाही.</string>
+    <string name="reminders_taken">घेतले</string>
+    <string name="reminders_missed">घेतले नाही</string>
+    <string name="reminders_unscheduled">डॉक्टर म्हणाले: %1$s</string>
+    <string name="reminders_unscheduled_help">या औषधाची वेळ सांगितलेली नाही. रुग्णालयात विचारा की कधी घ्यायचे.</string>
+    <string name="reminders_notification_title">औषधाची वेळ झाली</string>
+    <string name="reminders_notification_body">%1$s %2$s</string>
+    <string name="reminders_channel">औषधाची आठवण</string>
+    <string name="reminders_permission">योग्य वेळी आठवण करून देण्यासाठी परवानगी द्या.</string>
+
+    <string name="calendar_title">किमो कॅलेंडर</string>
+    <string name="calendar_empty">अजून किमोची तारीख नाही.</string>
+    <string name="calendar_cycle">सायकल %1$d</string>
+    <string name="calendar_listen">ऐका</string>
+    <string name="calendar_stop">थांबवा</string>
+
+    <string name="family_title">कुटुंबाचा प्रवेश</string>
+    <string name="family_help">तुम्ही जोडलेला कुटुंबातील सदस्य ही फाईल पाहू शकेल, आणि औषध राहिल्यास त्याला कळवले जाईल.</string>
+    <string name="family_add">कुटुंबातील सदस्य जोडा</string>
+    <string name="family_phone">त्यांचा फोन नंबर</string>
+    <string name="family_name">त्यांचे नाव</string>
+    <string name="family_relation">नाते (मुलगी, मुलगा…)</string>
+    <string name="family_save">प्रवेश द्या</string>
+    <string name="family_remove">प्रवेश काढा</string>
+    <string name="family_empty">ही फाईल दुसरे कोणी पाहू शकत नाही.</string>
+    <string name="family_caregiver_readonly">कुटुंबातील सदस्य फक्त %1$s जोडू किंवा काढू शकतात.</string>
+
+    <string name="appointments_title">माझ्या अपॉइंटमेंट</string>
+    <string name="appointments_empty">कोणतीही अपॉइंटमेंट नाही.</string>
+
+    <string name="retry">पुन्हा प्रयत्न करा</string>
+    <string name="close">बंद करा</string>
+    <string name="cancel">रद्द करा</string>
+    <string name="offline_banner">नेटवर्क नाही. या फोनमध्ये साठवलेले दिसत आहे.</string>
+    <string name="error_generic">काहीतरी नीट चालले नाही. पुन्हा प्रयत्न करू.</string>
+</resources>

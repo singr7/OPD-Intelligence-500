@@ -54,3 +54,7 @@ infra/*.auto.tfvars
 # the run artifacts are not)
 web/test-results/
 web/playwright-report/
+
+# Android build outputs the wrapper leaves behind
+android/.kotlin/
+android/app/release/

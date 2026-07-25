@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Only the generated share PDFs are ever exposed, and only through a
+         one-shot grant from the share sheet. The database is not in here. -->
+    <cache-path name="shared" path="shared/" />
+</paths>

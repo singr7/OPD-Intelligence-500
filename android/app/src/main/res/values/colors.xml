@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- doc 04 §1 tokens, for the places XML needs them (window chrome, the
+     launcher icon). The Compose copy lives in ui/theme/Theme.kt. -->
+<resources>
+    <color name="primary">#0E7C66</color>
+    <color name="primary_dark">#0A5A4A</color>
+    <color name="primary_soft">#E1F0EB</color>
+    <color name="accent">#E2901F</color>
+    <color name="bg">#F1F5F3</color>
+</resources>

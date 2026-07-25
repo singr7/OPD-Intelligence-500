@@ -87,6 +87,33 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  android:
+    name: android · unit tests + APK size gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew testDebugUnitTest
+      # Not `connectedAndroidTest`: the instrumented suite needs an emulator,
+      # which costs ~6 minutes of a hosted runner per run. It is a local gate
+      # (`make android-test-device`) until CI has a KVM runner — noted in
+      # HANDOFF so it is not mistaken for coverage this job provides.
+      - name: APK size gate (doc 03 §1c.7 — under 15MB)
+        run: ./gradlew checkApkSize
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opd-patient-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
   infra:
     name: infra · terraform validate
     runs-on: ubuntu-latest

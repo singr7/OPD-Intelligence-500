@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A folder with a leaf: the file the patient carries, and the care in it.
+     Flat vector, two tokens, no gradients (doc 04 §5). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,34h16l5,6h23a4,4 0 0 1 4,4v30a4,4 0 0 1 -4,4H32a4,4 0 0 1 -4,-4V38a4,4 0 0 1 4,-4z" />
+    <path
+        android:fillColor="#E2901F"
+        android:pathData="M54,50c8,0 14,5 14,12 -8,0 -14,-5 -14,-12z" />
+    <path
+        android:fillColor="#E2901F"
+        android:pathData="M54,50c-8,0 -14,5 -14,12 8,0 14,-5 14,-12z" />
+    <path
+        android:fillColor="#0A5A4A"
+        android:pathData="M53,60h2v14h-2z" />
+</vector>

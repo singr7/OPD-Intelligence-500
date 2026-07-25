@@ -66,8 +66,16 @@ async def test_the_campaign_jobs_do_nothing_while_the_flag_is_off(session, setti
 
 async def test_the_launch_job_queues_tomorrows_calls_when_enabled(session, settings, providers):
     clinic = await build_clinic(session)
-    slot_at = (datetime.now(UTC) + timedelta(days=1)).replace(
-        hour=6, minute=0, second=0, microsecond=0
+    # Tomorrow in the *hospital's* timezone, which is what `campaign.tomorrow`
+    # means by tomorrow. Built from the UTC clock it was wrong for the five and a
+    # half hours after midnight IST, when the UTC date is still yesterday — the
+    # test failed at 00:38 IST and passed again at breakfast. Midday IST is
+    # inside the clinic day in every timezone this runs in (S16, found by the
+    # gate rather than by a user).
+    slot_at = (
+        (datetime.now(scheduling.hospital_tz()) + timedelta(days=1))
+        .replace(hour=12, minute=0, second=0, microsecond=0)
+        .astimezone(UTC)
     )
     slot = make_slot(clinic["doctor"], slot_at, capacity=5)
     session.add(slot)

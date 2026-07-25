@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- te is owed a native + clinical review before a patient reads it (S21). -->
+<resources>
+    <string name="app_name">నా క్యాన్సర్ సంరక్షణ</string>
+
+    <string name="onboard_1_title">మీ కాగితాలు, ఎప్పుడూ మీ దగ్గరే</string>
+    <string name="onboard_1_body">ప్రతి చీటీ, ప్రతి సారాంశం ఇక్కడే ఉంటుంది. నెట్‌వర్క్ లేకపోయినా తెరుచుకుంటుంది.</string>
+    <string name="onboard_2_title">ఇంటి నుంచే ప్రశ్నలకు జవాబు ఇవ్వండి</string>
+    <string name="onboard_2_body">రేపటి ప్రశ్నలు ఈ రాత్రే మాట్లాడి పూర్తి చేయండి. వచ్చిన వెంటనే టోకెన్ త్వరగా వస్తుంది.</string>
+    <string name="onboard_3_title">మేము మీకు గుర్తు చేస్తాం</string>
+    <string name="onboard_3_body">ప్రతి మందు వేళ ఫోన్ గుర్తు చేస్తుంది, మందు మిస్ అయితే ఇంట్లోవాళ్లకు చెబుతుంది.</string>
+    <string name="onboard_next">తర్వాత</string>
+    <string name="onboard_start">మొదలుపెడదాం</string>
+    <string name="onboard_replay">మళ్లీ వినండి</string>
+
+    <string name="signin_title">మీ ఫోన్ నంబర్ ఇవ్వండి</string>
+    <string name="signin_help">SMSలో 6 అంకెల కోడ్ పంపుతాం. ఇంకేమీ అవసరం లేదు.</string>
+    <string name="signin_phone">ఫోన్ నంబర్</string>
+    <string name="signin_send">కోడ్ పంపండి</string>
+    <string name="signin_code_title">కోడ్ ఇవ్వండి</string>
+    <string name="signin_code_help">దాన్ని %1$sకు పంపాము.</string>
+    <string name="signin_verify">నా ఫైల్ తెరవండి</string>
+    <string name="signin_resend">మళ్లీ పంపండి</string>
+    <string name="signin_failed">ఆ కోడ్ పని చేయలేదు. ఇంకోసారి ప్రయత్నిద్దాం.</string>
+    <string name="signin_trust">మీ ఫైల్‌ను మీరు, మీ డాక్టర్ మాత్రమే చూస్తారు.</string>
+
+    <string name="tab_home">హోమ్</string>
+    <string name="tab_file">నా ఫైల్</string>
+    <string name="tab_queue">వరుస</string>
+    <string name="tab_reminders">మందులు</string>
+
+    <string name="home_greeting">నమస్కారం, %1$s</string>
+    <string name="home_caregiver_banner">మీరు %1$s గారి ఫైల్ చూస్తున్నారు.</string>
+    <string name="home_talk">ధారతో మాట్లాడండి</string>
+    <string name="home_talk_sub">రేపటి ప్రశ్నలు ఇప్పుడే పూర్తి చేయండి</string>
+    <string name="home_arrived">నేను ఆసుపత్రికి వచ్చాను</string>
+    <string name="home_calendar">కీమో క్యాలెండర్</string>
+    <string name="home_family">కుటుంబ ప్రవేశం</string>
+    <string name="home_appointments">నా అపాయింట్‌మెంట్లు</string>
+    <string name="home_signout">సైన్ అవుట్</string>
+
+    <string name="file_title">నా క్యాన్సర్ సంరక్షణ ఫైల్</string>
+    <string name="file_empty">ఇక్కడ ఇంకా ఏమీ లేదు. మొదటి సందర్శన తర్వాత మీ చీటీ ఇక్కడ కనిపిస్తుంది.</string>
+    <string name="file_offline">ఈ ఫోన్‌లో దాచినది మాత్రమే కనిపిస్తోంది.</string>
+    <string name="file_prescription">చీటీ</string>
+    <string name="file_summary">సందర్శన సారాంశం</string>
+    <string name="file_share">PDF పంపండి</string>
+    <string name="file_share_title">ఈ ఫైల్ పంపండి</string>
+    <string name="file_flagged">ఈ లైన్ గురించి డాక్టర్‌ను అడగండి</string>
+
+    <string name="queue_title">వరుసలో మీ స్థానం</string>
+    <string name="queue_none">మీరు ఈరోజు వరుసలో లేరు.</string>
+    <string name="queue_token">టోకెన్ %1$d</string>
+    <string name="queue_ahead">మీ ముందు %1$d మంది ఉన్నారు</string>
+    <string name="queue_ahead_none">తర్వాత మీరే</string>
+    <string name="queue_wait">సుమారు %1$d–%2$d నిమిషాలు</string>
+    <string name="queue_leave_by">%1$s లోపు ఇంటి నుంచి బయలుదేరండి</string>
+    <string name="queue_now_serving">ఇప్పుడు చూస్తున్నది: టోకెన్ %1$d</string>
+    <string name="queue_travel">నా ప్రయాణ సమయం: %1$d నిమిషాలు</string>
+    <string name="queue_as_of">చివరిగా %1$sకు చూశాము</string>
+    <string name="queue_arrived_done">మీ టోకెన్ %1$d. మీ నంబర్ పిలిచే వరకు వేచి ఉండండి.</string>
+
+    <string name="intake_title">ధారతో మాట్లాడండి</string>
+    <string name="intake_complaint">మీకు ఏమి ఇబ్బందిగా ఉంది?</string>
+    <string name="intake_speak">నొక్కి పట్టుకుని మాట్లాడండి</string>
+    <string name="intake_listening">వింటున్నాం…</string>
+    <string name="intake_type">లేదా టైప్ చేయండి</string>
+    <string name="intake_no_hear">నాకు సరిగ్గా వినిపించలేదు — ఇంకోసారి చెప్పండి.</string>
+    <string name="intake_progress">%2$dలో %1$d</string>
+    <string name="intake_readback">ఇది సరైనదేనా?</string>
+    <string name="intake_confirm">అవును, ఇదే సరైనది</string>
+    <string name="intake_change">నేను ఏదో మార్చాలి</string>
+    <string name="intake_done">భద్రపరిచాం. వచ్చినప్పుడు ఇది చూపించండి.</string>
+    <string name="intake_choose_dept">మీకు ఏ డాక్టర్ కావాలి?</string>
+    <string name="intake_needs_network">దీనికి నెట్‌వర్క్ కావాలి. సిగ్నల్ వచ్చాక మళ్లీ ప్రయత్నించండి.</string>
+
+    <string name="reminders_title">నా మందులు</string>
+    <string name="reminders_empty">గుర్తు చేయడానికి ఇంకా మందులేమీ లేవు.</string>
+    <string name="reminders_taken">వేసుకున్నాను</string>
+    <string name="reminders_missed">వేసుకోలేదు</string>
+    <string name="reminders_unscheduled">డాక్టర్ చెప్పింది: %1$s</string>
+    <string name="reminders_unscheduled_help">ఈ మందుకు వేళ చెప్పలేదు. ఎప్పుడు వేసుకోవాలో ఆసుపత్రిలో అడగండి.</string>
+    <string name="reminders_notification_title">మందు వేసుకునే వేళ అయింది</string>
+    <string name="reminders_notification_body">%1$s %2$s</string>
+    <string name="reminders_channel">మందుల గుర్తు</string>
+    <string name="reminders_permission">సరైన వేళకు గుర్తు చేయడానికి అనుమతి ఇవ్వండి.</string>
+
+    <string name="calendar_title">కీమో క్యాలెండర్</string>
+    <string name="calendar_empty">ఇంకా కీమో తేదీలు లేవు.</string>
+    <string name="calendar_cycle">సైకిల్ %1$d</string>
+    <string name="calendar_listen">వినండి</string>
+    <string name="calendar_stop">ఆపండి</string>
+
+    <string name="family_title">కుటుంబ ప్రవేశం</string>
+    <string name="family_help">మీరు చేర్చిన కుటుంబ సభ్యులు ఈ ఫైల్ చూడగలరు, మందు మిస్ అయితే వారికి తెలుస్తుంది.</string>
+    <string name="family_add">కుటుంబ సభ్యుడిని చేర్చండి</string>
+    <string name="family_phone">వారి ఫోన్ నంబర్</string>
+    <string name="family_name">వారి పేరు</string>
+    <string name="family_relation">సంబంధం (కూతురు, కొడుకు…)</string>
+    <string name="family_save">ప్రవేశం ఇవ్వండి</string>
+    <string name="family_remove">ప్రవేశం తీసేయండి</string>
+    <string name="family_empty">ఈ ఫైల్‌ను ఇంకెవరూ చూడలేరు.</string>
+    <string name="family_caregiver_readonly">కుటుంబ సభ్యులను %1$s మాత్రమే చేర్చగలరు లేదా తీసేయగలరు.</string>
+
+    <string name="appointments_title">నా అపాయింట్‌మెంట్లు</string>
+    <string name="appointments_empty">ఏ అపాయింట్‌మెంట్ లేదు.</string>
+
+    <string name="retry">మళ్లీ ప్రయత్నించండి</string>
+    <string name="close">మూసివేయండి</string>
+    <string name="cancel">రద్దు చేయండి</string>
+    <string name="offline_banner">నెట్‌వర్క్ లేదు. ఈ ఫోన్‌లో దాచినది కనిపిస్తోంది.</string>
+    <string name="error_generic">ఏదో సరిగా జరగలేదు. మళ్లీ ప్రయత్నిద్దాం.</string>
+</resources>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">मेरी कैंसर देखभाल</string>
+
+    <string name="onboard_1_title">आपके कागज़, हमेशा आपके साथ</string>
+    <string name="onboard_1_body">हर पर्ची और हर सारांश यहीं रहेगा। नेटवर्क न हो तब भी खुलेगा।</string>
+    <string name="onboard_2_title">घर से ही सवालों के जवाब दीजिए</string>
+    <string name="onboard_2_body">कल के सवाल आज रात बोलकर पूरे कर लीजिए। पहुँचते ही टोकन जल्दी मिलेगा।</string>
+    <string name="onboard_3_title">हम आपको याद दिलाएँगे</string>
+    <string name="onboard_3_body">हर दवा का समय फ़ोन याद दिलाएगा, और दवा छूट जाए तो घरवालों को बता देगा।</string>
+    <string name="onboard_next">आगे</string>
+    <string name="onboard_start">शुरू करें</string>
+    <string name="onboard_replay">फिर से सुनें</string>
+
+    <string name="signin_title">अपना फ़ोन नंबर डालिए</string>
+    <string name="signin_help">हम SMS से 6 अंकों का कोड भेजेंगे। और कुछ नहीं चाहिए।</string>
+    <string name="signin_phone">फ़ोन नंबर</string>
+    <string name="signin_send">कोड भेजें</string>
+    <string name="signin_code_title">कोड डालिए</string>
+    <string name="signin_code_help">हमने इसे %1$s पर भेजा है।</string>
+    <string name="signin_verify">मेरी फ़ाइल खोलें</string>
+    <string name="signin_resend">दोबारा भेजें</string>
+    <string name="signin_failed">यह कोड नहीं चला। एक बार और कोशिश करते हैं।</string>
+    <string name="signin_trust">आपकी फ़ाइल सिर्फ़ आप और आपके डॉक्टर देखते हैं।</string>
+
+    <string name="tab_home">होम</string>
+    <string name="tab_file">मेरी फ़ाइल</string>
+    <string name="tab_queue">लाइन</string>
+    <string name="tab_reminders">दवाइयाँ</string>
+
+    <string name="home_greeting">नमस्ते, %1$s</string>
+    <string name="home_caregiver_banner">आप %1$s की फ़ाइल देख रहे हैं।</string>
+    <string name="home_talk">धारा से बात करें</string>
+    <string name="home_talk_sub">कल के सवाल अभी पूरे कीजिए</string>
+    <string name="home_arrived">मैं अस्पताल पहुँच गया/गई हूँ</string>
+    <string name="home_calendar">कीमो कैलेंडर</string>
+    <string name="home_family">परिवार की पहुँच</string>
+    <string name="home_appointments">मेरे अपॉइंटमेंट</string>
+    <string name="home_signout">साइन आउट</string>
+
+    <string name="file_title">मेरी कैंसर देखभाल फ़ाइल</string>
+    <string name="file_empty">अभी यहाँ कुछ नहीं है। पहली विज़िट के बाद आपकी पर्ची यहाँ दिखेगी।</string>
+    <string name="file_offline">इस फ़ोन में जो सहेजा है, वही दिख रहा है।</string>
+    <string name="file_prescription">पर्ची</string>
+    <string name="file_summary">विज़िट का सारांश</string>
+    <string name="file_share">PDF भेजें</string>
+    <string name="file_share_title">यह फ़ाइल भेजें</string>
+    <string name="file_flagged">इस लाइन के बारे में डॉक्टर से पूछिए</string>
+
+    <string name="queue_title">लाइन में आपकी जगह</string>
+    <string name="queue_none">आप आज की लाइन में नहीं हैं।</string>
+    <string name="queue_token">टोकन %1$d</string>
+    <string name="queue_ahead">आपसे आगे %1$d लोग हैं</string>
+    <string name="queue_ahead_none">अगला नंबर आपका है</string>
+    <string name="queue_wait">लगभग %1$d–%2$d मिनट</string>
+    <string name="queue_leave_by">%1$s तक घर से निकल जाइए</string>
+    <string name="queue_now_serving">अभी देखा जा रहा है: टोकन %1$d</string>
+    <string name="queue_travel">मेरा रास्ते का समय: %1$d मिनट</string>
+    <string name="queue_as_of">आख़िरी बार %1$s पर देखा</string>
+    <string name="queue_arrived_done">आपका टोकन %1$d है। नंबर आने तक इंतज़ार कीजिए।</string>
+
+    <string name="intake_title">धारा से बात करें</string>
+    <string name="intake_complaint">आपको क्या तकलीफ़ है?</string>
+    <string name="intake_speak">दबाकर बोलिए</string>
+    <string name="intake_listening">सुन रहे हैं…</string>
+    <string name="intake_type">या टाइप कर दीजिए</string>
+    <string name="intake_no_hear">मैं ठीक से सुन नहीं पाया — एक बार और बोलिए।</string>
+    <string name="intake_progress">%2$d में से %1$d</string>
+    <string name="intake_readback">क्या यह सही है?</string>
+    <string name="intake_confirm">हाँ, यही सही है</string>
+    <string name="intake_change">मुझे कुछ बदलना है</string>
+    <string name="intake_done">सहेज लिया। पहुँचने पर यह दिखा दीजिए।</string>
+    <string name="intake_choose_dept">आपको कौन से डॉक्टर चाहिए?</string>
+    <string name="intake_needs_network">इसके लिए नेटवर्क चाहिए। सिग्नल आने पर फिर कोशिश कीजिए।</string>
+
+    <string name="reminders_title">मेरी दवाइयाँ</string>
+    <string name="reminders_empty">अभी याद दिलाने के लिए कोई दवा नहीं है।</string>
+    <string name="reminders_taken">ले ली</string>
+    <string name="reminders_missed">नहीं ली</string>
+    <string name="reminders_unscheduled">डॉक्टर ने कहा: %1$s</string>
+    <string name="reminders_unscheduled_help">इस दवा का समय नहीं बताया गया है। अस्पताल में पूछ लीजिए कि कब लेनी है।</string>
+    <string name="reminders_notification_title">दवा का समय हो गया</string>
+    <string name="reminders_notification_body">%1$s %2$s</string>
+    <string name="reminders_channel">दवा की याद</string>
+    <string name="reminders_permission">सही समय पर याद दिलाने के लिए अनुमति दीजिए।</string>
+
+    <string name="calendar_title">कीमो कैलेंडर</string>
+    <string name="calendar_empty">अभी कोई कीमो तारीख़ नहीं है।</string>
+    <string name="calendar_cycle">साइकिल %1$d</string>
+    <string name="calendar_listen">सुनिए</string>
+    <string name="calendar_stop">रोकें</string>
+
+    <string name="family_title">परिवार की पहुँच</string>
+    <string name="family_help">आप जिस घरवाले को जोड़ेंगे वह यह फ़ाइल देख सकेगा, और दवा छूटने पर उसे ख़बर मिलेगी।</string>
+    <string name="family_add">घर का सदस्य जोड़ें</string>
+    <string name="family_phone">उनका फ़ोन नंबर</string>
+    <string name="family_name">उनका नाम</string>
+    <string name="family_relation">रिश्ता (बेटी, बेटा…)</string>
+    <string name="family_save">पहुँच दें</string>
+    <string name="family_remove">पहुँच हटाएँ</string>
+    <string name="family_empty">इस फ़ाइल को और कोई नहीं देख सकता।</string>
+    <string name="family_caregiver_readonly">घरवालों को सिर्फ़ %1$s जोड़ या हटा सकती हैं।</string>
+
+    <string name="appointments_title">मेरे अपॉइंटमेंट</string>
+    <string name="appointments_empty">कोई अपॉइंटमेंट नहीं है।</string>
+
+    <string name="retry">फिर कोशिश करें</string>
+    <string name="close">बंद करें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="offline_banner">नेटवर्क नहीं है। इस फ़ोन में सहेजा हुआ दिख रहा है।</string>
+    <string name="error_generic">कुछ ठीक नहीं चला। फिर से कोशिश करते हैं।</string>
+</resources>

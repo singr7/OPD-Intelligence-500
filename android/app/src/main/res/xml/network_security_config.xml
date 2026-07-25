@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TLS everywhere, with two named exceptions and no wildcard.
+
+  A patient's cancer file travels over this connection, so cleartext stays off
+  for the internet at large. What is allowed is exactly the two hosts that are
+  never the internet: `localhost`, where the instrumented tests run their own
+  MockWebServer inside the app process, and `10.0.2.2`, which is the emulator's
+  alias for the developer's own machine. Neither exists on a patient's phone.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
