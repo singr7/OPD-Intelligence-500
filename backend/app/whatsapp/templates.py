@@ -237,6 +237,15 @@ def get_template(name: str, lang: Lang) -> Template:
         raise TemplateError(f"no registered template {name!r} for language {lang}") from None
 
 
+def all_templates() -> list[Template]:
+    """Every registered template, for the admin console's read-only registry view
+    (S18). Sorted by (name, lang) so the console groups a template's four
+    languages together. The registry is code-defined (a Meta submission has to
+    match it), so the console *shows* completeness — it does not edit it; a
+    DB-backed editable registry is the S18-late/S15 item."""
+    return sorted(_REGISTRY.values(), key=lambda t: (t.name, t.lang.value))
+
+
 def template_message(
     *, to: str, name: str, lang: Lang, variables: Sequence[str]
 ) -> OutboundMessage:

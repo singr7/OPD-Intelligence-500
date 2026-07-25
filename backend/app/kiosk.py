@@ -42,7 +42,7 @@ from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
 from app.routing import DepartmentGuess, DepartmentOption, classify_department
-from app.trees import bank
+from app.trees import bank, store
 from app.trees.schema import Tree
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ async def route_complaint(
         return Routed(
             guess=DepartmentGuess(dept_key, 1.0, "chosen at the desk", needs_human=False),
             department=department,
-            tree=select_tree(dept_key),
+            tree=await store.resolve_tree(session, dept_key),
         )
 
     options = [DepartmentOption(key=d.code, name=d.name) for d in departments]
@@ -117,30 +117,20 @@ async def route_complaint(
     return Routed(
         guess=guess,
         department=by_code[guess.dept_key],
-        tree=select_tree(guess.dept_key),
+        tree=await store.resolve_tree(session, guess.dept_key),
     )
 
 
 def select_tree(dept_key: str) -> Tree | None:
-    """Pick the intake tree for a department.
+    """Pick a department's intake tree from the **on-disk** bank.
 
-    Most departments have exactly one tree (the routing trees). The medical
-    oncology department has three (new patient / between cycle / pain); which one
-    a walk-in needs depends on history the kiosk does not yet have, so we default
-    to the new-patient intake and leave sub-tree disambiguation to a later session
-    (it wants the patient's visit history — backlog, S9/S18).
+    The disk-only selector: it never sees a console publish. The live intake path
+    goes through `app.trees.store.resolve_tree` (DB-published, disk floor) since
+    S18; this remains for the offline pack builder and tests that want the
+    authored content regardless of DB state. Selection is shared via `store.pick`
+    so both paths choose the same tree.
     """
-    trees = bank.for_department(dept_key)
-    if not trees:
-        return None
-    trees.sort(key=lambda t: t.key)
-    for tree in trees:
-        if tree.key.endswith("_new_patient"):
-            return tree
-    for tree in trees:
-        if tree.key.endswith("_routing"):
-            return tree
-    return trees[0]
+    return store.pick(bank.for_department(dept_key))
 
 
 @dataclass(slots=True)
