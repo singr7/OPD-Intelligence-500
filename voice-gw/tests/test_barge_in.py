@@ -34,7 +34,7 @@ async def test_pump_barge_in_stops_playback_and_sends_clear():
 
 async def test_reader_detects_caller_speech_during_playback():
     """The reader function barges in when loud media arrives mid-playback."""
-    from gw.call import _read_frames, ExotelTurnSource, PlaybackPump
+    from gw.call import ExotelTurnSource, PlaybackPump, read_frames
 
     transport = FakeTransport()
     pump = PlaybackPump(transport, "s-1")
@@ -48,7 +48,7 @@ async def test_reader_detects_caller_speech_during_playback():
     assert peak(loud) > 8
     await transport.push({"event": "media", "stream_sid": "s-1", "media": {"payload": loud.b64()}})
     await transport.push({"event": "stop", "stream_sid": "s-1", "stop": {}})
-    await _read_frames(transport, source, pump)
+    await read_frames(transport, source, pump)
     await play
 
     assert pump.clears == 1

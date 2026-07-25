@@ -161,10 +161,52 @@ class PhoneCallStore:
         return self._records.get(call_sid)
 
 
-def build_phonecall_store(settings: Settings) -> PhoneCallStore:
-    # A dedicated Redis store lands with the S15 status-callback webhook; the pilot
-    # runs a single voice-gw process, so in-memory is correct until then.
-    return PhoneCallStore()
+class RedisPhoneCallStore:
+    """Redis-backed call records — what the callback reads (S15).
+
+    The reason this exists is a cross-process one: the call runs in `voice-gw`,
+    and Exotel's status callback arrives minutes later at **`api`**. With the
+    in-memory store the callback can never see the call it is settling; the two
+    processes have to share a place, and Redis is the one they already share.
+
+    The TTL is a day: long enough for a delayed or retried vendor callback,
+    short enough that Redis is not an archive. The durable record of a call is
+    the `Intake` row and its `usage_events`, not this.
+    """
+
+    KEY = "phone:call:{call_sid}"
+
+    def __init__(self, redis, *, ttl_seconds: int = 24 * 3600) -> None:
+        self._redis = redis
+        self._ttl = ttl_seconds
+
+    async def save(self, record: PhoneCallRecord) -> None:
+        import json
+
+        await self._redis.set(
+            self.KEY.format(call_sid=record.call_sid),
+            json.dumps(record.to_json()),
+            ex=self._ttl,
+        )
+
+    async def get(self, call_sid: str) -> PhoneCallRecord | None:
+        import json
+
+        raw = await self._redis.get(self.KEY.format(call_sid=call_sid))
+        if raw is None:
+            return None
+        text = raw.decode() if isinstance(raw, bytes) else str(raw)
+        return PhoneCallRecord(**json.loads(text))
+
+
+def build_phonecall_store(settings: Settings) -> PhoneCallStore | RedisPhoneCallStore:
+    """Redis outside local; in-memory for tests and single-process dev — the same
+    seam as `build_session_store`, so `pytest` needs no broker."""
+    if settings.is_local:
+        return PhoneCallStore()
+    from redis.asyncio import Redis
+
+    return RedisPhoneCallStore(Redis.from_url(settings.redis_url))
 
 
 # -- audio helpers ------------------------------------------------------------
@@ -252,12 +294,19 @@ class ExotelTurnSource:
         pump: PlaybackPump,
         say,  # Callable[[str], Awaitable[AudioClip]]
         scope: dict[str, Any],
+        dtmf_answers: dict[str, str] | None = None,
+        keypad_prompt: dict[str, str] | None = None,
     ) -> None:
         self._q: asyncio.Queue[Media | Dtmf | Stop] = asyncio.Queue()
         self._lang = lang
         self._pump = pump
         self._say = say
         self._scope = scope
+        # What a digit *means* is the caller's business, not the transport's: on
+        # the intake line 1/2 are yes/no (doc 03 §1b), on the appointment line
+        # they are "the first time you read out". `{}` passes the digit through.
+        self._dtmf_answers = DTMF_ANSWERS if dtmf_answers is None else dtmf_answers
+        self._keypad_prompt = keypad_prompt or DTMF_PROMPT
         self._unclear_streak = 0
         self._closed = False
         self.keypad_prompts = 0  # how many times we fell back to the keypad (tests/telemetry)
@@ -278,7 +327,7 @@ class ExotelTurnSource:
                 return None
             if isinstance(frame, Dtmf):
                 # A keypad press ends any utterance immediately and is the answer.
-                answer = DTMF_ANSWERS.get(frame.digit, frame.digit)
+                answer = self._dtmf_answers.get(frame.digit, frame.digit)
                 self._unclear_streak = 0
                 return PatientTurn(text=answer, audio=None)
             # Media
@@ -304,14 +353,15 @@ class ExotelTurnSource:
         self._unclear_streak = 0
         self.keypad_prompts += 1
         with usage_scope(**self._scope):
-            await self._pump.play(await self._say(DTMF_PROMPT.get(self._lang, DTMF_PROMPT["en"])))
+            prompt = self._keypad_prompt
+            await self._pump.play(await self._say(prompt.get(self._lang, prompt["en"])))
         while True:
             frame = await self._q.get()
             if isinstance(frame, Stop):
                 self._closed = True
                 return None  # hangup during the prompt → graceful partial
             if isinstance(frame, Dtmf):
-                return PatientTurn(text=DTMF_ANSWERS.get(frame.digit, frame.digit), audio=None)
+                return PatientTurn(text=self._dtmf_answers.get(frame.digit, frame.digit), audio=None)
             # ignore further audio while we wait for the keypad
 
     @staticmethod
@@ -452,7 +502,7 @@ async def handle_call(
 
         tts = tts_chain()[0]
 
-    start = await _await_start(transport)
+    start = await await_start(transport)
     lang = resolve_lang(start.custom)
     tier = resolve_tier(start.custom, settings)
     tree = tree or resolve_tree(start.custom)
@@ -507,7 +557,7 @@ async def handle_call(
 
     scope = {"session_id": state.session_id, "channel": PHONE, "tier": state.active_tier}
     source = ExotelTurnSource(lang=str(lang), pump=pump, say=say, scope=scope)
-    reader = asyncio.create_task(_read_frames(transport, source, pump))
+    reader = asyncio.create_task(read_frames(transport, source, pump))
 
     try:
         await asyncio.wait_for(
@@ -558,7 +608,7 @@ async def handle_call(
     return record
 
 
-async def _await_start(transport: ExotelTransport) -> Start:
+async def await_start(transport: ExotelTransport) -> Start:
     """Read frames until the `start` — Exotel sends a `connected` first."""
     while True:
         raw = await transport.receive()
@@ -569,7 +619,7 @@ async def _await_start(transport: ExotelTransport) -> Start:
             return frame
 
 
-async def _read_frames(
+async def read_frames(
     transport: ExotelTransport, source: ExotelTurnSource, pump: PlaybackPump
 ) -> None:
     """Pump inbound frames to the turn source, and barge in when the caller speaks

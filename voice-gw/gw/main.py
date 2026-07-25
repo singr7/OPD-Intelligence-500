@@ -6,6 +6,11 @@ bridge: `WS /exotel/voicebot` runs one phone intake (`gw.call.handle_call`) over
 shared `IntakeEngine`, stood up in-process on the lifespan (`gw.engine`). The V1
 Gemini Live path and the V2 STT↔TTS path both live in that engine; this service is
 the phone channel adapter over it.
+
+S15 adds the second number: `WS /exotel/receptionist` runs the appointment line
+(`gw.reception.handle_receptionist_call`) over `app.receptionist`. Two applets, two
+paths, one service — an inbound caller is either doing an intake or managing an
+appointment, and Exotel decides which by pointing its applet at one URL or the other.
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -15,6 +20,7 @@ from gw import __version__
 from gw.call import build_phonecall_store, handle_call
 from gw.engine import build_lifespan, get_intake_engine, get_sessionmaker
 from gw.exotel import ExotelTransport
+from gw.reception import handle_receptionist_call
 
 
 class _WebSocketTransport:
@@ -65,6 +71,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except (WebSocketDisconnect, ConnectionError):
             # A dropped call is normal — the driver already saved a partial per turn.
+            pass
+        finally:
+            try:
+                await ws.close()
+            except RuntimeError:
+                pass
+
+    @app.websocket("/exotel/receptionist")
+    async def receptionist(ws: WebSocket) -> None:
+        """One inbound appointment call (doc 03 §2). Same wire protocol as the
+        intake socket; a different conversation on the other side of it."""
+        await ws.accept()
+        transport: ExotelTransport = _WebSocketTransport(ws)
+        try:
+            await handle_receptionist_call(
+                transport,
+                sessionmaker=get_sessionmaker(ws),
+                settings=ws.app.state.settings,
+            )
+        except (WebSocketDisconnect, ConnectionError):
+            # A caller who hangs up mid-sentence: anything already booked was
+            # committed on that turn.
             pass
         finally:
             try:

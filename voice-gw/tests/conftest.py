@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 import pytest
+import pytest_asyncio
 
 from app.config import get_settings
 from app.intake import InMemorySessionStore, IntakeEngine
@@ -215,3 +216,86 @@ async def drive_call(
     await client.hangup()
     record = await driver
     return record, client.result
+
+
+# -- S15: a real database for the receptionist call tests ---------------------
+#
+# The intake driver above runs DB-less on purpose (assert on state + metering).
+# The receptionist cannot: its whole job is writing an appointment against real
+# slot inventory, so its tests need the same Postgres the backend suite uses.
+# These fixtures mirror `backend/tests/conftest.py` — one connection, one outer
+# transaction, `create_savepoint` so the driver's per-turn `commit()` only
+# releases a savepoint, and a rollback at teardown that discards everything.
+
+
+@pytest.fixture(scope="session")
+def db_settings():
+    import os
+
+    from app.config import Settings
+
+    return Settings(
+        env="test",
+        database_url=os.getenv(
+            "TEST_DATABASE_URL", "postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd_test"
+        ),
+        jwt_secret="test-secret-not-a-real-one-padded-to-32+",
+    )
+
+
+@pytest_asyncio.fixture(scope="session")
+async def db_engine(db_settings):
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(db_settings.database_url)
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(db_engine):
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker as sync_sessionmaker
+
+    from app.audit import AuditedSession
+
+    async with db_engine.connect() as connection:
+        transaction = await connection.begin()
+        factory = sync_sessionmaker(
+            bind=connection,
+            class_=AsyncSession,
+            sync_session_class=AuditedSession,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
+        async with factory() as session:
+            yield session
+        await transaction.rollback()
+
+
+@pytest.fixture
+def call_sessionmaker(db_session):
+    """A sessionmaker the call driver can `async with`, handing back the test's
+    rolled-back session and refusing to close it."""
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def factory():
+        yield db_session
+
+    return factory
+
+
+@pytest.fixture
+def providers():
+    """Reset the process-wide provider registry around each call test.
+
+    Same reason as the backend's fixture: providers are singletons that keep
+    `sent`/`transfers` lists and circuit-breaker state, and leaking those across
+    tests makes failures depend on test order.
+    """
+    from app.providers.registry import reset_providers
+
+    reset_providers()
+    yield
+    reset_providers()

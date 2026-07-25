@@ -262,6 +262,12 @@ SAY: dict[str, dict[Lang, str]] = {
         Lang.TE: "kshaminchandi, ardham kaledu. meeku kotta appointment kaavaala, maarchaalaa, "
         "leda raddu cheyaalaa?",
     },
+    "keypad": {
+        Lang.EN: "Sorry, I did not catch that. Please press the number on your keypad.",
+        Lang.HI: "माफ़ कीजिए, समझ नहीं आया। कृपया अपने कीपैड पर नंबर दबाइए।",
+        Lang.MR: "maaf kara, samajle nahi. kripaya tumchya keypad var number dabava.",
+        Lang.TE: "kshaminchandi, ardham kaledu. dayachesi mee keypad lo number nokkandi.",
+    },
     "taken": {
         Lang.EN: "Sorry, that time was just taken. Here are the times that are free now.",
         Lang.HI: "माफ़ कीजिए, वह समय अभी किसी और ने ले लिया। ये समय अब खाली हैं।",

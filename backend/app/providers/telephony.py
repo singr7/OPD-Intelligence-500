@@ -72,6 +72,17 @@ class CallRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class TransferRequest:
+    """Move a live call to a human (doc 03 §2)."""
+
+    call_sid: str
+    to: str
+    #: Read to the *coordinator* before the legs are joined, never to the caller.
+    whisper: str = ""
+    caller_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CallHandle:
     provider: str
     call_sid: str
@@ -97,6 +108,22 @@ class TelephonyProvider(Provider):
     async def get_call(self, call_sid: str) -> CallHandle:
         """Poll one call's state. The callback is the primary path; this is for
         reconciliation when a callback is lost."""
+
+    async def transfer_call(self, request: TransferRequest) -> CallHandle:
+        """Hand a live call to a human (doc 03 §2's coordinator handoff).
+
+        The `whisper` line is what the coordinator hears *before* the caller is
+        joined — "Kamla Devi, wants to move Thursday review" — so they pick up
+        knowing the situation instead of asking a sick person to start again.
+        Metered as an ordinary call leg; the minutes arrive with the callback.
+        """
+        return await self._invoke(
+            UsagePurpose.OTHER, lambda call: self._transfer_call(request, call), model=self.name
+        )
+
+    @abstractmethod
+    async def _transfer_call(self, request: TransferRequest, call: MeterCall) -> CallHandle:
+        """Bridge the call to `to`. Meters nothing — the minutes come later."""
 
     def record_call_completed(self, handle: CallHandle) -> None:
         """Meter a finished call's minutes.
@@ -128,6 +155,9 @@ class FakeTelephonyProvider(TelephonyProvider):
         super().__init__(**kwargs)
         self.placed: list[CallRequest] = []
         self.calls: dict[str, CallHandle] = {}
+        #: Every handoff this provider was asked to make — what the receptionist
+        #: tests assert on, whisper line and all.
+        self.transfers: list[TransferRequest] = []
         self.fail_with: Exception | None = None
 
     async def _place_call(self, request: CallRequest, call: MeterCall) -> CallHandle:
@@ -144,6 +174,20 @@ class FakeTelephonyProvider(TelephonyProvider):
             return self.calls[call_sid]
         except KeyError:
             raise ProviderBadRequest(f"no such call {call_sid!r}") from None
+
+    async def _transfer_call(self, request: TransferRequest, call: MeterCall) -> CallHandle:
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.transfers.append(request)
+        handle = CallHandle(
+            provider=self.name, call_sid=request.call_sid, state=CallState.IN_PROGRESS
+        )
+        self.calls[request.call_sid] = handle
+        return handle
+
+    @property
+    def last_transfer(self) -> TransferRequest | None:
+        return self.transfers[-1] if self.transfers else None
 
     def complete(self, call_sid: str, *, seconds: int = 120) -> CallHandle:
         """Simulate the status callback for a call that connected and ended."""
@@ -232,6 +276,32 @@ class ExotelTelephonyProvider(TelephonyProvider):
         if response.status_code >= 300:
             raise ProviderUnavailable(f"exotel http {response.status_code}: {response.text[:200]}")
 
+        return self._to_handle(response.json().get("Call", {}))
+
+    async def _transfer_call(self, request: TransferRequest, call: MeterCall) -> CallHandle:
+        """Exotel has no "transfer this live leg" REST verb, so the handoff is a
+        second connect: dial the coordinator and bridge the caller to them.
+
+        `whisper` rides as `CustomField` for the applet that answers the
+        coordinator's leg to read out. That applet is an Exotel-console artefact,
+        not code, so this is the one method here whose end-to-end behaviour is
+        owed a live smoke test (HANDOFF).
+        """
+        form = {
+            "From": request.to,  # the coordinator answers first…
+            "CallerId": request.caller_id or self._caller_id,
+            "To": request.call_sid,  # …then Exotel bridges the caller's leg
+        }
+        if request.whisper:
+            form["CustomField"] = request.whisper
+        try:
+            response = await self._client.post("/Calls/connect.json", data=form)
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(f"exotel transport error: {exc}") from exc
+        if response.status_code in (400, 401, 403):
+            raise ProviderBadRequest(f"exotel refused the transfer: {response.text[:200]}")
+        if response.status_code >= 300:
+            raise ProviderUnavailable(f"exotel http {response.status_code}: {response.text[:200]}")
         return self._to_handle(response.json().get("Call", {}))
 
     async def get_call(self, call_sid: str) -> CallHandle:

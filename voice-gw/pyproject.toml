@@ -25,6 +25,10 @@ testpaths = ["tests"]
 # `pytest` and `make test-voicegw` behave identically.
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+# S15's receptionist tests hold a session-scoped Postgres engine, and asyncpg
+# connections belong to the loop that opened them — a per-test loop would see
+# "attached to a different loop". Same pair of knobs as the backend.
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff]
 line-length = 100
