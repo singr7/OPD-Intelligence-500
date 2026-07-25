@@ -19,6 +19,7 @@ edge and lands with the rate limiting in S20.
 from __future__ import annotations
 
 import secrets
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -131,11 +132,18 @@ async def request_otp(
     settings: Settings,
     sms: SMSProvider,
     now: datetime | None = None,
+    known: bool | None = None,
 ) -> OtpChallenge:
     """Issue and send a login OTP.
 
     Returns an identical-looking challenge whether or not the phone belongs to a
     user — the caller cannot use this endpoint to discover who is registered.
+
+    `known` overrides *who counts as a recipient*: staff login (the default,
+    `None`) looks the phone up in `users`; the patient app (S16) passes the
+    result of its own lookup over patients and caregiver links. Everything that
+    makes a 6-digit code safe — cooldown, single outstanding challenge, TTL —
+    is shared, because it is the same table and the same threat.
     """
     now = now or datetime.now(UTC)
     expires_at = now + timedelta(seconds=settings.otp_ttl_seconds)
@@ -143,8 +151,9 @@ async def request_otp(
     if await _in_cooldown(session, phone, settings, now):
         raise OtpRateLimited(f"wait {settings.otp_resend_cooldown_seconds}s between OTP requests")
 
-    user = await _find_user(session, phone)
-    if user is None:
+    if known is None:
+        known = await _find_user(session, phone) is not None
+    if not known:
         # Same shape, same timing-ish, no row, no SMS.
         return OtpChallenge(phone=phone, expires_at=expires_at)
 
@@ -183,15 +192,23 @@ async def request_otp(
     )
 
 
-async def verify_otp(
+async def check_code[T](
     session: AsyncSession,
     *,
     phone: str,
     code: str,
     settings: Settings,
+    resolve: Callable[[], Awaitable[T | None]],
     now: datetime | None = None,
-) -> User:
-    """Consume the newest open challenge for `phone` and return its user.
+) -> T:
+    """Consume the newest open challenge for `phone` and return `resolve()`'s subject.
+
+    The audience is the caller's business — staff pass a `users` lookup, the
+    patient app passes its own — but the code checking is not, so it lives here
+    once. `resolve` runs *after* the code is proven, and a `None` from it is
+    reported as `OtpInvalid` like every other failure: whether the phone stopped
+    being a valid login between request and verify is not something a caller
+    holding a correct code gets to learn any more precisely than that.
 
     Raises `OtpInvalid` for every failure mode.
     """
@@ -211,13 +228,35 @@ async def verify_otp(
     if not verify_secret(code, challenge.code_hash):
         raise OtpInvalid("incorrect code")
 
-    user = await _find_user(session, phone)
-    if user is None:
+    subject = await resolve()
+    if subject is None:
         # Deactivated between request and verify.
         challenge.consumed_at = now
         raise OtpInvalid("no valid code outstanding")
 
     challenge.consumed_at = now
+    await session.flush()
+    return subject
+
+
+async def verify_otp(
+    session: AsyncSession,
+    *,
+    phone: str,
+    code: str,
+    settings: Settings,
+    now: datetime | None = None,
+) -> User:
+    """Consume the newest open challenge for `phone` and return its user."""
+    now = now or datetime.now(UTC)
+    user = await check_code(
+        session,
+        phone=phone,
+        code=code,
+        settings=settings,
+        resolve=lambda: _find_user(session, phone),
+        now=now,
+    )
     user.last_login_at = now
     await session.flush()
     return user

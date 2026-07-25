@@ -19,16 +19,19 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.tokens import TokenError, decode_token
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models.enums import Role
+from app.models.enums import CaregiverLinkStatus, Role
 from app.models.org import User
+from app.models.patient import CaregiverLink, Patient
 
 # auto_error=False so a missing header produces our 401 shape, not Starlette's 403.
 _bearer = HTTPBearer(auto_error=False)
@@ -76,6 +79,12 @@ async def current_principal(
     except (TokenError, KeyError, ValueError) as exc:
         raise CREDENTIALS_EXCEPTION from exc
 
+    # A patient-app token (S16) names a row in `patients`. It must never be
+    # looked up in `users` — this is the one check standing between a patient's
+    # login and every staff route, so it is refused before the query, not after.
+    if claims.get("kind", "user") != "user":
+        raise CREDENTIALS_EXCEPTION
+
     user = await session.get(User, user_id)
     if user is None or not user.can_login:
         raise CREDENTIALS_EXCEPTION
@@ -110,6 +119,101 @@ def require_roles(*roles: Role) -> Callable[[Principal], Awaitable[Principal]]:
         return principal
 
     return _guard
+
+
+@dataclass(frozen=True)
+class PatientPrincipal:
+    """The authenticated holder of a patient-app session (S16).
+
+    `patient_id` is whose file is open; `via` is who is holding the phone. Both
+    matter: a caregiver reads the same file and writes far less of it, and the
+    audit trail should never record a daughter's action as her mother's.
+    """
+
+    patient_id: uuid.UUID
+    name: str
+    hospital_id: uuid.UUID | None
+    via: Literal["self", "caregiver"]
+    actor_phone: str
+
+    @property
+    def is_caregiver(self) -> bool:
+        return self.via == "caregiver"
+
+
+async def current_patient(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+) -> PatientPrincipal:
+    """Authenticate a patient-app bearer token.
+
+    Both the patient row and — for a caregiver — the *live* consent state are
+    re-read on every request, for the same reason `current_principal` re-reads
+    the user: a patient who revokes her daughter's access at 10:00 must not have
+    her file readable until an access token happens to expire at 10:29.
+    """
+    if credentials is None:
+        raise CREDENTIALS_EXCEPTION
+
+    try:
+        claims = decode_token(credentials.credentials, settings, expected_type="access")
+        if claims.get("kind") != "patient":
+            raise CREDENTIALS_EXCEPTION
+        patient_id = uuid.UUID(claims["sub"])
+        via = claims["via"]
+        actor_phone = claims["actor_phone"]
+    except (TokenError, KeyError, ValueError) as exc:
+        raise CREDENTIALS_EXCEPTION from exc
+
+    if via not in ("self", "caregiver"):
+        raise CREDENTIALS_EXCEPTION
+
+    patient = await session.get(Patient, patient_id)
+    if patient is None or patient.is_deleted:
+        raise CREDENTIALS_EXCEPTION
+
+    if via == "self":
+        # The phone must still be the patient's own. A number reassigned to
+        # someone else at the registration desk ends the old session.
+        if actor_phone not in (patient.phone, patient.alt_phone):
+            raise CREDENTIALS_EXCEPTION
+    else:
+        result = await session.execute(
+            select(CaregiverLink).where(
+                CaregiverLink.patient_id == patient_id,
+                CaregiverLink.phone == actor_phone,
+                CaregiverLink.status == CaregiverLinkStatus.ACTIVE,
+                CaregiverLink.deleted_at.is_(None),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise CREDENTIALS_EXCEPTION
+
+    return PatientPrincipal(
+        patient_id=patient.id,
+        name=patient.name,
+        hospital_id=patient.hospital_id,
+        via=via,
+        actor_phone=actor_phone,
+    )
+
+
+async def require_patient_self(
+    principal: PatientPrincipal = Depends(current_patient),
+) -> PatientPrincipal:
+    """Admit only the patient herself.
+
+    Guards the acts that are hers alone — granting or revoking a caregiver's
+    access above all. Without this, a linked caregiver could approve a *second*
+    caregiver and the consent chain would have no root.
+    """
+    if principal.is_caregiver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only the patient can do this",
+        )
+    return principal
 
 
 # Named bundles for the roles that recur across S8–S18, so route files agree on

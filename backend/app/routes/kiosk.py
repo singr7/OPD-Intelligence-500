@@ -67,13 +67,23 @@ def get_engine(request: Request) -> IntakeEngine:
     return engine
 
 
-async def _load_state(engine: IntakeEngine, session_id: str) -> SessionState:
+async def _load_state(
+    engine: IntakeEngine,
+    session_id: str,
+    *,
+    expected: tuple[Channel, ...] = (Channel.KIOSK,),
+) -> SessionState:
+    """The session, if it belongs to a channel this caller may advance.
+
+    A phone session must never be advanced by taps, which is what `expected`
+    guards. The patient app (S16) passes `(Channel.APP,)` and walks the same
+    three verbs through its own authenticated routes — one walker, one wire
+    shape, two front doors with different locks on them.
+    """
     state = await engine.store.get(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="no such intake session")
-    if state.channel is not Channel.KIOSK:
-        # This route only speaks for kiosk sessions; a phone session must not be
-        # advanced by taps.
+    if state.channel not in expected:
         raise HTTPException(status_code=409, detail="session is not a kiosk session")
     return state
 
@@ -229,17 +239,23 @@ async def start(
     )
 
 
+async def next_node_impl(
+    engine: IntakeEngine, session_id: str, *, expected: tuple[Channel, ...] = (Channel.KIOSK,)
+) -> Any:
+    state = await _load_state(engine, session_id, expected=expected)
+    dispatcher = engine.dispatcher(state)
+    result = await dispatcher.get_next_node()
+    node = _node_out(result)
+    return node.model_dump() if node else {"complete": True, "node": None}
+
+
 @router.get("/{session_id}/next", response_model=NodeOut | dict)
 async def next_node(
     session_id: str,
     engine: IntakeEngine = Depends(get_engine),
 ) -> Any:
     """The current question — for a resumed kiosk (idle reset) or a re-render."""
-    state = await _load_state(engine, session_id)
-    dispatcher = engine.dispatcher(state)
-    result = await dispatcher.get_next_node()
-    node = _node_out(result)
-    return node.model_dump() if node else {"complete": True, "node": None}
+    return await next_node_impl(engine, session_id)
 
 
 #: The clarify budget per node (doc 11 §5: "one clarify, then fall back"). The
@@ -253,7 +269,18 @@ async def answer(
     payload: AnswerIn,
     engine: IntakeEngine = Depends(get_engine),
 ) -> AnswerOut:
-    """Record one tap/answer, then hand back the next screen.
+    """Record one tap/answer, then hand back the next screen."""
+    return await answer_impl(engine, session_id, payload)
+
+
+async def answer_impl(
+    engine: IntakeEngine,
+    session_id: str,
+    payload: AnswerIn,
+    *,
+    expected: tuple[Channel, ...] = (Channel.KIOSK,),
+) -> AnswerOut:
+    """One answer, saved and validated — the body both front doors share.
 
     A `Walk.save` prunes answers stranded on an abandoned branch, so the next node
     and the red flags are recomputed here from the fresh walk — never cached on the
@@ -265,7 +292,7 @@ async def answer(
     question (`clarify`) before falling back to taps. A tapped `value` skips all of
     this — the unchanged, zero-AI path (doc 04 law 8).
     """
-    state = await _load_state(engine, session_id)
+    state = await _load_state(engine, session_id, expected=expected)
     dispatcher = engine.dispatcher(state)
 
     value = payload.value
@@ -282,9 +309,7 @@ async def answer(
         value = outcome.value
 
     try:
-        saved = await dispatcher.save_answer(
-            payload.node_id, value, raw_text=payload.raw_text
-        )
+        saved = await dispatcher.save_answer(payload.node_id, value, raw_text=payload.raw_text)
     except ToolError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -459,7 +484,13 @@ async def finish(
     Does not yet allocate a token or finalise cost — the patient has not confirmed
     the read-back. That is `/confirm`.
     """
-    state = await _load_state(engine, session_id)
+    return await finish_impl(engine, session_id)
+
+
+async def finish_impl(
+    engine: IntakeEngine, session_id: str, *, expected: tuple[Channel, ...] = (Channel.KIOSK,)
+) -> FinishOut:
+    state = await _load_state(engine, session_id, expected=expected)
     dispatcher = engine.dispatcher(state)
     result = await dispatcher.finish_and_summarize("complete")
     return FinishOut(

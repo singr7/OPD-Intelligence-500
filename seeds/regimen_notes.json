@@ -1,0 +1,45 @@
+{
+  "_doc": "What-to-expect notes for the chemo calendar in the patient app (doc 03 §1c.5, S16). Content, not code — the app reads these aloud with the device's own TTS, so they must be plain spoken sentences in all four pilot languages, never clinical prose. mr/te are owed a native + clinical review before a patient hears them (S21). Personalised, per-regimen notes arrive with the check-in engine's protocol templates (S17); until then every cycle gets `generic`, which is true of platinum-, taxane- and anthracycline-based regimens alike.",
+  "generic": {
+    "title": {
+      "en": "After this cycle",
+      "hi": "इस साइकिल के बाद",
+      "mr": "या सायकलनंतर",
+      "te": "ఈ సైకిల్ తర్వాత"
+    },
+    "expect": [
+      {
+        "en": "For two or three days you may feel very tired. Rest is fine. Drink water often, in small amounts.",
+        "hi": "दो-तीन दिन तक बहुत थकान लग सकती है। आराम कीजिए। थोड़ा-थोड़ा करके पानी पीते रहिए।",
+        "mr": "दोन-तीन दिवस खूप थकवा जाणवू शकतो. आराम करा. थोडे थोडे करून पाणी पीत राहा.",
+        "te": "రెండు మూడు రోజులు చాలా అలసటగా అనిపించవచ్చు. విశ్రాంతి తీసుకోండి. కొద్దికొద్దిగా నీళ్లు తాగుతూ ఉండండి."
+      },
+      {
+        "en": "Mouth ulcers are common. Rinse your mouth with warm salt water after every meal, and eat soft food.",
+        "hi": "मुँह में छाले होना आम बात है। हर खाने के बाद गुनगुने नमक के पानी से कुल्ला कीजिए और नरम खाना खाइए।",
+        "mr": "तोंडात व्रण होणे सामान्य आहे. प्रत्येक जेवणानंतर कोमट मिठाच्या पाण्याने चूळ भरा आणि मऊ अन्न खा.",
+        "te": "నోటిలో పుండ్లు రావడం సాధారణం. ప్రతి భోజనం తర్వాత గోరువెచ్చని ఉప్పు నీటితో పుక్కిలించండి, మెత్తని ఆహారం తీసుకోండి."
+      },
+      {
+        "en": "Feeling sick or vomiting once or twice is expected. Take the medicine your doctor gave for it.",
+        "hi": "एक-दो बार जी मिचलाना या उल्टी होना सामान्य है। इसके लिए डॉक्टर ने जो दवा दी है वह लीजिए।",
+        "mr": "एक-दोन वेळा मळमळ किंवा उलटी होणे अपेक्षित आहे. त्यासाठी डॉक्टरांनी दिलेले औषध घ्या.",
+        "te": "ఒకటి రెండు సార్లు వికారం లేదా వాంతులు రావడం సహజం. దాని కోసం డాక్టర్ ఇచ్చిన మందు వేసుకోండి."
+      },
+      {
+        "en": "Stay away from crowds and anyone with fever or cough for one week.",
+        "hi": "एक हफ्ते तक भीड़ से और बुखार-खाँसी वाले किसी भी व्यक्ति से दूर रहिए।",
+        "mr": "एक आठवडा गर्दीपासून आणि ताप-खोकला असलेल्या कोणापासूनही दूर राहा.",
+        "te": "ఒక వారం పాటు జనసమూహాలకు, జ్వరం లేదా దగ్గు ఉన్నవారికి దూరంగా ఉండండి."
+      }
+    ],
+    "call_us": [
+      {
+        "en": "Call the hospital straight away if you get fever, if you bleed, if you cannot stop vomiting, or if you find it hard to breathe.",
+        "hi": "अगर बुखार आए, खून बहे, उल्टी रुके नहीं, या साँस लेने में तकलीफ हो — तुरंत अस्पताल फोन कीजिए।",
+        "mr": "ताप आला, रक्तस्राव झाला, उलटी थांबत नसेल, किंवा श्वास घ्यायला त्रास होत असेल — लगेच रुग्णालयाला फोन करा.",
+        "te": "జ్వరం వస్తే, రక్తస్రావం అయితే, వాంతులు ఆగకపోతే, లేదా ఊపిరి తీసుకోవడం కష్టమైతే — వెంటనే ఆసుపత్రికి ఫోన్ చేయండి."
+      }
+    ]
+  }
+}

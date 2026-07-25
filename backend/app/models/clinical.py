@@ -34,7 +34,14 @@ from app.models.base import (
     UUIDPrimaryKey,
     enum_type,
 )
-from app.models.enums import Channel, DictationStatus, IntakeTier, Lang, VisitStatus
+from app.models.enums import (
+    Channel,
+    DictationStatus,
+    DoseStatus,
+    IntakeTier,
+    Lang,
+    VisitStatus,
+)
 
 
 class Visit(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
@@ -87,6 +94,12 @@ class Intake(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     confirmed_by_patient: Mapped[bool] = mapped_column(Boolean, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Caregiver mode (doc 03 §1: "I am answering for the patient"). Promoted to a
+    # real column in S16 — the app needs to record it on a *known* patient, where
+    # S6's workaround (writing a marker into `Patient.caregiver_name`) would
+    # overwrite the real caregiver's name on a real registration record.
+    caregiver_answered: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # `key@vN` of the tree that produced `answers` (S7). Without it a stored
     # answer set cannot be read back with certainty: node ids are stable across
     # versions by design, so the same JSONB means different questions depending
@@ -137,3 +150,42 @@ class Prescription(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinic
     pdf_url: Mapped[str | None] = mapped_column(String(500))
     # delivered_via: {whatsapp: {at, status}, sms: {...}, print: {...}} — S11.
     delivered_via: Mapped[dict[str, Any]] = mapped_column(default=dict)
+
+
+class DoseEvent(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """What the patient did about one scheduled dose (doc 03 §1c.4, S16).
+
+    Adherence, reported by the app: the phone owns the alarms (WorkManager +
+    exact alarms) and tells the server what happened, because a phone that was
+    offline all evening still knows its reminder went unanswered and the server
+    never would.
+
+    The row is keyed by `(prescription_id, med_index, scheduled_for)` rather than
+    by a client-generated id, which is what makes reporting idempotent: a phone
+    that syncs the same evening twice — or a caregiver's phone reporting the same
+    missed dose the patient's phone already reported — updates one row instead of
+    creating a second, and so cannot trigger a second caregiver ping.
+    `med_index` points into `Prescription.meds`, the frozen snapshot; the drug is
+    never re-identified by name here.
+    """
+
+    __tablename__ = "dose_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "prescription_id",
+            "med_index",
+            "scheduled_for",
+            name="uq_dose_events_prescription_id_med_index_scheduled_for",
+        ),
+    )
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), index=True)
+    prescription_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prescriptions.id"), index=True)
+    med_index: Mapped[int] = mapped_column(Integer)
+    #: The dose's own clock time, as the app scheduled it.
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[DoseStatus] = mapped_column(enum_type(DoseStatus, "dose_status"))
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    #: When the caregiver was actually pinged about a miss. Null on a taken dose,
+    #: and on a missed one whose patient has no active caregiver link.
+    caregiver_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

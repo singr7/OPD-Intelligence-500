@@ -20,6 +20,13 @@ from app.models.enums import Role
 
 TokenType = Literal["access", "refresh"]
 
+#: Which population a token speaks for. Staff (`users` row) and patients
+#: (`patients` row) are different tables with different id spaces, so a token
+#: that did not say which one it meant would let a patient id be looked up in
+#: `users` — and one day match. Carried in the `kind` claim and checked by every
+#: authentication dependency in `app.auth.rbac`.
+SubjectKind = Literal["user", "patient"]
+
 ISSUER = "opd-intelligence"
 
 
@@ -52,6 +59,7 @@ def create_access_token(
     jti = uuid.uuid4().hex
     claims = {
         "sub": str(user_id),
+        "kind": "user",
         "role": role.value,
         "name": name,
         "hospital_id": str(hospital_id) if hospital_id else None,
@@ -64,14 +72,58 @@ def create_access_token(
     return IssuedToken(_encode(claims, settings), jti, expires_at)
 
 
+def create_patient_access_token(
+    *,
+    patient_id: uuid.UUID,
+    name: str,
+    settings: Settings,
+    hospital_id: uuid.UUID | None = None,
+    via: Literal["self", "caregiver"] = "self",
+    actor_phone: str,
+    now: datetime | None = None,
+) -> IssuedToken:
+    """An access token for the patient app (S16).
+
+    `sub` is the **patient** whose file this token opens — a caregiver's token
+    names the patient, not the caregiver, so every route downstream scopes on one
+    id and cannot accidentally serve the wrong file. Who is holding the phone is
+    `via` + `actor_phone`, which is what the write guards and the audit trail
+    read. The claims are never trusted alone: `app.auth.rbac.current_patient`
+    re-checks the patient row and, for a caregiver, the live consent state.
+    """
+    now = now or datetime.now(UTC)
+    expires_at = now + timedelta(minutes=settings.access_token_ttl_minutes)
+    jti = uuid.uuid4().hex
+    claims = {
+        "sub": str(patient_id),
+        "kind": "patient",
+        "role": Role.CAREGIVER.value if via == "caregiver" else Role.PATIENT.value,
+        "via": via,
+        "actor_phone": actor_phone,
+        "name": name,
+        "hospital_id": str(hospital_id) if hospital_id else None,
+        "type": "access",
+        "iss": ISSUER,
+        "jti": jti,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    return IssuedToken(_encode(claims, settings), jti, expires_at)
+
+
 def create_refresh_token(
-    *, user_id: uuid.UUID, settings: Settings, now: datetime | None = None
+    *,
+    user_id: uuid.UUID,
+    settings: Settings,
+    kind: SubjectKind = "user",
+    now: datetime | None = None,
 ) -> IssuedToken:
     now = now or datetime.now(UTC)
     expires_at = now + timedelta(days=settings.refresh_token_ttl_days)
     jti = uuid.uuid4().hex
     claims = {
         "sub": str(user_id),
+        "kind": kind,
         "type": "refresh",
         "iss": ISSUER,
         "jti": jti,

@@ -49,6 +49,20 @@ def _actor_from_request(request: Request, settings: Settings, request_id: str) -
     except ValueError:
         role = None
 
+    if claims.get("kind") == "patient":
+        # `audit_log.actor_id` is a foreign key into `users`, and a patient app
+        # session (S16) names a row in `patients` — writing it into that column
+        # would either violate the FK or, worse, one day match somebody. The id
+        # goes into the label instead, which is what the audit table's own
+        # comment says it is for: `actor_label` always says who it was in words.
+        who = "caregiver" if claims.get("via") == "caregiver" else "patient"
+        return Actor(
+            role=role,
+            label=f"{who} {claims.get('name') or ''} ({claims['sub']})"[:120],
+            request_id=request_id,
+            ip=ip,
+        )
+
     return Actor(
         id=uuid.UUID(claims["sub"]),
         role=role,

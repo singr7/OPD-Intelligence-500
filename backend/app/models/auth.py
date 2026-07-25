@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKey, enum_type
@@ -41,11 +41,29 @@ class OtpCode(Base, UUIDPrimaryKey, TimestampMixin):
 
 class RefreshToken(Base, UUIDPrimaryKey, TimestampMixin):
     """Server-side handle on an issued refresh token so a session can actually be
-    revoked. Without this table, logout is cosmetic until the JWT expires."""
+    revoked. Without this table, logout is cosmetic until the JWT expires.
+
+    A session belongs to **either** a staff `User` **or** a `Patient` (S16 — the
+    Android app logs patients and caregivers in with the same OTP flow). The
+    CHECK makes "both" and "neither" unrepresentable rather than merely wrong:
+    a refresh row that named both would let a rotation mint the wrong audience's
+    access token.
+    """
 
     __tablename__ = "refresh_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NULL) <> (patient_id IS NULL)",
+            name="subject_exactly_one",
+        ),
+    )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    #: The phone that verified the OTP. Patient sessions only, and the reason
+    #: rotation can tell "the patient herself" from "her linked caregiver"
+    #: without trusting a claim in the token being rotated.
+    subject_phone: Mapped[str | None] = mapped_column(String(20))
     # The JWT's `jti`; the token itself is never stored.
     jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

@@ -194,9 +194,10 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
     await session.flush()
 
     # One representative instance per Clinical model.
-    from app.models.clinical import Prescription
+    from app.models.clinical import DoseEvent, Prescription
     from app.models.content import Checkin, CheckinPlan
-    from app.models.enums import Channel
+    from app.models.enums import Channel, DoseStatus
+    from app.models.patient import CaregiverLink
     from app.models.scheduling import Appointment, Queue, QueueEntry
 
     queue = Queue(department_id=clinic["department"].id, date=visit.date)
@@ -207,12 +208,16 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
     session.add(plan)
     await session.flush()
 
+    prescription = Prescription(visit_id=visit.id, dictation_id=dictation.id)
+    session.add(prescription)
+    await session.flush()
+
     instances: dict[str, object] = {
         "patients": clinic["patient"],
         "visits": visit,
         "intakes": f.make_intake(visit),
         "dictations": dictation,
-        "prescriptions": Prescription(visit_id=visit.id, dictation_id=dictation.id),
+        "prescriptions": prescription,
         "appointments": Appointment(
             patient_id=clinic["patient"].id,
             department_id=clinic["department"].id,
@@ -222,6 +227,15 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         "queue_entries": QueueEntry(queue_id=queue.id, visit_id=visit.id, token_no=1),
         "checkin_plans": plan,
         "checkins": Checkin(plan_id=plan.id, due_at=datetime.now(UTC), channel=Channel.WHATSAPP),
+        "caregiver_links": CaregiverLink(patient_id=clinic["patient"].id, phone="+915550000123"),
+        "dose_events": DoseEvent(
+            patient_id=clinic["patient"].id,
+            prescription_id=prescription.id,
+            med_index=0,
+            scheduled_for=datetime.now(UTC),
+            status=DoseStatus.TAKEN,
+            reported_at=datetime.now(UTC),
+        ),
     }
 
     expected = {m.__tablename__ for m in audited_models()}
@@ -256,6 +270,11 @@ async def test_clinical_marker_covers_the_expected_tables() -> None:
         "queue_entries",
         "checkin_plans",
         "checkins",
+        # S16: who may read a patient's file, and whether she took her medicine.
+        # Both are patient-affecting — a caregiver grant especially, since it is
+        # the one row that widens who can see a cancer diagnosis.
+        "caregiver_links",
+        "dose_events",
     }
 
 

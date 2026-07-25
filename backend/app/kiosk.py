@@ -163,9 +163,10 @@ async def create_walk_in(
         name="Walk-in patient",
         phone="",
         lang=lang,
-        # No dedicated "answered_by_caregiver" column exists; the caregiver name
-        # slot is the truthful place to record that a caregiver ran the kiosk.
-        # A first-class boolean is backlog (would want a migration) — S9.
+        # Kept alongside `Intake.caregiver_answered` (the real flag since S16):
+        # on an anonymous walk-in there is no registered caregiver name to
+        # overwrite, and the marker is what the desk sees when it later attaches
+        # a name to this row.
         caregiver_name="(caregiver at kiosk)" if caregiver else None,
     )
     session.add(patient)
@@ -185,6 +186,7 @@ async def create_walk_in(
         visit_id=visit.id,
         tier=KIOSK_TIER,
         lang=lang,
+        caregiver_answered=caregiver,
     )
     session.add(intake)
     await session.flush()

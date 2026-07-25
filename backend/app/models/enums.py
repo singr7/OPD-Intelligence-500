@@ -123,6 +123,32 @@ class DictationStatus(StrEnum):
     SIGNED = "signed"
 
 
+class CaregiverLinkStatus(StrEnum):
+    """A family member's access to one patient's file (doc 03 §1c.6, S16).
+
+    `invited` is the caregiver asking; `active` is the patient having said yes.
+    Nothing is readable while a link is merely invited — consent is a state, not
+    a checkbox on the invitation.
+    """
+
+    INVITED = "invited"
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
+class DoseStatus(StrEnum):
+    """What happened to one scheduled dose of one medicine (doc 03 §1c.4, S16).
+
+    `missed` is what the caregiver gets pinged about. It is reported by the app
+    (the phone knows the reminder fired and was never answered); the server
+    records it and does the pinging.
+    """
+
+    TAKEN = "taken"
+    MISSED = "missed"
+    SNOOZED = "snoozed"
+
+
 class CheckinPlanStatus(StrEnum):
     DRAFT = "draft"
     APPROVED = "approved"

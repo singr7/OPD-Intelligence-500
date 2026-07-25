@@ -8,15 +8,17 @@ module must be imported here or it will be silently missing from migrations.
 from app.models.audit import AuditLog
 from app.models.auth import OtpCode, RefreshToken
 from app.models.base import Base, Clinical, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKey
-from app.models.clinical import Dictation, Intake, Prescription, Visit
+from app.models.clinical import Dictation, DoseEvent, Intake, Prescription, Visit
 from app.models.content import Checkin, CheckinPlan, QuestionTree
 from app.models.enums import (
     AppointmentStatus,
     AuditAction,
+    CaregiverLinkStatus,
     Channel,
     CheckinGrade,
     CheckinPlanStatus,
     DictationStatus,
+    DoseStatus,
     IntakeTier,
     Lang,
     OtpPurpose,
@@ -33,7 +35,7 @@ from app.models.enums import (
 )
 from app.models.metering import PriceBook, UsageEvent
 from app.models.org import Department, Doctor, Hospital, User
-from app.models.patient import Patient
+from app.models.patient import CaregiverLink, Patient
 from app.models.scheduling import (
     Appointment,
     AppointmentSlot,
@@ -62,6 +64,8 @@ __all__ = [
     "Intake",
     "Dictation",
     "Prescription",
+    "DoseEvent",
+    "CaregiverLink",
     # scheduling
     "Appointment",
     "SlotTemplate",
@@ -85,10 +89,12 @@ __all__ = [
     # enums
     "AppointmentStatus",
     "AuditAction",
+    "CaregiverLinkStatus",
     "Channel",
     "CheckinGrade",
     "CheckinPlanStatus",
     "DictationStatus",
+    "DoseStatus",
     "IntakeTier",
     "Lang",
     "OtpPurpose",
