@@ -38,13 +38,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import kiosk as kiosk_svc
 from app import prescription as rx_svc
 from app import queue as queue_svc
-from app import rx_sheets
+from app import rx_sheets, scheduling
 from app.config import Settings
 from app.intake import IntakeEngine
 from app.models.clinical import Intake, Visit
-from app.models.enums import Channel, IntakeTier, Lang, UsagePurpose, VisitStatus
+from app.models.enums import (
+    AppointmentStatus,
+    Channel,
+    IntakeTier,
+    Lang,
+    UsagePurpose,
+    VisitStatus,
+)
 from app.models.org import Department, Hospital
 from app.models.patient import Patient
+from app.models.scheduling import Appointment
+from app.notify import format_when, notify_appointment
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderError, with_fallback
 from app.providers.messaging import Button, ListRow, OutboundMessage
@@ -73,6 +82,38 @@ _LANG_PREFIX = "lang:"
 _DEPT_PREFIX = "dept:"
 _CONFIRM_YES = "confirm:yes"
 _CONFIRM_NO = "confirm:no"
+#: The one-tap appointment buttons (doc 03 §2). `app.notify` writes these ids onto
+#: the confirmation message; this is the other end of them.
+_APPT_PREFIX = "appt:"
+
+#: What a tap gets back. Short — the patient already has the details in the
+#: message they tapped.
+_APPT_CONFIRMED: dict[Lang, str] = {
+    Lang.EN: "Thank you — your appointment on {when} is confirmed. Please come 15 minutes early.",
+    Lang.HI: "धन्यवाद — {when} का आपका अपॉइंटमेंट पक्का है। कृपया 15 मिनट पहले आइए।",
+    Lang.MR: "dhanyavaad — {when} chi tumchi appointment nishchit aahe. kripaya 15 minite "
+    "aadhi ya.",
+    Lang.TE: "dhanyavaadaalu — {when} naati mee appointment kharaaru ayindi. dayachesi 15 "
+    "nimushaalu mundhuga randi.",
+}
+
+_APPT_CANCELLED: dict[Lang, str] = {
+    Lang.EN: "Your appointment on {when} is cancelled. Message us any time to book again.",
+    Lang.HI: "{when} का आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा लेने के लिए कभी भी संदेश भेजिए।",
+    Lang.MR: "{when} chi tumchi appointment radd keli aahe. punha ghenyasathi kadhihi sandesh "
+    "pathva.",
+    Lang.TE: "{when} naati mee appointment raddu chesaamu. malli book cheyadaaniki eppudaina "
+    "sandesham pampandi.",
+}
+
+#: A tap we cannot place: an old button, a forwarded message, someone else's
+#: appointment. Deliberately says nothing about whose it was.
+_APPT_UNKNOWN: dict[Lang, str] = {
+    Lang.EN: "I could not find that appointment. Please call the OPD if you need to change it.",
+    Lang.HI: "वह अपॉइंटमेंट नहीं मिला। बदलने के लिए कृपया OPD पर कॉल कीजिए।",
+    Lang.MR: "ti appointment sapadli nahi. badalnyasathi kripaya OPD la call kara.",
+    Lang.TE: "aa appointment dorakaledu. maarchadaaniki dayachesi OPD ki call cheyandi.",
+}
 
 #: Patient-initiated command keywords (matched case-insensitively, en + hi).
 _STATUS_WORDS = {"status", "token", "queue", "number", "टोकन", "स्थिति", "नंबर"}
@@ -150,6 +191,12 @@ class WhatsAppBot:
         return reply
 
     async def _route(self, session: AsyncSession, conv: Conversation, inbound: Inbound) -> BotReply:
+        # A tap on an appointment confirmation is unambiguous whatever the thread
+        # is doing (the id is namespaced), and it is time-sensitive — a patient
+        # cancelling tomorrow's slot must not have to finish an intake first.
+        if inbound.reply_id and inbound.reply_id.startswith(_APPT_PREFIX):
+            return await self._appointment_tap(session, conv, inbound)
+
         # A command wins whenever we are not mid-answer — a patient checking their
         # token should not have to finish an intake first.
         if conv.step in {ConversationStep.IDLE, ConversationStep.DONE}:
@@ -419,6 +466,53 @@ class WhatsAppBot:
         return reply
 
     # -- commands -------------------------------------------------------------
+
+    async def _appointment_tap(
+        self, session: AsyncSession, conv: Conversation, inbound: Inbound
+    ) -> BotReply:
+        """One-tap confirm/cancel on an appointment confirmation (doc 03 §2).
+
+        The tap is authorised by the number it came from: the appointment must
+        belong to the patient this WhatsApp id resolves to. Without that check a
+        forwarded message would let anyone cancel a stranger's slot — the button
+        id is not a secret, it is in the message.
+        """
+        lang = conv.lang or Lang.HI
+        action, _, raw_id = inbound.reply_id[len(_APPT_PREFIX) :].partition(":")
+        try:
+            appointment_id = uuid.UUID(raw_id)
+        except ValueError:
+            return self._say(conv, _APPT_UNKNOWN[lang])
+
+        patient = await self._resolve_patient(session, conv.wa_id)
+        appointment = await session.get(Appointment, appointment_id)
+        if (
+            patient is None
+            or appointment is None
+            or appointment.deleted_at is not None
+            or appointment.patient_id != patient.id
+        ):
+            return self._say(conv, _APPT_UNKNOWN[lang])
+
+        when = format_when(appointment.slot_at, lang)
+        if action == "cancel":
+            await scheduling.cancel(
+                session, appointment=appointment, reason="cancelled on WhatsApp"
+            )
+            hospital = await session.get(Hospital, patient.hospital_id)
+            await notify_appointment(
+                session,
+                appointment=appointment,
+                patient=patient,
+                hospital_name=hospital.name if hospital is not None else "the hospital",
+                doctor_name="",
+                kind="cancelled",
+            )
+            return self._say(conv, _APPT_CANCELLED[lang].format(when=when))
+
+        appointment.status = AppointmentStatus.CONFIRMED
+        await session.flush()
+        return self._say(conv, _APPT_CONFIRMED[lang].format(when=when))
 
     async def _token_status(self, session: AsyncSession, conv: Conversation) -> BotReply:
         lang = conv.lang or Lang.HI

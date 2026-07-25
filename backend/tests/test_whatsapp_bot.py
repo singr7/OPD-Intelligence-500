@@ -289,3 +289,106 @@ async def test_a_redelivered_message_is_ignored(
     assert first.messages  # the language prompt
     again = await bot.handle(session, Inbound(wa_id=wa, kind="text", text="hi", message_id=mid))
     assert again.messages == []  # the exact replay did nothing
+
+
+# -- one-tap appointment actions (S15, doc 03 §2) -----------------------------
+
+
+async def _appointment_for(session: AsyncSession, hospital: Hospital, wa_id: str):
+    """A patient reachable at `wa_id`, holding one booked appointment."""
+    from datetime import UTC, datetime, timedelta
+
+    from app import scheduling
+    from app.models.enums import Channel as Ch
+    from app.models.enums import Role
+
+    department = (
+        (await session.execute(select(Department).where(Department.hospital_id == hospital.id)))
+        .scalars()
+        .first()
+    )
+    user = f.make_user(hospital, role=Role.DOCTOR)
+    session.add(user)
+    await session.flush()
+    doctor = f.make_doctor(user, department)
+    patient = f.make_patient(hospital, phone=f"+{wa_id}")
+    session.add_all([doctor, patient])
+    await session.flush()
+
+    starts = (datetime.now(UTC) + timedelta(days=2)).replace(
+        hour=5, minute=0, second=0, microsecond=0
+    )
+    slot = f.make_slot(doctor, starts)
+    session.add(slot)
+    await session.flush()
+    appointment = await scheduling.book(session, patient=patient, slot_id=slot.id, source=Ch.PHONE)
+    return patient, appointment, slot
+
+
+async def test_tapping_confirm_confirms_the_appointment(
+    session: AsyncSession, settings: Settings, providers: None, hospital: Hospital, sms
+):
+    from app.models.enums import AppointmentStatus
+
+    wa_id = "919876500077"
+    _, appointment, _ = await _appointment_for(session, hospital, wa_id)
+    bot = _bot(settings)
+
+    reply = await bot.handle(
+        session,
+        Inbound(
+            wa_id=wa_id, kind="reply", reply_id=f"appt:confirm:{appointment.id}", message_id=_mid()
+        ),
+    )
+
+    assert appointment.status is AppointmentStatus.CONFIRMED
+    assert reply.messages, "the patient must be told the tap landed"
+
+
+async def test_tapping_cancel_releases_the_seat(
+    session: AsyncSession, settings: Settings, providers: None, hospital: Hospital, sms
+):
+    from app.models.enums import AppointmentStatus
+
+    wa_id = "919876500078"
+    _, appointment, slot = await _appointment_for(session, hospital, wa_id)
+    bot = _bot(settings)
+
+    await bot.handle(
+        session,
+        Inbound(
+            wa_id=wa_id, kind="reply", reply_id=f"appt:cancel:{appointment.id}", message_id=_mid()
+        ),
+    )
+
+    assert appointment.status is AppointmentStatus.CANCELLED
+    assert appointment.seat_no is None
+    await session.refresh(slot)
+    assert slot.booked == 0
+
+
+async def test_a_tap_from_another_number_changes_nothing(
+    session: AsyncSession, settings: Settings, providers: None, hospital: Hospital, sms
+):
+    """The button id travels inside a forwardable message; the number it arrives
+    from is the authorisation."""
+    from app.models.enums import AppointmentStatus
+
+    _, appointment, _ = await _appointment_for(session, hospital, "919876500079")
+    bot = _bot(settings)
+
+    reply = await bot.handle(
+        session,
+        Inbound(
+            wa_id="919000000000",
+            kind="reply",
+            reply_id=f"appt:cancel:{appointment.id}",
+            message_id=_mid(),
+        ),
+    )
+
+    from app.models.enums import Lang
+    from app.whatsapp.bot import _APPT_UNKNOWN
+
+    assert appointment.status is AppointmentStatus.BOOKED
+    assert reply.messages[0].text == _APPT_UNKNOWN[Lang.HI]

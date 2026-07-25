@@ -13,6 +13,7 @@ HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
 
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
         tf-validate build deploy venv clean migrate migration seed eval-routing \
+        slots campaign-dryrun \
         tree-fixtures check-tree-fixtures
 
 help: ## List targets
@@ -43,6 +44,13 @@ migration: ## Autogenerate a revision from model changes: make migration m="add 
 
 seed: ## Load the pilot seed dataset (idempotent — safe to re-run)
 	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.seed
+
+# --- Appointments (S15) -------------------------------------------------------
+slots: ## Materialise bookable slots from the seeded templates (idempotent)
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.worker opd.slots.generate
+
+campaign-dryrun: ## Print tomorrow's D-1 intake call list. Dials nobody.
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.campaign
 
 # --- Evals --------------------------------------------------------------------
 eval-routing: ## Score the routing classifier against its 60-utterance eval set

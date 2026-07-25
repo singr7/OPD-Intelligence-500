@@ -415,3 +415,29 @@ async def _existing_calls(
         )
     )
     return {call.appointment_id: call for call in found.scalars()}
+
+
+def main() -> None:
+    """`python -m app.campaign` — print tomorrow's call list and exit.
+
+    The dry run doc 06's AC asks for, as a command a coordinator can run before
+    the evening. It dials nobody and writes nothing.
+    """
+    import asyncio
+
+    from app.db import build_engine, build_sessionmaker
+
+    async def _run() -> str:
+        engine = build_engine()
+        try:
+            async with build_sessionmaker(engine)() as session:
+                plan = await plan_campaign(session, for_date=tomorrow())
+                return plan.report()
+        finally:
+            await engine.dispose()
+
+    print(asyncio.run(_run()))
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
+    main()
