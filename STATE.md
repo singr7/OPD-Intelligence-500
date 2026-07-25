@@ -173,6 +173,23 @@ template). Voice-note replies (TTS) behind `WHATSAPP_VOICE_NOTES` (default off).
 config `META_VERIFY_TOKEN` / `META_APP_SECRET` / `WHATSAPP_VOICE_NOTES`. 781→**816
 tests**. No migration.
 
+**Built (S13):** **Multilingual completion** (doc 03 §1) — the pilot now speaks all
+**four** languages, not two. mr + te fill every patient-facing surface: the whole tree
+bank (11 trees, every node/option/title/red-flag — 258 unique strings applied by a
+single `en→(mr,te)` map so a repeated phrase reads identically everywhere), the kiosk
+shell (`web/.../i18n.ts`, `KioskLang` widened so tsc fails on a missing language), the
+three WhatsApp templates, and the offline read-back. `app/languages.py` holds
+`PILOT_LANGUAGES = (en,hi,mr,te)` as the **one source of truth** the seed, the tests
+and the harness share, plus `looks_like_script` (Devanagari for hi/mr, Telugu for te).
+The **language QA harness** (`app/lang_qa.py`, `make lang-qa`, a named CI step) is the
+S13 deliverable: completeness across surfaces the tree validator never sees, a
+script/no-English-leak check, glossary consistency (`seeds/glossary.json` fixes 11 core
+symptom words; the bank may not drift to a synonym), and an STT/TTS round-trip + real
+BCP-47 mapping per language. Font audit (doc 04 §4): **Noto Sans Telugu** self-hosted at
+build alongside Devanagari, font-family falls through Latin→Deva→Telugu, ≥1.6 line-height
+now covers mr + te. 816→**826 tests**. No migration. **mr/te are model-drafted, pending
+native clinical review at S21** (same stance as the hi text).
+
 **Built (S-ADAPT.1 + .2):** **Adaptive intake** (doc 11) — a patient can answer a tap
 node **by voice**, and one spoken turn can fill more than the node that was asked.
 `app/intake/interpret.py` is the whole idea: given a node (its question + the answers
@@ -577,10 +594,12 @@ the only gate right now.**
   the 85% gate exist (`make eval-routing`), but the only provider available is the fake, and
   scoring it measures the harness. Needs one live run with a `GEMINI_API_KEY`. The tests
   deliberately do not fake the number.
-- **The 11 trees are unreviewed clinical content**, seeded `draft`, pending S21. The Hindi in
-  them — and the eval set's utterances — were authored by a model, not a native speaker, and
-  not collected from real patients. Tests check the text is present and structurally sound;
-  they cannot check it is good Hindi or good medicine.
+- **The 11 trees are unreviewed clinical content**, seeded `draft`, pending S21. The hi/mr/te
+  in them — and the eval set's utterances — were authored by a model, not a native speaker, and
+  not collected from real patients. Tests and the `app.lang_qa` harness check the text is
+  present, in the right script, and structurally sound; they cannot check it is good Marathi,
+  good Telugu, or good medicine. **mr/te (S13) especially need a native + clinical read before
+  a patient sees them** — same open review as the WhatsApp template bodies and the read-back.
 - **No tree node has `audio`** — the field is authored-empty. V3 kiosk voice packs are S7,
   real human recordings S21; TTS covers the gap until then.
 - **V-OSS is the software half only (S-OSS.0).** The local provider adapters are real HTTP
@@ -608,7 +627,11 @@ the only gate right now.**
 - No Surgical Oncology "new lump/lesion" tree — doc 03 §3 lists it, doc 06's S4 line did not.
   A new-lump walk-in currently gets `surg_onc_post_op`, which asks about an operation they
   have not had.
-- `prompts/` text is English-only prompt *instructions*; mr/te patient-facing strings are S13.
+- `prompts/` text is English-only prompt *instructions* (vendor-neutral, not patient-facing);
+  all patient-facing strings are now four-language (S13). The Telugu kiosk has **not been seen
+  rendered on a real screen** — Noto Sans Telugu is wired and typechecks, but the visual proof
+  (Telugu glyphs + ≥1.6 line-height at 200% scale, doc 04 §4) is owed on the box, like the other
+  on-omen UI validation. No mr/te STT/TTS has hit a live vendor (fakes only, same as every channel).
 - Enum columns have **no CHECK constraint** despite the docstring claiming so (`native_enum=False`
   + SQLAlchemy 2.0's `create_constraint=False`).
 - Staff username+TOTP login is modelled on `users` but not implemented; phone-OTP is the only path.
