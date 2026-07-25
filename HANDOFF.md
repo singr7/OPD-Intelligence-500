@@ -1,4 +1,4 @@
-# HANDOFF — after Session S13 (Multilingual completion + language QA harness)
+# HANDOFF — after Session S18E (Admin console + analytics, pulled ahead of S14)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
@@ -12,89 +12,97 @@
 >
 > **🚩 Adaptive intake (S-ADAPT) is on `main` but NEVER PROVEN with its flags on.**
 > `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults, so `main`
-> behaves as the pure-tap kiosk until a human flips them. See "Owed on omen". Unchanged by S13.
+> behaves as the pure-tap kiosk until a human flips them. See "Owed on omen". Unchanged by S18E.
 
-**Repo state:** **`main`** — S13 built straight on it (four feature commits + close).
-`make test` green: backend **826** (816→826), voice-gw 1, web typecheck+lint clean, 48
-conformance. `make lang-qa` clean across [en, hi, mr, te]. **No migration in S13** — mr/te
-is content + config, no schema change. Postgres on host port **5433**; voice-gw on 8090.
-**Start S14 from `main`.**
+**Repo state:** **`main`** — S18E built straight on it (two feature commits + close).
+`make test` green: backend **840** (826→840), voice-gw 1, web typecheck+lint clean, 48
+conformance. `make lang-qa` clean across [en, hi, mr, te]. **No migration in S18E** — the
+console reuses existing tables (`question_trees`, `price_book`, `usage_events`, `audit_log`);
+no schema change. Postgres on host port **5433**; voice-gw on 8090.
+**Return to S14 next** (S18E was pulled ahead of it; the mainline sequence resumes at S14).
 
-⚠️ `make lint` is still **failing on 11 pre-existing unformatted files** (none S13's — the
+⚠️ `make lint` is still **failing on 11 pre-existing unformatted files** (none S18E's — the
 new code is `ruff format`-clean). Not in `make test`, red a while. Worth one `ruff format .`
 commit before it grows.
 
-**One paragraph:** S13 made the pilot speak all **four** languages instead of two. Marathi
-and Telugu now fill every patient-facing surface — the whole tree bank (11 trees, 258 unique
-strings applied by one `en→(mr,te)` map so a repeated phrase reads identically everywhere),
-the kiosk shell, the print slip, the three WhatsApp templates, and the offline read-back. The
-mechanism that makes "all four" a fact rather than a hope is two-sided: the tree validator
-already enforces per-string completeness within a tree, `KioskLang` makes a missing UI string
-a compile error, and the new **`app/lang_qa.py`** harness covers the surfaces neither sees —
-plus the failure a completeness check misses (English pasted into an `mr` slot passes "is the
-key set?"; it fails "does it contain a Devanagari character?"). `PILOT_LANGUAGES` now lives in
-`app/languages.py` as one source of truth. **mr/te are model-drafted and unreviewed** — the
-loudest owed item, flagged for S21's clinical + native read, exactly as the hi text has been.
+**One paragraph:** S18E is the admin console + cost/usage analytics, pulled ahead of S14 at
+the operator's request (see "Why out of sequence"). It ships every S18 panel whose model
+exists today and defers the two that don't (protocol templates → S17, slot templates → S15)
+as honest in-console placeholders. The load-bearing win is two-sided: the **analytics
+dashboard reconciles to `usage_events` to the paisa** on a seeded replay day (proven), and a
+**tree publish is live on the kiosk on the next intake with no deploy** — because the intake
+path now reads DB-published trees (`app.trees.store.resolve_tree`) with the disk bank as the
+floor, instead of only ever reading disk. Every editor write validates and self-audits
+(`audit.record_admin_action`, since these content tables aren't `Clinical`). The dashboard's
+filters are the five `usage_events` dimensions, so S14/S15/S17 usage flows in as new filter
+values with **no dashboard change** — the only additive step per channel is extending the
+seeded replay day.
+
+## Why out of sequence (S18E, not S18, not S14)
+Built as **S18-early**: the panels backed by models that exist now. Two panels were left as
+markers because building them now is rework — their models are set by later sessions:
+**protocol-template editor → S17** (regimen families; only `CheckinPlan` exists), **slot-
+template editor → S15** (no slot inventory yet). Those two + the visual node editor + editable
+template registry + voice-pack upload are **S18-late**, to fold in after S15/S17.
 
 ## Next session — S14 (Telephony voice gateway (Exotel) part 1: pipeline)
-- Objective: `voice-gw` service — Exotel Voicebot WS ↔ **V1 Gemini Live bridge** (audio
-  relay + tool loop) **and** a **V2 STT↔TTS pipeline** path per tier config; per-minute
-  audio metering into `usage_events`; barge-in; DTMF fallback; consent line; call-state
-  persistence; a local harness replaying recorded audio as a fake Exotel client.
+- Objective: `voice-gw` — Exotel Voicebot WS ↔ **V1 Gemini Live bridge** + a **V2 STT↔TTS**
+  path per tier config; per-minute audio metering into `usage_events`; barge-in; DTMF
+  fallback; consent line; call-state persistence; a local fake-Exotel replay harness.
 - **Load:** docs 02 §5, 03 §1b.
-- **AC:** fake-client e2e intake completes on both V1 and V2 (V1 <1.5s, V2 <3.5s p90 turn
-  latency, measured); barge-in works; partial saves on hangup; call cost recorded per intake.
-- **S14 inherits four-language text for free** — the tree walker, summaries, read-back and
-  BCP-47 map all speak mr/te now, so the voice pipeline should drive them per `Intake.lang`
-  without new strings. The one real content gap for voice is `audio` clips (still empty on
-  every node; TTS covers it — S7/S21), unchanged by S13.
+- **AC:** fake-client e2e on both V1 and V2 (V1 <1.5s, V2 <3.5s p90 turn latency, measured);
+  barge-in; partial saves on hangup; call cost recorded per intake.
+- **S18E gives S14 a live dashboard to watch itself land in.** As soon as voice-gw emits
+  `channel=phone` usage_events, they appear under the admin dashboard's channel filter with no
+  work — a free instrument for the latency/cost ACs. Extend the seeded replay day
+  (`tests/test_analytics.py`) to include a phone row so the reconciliation test covers it.
 - **Start from `main`.** First commands:
 ```
-make dev && make migrate && make seed && make test    # expect 826 backend green
+make dev && make migrate && make seed && make test    # expect 840 backend green
 make lang-qa                                           # expect clean across [en,hi,mr,te]
 ```
 
-## Watch out for (S13 fragile edges)
-- **`PILOT_LANGUAGES` is the one source of truth** (`app/languages.py`). Adding a fifth
-  language means: extend it, add a `SCRIPT_RANGES` entry, add the font (web), translate every
-  surface — the harness will then enumerate exactly what is still missing. Do not re-hardcode
-  a language list anywhere; the point of S13 was to delete those copies.
-- **The tree translations came from a scratchpad `en→(mr,te)` map, not hand-editing** — the
-  seed JSON is now the source of truth (the map is gone). Edit the JSON directly; the validator
-  and `lang_qa` will catch a broken block.
-- **The harness's script check is "at least one character in-script"** — deliberately lenient
-  so `38°C ताप` and acronyms (TB, BP, ESAS) pass. It catches a *wholly* English/empty string,
-  not a partial mistranslation. Only a human catches the latter (S21).
-- **`get_template` still raises on a missing (name, lang)** — that is the feature. If S15 adds
-  a template, add all four languages or `lang_qa` (and the first out-of-window send) fails.
-- **Telugu has never rendered on a real screen** — `next/font` Telugu subset needs a network
-  fetch at build; the local `make dev` web build must succeed for the box to have the font.
+## Watch out for (S18E fragile edges)
+- **The kiosk reads trees from the DB now** (`store.resolve_tree`), disk bank only as
+  fallback. If a box has trees in `question_trees` but none **published**, the kiosk falls
+  through to disk — so on a fresh box run `make seed` (draft) then publish from the console,
+  or `make seed` with `--publish-trees`. A published-but-unparseable row is skipped, not fatal.
+- **Publishing demotes every other version of that key to draft** (one live version per key).
+  Intended — it makes rollback work — but means "publish" is also "unpublish the old one".
+- **What-if is the price-book recompute, not tier-mix.** Do not wire a tier-mix button to it;
+  tier-mix is a different (harder) recompute deferred with S14.
+- **Cost-guard `clear` needs the running guard process** (Redis override store) — 503s under
+  the test transport / a process with no guard. Works in prod and `make dev`.
+- **Money is a wire string** through the whole admin path (`Decimal` server-side). Keep it
+  that way — no `Number()` arithmetic on ₹ in the browser; display only.
 
 ## Decisions needed from the human
-- **mr/te need a native + clinical review before a patient reads them.** This is the one thing
-  S13 cannot self-certify. Until then they are as trustworthy as the hi text has been (i.e.
-  structurally sound, not vouched-for). Whoever owns the Alwar clinical sign-off (S21) should
-  see the mr/te tree/template/read-back text specifically.
-- **Whoever next has the box: "Owed on omen" is still unclaimed** (below) — the only remaining
-  reason to doubt anything in `main`. S13 adds the Telugu-render visual check to that list.
+- **mr/te still need a native + clinical review before a patient reads them** (carried from
+  S13; S21). Unchanged by S18E.
+- **Whoever next has the box: "Owed on omen" is still unclaimed** (below). S18E adds one item:
+  the console has not been seen rendered on a screen (typecheck/lint only) — a visual pass is owed.
 
-## Owed on omen (before adaptive / mr-te face a patient)
-- **Telugu kiosk render** — bring the stack up, switch to తెలుగు, confirm the glyphs render
-  (not tofu) and the ≥1.6 line-height holds at 200% font scale (doc 04 §4). Cheapest new item.
+## Owed on omen (before adaptive / mr-te / the console face real use)
+- **Admin console visual pass** — bring the stack up, sign in as admin (+915550000001), walk
+  the six tabs, publish a tree edit and confirm it changes a live kiosk intake. Cheapest proof
+  of the S18E headline AC on a real screen. *(new)*
+- **Telugu kiosk render** — switch to తెలుగు, confirm glyphs (not tofu) and ≥1.6 line-height at
+  200% font scale (doc 04 §4). Carried from S13.
 - **Adaptive on:** flags to `1`, mark 1–2 live-tree nodes `adaptive: true`, re-seed,
   `docker compose up -d --build api web` (**web rebuild required** — the flag is a build arg).
-  Provoke a vague answer, a volunteered fact, an unmappable answer. Read `adaptive_report.py`,
-  tune node wording. **Rollback is the flags back to `0` + a web rebuild.**
+  Provoke a vague answer, a volunteered fact, an unmappable answer. Rollback = flags to `0` + rebuild.
 - **Doctor console + consult note on-box** (`/doctor`, `+915550001001`) — the real-Qwen3
   dictation + `_was_said` pass is still owed. `make eval-dictation` wants the same session.
 
-## Backlog additions (S13)
-- **mr/te unreviewed** by a native speaker or clinician (loudest; S21).
-- **Telugu never seen rendered** — visual proof owed on the box (Owed on omen).
-- **No mr/te STT/TTS has hit a live vendor** — fakes + BCP-47 map only, same first-vendor
-  caveat every channel carries.
-- **Glossary consistency is exact-block only** — pins canonical short forms, not terms inside
-  sentences; substring/fuzzy consistency is a later, harder check (pairs with S18's tree editor).
+## Backlog additions (S18E) → S18-late
+- **Visual tree node editor** (WYSIWYG add/edit option, drag branch) — this session shipped
+  version-list + publish + JSON inspect + a server `test-run` endpoint; the graphical builder is owed.
+- **Editable message-template registry** (DB-backed, replacing the code registry) — pairs with S15.
+- **Voice-pack upload/re-record** — needs S7's pack storage format; coverage view only today.
+- **Protocol-template editor** → S17; **slot-template editor** → S15 (deferred markers live now).
+- **Node-level abandonment + tree-improvement report** (doc 03 §11) — needs per-node answer
+  timestamps; pairs with the visual editor.
+- **Tier-mix what-if** — needs a cross-tier provider mapping (S14 gives telephony real V1/V2 shapes).
+- **Latency-degradation anomaly** — S19 provider-health telemetry.
 - Carried, unchanged: `make lint` red on 11 pre-existing files (one `ruff format .` clears it);
-  the S11/S12 backlog (WhatsApp multi-select single-pick, no live Meta send, conversation-level
-  billing → S18, RxPanel silent read error, server-side PDF); adaptive-tree on-box scenario testing.
+  mr/te unreviewed (S21); Telugu never seen rendered; no mr/te STT/TTS on a live vendor.

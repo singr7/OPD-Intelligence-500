@@ -420,6 +420,26 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **The admin tree editor is version-list + publish + JSON-inspect, not a visual builder**
+  (S18E) — the AC path ("edit the tree, publish, live on the kiosk with no deploy") works via
+  `store.resolve_tree` (kiosk reads DB-published trees, disk bank as floor), and there is a
+  server `POST /admin/trees/test-run` dry-walk, but the WYSIWYG node editor is S18-late. On-box
+  editing today is: seed a draft / edit JSON, then publish from the console.
+- **Admin voice-pack manager + template registry are read-only** (S18E) — the template registry
+  is code-defined (`app/whatsapp/templates.py`); the voice-pack panel is a coverage checklist
+  (every clip `recorded: false` → TTS) because the pack storage format is S7's. Upload/re-record
+  and a DB-backed editable template registry are S18-late/S7/S15.
+- **Protocol-template + slot-template editors are deferred placeholders** (S18E) — `GET
+  /admin/protocol-templates` and `/admin/slot-templates` return a `{deferred, arrives_in}` marker
+  (S17 / S15); the console renders an honest "arrives with" card. Their models don't exist yet.
+- **Admin what-if is the edited-price-book recompute, not tier-mix** (S18E) — exactly
+  hand-checkable (re-scales stored per-row cost by a provider/model factor). Tier-mix needs a
+  cross-tier provider mapping and is deferred with S14.
+- **Cost-guard `clear` from the admin console needs the running guard process** (S18E) — the
+  Redis override store; 503s under the test transport / a process with no guard. Works in prod
+  and `make dev`.
+- **The admin console has not been seen rendered on a screen** (S18E) — typecheck + lint + 48
+  conformance only; a visual pass on the box is in HANDOFF "Owed on omen".
 - **No live Meta number has ever answered** (S12) — the webhook + bot are proven
   against the `FakeMessagingProvider` and a simulated Meta payload, exactly like every
   other channel's first-send caveat. The first real inbound/outbound and **template

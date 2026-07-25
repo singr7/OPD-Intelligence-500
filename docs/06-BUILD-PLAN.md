@@ -144,6 +144,13 @@ reconciles to usage_events.
 - AC: sign a fixture dictation → correct plan drafted → simulated D+2 red answer escalates within 1 min; quiet hours respected.
 
 **S18 — Admin console + Cost & Usage Analytics dashboard**
+- **Split & partly built out of sequence as `S18-early` (2026-07-25, ahead of S14)** —
+  see `sessions/SESSION-18E.md`. Done: the analytics dashboard (reconciles to
+  `usage_events`), tree publish→live (kiosk now reads DB-published trees), price-book
+  editor, cost-guard view/clear, read-only template registry + voice-pack coverage.
+  **S18-late (remaining, fold in after S15/S17):** visual tree node editor, protocol-
+  template editor (needs S17), slot-template editor (needs S15), editable template
+  registry, voice-pack upload, node-level abandonment report, tier-mix what-if.
 - Load: doc 03 §10/§11, 02 §8.
 - Build: tree builder (visual, versioned, test-run), red-flag rule editor, protocol template editor, message template registry, voice-pack manager, slot templates, price-book editor, cost-guard config, downtime drill button; **full analytics dashboard per doc 03 §11**: rollup materialized views (per-minute + daily), live cost/token strip, time series with channel/tier/purpose/model filters, unit-economics cards (₹ per intake etc.), what-if tier-mix recompute, anomaly flags, intake funnel + operations tab, CSV export, monthly invoice reconciliation view.
 - AC: non-technical user edits a tree option, publishes, sees it live on kiosk without deploy; dashboard numbers reconcile to usage_events exactly on a seeded replay day; cost per intake visible per channel & tier; what-if recompute matches hand calculation on fixture data.
