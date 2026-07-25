@@ -1,0 +1,670 @@
+{
+  "version": 1,
+  "_comment": "S17 protocol templates (doc 03 §9/§10) — the clinical skeleton of a post-treatment check-in, per regimen family. A protocol names WHICH DAYS a patient is asked after treatment and WHICH QUESTION SET is asked on each; a question set names the questions and the deterministic grading rules over them. No model may add a day, drop a day, invent a question or decide a grade — the LLM personalisation (prompts/checkin_personalize) may only rewrite the covering MESSAGE in the patient's language. Grading `when` expressions are the S4 red-flag rule language (app.trees.rules), evaluated identically here. Patient-facing text is carried in all four pilot languages; grading `reason` text is the ENGLISH clinical label a nurse reads on the review queue, same stance as the queue's priority chips. All content is model-drafted and UNREVIEWED — an oncologist signs it off at S21, like the tree bank.",
+
+  "option_sets": {
+    "yes_no": [
+      {"id": "yes", "label": {"en": "Yes", "hi": "हाँ", "mr": "होय", "te": "అవును"}},
+      {"id": "no", "label": {"en": "No", "hi": "नहीं", "mr": "नाही", "te": "లేదు"}}
+    ],
+    "none_mild_severe": [
+      {"id": "none", "label": {"en": "Not at all", "hi": "बिल्कुल नहीं", "mr": "अजिबात नाही", "te": "అస్సలు లేదు"}},
+      {"id": "mild", "label": {"en": "A little", "hi": "थोड़ा", "mr": "थोडं", "te": "కొంచెం"}},
+      {"id": "severe", "label": {"en": "A lot", "hi": "बहुत", "mr": "खूप", "te": "చాలా"}}
+    ],
+    "intake": [
+      {"id": "normal", "label": {"en": "Normal", "hi": "सामान्य", "mr": "सामान्य", "te": "సాధారణం"}},
+      {"id": "half", "label": {"en": "Less than half", "hi": "आधे से कम", "mr": "निम्म्यापेक्षा कमी", "te": "సగం కంటే తక్కువ"}},
+      {"id": "almost_nothing", "label": {"en": "Almost nothing", "hi": "लगभग कुछ नहीं", "mr": "जवळजवळ काहीच नाही", "te": "దాదాపు ఏమీ లేదు"}}
+    ]
+  },
+
+  "question_sets": {
+    "myelosuppression": {
+      "title": {"en": "Fever and infection watch", "hi": "बुखार और संक्रमण की निगरानी", "mr": "ताप आणि संसर्गाची तपासणी", "te": "జ్వరం మరియు ఇన్ఫెక్షన్ పరిశీలన"},
+      "questions": [
+        {
+          "id": "ck.myelo.fever",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Since your treatment, have you had a fever?",
+            "hi": "इलाज के बाद क्या आपको बुखार आया है?",
+            "mr": "उपचारानंतर तुम्हाला ताप आला आहे का?",
+            "te": "చికిత్స తర్వాత మీకు జ్వరం వచ్చిందా?"
+          }
+        },
+        {
+          "id": "ck.myelo.temp",
+          "type": "number",
+          "min": 34,
+          "max": 43,
+          "prompt": {
+            "en": "If you measured it, what was the highest temperature? (in degrees Celsius)",
+            "hi": "अगर आपने नापा है, तो सबसे ज़्यादा तापमान कितना था? (डिग्री सेल्सियस में)",
+            "mr": "जर तुम्ही मोजलं असेल, तर सर्वात जास्त तापमान किती होतं? (डिग्री सेल्सिअसमध्ये)",
+            "te": "మీరు కొలిచి ఉంటే, అత్యధిక ఉష్ణోగ్రత ఎంత? (డిగ్రీ సెల్సియస్‌లో)"
+          }
+        },
+        {
+          "id": "ck.myelo.mouth",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Do you have sores in your mouth?",
+            "hi": "क्या आपके मुँह में छाले हैं?",
+            "mr": "तुमच्या तोंडात फोड आले आहेत का?",
+            "te": "మీ నోటిలో పుండ్లు ఉన్నాయా?"
+          }
+        },
+        {
+          "id": "ck.myelo.bleeding",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Have you noticed any new bleeding or blue marks on your skin?",
+            "hi": "क्या आपको कहीं नया खून बहता या त्वचा पर नीले निशान दिखे हैं?",
+            "mr": "तुम्हाला कुठे नवीन रक्तस्राव किंवा त्वचेवर निळे डाग दिसले आहेत का?",
+            "te": "మీకు కొత్తగా రక్తస్రావం లేదా చర్మంపై నీలి మచ్చలు కనిపించాయా?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "myelo.fever",
+          "grade": "red",
+          "reason": "Fever reported after chemotherapy — possible neutropenic sepsis",
+          "when": {"op": "eq", "node": "ck.myelo.fever", "value": "yes"}
+        },
+        {
+          "id": "myelo.temp",
+          "grade": "red",
+          "reason": "Measured temperature 38°C or above after chemotherapy",
+          "when": {"op": "gte", "node": "ck.myelo.temp", "value": 38}
+        },
+        {
+          "id": "myelo.bleeding",
+          "grade": "red",
+          "reason": "New bleeding or bruising — possible thrombocytopenia",
+          "when": {"op": "eq", "node": "ck.myelo.bleeding", "value": "yes"}
+        },
+        {
+          "id": "myelo.mucositis",
+          "grade": "amber",
+          "reason": "Severe mouth sores — check oral intake and analgesia",
+          "when": {"op": "eq", "node": "ck.myelo.mouth", "value": "severe"}
+        }
+      ]
+    },
+
+    "gi_platinum": {
+      "title": {"en": "Sickness, eating and urine", "hi": "उल्टी, खाना और पेशाब", "mr": "उलटी, जेवण आणि लघवी", "te": "వాంతి, ఆహారం మరియు మూత్రం"},
+      "questions": [
+        {
+          "id": "ck.gi.vomit",
+          "type": "number",
+          "min": 0,
+          "max": 30,
+          "prompt": {
+            "en": "How many times have you vomited since yesterday?",
+            "hi": "कल से अब तक आपको कितनी बार उल्टी हुई है?",
+            "mr": "कालपासून तुम्हाला किती वेळा उलटी झाली आहे?",
+            "te": "నిన్నటి నుండి మీకు ఎన్నిసార్లు వాంతి అయ్యింది?"
+          }
+        },
+        {
+          "id": "ck.gi.intake",
+          "type": "single",
+          "options": "intake",
+          "prompt": {
+            "en": "How much are you able to eat and drink?",
+            "hi": "आप कितना खा-पी पा रहे हैं?",
+            "mr": "तुम्ही किती खाऊ-पिऊ शकत आहात?",
+            "te": "మీరు ఎంత తినగలుగుతున్నారు, తాగగలుగుతున్నారు?"
+          }
+        },
+        {
+          "id": "ck.gi.urine",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Is your urine much less than usual?",
+            "hi": "क्या आपका पेशाब सामान्य से काफ़ी कम है?",
+            "mr": "तुमची लघवी नेहमीपेक्षा खूप कमी आहे का?",
+            "te": "మీ మూత్రం మామూలు కంటే చాలా తక్కువగా ఉందా?"
+          }
+        },
+        {
+          "id": "ck.gi.tingling",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Do your hands or feet feel numb or tingling?",
+            "hi": "क्या आपके हाथ या पैर सुन्न लगते हैं या उनमें झुनझुनी है?",
+            "mr": "तुमचे हात किंवा पाय बधीर वाटतात का, किंवा त्यात मुंग्या येतात का?",
+            "te": "మీ చేతులు లేదా కాళ్ళు తిమ్మిరిగా ఉన్నాయా లేదా జివ్వుమంటున్నాయా?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "gi.vomiting_severe",
+          "grade": "red",
+          "reason": "Five or more vomits in a day — dehydration risk",
+          "when": {"op": "gte", "node": "ck.gi.vomit", "value": 5}
+        },
+        {
+          "id": "gi.not_drinking",
+          "grade": "red",
+          "reason": "Taking almost nothing by mouth",
+          "when": {"op": "eq", "node": "ck.gi.intake", "value": "almost_nothing"}
+        },
+        {
+          "id": "gi.oliguria",
+          "grade": "red",
+          "reason": "Urine much reduced after platinum — possible renal injury",
+          "when": {"op": "eq", "node": "ck.gi.urine", "value": "yes"}
+        },
+        {
+          "id": "gi.vomiting",
+          "grade": "amber",
+          "reason": "Vomiting despite antiemetics — review the antiemetic plan",
+          "when": {"op": "gte", "node": "ck.gi.vomit", "value": 2}
+        },
+        {
+          "id": "gi.eating_less",
+          "grade": "amber",
+          "reason": "Eating less than half of normal",
+          "when": {"op": "eq", "node": "ck.gi.intake", "value": "half"}
+        },
+        {
+          "id": "gi.neuropathy",
+          "grade": "amber",
+          "reason": "Peripheral neuropathy reported — flag before the next cycle",
+          "when": {"op": "in", "node": "ck.gi.tingling", "value": ["mild", "severe"]}
+        }
+      ]
+    },
+
+    "taxane_neuro": {
+      "title": {"en": "Hands, feet and body aches", "hi": "हाथ-पैर और बदन दर्द", "mr": "हात-पाय आणि अंगदुखी", "te": "చేతులు, కాళ్ళు మరియు ఒళ్ళు నొప్పులు"},
+      "questions": [
+        {
+          "id": "ck.neuro.tingling",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Do your hands or feet feel numb or tingling?",
+            "hi": "क्या आपके हाथ या पैर सुन्न लगते हैं या उनमें झुनझुनी है?",
+            "mr": "तुमचे हात किंवा पाय बधीर वाटतात का, किंवा त्यात मुंग्या येतात का?",
+            "te": "మీ చేతులు లేదా కాళ్ళు తిమ్మిరిగా ఉన్నాయా లేదా జివ్వుమంటున్నాయా?"
+          }
+        },
+        {
+          "id": "ck.neuro.buttons",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Is it hard to hold small things, like buttons or a cup?",
+            "hi": "क्या छोटी चीज़ें पकड़ने में दिक़्क़त होती है, जैसे बटन या कप?",
+            "mr": "लहान वस्तू धरायला त्रास होतो का, जसं बटण किंवा कप?",
+            "te": "బటన్లు లేదా కప్పు వంటి చిన్న వస్తువులు పట్టుకోవడం కష్టంగా ఉందా?"
+          }
+        },
+        {
+          "id": "ck.neuro.pain",
+          "type": "scale",
+          "min": 0,
+          "max": 10,
+          "prompt": {
+            "en": "How bad are your body aches, from 0 to 10?",
+            "hi": "आपका बदन दर्द 0 से 10 में कितना है?",
+            "mr": "तुमची अंगदुखी 0 ते 10 मध्ये किती आहे?",
+            "te": "మీ ఒళ్ళు నొప్పులు 0 నుండి 10 వరకు ఎంత ఉన్నాయి?"
+          }
+        },
+        {
+          "id": "ck.neuro.rash",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Do you have a new rash, or swelling of the face or lips?",
+            "hi": "क्या आपको नए दाने हुए हैं, या चेहरे या होंठों पर सूजन है?",
+            "mr": "तुम्हाला नवीन पुरळ आलं आहे का, किंवा चेहऱ्यावर किंवा ओठांवर सूज आहे का?",
+            "te": "మీకు కొత్తగా దద్దుర్లు వచ్చాయా, లేదా ముఖం లేదా పెదవులు వాచాయా?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "neuro.hypersensitivity",
+          "grade": "red",
+          "reason": "New rash or facial swelling — possible delayed hypersensitivity",
+          "when": {"op": "eq", "node": "ck.neuro.rash", "value": "yes"}
+        },
+        {
+          "id": "neuro.functional_loss",
+          "grade": "red",
+          "reason": "Neuropathy with loss of fine motor function — hold the next dose for review",
+          "when": {
+            "op": "and",
+            "rules": [
+              {"op": "eq", "node": "ck.neuro.tingling", "value": "severe"},
+              {"op": "eq", "node": "ck.neuro.buttons", "value": "yes"}
+            ]
+          }
+        },
+        {
+          "id": "neuro.tingling",
+          "grade": "amber",
+          "reason": "Peripheral neuropathy reported — flag before the next cycle",
+          "when": {"op": "in", "node": "ck.neuro.tingling", "value": ["mild", "severe"]}
+        },
+        {
+          "id": "neuro.myalgia",
+          "grade": "amber",
+          "reason": "Severe myalgia — review analgesia",
+          "when": {"op": "gte", "node": "ck.neuro.pain", "value": 7}
+        }
+      ]
+    },
+
+    "anthracycline_cardiac": {
+      "title": {"en": "Breathing and swelling", "hi": "साँस और सूजन", "mr": "श्वास आणि सूज", "te": "శ్వాస మరియు వాపు"},
+      "questions": [
+        {
+          "id": "ck.card.breathless",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Do you get breathless doing your usual things?",
+            "hi": "क्या रोज़ के काम करते हुए आपकी साँस फूलती है?",
+            "mr": "रोजची कामं करताना तुम्हाला धाप लागते का?",
+            "te": "మామూలు పనులు చేస్తున్నప్పుడు మీకు శ్వాస ఆడకపోవడం జరుగుతుందా?"
+          }
+        },
+        {
+          "id": "ck.card.lying_flat",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Do you get breathless when you lie flat?",
+            "hi": "क्या सीधा लेटने पर आपकी साँस फूलती है?",
+            "mr": "सरळ झोपल्यावर तुम्हाला धाप लागते का?",
+            "te": "నేరుగా పడుకున్నప్పుడు మీకు శ్వాస ఆడకపోవడం జరుగుతుందా?"
+          }
+        },
+        {
+          "id": "ck.card.swelling",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Are your feet or ankles swollen?",
+            "hi": "क्या आपके पैरों या टख़नों में सूजन है?",
+            "mr": "तुमच्या पायांना किंवा घोट्यांना सूज आली आहे का?",
+            "te": "మీ పాదాలు లేదా చీలమండలు వాచాయా?"
+          }
+        },
+        {
+          "id": "ck.card.palpitations",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Does your heart feel like it is racing or skipping?",
+            "hi": "क्या आपका दिल तेज़ धड़कता है या धड़कन रुकती-सी लगती है?",
+            "mr": "तुमचं हृदय जोरात धडधडतं का, किंवा ठोका चुकल्यासारखा वाटतो का?",
+            "te": "మీ గుండె వేగంగా కొట్టుకుంటుందా లేదా కొట్టుకోవడం ఆగినట్టు అనిపిస్తుందా?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "card.breathless_severe",
+          "grade": "red",
+          "reason": "Breathless at rest or on usual activity after anthracycline",
+          "when": {"op": "eq", "node": "ck.card.breathless", "value": "severe"}
+        },
+        {
+          "id": "card.orthopnoea",
+          "grade": "red",
+          "reason": "Orthopnoea — possible cardiac failure, needs assessment",
+          "when": {"op": "eq", "node": "ck.card.lying_flat", "value": "yes"}
+        },
+        {
+          "id": "card.oedema",
+          "grade": "amber",
+          "reason": "Peripheral oedema — check weight and cardiac function",
+          "when": {"op": "eq", "node": "ck.card.swelling", "value": "yes"}
+        },
+        {
+          "id": "card.palpitations",
+          "grade": "amber",
+          "reason": "Palpitations reported — consider ECG before the next cycle",
+          "when": {"op": "eq", "node": "ck.card.palpitations", "value": "yes"}
+        },
+        {
+          "id": "card.breathless_mild",
+          "grade": "amber",
+          "reason": "New mild breathlessness after anthracycline",
+          "when": {"op": "eq", "node": "ck.card.breathless", "value": "mild"}
+        }
+      ]
+    },
+
+    "rt_skin_mucosa": {
+      "title": {"en": "Skin and swallowing", "hi": "त्वचा और निगलना", "mr": "त्वचा आणि गिळणं", "te": "చర్మం మరియు మింగడం"},
+      "questions": [
+        {
+          "id": "ck.rt.skin",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Is the skin where you had radiation red or sore?",
+            "hi": "जहाँ सिकाई हुई है, वहाँ की त्वचा लाल या दुखती है?",
+            "mr": "जिथे शेक दिला आहे तिथली त्वचा लाल किंवा दुखरी आहे का?",
+            "te": "రేడియేషన్ ఇచ్చిన చోట చర్మం ఎర్రగా లేదా నొప్పిగా ఉందా?"
+          }
+        },
+        {
+          "id": "ck.rt.swallow",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Does it hurt to swallow?",
+            "hi": "क्या निगलने में दर्द होता है?",
+            "mr": "गिळताना दुखतं का?",
+            "te": "మింగేటప్పుడు నొప్పిగా ఉందా?"
+          }
+        },
+        {
+          "id": "ck.rt.intake",
+          "type": "single",
+          "options": "intake",
+          "prompt": {
+            "en": "How much are you able to eat and drink?",
+            "hi": "आप कितना खा-पी पा रहे हैं?",
+            "mr": "तुम्ही किती खाऊ-पिऊ शकत आहात?",
+            "te": "మీరు ఎంత తినగలుగుతున్నారు, తాగగలుగుతున్నారు?"
+          }
+        },
+        {
+          "id": "ck.rt.fever",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Since your treatment, have you had a fever?",
+            "hi": "इलाज के बाद क्या आपको बुखार आया है?",
+            "mr": "उपचारानंतर तुम्हाला ताप आला आहे का?",
+            "te": "చికిత్స తర్వాత మీకు జ్వరం వచ్చిందా?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "rt.fever",
+          "grade": "red",
+          "reason": "Fever during radiotherapy — needs assessment",
+          "when": {"op": "eq", "node": "ck.rt.fever", "value": "yes"}
+        },
+        {
+          "id": "rt.not_drinking",
+          "grade": "red",
+          "reason": "Taking almost nothing by mouth — dehydration risk",
+          "when": {"op": "eq", "node": "ck.rt.intake", "value": "almost_nothing"}
+        },
+        {
+          "id": "rt.skin_severe",
+          "grade": "red",
+          "reason": "Severe radiation dermatitis — review the treatment field",
+          "when": {"op": "eq", "node": "ck.rt.skin", "value": "severe"}
+        },
+        {
+          "id": "rt.odynophagia",
+          "grade": "amber",
+          "reason": "Severe pain on swallowing — review analgesia and nutrition",
+          "when": {"op": "eq", "node": "ck.rt.swallow", "value": "severe"}
+        },
+        {
+          "id": "rt.eating_less",
+          "grade": "amber",
+          "reason": "Eating less than half of normal",
+          "when": {"op": "eq", "node": "ck.rt.intake", "value": "half"}
+        },
+        {
+          "id": "rt.skin_mild",
+          "grade": "amber",
+          "reason": "Early radiation skin reaction — skin care advice",
+          "when": {"op": "eq", "node": "ck.rt.skin", "value": "mild"}
+        }
+      ]
+    },
+
+    "post_op_wound": {
+      "title": {"en": "Your wound", "hi": "आपका ज़ख़्म", "mr": "तुमची जखम", "te": "మీ గాయం"},
+      "questions": [
+        {
+          "id": "ck.op.wound",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Is the wound red or swollen?",
+            "hi": "क्या ज़ख़्म लाल है या उसमें सूजन है?",
+            "mr": "जखम लाल आहे का किंवा तिला सूज आली आहे का?",
+            "te": "గాయం ఎర్రగా ఉందా లేదా వాచిందా?"
+          }
+        },
+        {
+          "id": "ck.op.discharge",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Is any fluid or pus coming from the wound?",
+            "hi": "क्या ज़ख़्म से कोई पानी या पीप निकल रही है?",
+            "mr": "जखमेतून काही पाणी किंवा पू येत आहे का?",
+            "te": "గాయం నుండి ఏదైనా ద్రవం లేదా చీము వస్తోందా?"
+          }
+        },
+        {
+          "id": "ck.op.fever",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Since your operation, have you had a fever?",
+            "hi": "ऑपरेशन के बाद क्या आपको बुखार आया है?",
+            "mr": "ऑपरेशननंतर तुम्हाला ताप आला आहे का?",
+            "te": "ఆపరేషన్ తర్వాత మీకు జ్వరం వచ్చిందా?"
+          }
+        },
+        {
+          "id": "ck.op.pain",
+          "type": "scale",
+          "min": 0,
+          "max": 10,
+          "prompt": {
+            "en": "How bad is the pain, from 0 to 10?",
+            "hi": "दर्द 0 से 10 में कितना है?",
+            "mr": "वेदना 0 ते 10 मध्ये किती आहे?",
+            "te": "నొప్పి 0 నుండి 10 వరకు ఎంత ఉంది?"
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "op.infection",
+          "grade": "red",
+          "reason": "Wound discharge or fever after surgery — possible wound infection",
+          "when": {
+            "op": "or",
+            "rules": [
+              {"op": "eq", "node": "ck.op.discharge", "value": "yes"},
+              {"op": "eq", "node": "ck.op.fever", "value": "yes"}
+            ]
+          }
+        },
+        {
+          "id": "op.wound_severe",
+          "grade": "red",
+          "reason": "Wound markedly red or swollen — needs to be seen",
+          "when": {"op": "eq", "node": "ck.op.wound", "value": "severe"}
+        },
+        {
+          "id": "op.wound_mild",
+          "grade": "amber",
+          "reason": "Mild wound redness — nurse to review the dressing",
+          "when": {"op": "eq", "node": "ck.op.wound", "value": "mild"}
+        },
+        {
+          "id": "op.pain",
+          "grade": "amber",
+          "reason": "Poorly controlled post-operative pain",
+          "when": {"op": "gte", "node": "ck.op.pain", "value": 7}
+        }
+      ]
+    },
+
+    "palliative_comfort": {
+      "title": {"en": "Comfort", "hi": "आराम", "mr": "आराम", "te": "సౌకర్యం"},
+      "questions": [
+        {
+          "id": "ck.pall.pain",
+          "type": "scale",
+          "min": 0,
+          "max": 10,
+          "prompt": {
+            "en": "How bad is the pain, from 0 to 10?",
+            "hi": "दर्द 0 से 10 में कितना है?",
+            "mr": "वेदना 0 ते 10 मध्ये किती आहे?",
+            "te": "నొప్పి 0 నుండి 10 వరకు ఎంత ఉంది?"
+          }
+        },
+        {
+          "id": "ck.pall.breathless",
+          "type": "single",
+          "options": "none_mild_severe",
+          "prompt": {
+            "en": "Do you get breathless?",
+            "hi": "क्या आपकी साँस फूलती है?",
+            "mr": "तुम्हाला धाप लागते का?",
+            "te": "మీకు శ్వాస ఆడకపోవడం జరుగుతుందా?"
+          }
+        },
+        {
+          "id": "ck.pall.sleep",
+          "type": "single",
+          "options": "yes_no",
+          "prompt": {
+            "en": "Are you able to sleep at night?",
+            "hi": "क्या आप रात को सो पाते हैं?",
+            "mr": "तुम्हाला रात्री झोप लागते का?",
+            "te": "మీరు రాత్రి నిద్రపోగలుగుతున్నారా?"
+          }
+        },
+        {
+          "id": "ck.pall.other",
+          "type": "free_voice",
+          "prompt": {
+            "en": "Is anything else troubling you? Tell us in your own words.",
+            "hi": "और कुछ परेशान कर रहा है? अपने शब्दों में बताइए।",
+            "mr": "आणखी काही त्रास होतो आहे का? तुमच्या शब्दांत सांगा.",
+            "te": "ఇంకేమైనా ఇబ్బంది పెడుతోందా? మీ మాటల్లో చెప్పండి."
+          }
+        }
+      ],
+      "grading": [
+        {
+          "id": "pall.pain_severe",
+          "grade": "red",
+          "reason": "Severe uncontrolled pain",
+          "when": {"op": "gte", "node": "ck.pall.pain", "value": 8}
+        },
+        {
+          "id": "pall.breathless_severe",
+          "grade": "red",
+          "reason": "Severe breathlessness",
+          "when": {"op": "eq", "node": "ck.pall.breathless", "value": "severe"}
+        },
+        {
+          "id": "pall.pain",
+          "grade": "amber",
+          "reason": "Pain above the comfort threshold — review analgesia",
+          "when": {"op": "gte", "node": "ck.pall.pain", "value": 5}
+        },
+        {
+          "id": "pall.sleep",
+          "grade": "amber",
+          "reason": "Not sleeping at night",
+          "when": {"op": "eq", "node": "ck.pall.sleep", "value": "no"}
+        },
+        {
+          "id": "pall.breathless_mild",
+          "grade": "amber",
+          "reason": "Mild breathlessness reported",
+          "when": {"op": "eq", "node": "ck.pall.breathless", "value": "mild"}
+        }
+      ]
+    }
+  },
+
+  "protocols": {
+    "platinum": {
+      "label": {"en": "Platinum-based chemotherapy", "hi": "प्लैटिनम-आधारित कीमोथेरेपी", "mr": "प्लॅटिनम-आधारित केमोथेरपी", "te": "ప్లాటినం ఆధారిత కీమోథెరపీ"},
+      "match": {"drug_classes": ["cytotoxic-platinum"], "keywords": ["platinum", "cisplatin", "carboplatin", "oxaliplatin"]},
+      "cycle_days": 21,
+      "checkins": [
+        {"day_offset": 2, "question_set": "gi_platinum"},
+        {"day_offset": 7, "question_set": "myelosuppression"},
+        {"day_offset": 14, "question_set": "myelosuppression"}
+      ]
+    },
+    "taxane": {
+      "label": {"en": "Taxane chemotherapy", "hi": "टैक्सेन कीमोथेरेपी", "mr": "टॅक्सेन केमोथेरपी", "te": "టాక్సేన్ కీమోథెరపీ"},
+      "match": {"drug_classes": ["cytotoxic-taxane"], "keywords": ["taxane", "paclitaxel", "docetaxel", "cabazitaxel"]},
+      "cycle_days": 21,
+      "checkins": [
+        {"day_offset": 2, "question_set": "taxane_neuro"},
+        {"day_offset": 8, "question_set": "myelosuppression"},
+        {"day_offset": 14, "question_set": "taxane_neuro"}
+      ]
+    },
+    "anthracycline": {
+      "label": {"en": "Anthracycline chemotherapy", "hi": "एंथ्रासाइक्लिन कीमोथेरेपी", "mr": "अँथ्रासायक्लिन केमोथेरपी", "te": "ఆంత్రాసైక్లిన్ కీమోథెరపీ"},
+      "match": {"drug_classes": ["cytotoxic-anthracycline"], "keywords": ["anthracycline", "doxorubicin", "adriamycin", "epirubicin", "ac ", "chop", "abvd"]},
+      "cycle_days": 21,
+      "checkins": [
+        {"day_offset": 3, "question_set": "myelosuppression"},
+        {"day_offset": 7, "question_set": "anthracycline_cardiac"},
+        {"day_offset": 14, "question_set": "myelosuppression"}
+      ]
+    },
+    "radiotherapy": {
+      "label": {"en": "Radiotherapy", "hi": "रेडियोथेरेपी (सिकाई)", "mr": "रेडिओथेरपी (शेक)", "te": "రేడియోథెరపీ"},
+      "match": {"drug_classes": [], "keywords": ["radiotherapy", "radiation", "rt ", "ebrt", "imrt", "brachytherapy", "sikai", "sekai"]},
+      "cycle_days": 0,
+      "checkins": [
+        {"day_offset": 3, "question_set": "rt_skin_mucosa"},
+        {"day_offset": 7, "question_set": "rt_skin_mucosa"},
+        {"day_offset": 14, "question_set": "rt_skin_mucosa"}
+      ]
+    },
+    "post_op": {
+      "label": {"en": "After an operation", "hi": "ऑपरेशन के बाद", "mr": "ऑपरेशननंतर", "te": "ఆపరేషన్ తర్వాత"},
+      "match": {"drug_classes": [], "keywords": ["post-op", "post op", "postop", "surgery", "operation", "resection", "mastectomy", "colectomy", "laparotomy"]},
+      "cycle_days": 0,
+      "checkins": [
+        {"day_offset": 2, "question_set": "post_op_wound"},
+        {"day_offset": 5, "question_set": "post_op_wound"},
+        {"day_offset": 10, "question_set": "post_op_wound"}
+      ]
+    },
+    "palliative": {
+      "label": {"en": "Comfort care", "hi": "आराम की देखभाल", "mr": "आरामाची काळजी", "te": "సౌకర్య సంరక్షణ"},
+      "match": {"drug_classes": ["analgesic-opioid"], "keywords": ["palliative", "best supportive care", "bsc", "comfort care", "hospice"]},
+      "cycle_days": 0,
+      "checkins": [
+        {"day_offset": 3, "question_set": "palliative_comfort"},
+        {"day_offset": 7, "question_set": "palliative_comfort"},
+        {"day_offset": 14, "question_set": "palliative_comfort"}
+      ]
+    }
+  }
+}
