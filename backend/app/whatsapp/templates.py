@@ -18,9 +18,10 @@ template has ever actually been approved. What this file guarantees is that our
 code never tries to send a template shape Meta has not seen from us, and never
 sends the wrong number of variables (a silent Meta rejection otherwise).
 
-Bodies are carried in every active pilot language (en + hi, doc 03 §1). A missing
-language is a registry error, not a silent fall-back to English — an out-of-window
-message the patient cannot read is worse than none.
+Bodies are carried in every active pilot language (en + hi + mr + te, doc 03 §1;
+mr/te completed in S13). A missing language is a registry error, not a silent
+fall-back to English — an out-of-window message the patient cannot read is worse
+than none. The `app.lang_qa` harness asserts every template covers all four.
 """
 
 from __future__ import annotations
@@ -129,6 +130,26 @@ _register(
         ),
         variables=("patient_name", "hospital"),
     ),
+    Template(
+        name="intake_invite",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. हे {{2}} आहे. तुमच्या भेटीपूर्वी चेक-इन पूर्ण करण्यासाठी या "
+            "संदेशाला उत्तर द्या, म्हणजे डॉक्टर तुमच्यासाठी तयार राहतील."
+        ),
+        variables=("patient_name", "hospital"),
+    ),
+    Template(
+        name="intake_invite",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. ఇది {{2}}. మీ సందర్శనకు ముందు చెక్-ఇన్ పూర్తి చేయడానికి ఈ "
+            "సందేశానికి ప్రత్యుత్తరం ఇవ్వండి, తద్వారా డాక్టర్ మీ కోసం సిద్ధంగా ఉంటారు."
+        ),
+        variables=("patient_name", "hospital"),
+    ),
     # A token-status answer once the window has lapsed (the in-window answer is
     # free text; this is the out-of-window fall-back, doc 03 §6/§1d).
     Template(
@@ -143,6 +164,20 @@ _register(
         lang=Lang.HI,
         category="UTILITY",
         body="नमस्ते {{1}}। आज {{2}} में आपका टोकन {{3}} है। आपसे पहले {{4}}।",
+        variables=("patient_name", "hospital", "token_no", "ahead"),
+    ),
+    Template(
+        name="token_status",
+        lang=Lang.MR,
+        category="UTILITY",
+        body="नमस्कार {{1}}. आज {{2}} मध्ये तुमचा टोकन {{3}} आहे. तुमच्या आधी {{4}}.",
+        variables=("patient_name", "hospital", "token_no", "ahead"),
+    ),
+    Template(
+        name="token_status",
+        lang=Lang.TE,
+        category="UTILITY",
+        body="నమస్తే {{1}}. ఈ రోజు {{2}}లో మీ టోకెన్ {{3}}. మీకు ముందు {{4}}.",
         variables=("patient_name", "hospital", "token_no", "ahead"),
     ),
     # An out-of-window prescription notification (S11 delivery). The full sheet is
@@ -166,6 +201,26 @@ _register(
         body=(
             "नमस्ते {{1}}। डॉ. {{2}} ने {{3}} में आपका प्रिस्क्रिप्शन जारी किया है। इस संदेश "
             "का उत्तर दें और हम इसे यहाँ भेज देंगे।"
+        ),
+        variables=("patient_name", "doctor", "hospital"),
+    ),
+    Template(
+        name="prescription_ready",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. डॉ. {{2}} यांनी {{3}} मध्ये तुमचं प्रिस्क्रिप्शन दिलं आहे. या "
+            "संदेशाला उत्तर द्या आणि आम्ही ते तुम्हाला इथे पाठवू."
+        ),
+        variables=("patient_name", "doctor", "hospital"),
+    ),
+    Template(
+        name="prescription_ready",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. డా. {{2}} {{3}}లో మీ ప్రిస్క్రిప్షన్ ఇచ్చారు. ఈ సందేశానికి "
+            "ప్రత్యుత్తరం ఇవ్వండి, మేము దాన్ని ఇక్కడ మీకు పంపుతాము."
         ),
         variables=("patient_name", "doctor", "hospital"),
     ),

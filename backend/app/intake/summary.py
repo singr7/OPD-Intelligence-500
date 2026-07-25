@@ -52,10 +52,13 @@ LANG_NAMES: dict[str, str] = {
 #: The template summarizer's read-back, per language — everyday words, no medical
 #: vocabulary, ending in a yes/no confirm (doc 03 §1: many patients cannot read,
 #: this is the only check they get). The LLM path writes a richer one; this is the
-#: offline floor, authored not model-generated. mr/te are S13 (fall back to hi).
+#: offline floor, authored not model-generated. All four pilot languages (S13);
+#: {concern} and {flags} arrive already translated (tree text, flag instruction).
 _READBACK_TEMPLATE: dict[str, str] = {
     Lang.EN: "You told me: {concern}. {flags}Is that right? Say yes, or tell me what to change.",
     Lang.HI: "आपने बताया: {concern}। {flags}क्या यह सही है? हाँ कहिए, या बताइए क्या बदलना है।",
+    Lang.MR: "तुम्ही सांगितलं: {concern}. {flags}हे बरोबर आहे का? होय म्हणा, किंवा काय बदलायचं ते सांगा.",
+    Lang.TE: "మీరు చెప్పారు: {concern}. {flags}ఇది సరైనదేనా? అవును అనండి, లేదా ఏం మార్చాలో చెప్పండి.",
 }
 
 
