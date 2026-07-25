@@ -29,6 +29,7 @@ from app.providers.metering import UsageMeter, set_meter
 from app.providers.pricing import get_price_book
 from app.queue_hub import QueueHub
 from app.routes.admin import router as admin_router
+from app.routes.appointments import router as appointments_router
 from app.routes.dictation import router as dictation_router
 from app.routes.doctor import router as doctor_router
 from app.routes.health import router as health_router
@@ -121,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dictation_router)
     app.include_router(prescription_router)
     app.include_router(whatsapp_router)
+    app.include_router(appointments_router)
     app.include_router(admin_router)
     return app
 

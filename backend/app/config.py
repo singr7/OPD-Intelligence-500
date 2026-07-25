@@ -90,6 +90,18 @@ class Settings(BaseSettings):
     exotel_sms_sender_id: str = "OPDALW"
     exotel_dlt_entity_id: str = ""
     exotel_dlt_template_ids: dict[str, str] = {}
+    # The Voicebot applet Exotel runs when an outbound campaign call is answered —
+    # it opens the websocket to voice-gw (S14). Set per environment in the Exotel
+    # console; empty locally, where the fake provider dials nothing real.
+    exotel_applet_url: str = ""
+    # Where Exotel posts a call's final state and duration. The only place per-call
+    # telephony cost can be known (app/providers/telephony.py).
+    exotel_status_callback_url: str = ""
+    # Shared secret on that webhook's query string. Empty disables the check, which
+    # `assert_production_safe` refuses outside local.
+    exotel_webhook_token: str = ""
+    # Where a receptionist call is transferred on handoff (doc 03 §2).
+    coordinator_phone: str = ""
 
     # Meta WhatsApp Cloud API.
     meta_whatsapp_token: str = ""
@@ -168,6 +180,17 @@ class Settings(BaseSettings):
     # uses its own observed mean instead (app.queue.estimate_wait).
     queue_default_consult_minutes: int = 6
 
+    # --- Outbound campaign (S15, doc 01 §4.2) --------------------------------
+    # Off by default: a box that boots with a real Exotel account configured must
+    # not start ringing patients because beat came up. Turning it on is a
+    # deliberate act, per environment.
+    campaign_enabled: bool = False
+    # Hospital-local hour the D-1 campaign launches. Evening, per doc 01 §4.2 —
+    # patients are home, and the call is about tomorrow.
+    campaign_hour: int = 18
+    # How far ahead the nightly job materialises bookable slots from templates.
+    slot_generation_horizon_days: int = 60
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}
@@ -184,6 +207,10 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET must be at least 32 characters")
         if self.otp_debug_echo:
             problems.append("OTP_DEBUG_ECHO must be off outside local")
+        # An unauthenticated status callback lets anyone mark a patient's call
+        # complete — which silently cancels their remaining retry (S15).
+        if self.campaign_enabled and not self.exotel_webhook_token:
+            problems.append("EXOTEL_WEBHOOK_TOKEN must be set when the campaign is enabled")
         # A fake provider outside local is not a degraded mode — it is an OTP
         # that never arrives, or an intake that answers itself. Refuse to boot.
         problems += [
