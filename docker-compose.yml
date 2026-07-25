@@ -72,12 +72,29 @@ services:
       retries: 6
 
   voice-gw:
-    build: ./voice-gw
+    # Root build context (S14): the image bundles `backend/` so the Exotel bridge
+    # can drive the shared IntakeEngine in-process. Still a separate container from
+    # api for crash isolation (doc 05 §3).
+    build:
+      context: .
+      dockerfile: voice-gw/Dockerfile
     <<: *restart
     env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-opd}:${POSTGRES_PASSWORD:-opd_local_dev}@postgres:5432/${POSTGRES_DB:-opd}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # Live-editable tier ladder (app.tiers reads /app/config/tiers.yaml); no
+      # rebuild to retune the phone ladder or admission cap.
+      - ./config:/app/config:ro
+      # The authored tree bank. voice-gw mirrors the repo tree one level deep
+      # (/app/backend), so app.trees.bank.TREES_DIR resolves to /app/seeds/trees.
+      - ./seeds:/app/seeds:ro
     ports:
       # Host 8090 (container stays 8080) to avoid clashing with other local
       # dev projects that commonly grab 8080; Caddy talks to voice-gw:8080.

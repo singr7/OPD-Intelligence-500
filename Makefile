@@ -63,8 +63,8 @@ test: test-backend test-voicegw test-web ## Run the full test suite
 test-backend: ## Backend pytest
 	cd backend && .venv/bin/python -m pytest -q
 
-test-voicegw: ## voice-gw pytest
-	cd voice-gw && .venv/bin/python -m pytest -q
+test-voicegw: ## voice-gw pytest (runs on the backend venv — voice-gw shares the engine, S14)
+	cd voice-gw && PYTHONPATH="$(CURDIR)/backend:$(CURDIR)/voice-gw" $(CURDIR)/$(BACKEND_PY) -m pytest -q
 
 test-web: check-tree-fixtures ## Web typecheck + lint + walker conformance (build is exercised in CI)
 	cd web && npm run typecheck && npm run lint && npm run conformance

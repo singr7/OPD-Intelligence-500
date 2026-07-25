@@ -1,0 +1,16 @@
+# Root build context is used only by the voice-gw image (S14), which needs both
+# `backend/` (the in-process IntakeEngine) and `voice-gw/`. Keep the context lean
+# — the api/web/backend images use their own sub-directory contexts and are
+# unaffected by this file.
+.git
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.ruff_cache/
+**/.venv/
+web/node_modules/
+web/.next/
+web/test-results/
+web/playwright-report/
+**/.mypy_cache/
+*.log
