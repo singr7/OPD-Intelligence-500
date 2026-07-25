@@ -224,11 +224,31 @@ metering `provider=local-*`, priced from amortized `local-*` `price_book` rows. 
 proof, S-OSS.3 Dhara cloning) needs the physical 24 GB box — not built here; `local-pipecat`
 realtime refuses to build until then.
 
-**Not built yet:** the real Exotel vendor WS + status-callback and inbound/outbound campaigns
-(S14 built the phone pipeline over a fake client; the vendor + slot booking are S15); the real
-Gemini Live vendor impl (S14 wired the bridge, the vendor is still fake); real voice packs / the
-voice-pack manifest + `/kiosk/stt` (S7 carryover → backlog); the V-OSS **GPU half**
-(S-OSS.1/.2/.3 — needs the GPU box).
+**Built (S15):** **Appointments** (doc 03 §2, doc 01 §4.2/4.4). `app/scheduling.py` = slot
+inventory + constraint-safe booking: `SlotTemplate` (the clinic grid) → `generate_slots` →
+`AppointmentSlot`, and **a seat is a row** — `appointments.UNIQUE(slot_id, seat_no)` plus
+`CHECK(0 <= booked <= capacity)` and a conditional seat claim make double-booking
+unrepresentable; cancelling NULLs `seat_no` to release it. `app/receptionist.py` = the inbound
+AI receptionist: one distrusted model call (`prompts/receptionist/v1.md`) picks the intent
+(book/reschedule/cancel/status/human), everything after it is deterministic over real inventory,
+slots are chosen by keypad digit, and two failed turns (or any classifier failure) transfer to a
+coordinator with a **whisper summary**. `app/notify.py` = WhatsApp **+** SMS on every booking
+(template out of window, one-tap confirm/cancel buttons in window), recorded on
+`Appointment.reminders` and never able to fail a booking. `app/campaign.py` + `app/worker.py` =
+the **D-1 outbound campaign** as four idempotent beat jobs (plan/launch/dial/reconcile) with the
+2-attempt ladder in an `outbound_calls` row and a WhatsApp last rung; `campaign_enabled` is off
+by default. `app/routes/appointments.py` = staff booking REST + the **Exotel status callback**
+(meters per-call minutes, always 200s). `voice-gw`: `WS /exotel/receptionist` +
+`gw/reception.py` over S14's transport/pump/VAD, and the **Redis-backed `PhoneCallStore`**.
+Migration `48da92857b2a`; `seeds/slot_templates.json`; `make slots`, `make campaign-dryrun`.
+840→**907 backend tests**, voice-gw 15→**22**.
+
+**Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
+fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
+Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
+(S15 releases the seat, notifies nobody); real voice packs / the voice-pack manifest +
+`/kiosk/stt` (S7 carryover → backlog); the V-OSS **GPU half** (S-OSS.1/.2/.3 — needs the GPU
+box).
 
 ## How to run
 ```
@@ -290,6 +310,12 @@ in-memory flag, not env).
 `META_APP_SECRET` (POST signature — signature checking is skipped only when it is empty).
 `WHATSAPP_VOICE_NOTES` (default `false`) attaches a synthesized voice note to each reply.
 The 24h window + wa_id→session state is Redis/in-memory, not env.
+**Appointments + campaign (S15):** `CAMPAIGN_ENABLED` (default `false` — nothing dials until an
+operator turns it on), `CAMPAIGN_HOUR` (default 18, hospital-local, doc 01 §4.2's evening slot),
+`SLOT_GENERATION_HORIZON_DAYS` (default 60), `EXOTEL_APPLET_URL` (the Voicebot applet Exotel runs
+when a campaign call is answered), `EXOTEL_STATUS_CALLBACK_URL` + `EXOTEL_WEBHOOK_TOKEN` (the
+per-call cost callback and its shared secret — `assert_production_safe` refuses to boot with the
+campaign on and the token empty), `COORDINATOR_PHONE` (where a receptionist handoff transfers).
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
@@ -432,7 +458,21 @@ the only gate right now.**
   and a DB-backed editable template registry are S18-late/S7/S15.
 - **Protocol-template + slot-template editors are deferred placeholders** (S18E) — `GET
   /admin/protocol-templates` and `/admin/slot-templates` return a `{deferred, arrives_in}` marker
-  (S17 / S15); the console renders an honest "arrives with" card. Their models don't exist yet.
+  (S17 / S18-late); the console renders an honest "arrives with" card. `SlotTemplate` **now
+  exists** (S15) and is edited by `seeds/slot_templates.json` + `make seed`; the protocol model
+  still does not.
+- **The campaign has never dialled a real number** (S15) — `CAMPAIGN_ENABLED=false` everywhere,
+  and the whole ladder is proven against `FakeTelephonyProvider`. Turning it on needs a live
+  Exotel number, `EXOTEL_APPLET_URL`, `EXOTEL_STATUS_CALLBACK_URL` and `EXOTEL_WEBHOOK_TOKEN`
+  (the last is enforced by `assert_production_safe` when the flag is on).
+- **Exotel `transfer_call` is a second `connect`, and the whisper applet is not code** (S15) —
+  Exotel has no "transfer this live leg" verb, so the handoff dials the coordinator and bridges;
+  the applet that reads the whisper line to them is configured in the Exotel console. Unproven
+  against the vendor.
+- **No appointment waitlist** (S15) — doc 03 §2's "cancellations release slots and notify
+  waitlist" is half-built: the seat is released, nobody is notified.
+- **Receptionist mr/te copy is romanized placeholders** (S15) — same carry as the S14 consent
+  line; native + clinical review is S21.
 - **Admin what-if is the edited-price-book recompute, not tier-mix** (S18E) — exactly
   hand-checkable (re-scales stored per-row cost by a provider/model factor). Tier-mix needs a
   cross-tier provider mapping and is deferred with S14.
@@ -522,9 +562,9 @@ the only gate right now.**
   half-shaped `Prescription` row now would be a migration for a later session to undo.
 - **The formulary is a seed file read at boot**, not a table — a hospital adding a drug
   needs a deploy until S18's admin console owns it.
-- **The doctor's day list has no appointments** — doc 03 §5 says "appointments+walk-ins",
-  but the S8 queue holds walk-ins and `Appointment` has no check-in flow until S15, so the
-  worklist is the queue only. Not faked; backlog for S15/S18.
+- **The doctor's day list has no appointments** — doc 03 §5 says "appointments+walk-ins".
+  S15 gives `Appointment` real slots and a booking flow, but **no arrival/check-in step** turns
+  one into a queue entry, so the worklist is still the queue only. Not faked; backlog.
 - **The doctor console has no WebSocket** — it refetches after its own mutations, so a
   coordinator moving the same line elsewhere is not pushed to the doctor until they next
   act. The `/queue/ws` hub already exists to subscribe to (S18 polish).

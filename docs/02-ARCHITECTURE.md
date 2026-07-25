@@ -55,7 +55,10 @@ visits(id, patient_id, date, dept_id, doctor_id, token_no, status[registered|int
 intakes(id, visit_id, tier[conversational|rule_based|prerecorded|paper], lang, transcript JSONB, answers JSONB, chief_complaint, red_flags JSONB, summary_md, summary_lang_versions JSONB, confirmed_by_patient bool, created_at)
 departments(id, name, icon, active)
 question_trees(id, dept_id, version, lang, tree JSONB, status[draft|published])   -- trees are DATA
-appointments(id, patient_id, dept_id, doctor_id, slot_at, status[booked|confirmed|rescheduled|cancelled|arrived], source, reminders JSONB)
+appointments(id, patient_id, dept_id, doctor_id, slot_id, seat_no, slot_at, slot_type, status[booked|confirmed|rescheduled|cancelled|arrived], source, reminders JSONB)
+slot_templates(id, dept_id, doctor_id, weekday, start_time, end_time, slot_minutes, capacity, slot_type[new_consult|follow_up|chemo_review], active)   -- S15; admin-configured, doc 03 §2
+appointment_slots(id, dept_id, doctor_id, template_id, starts_at, ends_at, slot_type, capacity, booked)   -- S15; UNIQUE(doctor_id, starts_at) + CHECK(0 <= booked <= capacity)
+outbound_calls(id, appointment_id, patient_id, purpose, for_date, to_phone, state[pending|dialing|completed|failed|fallback_sent|cancelled], attempts, next_attempt_at, last_call_sid, outcome, intake_id, fallback_sent_at)   -- S15; the D-1 retry ladder, doc 03 §1b
 queues(id, dept_id, doctor_id, date) / queue_entries(queue_id, visit_id, token_no, priority[routine|semi|urgent], state, called_at, started_at, ended_at)
 doctors(id, name, dept_id, phone, reg_no, otp auth fields)
 dictations(id, visit_id, doctor_id, audio_url, transcript, structured JSONB{diagnosis, plan, meds[], advice, follow_up, treatment_events[]}, status[draft|signed])
@@ -72,6 +75,12 @@ Notes:
 - All patient free-text/audio in original language + English translation stored side by side.
 - `question_trees.tree` JSONB schema is defined in doc 03 §4 — versioned, published/draft, editable via admin.
 - Soft deletes only; `audit_log` on every clinical write.
+- **Double-booking is unrepresentable, not merely checked** (S15, doc 03 §2's AC): a seat is a
+  row. `appointments` carries `UNIQUE(slot_id, seat_no)`, so two bookings cannot hold the same
+  seat even if the counter logic is wrong, and `appointment_slots.booked` is moved by a
+  conditional `UPDATE … WHERE booked < capacity` under `CHECK(booked <= capacity)`. Cancelling
+  NULLs `seat_no` (NULLs do not collide in a unique index), which releases the seat while
+  keeping the history of which slot it was.
 - `price_book.unit` is how the *vendor* bills, not how we measure: TTS is priced per `char` (both Sarvam Bulbul and Google bill per character, not per second of audio produced), telephony per `call_min`, STT per `audio_sec`. `token_in|token_out|char` prices are **per 1,000 units**; the rest are per single unit. A provider is priced by `audio_sec` **or** `call_min`, never both. See `backend/app/providers/pricing.py`.
 
 ## 5. Speech & LLM pipeline (shared engine, many channels)
