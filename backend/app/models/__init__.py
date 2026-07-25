@@ -20,11 +20,13 @@ from app.models.enums import (
     IntakeTier,
     Lang,
     OtpPurpose,
+    OutboundCallState,
     PriceUnit,
     Priority,
     QueueEntryState,
     Role,
     Sex,
+    SlotType,
     TreeStatus,
     UsagePurpose,
     VisitStatus,
@@ -32,7 +34,15 @@ from app.models.enums import (
 from app.models.metering import PriceBook, UsageEvent
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
-from app.models.scheduling import Appointment, OfflineTokenBlock, Queue, QueueEntry
+from app.models.scheduling import (
+    Appointment,
+    AppointmentSlot,
+    OfflineTokenBlock,
+    OutboundCall,
+    Queue,
+    QueueEntry,
+    SlotTemplate,
+)
 
 __all__ = [
     # base
@@ -54,6 +64,9 @@ __all__ = [
     "Prescription",
     # scheduling
     "Appointment",
+    "SlotTemplate",
+    "AppointmentSlot",
+    "OutboundCall",
     "Queue",
     "QueueEntry",
     "OfflineTokenBlock",
@@ -79,11 +92,13 @@ __all__ = [
     "IntakeTier",
     "Lang",
     "OtpPurpose",
+    "OutboundCallState",
     "PriceUnit",
     "Priority",
     "QueueEntryState",
     "Role",
     "Sex",
+    "SlotType",
     "TreeStatus",
     "UsagePurpose",
     "VisitStatus",

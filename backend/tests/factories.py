@@ -9,15 +9,16 @@ from __future__ import annotations
 
 import itertools
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.clinical import Dictation, Intake, Visit
-from app.models.enums import Channel, IntakeTier, Lang, Role, Sex, VisitStatus
+from app.models.enums import Channel, IntakeTier, Lang, Role, Sex, SlotType, VisitStatus
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
+from app.models.scheduling import AppointmentSlot, SlotTemplate
 
 _counter = itertools.count(1)
 
@@ -99,6 +100,39 @@ def make_patient(hospital: Hospital, **overrides: Any) -> Patient:
             "lang": Lang.HI,
             "village": "Ramgarh",
             "district": "Alwar",
+            **overrides,
+        }
+    )
+
+
+def make_slot_template(doctor: Doctor, **overrides: Any) -> SlotTemplate:
+    return SlotTemplate(
+        **{
+            "department_id": doctor.department_id,
+            "doctor_id": doctor.id,
+            "weekday": 1,  # Tuesday
+            "start_time": time(10, 0),
+            "end_time": time(11, 0),
+            "slot_minutes": 15,
+            "capacity": 1,
+            "slot_type": SlotType.FOLLOW_UP,
+            "active": True,
+            **overrides,
+        }
+    )
+
+
+def make_slot(doctor: Doctor, starts_at: datetime, **overrides: Any) -> AppointmentSlot:
+    minutes = overrides.pop("minutes", 15)
+    return AppointmentSlot(
+        **{
+            "department_id": doctor.department_id,
+            "doctor_id": doctor.id,
+            "starts_at": starts_at,
+            "ends_at": starts_at + timedelta(minutes=minutes),
+            "slot_type": SlotType.FOLLOW_UP,
+            "capacity": 1,
+            "booked": 0,
             **overrides,
         }
     )

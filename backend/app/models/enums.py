@@ -76,6 +76,33 @@ class AppointmentStatus(StrEnum):
     ARRIVED = "arrived"
 
 
+class SlotType(StrEnum):
+    """Oncology slot types (doc 03 §2). A slot is typed because the clinics are:
+    a new consult takes a different length and a different room from a chemo
+    review, and a caller asking for a follow-up must not be offered a new-patient
+    slot the doctor holds for referrals."""
+
+    NEW_CONSULT = "new_consult"
+    FOLLOW_UP = "follow_up"
+    CHEMO_REVIEW = "chemo_review"
+
+
+class OutboundCallState(StrEnum):
+    """One patient's place in the D-1 outbound campaign's retry ladder (S15).
+
+    `failed` means the ladder is exhausted (2 attempts, doc 03 §1b), not that a
+    single dial failed — a dial that fails leaves the row `pending` with a later
+    `next_attempt_at`.
+    """
+
+    PENDING = "pending"
+    DIALING = "dialing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    FALLBACK_SENT = "fallback_sent"
+    CANCELLED = "cancelled"
+
+
 class Priority(StrEnum):
     ROUTINE = "routine"
     SEMI = "semi"
