@@ -243,6 +243,26 @@ by default. `app/routes/appointments.py` = staff booking REST + the **Exotel sta
 Migration `48da92857b2a`; `seeds/slot_templates.json`; `make slots`, `make campaign-dryrun`.
 840→**907 backend tests**, voice-gw 15→**22**.
 
+**Built (S16):** The **Android patient app** (doc 03 §1c) and the backend's first *patient*
+identity. `app/patient_app.py` + `app/routes/patient.py` = the `/patient/*` surface, all of it
+derived from rows other sessions already write (S11 prescriptions, S5 summaries, S8's queue order,
+S15's `app.scheduling`) — and every read scoped on the **token's** patient id, with no
+`patient_id` parameter in the router at all. Identity: `create_patient_access_token` carries a
+`kind: "patient"` claim that `current_principal` refuses and `current_patient` requires;
+`refresh_tokens` gained `patient_id`/`subject_phone` under `CHECK((user_id IS NULL) <> (patient_id
+IS NULL))`; `app.auth.otp.check_code` is the shared code-checking both audiences use.
+`caregiver_links` is an **access grant** (never inferred from `patients.caregiver_phone`, which is
+a desk contact), re-read on every request so a revocation lands at the caregiver's next screen.
+`dose_events` is adherence keyed `(prescription_id, med_index, scheduled_for)` so a re-report
+cannot ping a caregiver twice. `app/routes/kiosk.py` grew `next_node_impl`/`answer_impl`/
+`finish_impl` so the app walks the **kiosk's own handler bodies** behind its own login.
+`android/` = Kotlin/Compose, minSdk 26, **1.53 MB** release APK: four tabs, Room-backed offline
+care file (ETag-conditional sync, `PdfDocument` share), home intake over device STT/TTS, live
+queue position with a "leave home by", WorkManager + **exact** alarms that ring only for dose
+times the doctor actually stated, chemo calendar read aloud from `seeds/regimen_notes.json`, and
+family access. Migration `e108276e7d43`. 907→**932 backend tests** + 6 Android JVM (in `make
+test`) + 6 instrumented (emulator, `make android-test-device`).
+
 **Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
 fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
 Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
@@ -255,10 +275,21 @@ box).
 make dev                 # full stack (11 services)
 make migrate             # apply migrations to the local DB
 make seed                # load the pilot dataset + price book + trees (idempotent)
-make test                # backend pytest + voice-gw pytest + web typecheck/lint
+make test                # backend + voice-gw pytest, web typecheck/lint, android JVM tests
 make migration m="..."   # autogenerate a revision from model changes
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
+make app-demo            # give the first seeded patient a prescription, a cycle, a caregiver
+make android-emulator    # boot the pilot AVD headless
+make android-install     # install the debug app, pointed at http://10.0.2.2:8000
+make android-test-device # instrumented tests (needs a booted emulator)
+make android-apk         # release APK + the 15MB size gate
 ```
+Android app (S16): `android/`, package `ai.radpretation.opd`. Needs a **JDK 17**
+(`ANDROID_JAVA_HOME`, default `/opt/homebrew/opt/openjdk@17`) and an SDK path in
+`android/local.properties` (gitignored). Demo login: `make app-demo`, then sign in on the
+emulator as `+915551900001`; with `OTP_DEBUG_ECHO=true` the code comes back in the
+`/auth/patient/otp/request` response, so read it from the api log or re-issue the request with
+curl. The linked caregiver is `+915551900099`.
 Queue board + coordinator console (S8): served at `/board` (public TV) and
 `/coordinator` (staff, phone-OTP). The board holds a WebSocket to `/queue/ws` and
 re-fetches on every change ping. Live demo (needs a live api with S8 code — the
@@ -355,6 +386,16 @@ the only gate right now.**
   bypasses it.
 - **Never edit a `price_book` rate in place** — add a row with a later `effective_from`. Editing
   silently re-interprets every historical cost computed at the old rate.
+- **A patient id comes from the token, never from a request** (S16) — `app/routes/patient.py` has
+  no `patient_id` path or body parameter anywhere, so "forgot to scope this query" is not a
+  mistake that can be made there. A caregiver's token names the *patient*, not the caregiver.
+- **Caregiver access is a consented grant, re-read per request** (S16) —
+  `patients.caregiver_phone` is a contact number a registration desk wrote down and grants
+  nothing; `caregiver_links` in state `active` is the only thing that opens a file, and
+  `current_patient` re-checks it on every call so revoking is immediate.
+- **The phone never invents a dose time** (S16) — `DoseScheduler` arms an alarm only where the
+  server returned a clock time, which S11's `parse_schedule` sets only when the doctor's own words
+  named one. A "BD" with no slots rings for nothing and says why. Same refusal as the paper copy.
 - **A dosing schedule is never inferred** (S11, `app.prescription.parse_schedule`) —
   the patient copy's pictograms are read by someone who cannot read the caption under
   them, so an icon *is* the instruction. Slots are drawn only when the dictation names a
@@ -447,6 +488,24 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **The app's chemo cycles are counted from appointments, not from a regimen** (S16) —
+  `chemo_calendar` numbers a patient's own `chemo_review` appointments and shows the generic
+  what-to-expect text from `seeds/regimen_notes.json`. Real per-regimen personalisation is S17's
+  protocol templates. The dates are real; the advice is generic-but-true.
+- **"What-to-expect audio clips" are device TTS over text** (S16, doc 03 §1c.5) — a tenth of the
+  bytes, works offline, and the same strings the language QA harness checks. Recorded clips would
+  need a voice artist per language.
+- **`scripts/seed_app_demo.py` writes a prescription snapshot by hand** (S16) — the frozen shape
+  `app.prescription` writes at signing, not the output of a real dictation. Demo furniture for a
+  screen walk; the dictation path has its own fixtures (S10/S11).
+- **The app stores its session in plain DataStore** (S16) — app-private storage, tokens already
+  scoped to one file, and EncryptedSharedPreferences costs ~600KB plus a class of
+  keystore-invalidation bugs that would lock a patient out of her prescriptions in a waiting room.
+- **The app has never run on a real handset** (S16) — six instrumented tests and a full screen walk
+  on an emulator (API 35). Doze behaviour overnight on a low-end Android 8 phone is the untested
+  risk. Owed on omen.
+- **The APK is unsigned** (S16) — `assembleRelease` produces the unsigned artifact the size gate
+  measures. Play Store signing, privacy policy and data-safety declaration do not exist yet.
 - **The admin tree editor is version-list + publish + JSON-inspect, not a visual builder**
   (S18E) — the AC path ("edit the tree, publish, live on the kiosk with no deploy") works via
   `store.resolve_tree` (kiosk reads DB-published trees, disk bank as floor), and there is a
