@@ -157,6 +157,22 @@ class CheckinPlanStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class CheckinState(StrEnum):
+    """Where one check-in is in its life (S17).
+
+    Deliberately separate from `grade`: a check-in can be `expired` (the ladder
+    ran out of rungs and nobody answered) with no grade at all, and "we could not
+    reach her" is a different clinical fact from "she said she is fine".
+    """
+
+    PENDING = "pending"
+    SENT = "sent"
+    ANSWERED = "answered"
+    #: Every rung of the delivery ladder failed, or the window to answer closed.
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class CheckinGrade(StrEnum):
     GREEN = "green"
     AMBER = "amber"
