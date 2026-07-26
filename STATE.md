@@ -288,6 +288,27 @@ D-2/D-0 next-cycle reminders, reusing S15's `notify_appointment` when there is a
 `make checkin-demo`. `GET /admin/protocol-templates` stopped being a deferred marker.
 932→**1071 backend tests**.
 
+**Built (S18-late):** The **admin console finished** (doc 03 §10). The **visual tree editor**
+(`web/.../TreeEditor.tsx`) draws a tree as a spine in ask order — branches indented under the
+option that leads to them, red-flag stations stamped and tinted — with the question text, the
+option labels and the red-flag label/instruction/severity editable in all four languages, a
+try-it panel that dry-walks the *edited* JSON through the real walker, and save→publish as two
+deliberate taps. It edits **words, not shape**: adding, deleting or rewiring a question stays in
+`seeds/trees/*.json` and a pull request, where the validator's unreachable-question and cycle
+checks are read by a person. The **check-in protocol bank moved into a table** the way S4's trees
+did — `protocol_banks` holds versions, `app/checkins/store.py` `resolve_bank()` prefers the
+newest published row that parses and falls back to `seeds/protocols.json`, and every check-in
+entry point (drafting, approval, the plan view) resolves through it; the bank is versioned as
+**one document** because `protocols.parse` cross-checks the whole thing (no orphan set, no tied
+precedence), and `parse()` is still the only constructor. That editability forced
+`Checkin.grading_rules`: a grade is recomputed on every answer, so rules read live would let an
+afternoon's publish re-decide Tuesday's answers — the rules are now frozen onto the row beside
+the questions `asked` already froze. `analytics.tier_mix` is doc 03 §11's other what-if,
+**measured not modelled** (medians this hospital booked; it refuses rather than pricing phone V2
+off kiosk intakes). Migration `cb011d62f829`. 1071→**1082 backend tests** +
+`web/e2e/admin.spec.ts` (project `admin`, `npm run e2e:admin`, 4 tests — the session AC among
+them) + `web/screenshots/s18l/`.
+
 **Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
 fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
 Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
@@ -381,6 +402,20 @@ has no voice-gw handler yet, see Stubs). The protocol bank is `seeds/protocols.j
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
+Admin console (S18E + S18-late): served at `/admin` (staff, phone-OTP; **admin** role only —
+seeded Priya Sharma `+915550000001`). Six tabs: cost & tokens, operations, trees (the visual
+editor), price book, templates & voice, protocols & slots. Needs a live api with S18-late code:
+```
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 \
+  JWT_SECRET=local-dev-secret-padded-to-32-chars-plus .venv/bin/python -m uvicorn app.main:app --port 8123
+cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:admin       # the S18 AC + screenshots -> web/screenshots/s18l/
+```
+⚠️ `e2e:admin` really publishes a new version of `general_medicine_routing` on whatever database
+it points at. Dev boxes only.
+
 Doctor console (S9) + consult note (S10): served at `/doctor` (staff, phone-OTP). Needs a
 live api with S9/S10 code and a seeded demo morning. **Re-seed before every e2e run** —
 signing a note is terminal, and the seed hard-deletes its own dictations to stay repeatable:
@@ -441,6 +476,17 @@ the only gate right now.**
 - **A `Checkin` is answered against `asked`, not against the bank** (S17) — the questions are
   frozen onto the row when it is created, so re-authoring a protocol cannot change what a
   patient was asked last week, or what her "2" meant. Same argument as S11's `meds` snapshot.
+- **…and graded against `grading_rules`, not against the bank either** (S18-late) — the other
+  half of the same snapshot, and what makes an editable protocol bank safe. A grade is
+  recomputed on every answer and every correction, so rules read live would let a bank
+  published on Wednesday afternoon re-decide answers given on Tuesday, in either direction and
+  with nothing on the record to say so. A snapshot the validator no longer accepts grades
+  **amber, by hand** — never green, and never a red nobody can explain.
+- **`app.checkins.store.resolve_bank` is how every check-in entry point gets the bank**
+  (S18-late) — published row first, `seeds/protocols.json` as the floor, a row that no longer
+  parses skipped rather than fatal. Calling `protocols.get_bank()` directly in new code
+  reintroduces "the console edits a file the engine never reads", which is the bug S18E fixed
+  for trees and this fixed for protocols. `parse()` remains the only constructor for both.
 - **A check-in nobody could reach expires with no grade** (S17) — `EXPIRED`, never green.
   "We could not reach her" and "she said she is fine" are different clinical facts, and a
   system that recorded the first as the second would be worse than one that never asked.
@@ -565,9 +611,13 @@ the only gate right now.**
 - **One protocol per plan** (S17) — a carboplatin/paclitaxel doublet matches two families and
   follows the higher-precedence one (taxane); the platinum GI questions are not merged in. Every
   family that matched is recorded on `CheckinPlan.personalisation.matched_protocols`.
-- **The protocol bank is a seed file read at boot, not a table** (S17) — so the admin panel is
-  read-only, like the message-template registry. An editor needs it in the database first
-  (S18-late), moved the way S4's trees moved, with `parse()` still the only constructor.
+- **The protocol bank is a table now, but nothing is published to it** (S18-late) — `make seed`
+  writes v1 as a **draft**, so `resolve_bank` still serves `seeds/protocols.json`. Publishing is
+  a clinical act and the bank is still clinically unreviewed (S21); the console has the button,
+  and the first press should be an oncologist's. Note the other half: `Checkin.grading_rules` is
+  NULL on rows created before migration `cb011d62f829`, and those grade against the live bank —
+  so a publish *would* re-grade an in-flight pre-migration check-in. There are none; if the
+  pilot creates any before the first publish, backfill the column.
 - **The app's chemo cycles are counted from appointments, not from a regimen** (S16) —
   `chemo_calendar` numbers a patient's own `chemo_review` appointments and shows the generic
   what-to-expect text from `seeds/regimen_notes.json`. The dates are real; the advice is
@@ -589,11 +639,16 @@ the only gate right now.**
   risk. Owed on omen.
 - **The APK is unsigned** (S16) — `assembleRelease` produces the unsigned artifact the size gate
   measures. Play Store signing, privacy policy and data-safety declaration do not exist yet.
-- **The admin tree editor is version-list + publish + JSON-inspect, not a visual builder**
-  (S18E) — the AC path ("edit the tree, publish, live on the kiosk with no deploy") works via
-  `store.resolve_tree` (kiosk reads DB-published trees, disk bank as floor), and there is a
-  server `POST /admin/trees/test-run` dry-walk, but the WYSIWYG node editor is S18-late. On-box
-  editing today is: seed a draft / edit JSON, then publish from the console.
+- **The tree editor edits wording and severity, not tree structure** (S18-late) — deliberate,
+  and stated on the screen. Adding, deleting or rewiring a node happens in `seeds/trees/*.json`
+  and a pull request; a drag-to-rewire builder that silently orphans a question would be a worse
+  tool than the diff, because the validator's reachability and cycle checks *are* the review.
+  The severity select offers exactly `urgent` and `semi` (`Priority`, minus `routine`, which the
+  tree validator refuses) — offering a value the schema lacks silently rewrites a flag's
+  severity on the next save.
+- **The protocol editor edits the document, not fields** (S18-late) — the panel above it is the
+  structured reading view; saving posts the whole bank and shows the validator's own refusal
+  verbatim. A per-rung form is possible now that the table exists (backlog).
 - **Admin voice-pack manager + template registry are read-only** (S18E) — the template registry
   is code-defined (`app/whatsapp/templates.py`); the voice-pack panel is a coverage checklist
   (every clip `recorded: false` → TTS) because the pack storage format is S7's. Upload/re-record
@@ -601,8 +656,8 @@ the only gate right now.**
 - **The slot-template editor is a deferred placeholder** (S18E) — `GET /admin/slot-templates`
   returns a `{deferred, arrives_in}` marker and the console renders an honest "arrives with"
   card; `SlotTemplate` exists (S15) and is edited by `seeds/slot_templates.json` + `make seed`.
-  `GET /admin/protocol-templates` stopped being a marker in **S17** and now returns the real
-  bank, read-only (the editor is S18-late — see the seed-file note below).
+  `GET /admin/protocol-templates` stopped being a marker in **S17** and became editable in
+  **S18-late** (it now returns the *live* bank — the published row, or the seed file).
 - **The campaign has never dialled a real number** (S15) — `CAMPAIGN_ENABLED=false` everywhere,
   and the whole ladder is proven against `FakeTelephonyProvider`. Turning it on needs a live
   Exotel number, `EXOTEL_APPLET_URL`, `EXOTEL_STATUS_CALLBACK_URL` and `EXOTEL_WEBHOOK_TOKEN`
@@ -615,9 +670,11 @@ the only gate right now.**
   waitlist" is half-built: the seat is released, nobody is notified.
 - **Receptionist mr/te copy is romanized placeholders** (S15) — same carry as the S14 consent
   line; native + clinical review is S21.
-- **Admin what-if is the edited-price-book recompute, not tier-mix** (S18E) — exactly
-  hand-checkable (re-scales stored per-row cost by a provider/model factor). Tier-mix needs a
-  cross-tier provider mapping and is deferred with S14.
+- **Admin what-if is two panels** (S18E + S18-late) — the edited-price-book recompute
+  (re-scales stored per-row cost by a provider/model factor) and the tier-mix recompute
+  (`intakes × (to_median − from_median)` over medians actually booked on that channel). Both are
+  hand-checkable by construction. Tier-mix **refuses** when the target tier has never run on
+  that channel: unknown renders as unchanged, never as zero saving.
 - **Cost-guard `clear` from the admin console needs the running guard process** (S18E) — the
   Redis override store; 503s under the test transport / a process with no guard. Works in prod
   and `make dev`.

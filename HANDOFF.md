@@ -1,4 +1,4 @@
-# HANDOFF — after Session S17 (Check-in engine)
+# HANDOFF — after Session S18-late (Admin console remainder)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
@@ -10,129 +10,141 @@
 > `gh workflow run ci.yml`. **`make test` locally is the only gate** — plus `make lang-qa`.
 >
 > **🚩 Adaptive intake (S-ADAPT) is on `main` but NEVER PROVEN with its flags on.**
-> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults. Unchanged by S17.
+> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults. Unchanged by S18L.
 
-**Repo state:** **`main`**, last commit `S 17: session close`. `make test` green: backend
-**1071** (was 932), voice-gw **22**, web typecheck+lint+**48** conformance, **Android 6 JVM**.
-`make lang-qa` clean across [en,hi,mr,te]. **Migration `ae3caebf5e9a`** (check-in plan anchor +
-personalisation, check-in delivery/grading columns) — run `make migrate` before anything.
-Postgres on host port **5433**; voice-gw on **8090**. **The mainline sequence resumes at S18.**
+**Repo state:** **`main`**, last commit `S 18L: session close`. `make test` green: backend
+**1082** (was 1071), voice-gw **22**, web typecheck+lint+**48** conformance, **Android 6 JVM**.
+`make lang-qa` clean across [en,hi,mr,te]. **Migration `cb011d62f829`** (`protocol_banks` +
+`checkins.grading_rules`) — run `make migrate` before anything. Postgres on host port **5433**;
+voice-gw on **8090**. **The mainline sequence resumes at S19 (deploy + observability).**
 
-⚠️ `make lint` still fails on the **same pre-existing unformatted files** (none of S17's — new
-Python is `ruff format`-clean). Not in `make test`. Still worth one `ruff format .` commit.
+⚠️ `make lint` still fails on the **same pre-existing unformatted files** (none of S18L's).
+There is also one pre-existing unused import (`tests/test_tree_bank.py:31`, `Lang`). Not in
+`make test`. Still worth one `ruff format . && ruff check --fix .` commit.
 
-**One paragraph:** S17 closed the loop the whole system was for. A signed consult note now
-drafts a follow-up: the regimen family is chosen deterministically from the formulary **class**
-of the drugs the doctor prescribed, the days and question sets are copied from an authored
-protocol bank, and the LLM is allowed to rewrite the covering message and **nothing else** — a
-model that adds a day, drops a rung or swaps a question set gets a plain four-language message
-and no schedule change. The doctor approves in one tap, which is the only thing that turns a
-draft into messages. Delivery walks WhatsApp → voice → SMS, advancing on **silence** rather than
-on a failed send, and defers out of 21:00–08:00 without consuming an attempt. Answers are graded
-by the **S4 red-flag rule language** over the questions as they were *asked* (frozen on the row),
-so no model decides a check-in grade and a `free_voice` answer cannot fire one; the one LLM in
-the path may raise a green to an amber and can neither produce a red nor lower anything. A red
-answer ends the check-in on the spot and alerts the doctor who signed plus the coordinator — the
-nurse who rings her can ask the rest. `Checkin.responses` finally has a writer, so S9's symptom
-trendline lights up.
+**One paragraph:** S18L finished the console. The headline S18 criterion — "a non-technical
+user edits a tree, publishes, sees it live with no deploy" — was previously true only of
+someone willing to edit JSON; there is now a **visual editor** that draws the tree as a spine
+in ask order, branches indented under the option that leads to them, red-flag stations stamped,
+with the words a patient reads editable in all four languages and a try-it panel that dry-walks
+the edit through the real walker. It edits **words, not shape**: adding or rewiring a question
+stays in the seed file and a pull request, where the validator's unreachable-question and cycle
+checks get read by a person. The **check-in protocol bank moved into a table** the way the trees
+did — versioned, draft/publish/rollback, `parse()` still the only constructor, the seed file
+still the floor — which forced the one new clinical invariant of the session: because a grade is
+recomputed on every answer, an editable bank would let an afternoon's publish re-decide
+Tuesday's answers, so `Checkin.grading_rules` now freezes the rules beside the questions.
+Doc 03 §11's **tier-mix what-if** exists and is measured rather than modelled; when a tier has
+never run on a channel it says so instead of pricing phone V2 off kiosk intakes.
 
-## Next session — S18-late (Admin console remainder)
+## Next session — S19 (Deploy to AWS + observability)
 
-- Objective: doc 06 S18-late — visual tree node editor, red-flag rule editor, **protocol
-  template editor**, editable message-template registry, voice-pack upload, slot-template
-  editor, node-level abandonment report, tier-mix what-if. (The analytics dashboard, tree
-  publish→live, price book and cost-guard shipped early as S18E — see `sessions/SESSION-18E.md`.)
-- **Load:** doc 03 §10/§11, doc 02 §8, `sessions/SESSION-18E.md`.
-- **AC:** a non-technical user edits a tree option, publishes, and sees it live on the kiosk
-  with no deploy; what-if recompute matches a hand calculation on fixture data.
-- **What S17 gives it:** `GET /admin/protocol-templates` is no longer a `{deferred}` marker — it
-  returns the real bank and the console renders it read-only. Making it *editable* is the S18
-  item, and it wants the bank in a **table** first: today `seeds/protocols.json` is loaded and
-  validated once at boot (`app.checkins.protocols.get_bank`, `@cache`). Move it the way S4's
-  trees moved (file as the seeded floor, DB as the published source) and keep `parse()` as the
-  only constructor — every guarantee in the session hangs off that validator running.
+- Objective: doc 06 S19 — apply Terraform; ECR + GitHub Actions deploy pipeline; Caddy TLS;
+  CloudWatch alarms; Loki/Grafana dashboards (turn latency, provider health, queue depth,
+  check-in outcomes) + a Grafana **infra**-cost panel distinct from the in-app product
+  analytics; backup jobs + restore runbook, **executing one real restore**.
+- **Load:** doc 05 (full).
+- **AC:** production URL live; alarm test fires; documented restore completed from
+  last-night backup.
+- **What S18L changes for it:** two new pieces of state a restore has to bring back and a
+  deploy must not lose — `protocol_banks` (whichever version is published *is* clinical
+  policy) and `checkins.grading_rules`. A restore that silently loses the published bank
+  degrades to the seed file rather than failing, which is the right behaviour and exactly the
+  kind of thing a restore drill should be made to notice.
+- **Note on the operator's box:** the pilot runs on-prem on the 4090, not on AWS. S19 as
+  written assumes AWS; confirm with the operator whether this is a real deploy target or
+  whether S19 becomes "observability + backup/restore on the box" with Terraform left
+  plan-only.
 - **Start from `main`.** First commands:
 ```
 make dev && make migrate && make seed && make slots   # 12 slot templates -> ~800 slots
-make test                                             # 1071 backend / 22 voice-gw / 48 web / 6 android
+make test                                             # 1082 backend / 22 voice-gw / 48 web / 6 android
 make lang-qa                                          # expect clean across [en,hi,mr,te]
 make checkin-demo                                     # a plan, a red D+2, a pending D+7
 ```
+To see the console (it needs a live api with S18L code — the dockerised image may be older):
+```
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 \
+  JWT_SECRET=local-dev-secret-padded-to-32-chars-plus .venv/bin/python -m uvicorn app.main:app --port 8123
+cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 npm run e2e:admin
+```
+Admin login: `+915550000001` (seeded Priya Sharma); the OTP is echoed locally.
 
-## Watch out for (S17 fragile edges)
+## Watch out for (S18L fragile edges)
 
-- **A grading rule is a `app.trees.rules` expression and is validated against the question
-  *types*.** Editing `seeds/protocols.json` by hand is safe only because `parse()` refuses an
-  orphan question set, a green rule, a rule over `free_voice`, a duplicate day, an uppercase
-  keyword (which would silently never match) and a tied precedence. Never read the JSON
-  directly — go through `get_bank()`.
-- **`Checkin.asked` is a snapshot and is what answers are validated against.** Re-authoring the
-  bank must not change what a patient was asked last week. Do not "simplify" it into a lookup.
-- **The escalation is synchronous with the answer**, not a job. `grading.answer_one` is the one
-  entry point every channel uses; adding a second write path for answers would give you two
-  places where a red does or does not ring a phone.
-- **`app.checkins.plan.draft_from_dictation` swallows everything** (it runs inside
-  `dictation.sign`). A bug in drafting shows up as *no plan*, not as an error — check the api
-  log for `check-in plan drafting failed` before assuming a protocol did not match.
-- **Quiet hours live in `app.checkins.window`, not in the beat schedule.** `opd.checkins.send`
-  fires every 10 minutes round the clock on purpose; do not "optimise" it to daytime-only, or
-  the timezone of the box becomes the only thing protecting a patient's night.
+- **Publishing a protocol bank is a clinical act with no confirmation dialog.** One tap in the
+  console changes what every subsequent signed note commits a patient to. Nothing is published
+  today (the seed writes v1 as a **draft**, so `resolve_bank` serves the file) — the first
+  publish should be an oncologist's, not a developer's.
+- **`Checkin.grading_rules` is NULL on pre-S18L rows and those grade against the live bank.**
+  That is the intended fallback, but it means a bank published now *would* re-grade an
+  in-flight check-in created before this migration. There are none in production yet; if that
+  changes before the first publish, backfill the column from the bank first.
+- **The tree editor cannot add, delete or rewire a node** — deliberate, and said on the screen.
+  Do not "finish" it by adding structural editing without re-reading why: the validator's
+  reachability and cycle checks are the review, and a builder that orphans a question silently
+  is worse than a diff.
+- **`web/e2e/admin.spec.ts` really publishes.** Each run saves and publishes a new version of
+  `general_medicine_routing` on whatever database it points at. Fine on a dev box; never point
+  it at the pilot.
+- **The severity select in the tree editor must stay in step with `Priority`.** It offers
+  exactly `urgent` and `semi` because those are the only severities a red flag may carry;
+  offering a value the schema lacks silently rewrites a flag's severity on the next save.
 
 ## Decisions needed from the human
 
-- **The check-in protocol bank needs an oncologist.** Six regimen families, seven question sets,
-  41 grading rules — all model-drafted, none reviewed. It is the first content in this system
-  that **rings a doctor's phone at a threshold nobody has signed off** (fever `yes`, temp ≥38,
-  5 vomits, orthopnoea…). Worth pulling forward from S21 for this file alone. *(new)*
-- **Is the LLM assist allowed to escalate free text to red?** S17 says no (it may only raise
-  green→amber; a nurse reads the sentence). If the clinical view is that "coughing blood" typed
-  into the palliative free-text box must ring a phone, that is a one-line change plus a much
-  louder prompt — but it makes escalation depend on the transcriber. *(new)*
-- **A live Exotel number + creds** — still blocking *three* proofs now: the S14 intake bridge,
-  the S15 receptionist/campaign, and S17's voice rung. *(carried)*
-- **Who is the coordinator on `COORDINATOR_PHONE`** — S17 now sends them every red check-in
-  alert, so this is no longer only about the whisper handoff. *(carried, sharpened)*
+- **The check-in protocol bank still needs an oncologist** — six regimen families, seven
+  question sets, 41 grading rules, all model-drafted, none reviewed. It now has a **publish
+  button**, which sharpens this: the review has somewhere to land. *(carried, sharpened)*
+- **Is the LLM assist allowed to escalate free text to red?** S18L did not change S17's answer
+  (no — it may only raise green→amber). *(carried)*
+- **Is S19 an AWS deploy, or observability + restore on the on-prem box?** The pilot is live
+  on the 4090; doc 06 S19 and doc 05 assume AWS. *(new)*
+- **A live Exotel number + creds** — still blocking three proofs: the S14 intake bridge, the
+  S15 receptionist/campaign, and S17's voice rung. *(carried)*
+- **Who is the coordinator on `COORDINATOR_PHONE`** — they get every red check-in alert.
+  *(carried)*
 - **Does the app go on the Play Store, or sideload at the OPD desk?** *(carried)*
-- **mr/te still need a native + clinical review before a patient reads them** (S21). S17 adds
-  the whole protocol bank to that pile. *(carried)*
+- **mr/te still need a native + clinical review before a patient reads them** (S21). *(carried)*
 
 ## Owed on omen (before the pilot's continuity loop faces real use)
 
+- **The admin console on a screen, on the box** — S18L is the first session to actually render
+  it (6 screenshots, `web/screenshots/s18l/`), but only against a local dev stack. The tabs
+  S18E built (cost, operations, price book, templates) still have never been looked at with
+  real data behind them. *(carried, half-paid)*
 - **One check-in, end to end, on the box** — `make checkin-demo`, then
   `python -m app.worker opd.checkins.send`, and answer it from a real WhatsApp thread. Nothing
-  in S17 has ever reached a handset. *(new)*
+  in the check-in engine has ever reached a handset. *(carried)*
 - **A real Qwen3 personalisation** — on a fake stack `checkin_personalize` has no canned reply,
-  so every demo message is the plain fallback. Worth one look at what the box's model writes,
-  because that text is what a frightened person reads. *(new)*
-- **The app on a real handset** — everything is proven on an emulator. *(carried)*
-- **Live Exotel smoke, both applets** *(carried)*; **the campaign for one evening on real
-  numbers** *(carried)*; **phone-on-GPU contention** *(carried)*.
-- **Admin console visual pass** (S18E) — walk the tabs; the protocols tab is new. *(carried)*
-- **Telugu kiosk render** *(carried)*; **adaptive on** *(carried)*; **doctor console + consult
-  note on-box** *(carried)*.
+  so every demo message is the plain fallback. *(carried)*
+- **The app on a real handset** *(carried)*; **live Exotel smoke, both applets** *(carried)*;
+  **the campaign for one evening on real numbers** *(carried)*; **phone-on-GPU contention**
+  *(carried)*; **Telugu kiosk render** *(carried)*; **adaptive on** *(carried)*; **doctor
+  console + consult note on-box** *(carried)*.
 
-## Backlog additions (S17)
+## Backlog additions (S18L)
 
-- **A voice-gw check-in applet** — `WS /exotel/checkin`, the third handler after intake (S14)
-  and receptionist (S15). Until it exists `EXOTEL_CHECKIN_APPLET_URL` stays empty and the ladder
-  skips straight to SMS.
-- **Check-ins in the Android app** — a fourth delivery channel that already knows the patient
-  and needs no 24h window. Cheapest channel there is; suggest S18-late.
-- **Merge a doublet's question sets** — carboplatin + paclitaxel follows the taxane protocol
-  only; the platinum GI questions are dropped. Wants a merge rule an oncologist signs off.
-- **A canned `checkin_personalize` / `checkin_triage` fake reply**, so a local demo shows the
-  feature rather than its fallback (the pattern `dictation_map` and `receptionist` already use).
-- **A real task table** for "immediate call task" — today a red is the nurse-queue entry plus an
-  SMS; there is nowhere to record that someone actually rang her, only that she was resolved.
-- **The app's chemo calendar could count real cycles now** — `CheckinPlan.next_cycle_at` and the
-  protocol's `cycle_days` exist; `patient_app.chemo_calendar` still counts `chemo_review`
-  appointments (S16 stub). Small rewire, real improvement.
-- **`Checkin` on the patient timeline** — doc 03 §9 says "all visible on patient timeline"; the
-  doctor card reads `Checkin.responses` for its trendline but the grades and reasons are not on
-  the timeline yet.
-- Carried, unchanged: `make lint` red on pre-existing files; mr/te unreviewed (S21); Telugu never
-  seen rendered; admin console never seen on a screen (S18E); report photos in the care file;
-  booking from the app; Play Store signing; `TokenStore` at rest; appointment waitlist (S18-late);
-  language detection from the caller's greeting; campaign observability; tier-mix what-if; V1
-  continuous caller-audio streaming; surface STT confidence instead of the energy proxy; tune
-  VAD/DTMF thresholds on real Alwar telephony.
+- **The four S18-late items still unbuilt**, in the order they are worth doing:
+  **slot-template editor** (the last deferred placeholder; `SlotTemplate` has existed since
+  S15, so this is CRUD + a "regenerate slots" button); **editable message-template registry**
+  (needs a DB overlay over the code-defined registry, and a story for what happens when the
+  repo and Meta disagree); **node-level abandonment report** (needs per-node answer timestamps
+  the intake path does not emit — the telemetry is the work, not the report); **voice-pack
+  upload** (still blocked on S7's pack format).
+- **A per-rung protocol form**, now that the bank is a table — the reading view already shows
+  the structure; editing a day offset or a threshold in a field beats editing the document.
+- **Backfill `Checkin.grading_rules`** for any rows created before `cb011d62f829`, if the
+  pilot creates check-ins before the first bank publish.
+- **A confirmation step on publish** (both trees and banks) naming what changes and who will
+  be affected — cheap, and this is the one console button with clinical reach.
+- Carried, unchanged: `make lint` red on pre-existing files; a voice-gw check-in applet
+  (`WS /exotel/checkin`); check-ins in the Android app; merging a doublet's question sets; a
+  canned `checkin_personalize`/`checkin_triage` fake reply; a real task table for the
+  "immediate call task"; the app's chemo calendar counting real cycles; `Checkin` on the
+  patient timeline; mr/te unreviewed (S21); report photos in the care file; booking from the
+  app; Play Store signing; `TokenStore` at rest; appointment waitlist; language detection from
+  the caller's greeting; campaign observability; V1 continuous caller-audio streaming; surface
+  STT confidence instead of the energy proxy; tune VAD/DTMF thresholds on real Alwar telephony.
