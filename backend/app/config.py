@@ -207,6 +207,13 @@ class Settings(BaseSettings):
     # on any channel — a 21:30 voice call to an oncology patient is a complaint.
     checkin_quiet_start_hour: int = 21
     checkin_quiet_end_hour: int = 8
+    # The Voicebot applet Exotel runs for the voice rung of the delivery ladder.
+    # Empty by default and deliberately so: the voice-gw handler behind it does
+    # not exist yet (S14 built /exotel/voicebot for intake, S15
+    # /exotel/receptionist for appointments). With this unset the voice rung
+    # records "not configured" and the ladder moves on to SMS, rather than
+    # dialling a patient into an applet that answers with silence.
+    exotel_checkin_applet_url: str = ""
 
     @property
     def is_local(self) -> bool:

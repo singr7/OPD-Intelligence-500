@@ -67,6 +67,13 @@ class Conversation:
     #: The chooser options last shown, as (dept_key, name); a button reply's id is
     #: matched against these so we never trust a key the patient's client invented.
     department_options: list[list[str]] = field(default_factory=list)
+    #: The check-in this thread is currently answering, and which of its
+    #: questions is outstanding (S17, doc 03 §9). A check-in walk is *not* an
+    #: intake walk — it has no tree, no tiers and no engine session, just three
+    #: or four flat questions — so it gets two small fields here rather than a
+    #: `SessionState`. Cleared when the last question is answered.
+    checkin_id: uuid.UUID | None = None
+    checkin_question: str | None = None
     #: The last time the *patient* messaged us — the anchor of the 24h window.
     last_inbound_at: datetime | None = None
     #: Meta redelivers a message if the webhook does not 200 fast enough; the last
@@ -103,6 +110,8 @@ class Conversation:
         self.visit_id = None
         self.chief_complaint = None
         self.department_options = []
+        self.checkin_id = None
+        self.checkin_question = None
 
     # -- serialisation --------------------------------------------------------
 
@@ -116,6 +125,8 @@ class Conversation:
             "visit_id": str(self.visit_id) if self.visit_id else None,
             "chief_complaint": self.chief_complaint,
             "department_options": self.department_options,
+            "checkin_id": str(self.checkin_id) if self.checkin_id else None,
+            "checkin_question": self.checkin_question,
             "last_inbound_at": self.last_inbound_at.isoformat() if self.last_inbound_at else None,
             "last_message_id": self.last_message_id,
             "created_at": self.created_at.isoformat(),
@@ -144,6 +155,8 @@ class Conversation:
             visit_id=as_uuid(data.get("visit_id")),
             chief_complaint=data.get("chief_complaint"),
             department_options=[list(o) for o in data.get("department_options") or []],
+            checkin_id=as_uuid(data.get("checkin_id")),
+            checkin_question=data.get("checkin_question"),
             last_inbound_at=as_dt(data.get("last_inbound_at")),
             last_message_id=data.get("last_message_id"),
             created_at=as_dt(data.get("created_at")) or datetime.now(UTC),

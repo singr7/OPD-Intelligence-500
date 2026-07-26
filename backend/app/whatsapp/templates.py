@@ -311,6 +311,99 @@ _register(
         ),
         variables=("patient_name", "hospital", "when"),
     ),
+    # -- check-ins (S17, doc 03 §9) ------------------------------------------
+    #
+    # A check-in is, by definition, days after the patient last messaged us, so
+    # the window is closed and the personalised covering line cannot go as free
+    # text. This template invites the reply that opens a window; the bot asks
+    # the actual questions on that reply. Deliberately vague about what is being
+    # asked — a template body is fixed at approval time and cannot carry a
+    # clinical question that varies per protocol, and a patient's WhatsApp
+    # preview on a shared handset should not read "how bad is your bleeding".
+    Template(
+        name="checkin_due",
+        lang=Lang.EN,
+        category="UTILITY",
+        body=(
+            "Namaste {{1}}. This is {{2}}. We would like to ask how you are doing "
+            "after your treatment. Reply to this message and we will ask a few "
+            "short questions here."
+        ),
+        variables=("patient_name", "hospital"),
+    ),
+    Template(
+        name="checkin_due",
+        lang=Lang.HI,
+        category="UTILITY",
+        body=(
+            "नमस्ते {{1}}। यह {{2}} है। इलाज के बाद आप कैसे हैं, यह हम जानना चाहते हैं। इस "
+            "संदेश का उत्तर दें, हम यहीं कुछ छोटे सवाल पूछेंगे।"
+        ),
+        variables=("patient_name", "hospital"),
+    ),
+    Template(
+        name="checkin_due",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. हे {{2}} आहे. उपचारानंतर तुम्ही कसे आहात हे आम्हाला जाणून घ्यायचं "
+            "आहे. या संदेशाला उत्तर द्या, आम्ही इथेच काही छोटे प्रश्न विचारू."
+        ),
+        variables=("patient_name", "hospital"),
+    ),
+    Template(
+        name="checkin_due",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. ఇది {{2}}. చికిత్స తర్వాత మీరు ఎలా ఉన్నారో మేము తెలుసుకోవాలనుకుంటున్నాము. "
+            "ఈ సందేశానికి ప్రత్యుత్తరం ఇవ్వండి, మేము ఇక్కడే కొన్ని చిన్న ప్రశ్నలు అడుగుతాము."
+        ),
+        variables=("patient_name", "hospital"),
+    ),
+    # A next-cycle reminder (doc 03 §9's D-2 / D-0). The in-window variant with
+    # confirm/reschedule buttons is `app.checkins.cycles`; this is the one that
+    # reaches a thread nobody has messaged in three weeks.
+    Template(
+        name="next_cycle_due",
+        lang=Lang.EN,
+        category="UTILITY",
+        body=(
+            "Namaste {{1}}. Your next treatment at {{2}} is due on {{3}}. Reply to "
+            "this message to confirm, or to change the date."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="next_cycle_due",
+        lang=Lang.HI,
+        category="UTILITY",
+        body=(
+            "नमस्ते {{1}}। {{2}} में आपका अगला इलाज {{3}} को है। पक्का करने या तारीख़ बदलने के "
+            "लिए इस संदेश का उत्तर दें।"
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="next_cycle_due",
+        lang=Lang.MR,
+        category="UTILITY",
+        body=(
+            "नमस्कार {{1}}. {{2}} मधील तुमचा पुढचा उपचार {{3}} रोजी आहे. निश्चित करण्यासाठी "
+            "किंवा तारीख बदलण्यासाठी या संदेशाला उत्तर द्या."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
+    Template(
+        name="next_cycle_due",
+        lang=Lang.TE,
+        category="UTILITY",
+        body=(
+            "నమస్తే {{1}}. {{2}}లో మీ తదుపరి చికిత్స {{3}} నాడు ఉంది. నిర్ధారించడానికి లేదా "
+            "తేదీ మార్చడానికి ఈ సందేశానికి ప్రత్యుత్తరం ఇవ్వండి."
+        ),
+        variables=("patient_name", "hospital", "when"),
+    ),
     # The D-1 campaign's last rung (doc 03 §1b: "2 attempts then WhatsApp
     # fallback message"). Deliberately not an apology for calling — it offers the
     # same intake by the channel the patient still has open.
