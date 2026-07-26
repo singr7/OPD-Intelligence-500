@@ -54,9 +54,16 @@ admission:
 # percentage is a real instruction rather than a wish, because it decides who we
 # *invite* on what, which is ours to choose. A patient's side of the split is
 # deterministic in her id, so re-planning tomorrow never reshuffles who gets a
-# call. Omit `campaign` entirely to call everyone we have a number for, which is
-# what the campaign did before S-GL.1.
-campaign:
-  mix:
-    phone: 30
-    whatsapp: 70
+# call, and a channel that is shut has its share redistributed rather than
+# silently dropping that slice of the list.
+#
+# Deliberately absent here, and absent is not "unset pending a decision": with no
+# mix the campaign invites everyone it has a number for by phone, which is what
+# it did before S-GL.1. Setting a split changes who a hospital rings tomorrow
+# evening, so it is a decision an operator makes in the console — not one they
+# inherit from a file they upgraded past.
+#
+# campaign:
+#   mix:
+#     phone: 30
+#     whatsapp: 70

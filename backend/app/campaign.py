@@ -38,22 +38,26 @@ a handset, and only when `campaign_enabled` is on.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.channels import channel_state, resolve_config
 from app.config import Settings, get_settings
-from app.models.enums import Lang, OutboundCallState
+from app.models.enums import Channel, Lang, OutboundCallState
 from app.models.org import Hospital
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, OutboundCall
 from app.notify import send_intake_call_fallback
 from app.providers.base import ProviderError
 from app.providers.registry import get_telephony_provider
+from app.providers.runtime import effective_settings as runtime_settings
 from app.providers.telephony import CallHandle, CallRequest, CallState
 from app.scheduling import appointments_on, hospital_tz
 
@@ -75,7 +79,7 @@ LATEST_CALL_HOUR = 21
 
 @dataclass(frozen=True, slots=True)
 class CampaignTarget:
-    """One patient to call, flattened — the call list a coordinator can read."""
+    """One patient to reach, flattened — the list a coordinator can read."""
 
     appointment_id: uuid.UUID
     patient_id: uuid.UUID
@@ -83,10 +87,18 @@ class CampaignTarget:
     phone: str
     lang: Lang
     slot_at: datetime
+    #: How we invite her: `phone` (ring her) or `whatsapp` (message her). Decided
+    #: by the channel mix, deterministically in her patient id (S-GL.1, doc 12
+    #: §1.2). `Channel.PHONE` when no mix is configured, which is what the
+    #: campaign did before the mix existed.
+    channel: Channel = Channel.PHONE
 
     def line(self) -> str:
         local = self.slot_at.astimezone(hospital_tz())
-        return f"{self.patient_name} <{self.phone}> {self.lang} — {local:%Y-%m-%d %H:%M}"
+        return (
+            f"{self.patient_name} <{self.phone}> {self.lang} "
+            f"[{self.channel.value}] — {local:%Y-%m-%d %H:%M}"
+        )
 
 
 @dataclass(slots=True)
@@ -96,9 +108,29 @@ class CampaignPlan:
     #: (reason, appointment_id) for everyone deliberately not called. Kept because
     #: "why was my mother not rung?" is a question with an answer.
     skipped: list[tuple[str, uuid.UUID]] = field(default_factory=list)
+    #: The mix actually applied, after closed channels were dropped from it. Kept
+    #: on the plan so the dry run can state what it did rather than what was
+    #: configured — those differ the moment a channel is shut.
+    mix: dict[Channel, int] = field(default_factory=dict)
+
+    def by_channel(self, channel: Channel) -> list[CampaignTarget]:
+        return [t for t in self.targets if t.channel is channel]
+
+    @property
+    def to_call(self) -> list[CampaignTarget]:
+        return self.by_channel(Channel.PHONE)
 
     def report(self) -> str:
-        lines = [f"D-1 intake campaign for {self.for_date}: {len(self.targets)} to call"]
+        counts = Counter(t.channel.value for t in self.targets)
+        summary = ", ".join(f"{n} by {channel}" for channel, n in sorted(counts.items()))
+        lines = [
+            f"D-1 intake campaign for {self.for_date}: "
+            f"{len(self.targets)} to reach ({summary or 'nobody'})"
+        ]
+        if self.mix:
+            lines.append(
+                "  mix: " + ", ".join(f"{c.value} {pct}%" for c, pct in sorted(self.mix.items()))
+            )
         lines += [f"  {t.line()}" for t in self.targets]
         if self.skipped:
             lines.append(f"  skipped {len(self.skipped)}:")
@@ -115,12 +147,80 @@ def tomorrow(*, settings: Settings | None = None) -> date:
 # -- 1. plan -------------------------------------------------------------------
 
 
+def assign_channel(patient_id: uuid.UUID, mix: dict[Channel, int]) -> Channel:
+    """Which channel invites this patient, deterministically in her id.
+
+    **Deterministic, not random** (doc 12 §1.2). A coordinator re-runs the dry run
+    three times before the evening launch; if the split were random, each run
+    would move patients between the call list and the message list, and the list
+    she checked would not be the list that went out. Hashing the patient id means
+    the same person lands on the same channel every time, and re-planning is safe.
+
+    The buckets are laid out in a fixed channel order rather than dict order, so
+    the same mix always produces the same assignment regardless of how the
+    document happened to be written.
+    """
+    if not mix:
+        return Channel.PHONE
+    digest = hashlib.sha256(patient_id.bytes).digest()
+    bucket = int.from_bytes(digest[:4], "big") % 100
+    edge = 0
+    for channel in sorted(mix, key=lambda c: c.value):
+        edge += mix[channel]
+        if bucket < edge:
+            return channel
+    return sorted(mix, key=lambda c: c.value)[-1]  # pragma: no cover - the mix sums to 100
+
+
+async def campaign_mix(
+    session: AsyncSession, settings: Settings | None = None
+) -> dict[Channel, int]:
+    """The configured mix, with shut channels dropped and the rest renormalised.
+
+    A mix naming a channel that is closed would silently drop that share of
+    tomorrow's list — the patients assigned to WhatsApp simply never hear from
+    anybody. So a closed channel's share is redistributed across the open ones,
+    and if *no* mixed channel is open the mix is emptied, which falls back to
+    "ring everyone we can" and lets the ordinary dial path report the outage.
+    """
+    settings = settings or get_settings()
+    config = await resolve_config(session)
+    configured = config.campaign_mix
+    if not configured:
+        return {}
+
+    effective = await runtime_settings(session, settings)
+    open_channels = [
+        channel
+        for channel in configured
+        if channel_state(config, channel, effective).is_open and configured[channel] > 0
+    ]
+    if not open_channels:
+        logger.warning("campaign mix names no open channel — falling back to calling everyone")
+        return {}
+    if len(open_channels) == len(configured):
+        return dict(configured)
+
+    # Renormalise onto what is open, giving the rounding remainder to the largest
+    # share so the total is exactly 100 and nobody falls off the list.
+    total = sum(configured[c] for c in open_channels)
+    share = {c: configured[c] * 100 // total for c in open_channels}
+    largest = max(open_channels, key=lambda c: (configured[c], c.value))
+    share[largest] += 100 - sum(share.values())
+    logger.info(
+        "campaign mix renormalised onto open channels: %s",
+        {c.value: pct for c, pct in share.items()},
+    )
+    return share
+
+
 async def plan_campaign(session: AsyncSession, *, for_date: date) -> CampaignPlan:
-    """Who gets a pre-visit call for `for_date`, and who does not, and why.
+    """Who gets a pre-visit call for `for_date`, who gets a message, and who
+    neither — and why.
 
     Reads only. This is the AC's "campaign dry-run produces correct call list".
     """
-    plan = CampaignPlan(for_date=for_date)
+    plan = CampaignPlan(for_date=for_date, mix=await campaign_mix(session))
     appointments = await appointments_on(session, day=for_date)
     if not appointments:
         return plan
@@ -156,6 +256,7 @@ async def plan_campaign(session: AsyncSession, *, for_date: date) -> CampaignPla
                 phone=patient.phone,
                 lang=patient.lang or Lang.HI,
                 slot_at=appointment.slot_at,
+                channel=assign_channel(patient.id, plan.mix),
             )
         )
     return plan
@@ -182,7 +283,7 @@ async def launch_campaign(
         return plan
 
     due_at = now or datetime.now(UTC)
-    for target in plan.targets:
+    for target in plan.to_call:
         session.add(
             OutboundCall(
                 appointment_id=target.appointment_id,
@@ -196,8 +297,43 @@ async def launch_campaign(
             )
         )
     await session.flush()
-    logger.info("campaign for %s queued %d calls", for_date, len(plan.targets))
+
+    # The WhatsApp share is *invited*, not queued: there is no ladder to walk, so
+    # it goes out here as the same message the call ladder falls back to. Failures
+    # are logged rather than raised — one unreachable patient must not stop the
+    # rest of tomorrow's list from being invited.
+    messaged = 0
+    for target in plan.by_channel(Channel.WHATSAPP):
+        if await _invite_on_whatsapp(session, target):
+            messaged += 1
+
+    logger.info(
+        "campaign for %s queued %d calls and messaged %d",
+        for_date,
+        len(plan.to_call),
+        messaged,
+    )
     return plan
+
+
+async def _invite_on_whatsapp(session: AsyncSession, target: CampaignTarget) -> bool:
+    """Send one patient the D-1 intake invitation on WhatsApp."""
+    patient = await session.get(Patient, target.patient_id)
+    appointment = await session.get(Appointment, target.appointment_id)
+    if patient is None or appointment is None:  # pragma: no cover - FK-guarded
+        return False
+    hospital = await session.get(Hospital, patient.hospital_id)
+    try:
+        await send_intake_call_fallback(
+            session,
+            appointment=appointment,
+            patient=patient,
+            hospital_name=hospital.name if hospital is not None else "the hospital",
+        )
+    except Exception:  # noqa: BLE001 — one bad number must not stop the campaign
+        logger.exception("campaign: whatsapp invite to patient %s failed", target.patient_id)
+        return False
+    return True
 
 
 # -- 3. dial -------------------------------------------------------------------
@@ -242,6 +378,17 @@ async def dial_due_calls(
     now = now or datetime.now(UTC)
     if not within_calling_hours(now, settings=settings):
         logger.info("outside calling hours (%s local) — dialling nothing", now)
+        return []
+
+    # S-GL.1: a campaign that keeps ringing after phone was switched off is the
+    # dishonesty the switchboard exists to remove. Queued rows are left alone
+    # rather than failed — the channel is expected back, and their ladder is
+    # unchanged when it is.
+    settings = await runtime_settings(session, settings)
+    config = await resolve_config(session)
+    phone = channel_state(config, Channel.PHONE, settings)
+    if not phone.is_open:
+        logger.info("phone channel closed (%s) — dialling nothing", phone.reason or "not open")
         return []
 
     provider = get_telephony_provider(settings)

@@ -45,6 +45,135 @@ def _for_date(appointment):
     return appointment.slot_at.astimezone(scheduling.hospital_tz()).date()
 
 
+# -- the channel mix (S-GL.1, doc 12 §1.2) ------------------------------------
+
+
+async def _publish_mix(session, mix: dict[str, int] | None, **channels: bool) -> None:
+    """Publish a channel document with a campaign mix, and optionally close channels."""
+    from app.models.content import ChannelConfigVersion
+    from app.models.enums import ContentStatus
+
+    enabled = {"phone": True, "whatsapp": True, "kiosk": True, "app": True, **channels}
+    document: dict = {
+        "channels": {
+            "phone": {"ladder": ["v2", "v3"], "enabled": enabled["phone"]},
+            "whatsapp": {"ladder": ["v2", "v3"], "enabled": enabled["whatsapp"]},
+            "kiosk": {"ladder": ["v3"], "enabled": enabled["kiosk"]},
+            "app": {"ladder": ["v3"], "enabled": enabled["app"]},
+        },
+        "admission": {"max_oss_sessions": 12},
+    }
+    if mix:
+        document["campaign"] = {"mix": mix}
+    session.add(ChannelConfigVersion(version=1, config=document, status=ContentStatus.PUBLISHED))
+    await session.flush()
+
+
+async def test_with_no_mix_configured_everyone_is_called(session, providers):
+    """The pre-S-GL.1 behaviour, and the shipped file's: absent means "ring
+    everyone we have a number for", not "unset pending a decision"."""
+    _, _, appointment = await _clinic_with_appointment(session)
+    plan = await campaign.plan_campaign(session, for_date=_for_date(appointment))
+    assert plan.mix == {}
+    assert [t.channel for t in plan.targets] == [Channel.PHONE]
+
+
+async def test_a_thirty_seventy_mix_produces_the_documented_split(session, providers):
+    """The S-GL.1 AC. Sixty patients, 30/70, and the split is the split — checked
+    with a tolerance because sixty draws from a hash cannot land exactly on 18."""
+    from tests.factories import make_patient
+
+    await _publish_mix(session, {"phone": 30, "whatsapp": 70})
+    clinic = await _clinic_with_appointment(session)
+    hospital = clinic[0]["hospital"]
+
+    patients = [make_patient(hospital) for _ in range(60)]
+    session.add_all(patients)
+    await session.flush()
+
+    mix = {Channel.PHONE: 30, Channel.WHATSAPP: 70}
+    assignments = [campaign.assign_channel(p.id, mix) for p in patients]
+    by_phone = assignments.count(Channel.PHONE)
+    assert 10 <= by_phone <= 28, f"30% of 60 should be ~18, got {by_phone}"
+    assert by_phone + assignments.count(Channel.WHATSAPP) == 60
+
+
+async def test_the_split_is_deterministic_in_the_patient_id(session, providers):
+    """A coordinator re-runs the dry run before the evening launch. If the split
+    moved between runs, the list she checked would not be the list that goes out."""
+    await _publish_mix(session, {"phone": 30, "whatsapp": 70})
+    _, _, appointment = await _clinic_with_appointment(session)
+
+    first = await campaign.plan_campaign(session, for_date=_for_date(appointment))
+    second = await campaign.plan_campaign(session, for_date=_for_date(appointment))
+    assert [(t.patient_id, t.channel) for t in first.targets] == [
+        (t.patient_id, t.channel) for t in second.targets
+    ]
+
+
+async def test_a_mix_is_written_in_a_fixed_channel_order(session):
+    """The buckets must not depend on how the document happened to be written, or
+    the same mix would assign differently after an innocuous re-save."""
+    import uuid as _uuid
+
+    ids = [_uuid.uuid4() for _ in range(50)]
+    one = {Channel.PHONE: 30, Channel.WHATSAPP: 70}
+    other = {Channel.WHATSAPP: 70, Channel.PHONE: 30}
+    assert [campaign.assign_channel(i, one) for i in ids] == [
+        campaign.assign_channel(i, other) for i in ids
+    ]
+
+
+async def test_a_closed_channels_share_is_redistributed_not_dropped(session, providers):
+    """A mix naming a shut channel would otherwise mean that slice of tomorrow's
+    list hears from nobody at all."""
+    await _publish_mix(session, {"phone": 30, "whatsapp": 70}, whatsapp=False)
+    _, _, appointment = await _clinic_with_appointment(session)
+
+    plan = await campaign.plan_campaign(session, for_date=_for_date(appointment))
+    assert plan.mix == {Channel.PHONE: 100}
+    assert [t.channel for t in plan.targets] == [Channel.PHONE]
+
+
+async def test_a_mix_with_no_open_channel_falls_back_to_calling(session, providers):
+    await _publish_mix(session, {"phone": 30, "whatsapp": 70}, phone=False, whatsapp=False)
+    _, _, appointment = await _clinic_with_appointment(session)
+    plan = await campaign.plan_campaign(session, for_date=_for_date(appointment))
+    assert plan.mix == {}
+
+
+async def test_launch_queues_only_the_phone_share(session, providers):
+    """The WhatsApp share is invited, not queued: there is no ladder to walk."""
+    from app.providers.registry import get_messaging_provider
+
+    await _publish_mix(session, {"whatsapp": 100})
+    _, _, appointment = await _clinic_with_appointment(session)
+    messaging = get_messaging_provider()
+
+    plan = await campaign.launch_campaign(
+        session, for_date=_for_date(appointment), dry_run=False, now=_evening()
+    )
+    assert plan.to_call == []
+    assert await campaign.due_calls(session) == []
+    assert messaging.sent, "the WhatsApp share must actually be invited"
+
+
+async def test_a_closed_phone_channel_dials_nobody(session, providers):
+    """A campaign that keeps ringing after phone was switched off is the
+    dishonesty the switchboard exists to remove. The queued rows are left alone —
+    the channel is expected back."""
+    _, _, appointment = await _clinic_with_appointment(session)
+    await campaign.launch_campaign(
+        session, for_date=_for_date(appointment), dry_run=False, now=_evening()
+    )
+    await _publish_mix(session, None, phone=False)
+
+    assert await campaign.dial_due_calls(session, now=_evening()) == []
+    queued = await campaign.due_calls(session, now=_evening())
+    assert len(queued) == 1
+    assert queued[0].attempts == 0, "a shut channel must not burn an attempt"
+
+
 # -- the dry run ---------------------------------------------------------------
 
 
