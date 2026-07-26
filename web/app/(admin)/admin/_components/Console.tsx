@@ -23,7 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "trees", label: "Trees" },
   { id: "prices", label: "Price book" },
   { id: "registry", label: "Templates & voice" },
-  { id: "soon", label: "Coming soon" },
+  { id: "soon", label: "Protocols & slots" },
 ];
 
 export function Console({ token, onSignOut }: { token: string; onSignOut: () => void }) {

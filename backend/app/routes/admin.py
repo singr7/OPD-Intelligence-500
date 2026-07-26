@@ -11,9 +11,12 @@ content and exposes whole-hospital cost. Two shapes worth knowing:
   over `app.admin`.** This file parses query params, guards the role, and shapes
   the response — no business logic, so the services stay unit-testable.
 
-Deferred panels (protocol templates → S17, slot templates → S15) answer 200 with
-`{"deferred": true, "arrives_in": "S17"}` rather than 404, so the console can
-render an explicit "arrives with S15/S17" placeholder instead of a broken link.
+The remaining deferred panel (slot templates → S15) answers 200 with
+`{"deferred": true, "arrives_in": "S15"}` rather than 404, so the console renders
+an explicit "arrives with S15" placeholder instead of a broken link. Protocol
+templates stopped being a placeholder in S17 and now show the real bank,
+read-only — like the message-template registry next door, and for the same
+reason: it is a validated file the code loads at boot, not a table.
 """
 
 from __future__ import annotations
@@ -29,9 +32,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import admin as admin_svc
 from app import analytics
 from app.auth.rbac import Principal, require_admin
+from app.checkins import protocols as protocol_bank
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models.enums import Channel, IntakeTier, PriceUnit, UsagePurpose
+from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, UsagePurpose
 from app.providers.costguard import CostGuard, get_guard
 from app.whatsapp import templates as wa_templates
 
@@ -640,12 +644,59 @@ async def voice_packs() -> list[VoicePackClipOut]:
 
 @router.get("/protocol-templates")
 async def protocol_templates() -> dict:
-    """Deferred to S17 (regimen-family protocol templates). Marker, not 404, so
-    the console renders an explicit placeholder."""
+    """The S17 protocol bank, read-only (doc 03 §10).
+
+    Same stance as the message-template registry next door: the bank is a
+    validated seed file (`seeds/protocols.json`), a Meta-style contract the code
+    loads once at boot, so the console *shows* what a regimen family asks and
+    when — it does not edit it. An editor that could move a check-in day would be
+    an editor that changes clinical policy without the validator that catches an
+    unreachable question set or a grading rule that can never fire; that is the
+    S18-late item, and it wants the bank in a table first.
+    """
+    bank = protocol_bank.get_bank()
     return {
-        "deferred": True,
-        "arrives_in": "S17",
-        "reason": "protocol templates (regimen families) are built with the check-in engine",
+        "version": bank.version,
+        "editable": False,
+        "source": "seeds/protocols.json",
+        "protocols": [
+            {
+                "key": protocol.key,
+                "label": protocol.label[Lang.EN],
+                "cycle_days": protocol.cycle_days,
+                "precedence": protocol.precedence,
+                "matches": {
+                    "drug_classes": sorted(protocol.drug_classes),
+                    "keywords": list(protocol.keywords),
+                },
+                "checkins": [
+                    {
+                        "day_offset": rung.day_offset,
+                        "question_set": rung.question_set,
+                        "asks_about": bank.question_set(rung.question_set).title[Lang.EN],
+                        "questions": len(bank.question_set(rung.question_set).questions),
+                        "grading_rules": len(bank.question_set(rung.question_set).grading),
+                    }
+                    for rung in protocol.checkins
+                ],
+            }
+            for protocol in sorted(bank.protocols.values(), key=lambda p: -p.precedence)
+        ],
+        "question_sets": [
+            {
+                "key": qset.key,
+                "title": qset.title[Lang.EN],
+                "questions": [
+                    {"id": question.id, "type": question.type, "prompt": question.prompt[Lang.EN]}
+                    for question in qset.questions
+                ],
+                "grading": [
+                    {"id": rule.id, "grade": str(rule.grade), "reason": rule.reason}
+                    for rule in qset.grading
+                ],
+            }
+            for qset in sorted(bank.question_sets.values(), key=lambda s: s.key)
+        ],
     }
 
 

@@ -207,6 +207,38 @@ export type VoicePackClip = {
 export const fetchVoicePacks = (t: string) => get<VoicePackClip[]>(t, "/admin/voice-packs");
 
 export type Deferred = { deferred: boolean; arrives_in: string; reason: string };
+
+// The S17 protocol bank, read-only (doc 03 §9/§10). A validated seed file the
+// backend loads at boot, so the console shows what each regimen family asks and
+// when — it does not edit it. The editor is S18-late and wants a table first.
+export type ProtocolRung = {
+  day_offset: number;
+  question_set: string;
+  asks_about: string;
+  questions: number;
+  grading_rules: number;
+};
+export type ProtocolTemplate = {
+  key: string;
+  label: string;
+  cycle_days: number;
+  precedence: number;
+  matches: { drug_classes: string[]; keywords: string[] };
+  checkins: ProtocolRung[];
+};
+export type ProtocolQuestionSet = {
+  key: string;
+  title: string;
+  questions: { id: string; type: string; prompt: string }[];
+  grading: { id: string; grade: string; reason: string }[];
+};
+export type ProtocolBank = {
+  version: number;
+  editable: boolean;
+  source: string;
+  protocols: ProtocolTemplate[];
+  question_sets: ProtocolQuestionSet[];
+};
 export const fetchProtocolTemplates = (t: string) =>
-  get<Deferred>(t, "/admin/protocol-templates");
+  get<ProtocolBank>(t, "/admin/protocol-templates");
 export const fetchSlotTemplates = (t: string) => get<Deferred>(t, "/admin/slot-templates");

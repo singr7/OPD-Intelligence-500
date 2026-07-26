@@ -234,11 +234,23 @@ async def test_admin_can_list_trees_and_deferred_panels(client: AsyncClient, ses
     assert (await client.get("/admin/trees", headers=headers)).status_code == 200
     assert (await client.get("/admin/templates", headers=headers)).status_code == 200
 
-    protocol = await client.get("/admin/protocol-templates", headers=headers)
-    assert protocol.json() == {
-        "deferred": True,
-        "arrives_in": "S17",
-        "reason": protocol.json()["reason"],
+    # Protocol templates stopped being a placeholder in S17 — the panel now shows
+    # the real bank, read-only (the editor is S18-late and wants a table first).
+    protocol = (await client.get("/admin/protocol-templates", headers=headers)).json()
+    assert protocol["editable"] is False
+    assert protocol["source"] == "seeds/protocols.json"
+    assert {p["key"] for p in protocol["protocols"]} == {
+        "platinum",
+        "taxane",
+        "anthracycline",
+        "radiotherapy",
+        "post_op",
+        "palliative",
     }
+    platinum = next(p for p in protocol["protocols"] if p["key"] == "platinum")
+    assert [rung["day_offset"] for rung in platinum["checkins"]] == [2, 7, 14]
+    # Every set the console shows can actually escalate something.
+    assert all(qset["grading"] for qset in protocol["question_sets"])
+
     slots = await client.get("/admin/slot-templates", headers=headers)
     assert slots.json()["deferred"] is True and slots.json()["arrives_in"] == "S15"
