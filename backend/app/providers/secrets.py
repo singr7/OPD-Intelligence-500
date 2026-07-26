@@ -80,7 +80,7 @@ def _fernet(settings: Settings) -> Fernet:
     except (ValueError, TypeError) as exc:
         raise SecretUnreadable(
             "SECRETS_KEY is not a valid Fernet key — generate one with "
-            "`python -c \"from cryptography.fernet import Fernet; "
+            '`python -c "from cryptography.fernet import Fernet; '
             'print(Fernet.generate_key().decode())"`'
         ) from exc
 

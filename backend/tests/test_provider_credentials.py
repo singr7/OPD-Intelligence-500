@@ -70,7 +70,7 @@ async def test_the_ciphertext_does_not_contain_the_secret(settings: Settings):
 
 
 async def test_a_rotated_key_reports_itself_rather_than_failing_vaguely(settings: Settings):
-    """"These are here and unreadable" is a different problem from "these were
+    """ "These are here and unreadable" is a different problem from "these were
     never entered", and it has a different fix."""
     ciphertext, kid = encrypt(META_VALUES, settings)
     rotated = settings.model_copy(update={"jwt_secret": "a-different-secret-padded-to-32-chars!"})
@@ -320,7 +320,7 @@ async def test_the_status_endpoint_names_the_fields_a_vendor_takes(
 async def test_a_test_against_unconfigured_credentials_says_so_rather_than_failing(
     client: AsyncClient, admin_headers: dict
 ):
-    """"Not configured" and "the vendor rejected us" are different answers, and
+    """ "Not configured" and "the vendor rejected us" are different answers, and
     only one of them means retype the token."""
     result = (await client.post(f"/admin/providers/{META}/test", headers=admin_headers)).json()
     assert result["ok"] is False

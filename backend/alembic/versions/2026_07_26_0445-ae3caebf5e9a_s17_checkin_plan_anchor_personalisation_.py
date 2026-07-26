@@ -29,17 +29,18 @@ Revises: e108276e7d43
 Create Date: 2026-07-26 04:45:08.316877
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "ae3caebf5e9a"
-down_revision: Union[str, Sequence[str], None] = "e108276e7d43"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "e108276e7d43"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _LANG = sa.Enum("en", "hi", "mr", "te", name="lang", native_enum=False)
 _STATE = sa.Enum(

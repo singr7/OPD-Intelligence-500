@@ -83,9 +83,7 @@ async def _reset_today(session) -> None:
     purpose to give the screenshots a clean, repeatable state.
     """
     today = q.today()
-    queue_ids = (
-        (await session.execute(select(Queue.id).where(Queue.date == today))).scalars().all()
-    )
+    queue_ids = (await session.execute(select(Queue.id).where(Queue.date == today))).scalars().all()
     if queue_ids:
         await session.execute(delete(QueueEntry).where(QueueEntry.queue_id.in_(queue_ids)))
         await session.execute(delete(Queue).where(Queue.id.in_(queue_ids)))
@@ -128,9 +126,7 @@ async def main() -> None:
                 called = await q.call_next(session, queue_id=queue.id)
                 if called and di == 0:
                     # Put the first room's called patient into consult for variety.
-                    await q.set_state(
-                        session, entry_id=called.id, state=QueueEntryState.IN_CONSULT
-                    )
+                    await q.set_state(session, entry_id=called.id, state=QueueEntryState.IN_CONSULT)
         await session.commit()
         print(f"seeded queue demo across {len(depts)} departments")
     await engine.dispose()

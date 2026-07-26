@@ -100,22 +100,26 @@ async def main() -> None:
     # lazy refresh outside the greenlet and blow up on the last line.
     async with AsyncSession(engine, expire_on_commit=False) as session:
         patient = (
-            await session.execute(select(Patient).where(Patient.phone == DEMO_PHONE))
-        ).scalars().first()
+            (await session.execute(select(Patient).where(Patient.phone == DEMO_PHONE)))
+            .scalars()
+            .first()
+        )
         if patient is None:
             raise SystemExit(f"no seeded patient on {DEMO_PHONE} — run `make seed` first")
 
         department = (
-            await session.execute(select(Department).where(Department.code == "MEDONC"))
-        ).scalars().first()
+            (await session.execute(select(Department).where(Department.code == "MEDONC")))
+            .scalars()
+            .first()
+        )
         if department is None:
             raise SystemExit("no MEDONC department — run `make seed` first")
 
         doctor = (
-            await session.execute(
-                select(Doctor).where(Doctor.department_id == department.id)
-            )
-        ).scalars().first()
+            (await session.execute(select(Doctor).where(Doctor.department_id == department.id)))
+            .scalars()
+            .first()
+        )
 
         now = datetime.now(UTC)
 
@@ -123,14 +127,18 @@ async def main() -> None:
         # Matched on exactly what is created below, or a second run mints a
         # second visit and the patient's file grows a duplicate prescription.
         visit = (
-            await session.execute(
-                select(Visit).where(
-                    Visit.patient_id == patient.id,
-                    Visit.channel == Channel.KIOSK,
-                    Visit.status == VisitStatus.DONE,
+            (
+                await session.execute(
+                    select(Visit).where(
+                        Visit.patient_id == patient.id,
+                        Visit.channel == Channel.KIOSK,
+                        Visit.status == VisitStatus.DONE,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if visit is None:
             visit = Visit(
                 patient_id=patient.id,
@@ -145,8 +153,10 @@ async def main() -> None:
             await session.flush()
 
         intake = (
-            await session.execute(select(Intake).where(Intake.visit_id == visit.id))
-        ).scalars().first()
+            (await session.execute(select(Intake).where(Intake.visit_id == visit.id)))
+            .scalars()
+            .first()
+        )
         if intake is None:
             session.add(
                 Intake(
@@ -165,22 +175,26 @@ async def main() -> None:
             )
 
         prescription = (
-            await session.execute(
-                select(Prescription).where(Prescription.visit_id == visit.id)
-            )
-        ).scalars().first()
+            (await session.execute(select(Prescription).where(Prescription.visit_id == visit.id)))
+            .scalars()
+            .first()
+        )
         if prescription is None:
             session.add(Prescription(visit_id=visit.id, meds=MEDS))
 
         # -- a chemo cycle to put on the calendar ------------------------------
         cycle = (
-            await session.execute(
-                select(Appointment).where(
-                    Appointment.patient_id == patient.id,
-                    Appointment.slot_type == SlotType.CHEMO_REVIEW,
+            (
+                await session.execute(
+                    select(Appointment).where(
+                        Appointment.patient_id == patient.id,
+                        Appointment.slot_type == SlotType.CHEMO_REVIEW,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if cycle is None:
             session.add(
                 Appointment(
@@ -196,13 +210,17 @@ async def main() -> None:
 
         # -- a daughter who may see the file -----------------------------------
         link = (
-            await session.execute(
-                select(CaregiverLink).where(
-                    CaregiverLink.patient_id == patient.id,
-                    CaregiverLink.phone == CAREGIVER_PHONE,
+            (
+                await session.execute(
+                    select(CaregiverLink).where(
+                        CaregiverLink.patient_id == patient.id,
+                        CaregiverLink.phone == CAREGIVER_PHONE,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if link is None:
             session.add(
                 CaregiverLink(

@@ -178,6 +178,32 @@ def _check_readback(out: list[Problem]) -> None:
             out.append(Problem("read-back", f"{lang} read-back is not in {lang}'s script"))
 
 
+def _check_closed_notices(out: list[Problem]) -> None:
+    """The channel-closed lines (S-GL.1, doc 12 §7).
+
+    Patient-facing text on a channel the patient chose in her own language, so it
+    is held to the same standard as a tree node: present in all four, and actually
+    in the right script. It is easy to forget precisely because it is the string
+    nobody sees while everything is working.
+    """
+    from app.channels.state import CLOSED_MESSAGE
+    from app.tiers import SWITCHABLE
+
+    for channel in SWITCHABLE:
+        lines = CLOSED_MESSAGE.get(channel, {})
+        for lang in PILOT_LANGUAGES:
+            text = lines.get(lang)
+            if not text:
+                out.append(Problem("channels", f"no {lang} closed notice for {channel.value}"))
+            elif not looks_like_script(text, lang):
+                out.append(
+                    Problem(
+                        "channels",
+                        f"{channel.value}: {lang} closed notice is not in {lang}'s script",
+                    )
+                )
+
+
 def _check_glossary(out: list[Problem]) -> None:
     glossary = load_glossary()
     # 1. The glossary itself is complete and in-script.
@@ -246,6 +272,7 @@ def check() -> list[Problem]:
     _check_templates(problems)
     _check_protocols(problems)
     _check_readback(problems)
+    _check_closed_notices(problems)
     _check_glossary(problems)
     _check_bcp47(problems)
     _check_round_trip(problems)

@@ -45,9 +45,7 @@ from app.models.enums import Channel, CheckinState, VisitStatus
 from app.models.org import Doctor
 from app.models.patient import Patient
 
-FIXTURE = (
-    Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "checkin_dictations.json"
-)
+FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "checkin_dictations.json"
 
 
 async def run() -> str:
