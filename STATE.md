@@ -263,6 +263,31 @@ times the doctor actually stated, chemo calendar read aloud from `seeds/regimen_
 family access. Migration `e108276e7d43`. 907→**932 backend tests** + 6 Android JVM (in `make
 test`) + 6 instrumented (emulator, `make android-test-device`).
 
+**Built (S17):** The **check-in engine** (doc 03 §9) — what a signed note becomes *next week*.
+`seeds/protocols.json` + `app/checkins/protocols.py` = the protocol bank: six regimen families
+(platinum, taxane, anthracycline, radiotherapy, post-op, palliative) over seven question sets, in
+four languages, whose grading rules are **the S4 red-flag rule language** validated against the
+question types at load — so no model decides a check-in grade, `free_voice` is unmatchable by
+construction, and **green is the absence of a fired rule** (a `green` rule is a load error).
+`app/checkins/plan.py` drafts inside `dictation.sign`: the family from the formulary **class** of
+the prescribed drugs plus keywords over the *structured* note (never the transcript), the days
+from the protocol, and only then the LLM — `apply_personalisation` copies messages back rung by
+rung, so a model that adds a day, drops one, swaps a question set or returns prose gets a plain
+four-language message and no schedule change. A doctor's one tap (`POST
+/checkins/plans/{id}/approve`, no body) freezes the plan and materialises `Checkin` rows carrying
+`asked`, the questions **as sent**. `app/checkins/delivery.py` + `window.py` walk WhatsApp →
+voice → SMS advancing on **silence** (a refused send drops at once; an accepted one waits 6h),
+and defer out of 21:00–08:00 **without consuming an attempt**. `app/checkins/grading.py` grades
+on every answer: a red ends the check-in on the spot and SMSes the doctor who signed plus the
+coordinator, an amber waits on the nurse queue, an unreachable check-in expires with **no grade**.
+The one LLM in the answer path (`prompts/checkin_triage/v1.md`) may raise green→amber over the
+free-text answer and may neither produce a red nor lower anything. `app/checkins/cycles.py` sends
+D-2/D-0 next-cycle reminders, reusing S15's `notify_appointment` when there is a slot to confirm.
+`app/routes/checkins.py` (drafts/approve/cancel = `require_doctor`; review/resolve =
+`require_clinical`), the WhatsApp bot's `ck:` branch, two beat jobs, migration `ae3caebf5e9a`,
+`make checkin-demo`. `GET /admin/protocol-templates` stopped being a deferred marker.
+932→**1071 backend tests**.
+
 **Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
 fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
 Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
@@ -279,6 +304,7 @@ make test                # backend + voice-gw pytest, web typecheck/lint, androi
 make migration m="..."   # autogenerate a revision from model changes
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 make app-demo            # give the first seeded patient a prescription, a cycle, a caregiver
+make checkin-demo        # sign a chemo note, approve the plan, answer D+2 red (S17)
 make android-emulator    # boot the pilot AVD headless
 make android-install     # install the debug app, pointed at http://10.0.2.2:8000
 make android-test-device # instrumented tests (needs a booted emulator)
@@ -347,6 +373,11 @@ operator turns it on), `CAMPAIGN_HOUR` (default 18, hospital-local, doc 01 §4.2
 when a campaign call is answered), `EXOTEL_STATUS_CALLBACK_URL` + `EXOTEL_WEBHOOK_TOKEN` (the
 per-call cost callback and its shared secret — `assert_production_safe` refuses to boot with the
 campaign on and the token empty), `COORDINATOR_PHONE` (where a receptionist handoff transfers).
+**Check-ins (S17):** `CHECKINS_ENABLED` (default `true` — unlike the campaign, nothing goes out
+except on a plan a doctor approved one tap at a time; turn it off on a box being restored or
+replayed), `CHECKIN_SEND_HOUR` (default 10, hospital-local), `CHECKIN_QUIET_START_HOUR` /
+`CHECKIN_QUIET_END_HOUR` (21 / 8, doc 03 §9), `EXOTEL_CHECKIN_APPLET_URL` (empty — the voice rung
+has no voice-gw handler yet, see Stubs). The protocol bank is `seeds/protocols.json`, not env.
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
@@ -396,6 +427,27 @@ the only gate right now.**
 - **The phone never invents a dose time** (S16) — `DoseScheduler` arms an alarm only where the
   server returned a clock time, which S11's `parse_schedule` sets only when the doctor's own words
   named one. A "BD" with no slots rings for nothing and says why. Same refusal as the paper copy.
+- **No model decides a check-in grade** (S17, `app.checkins.grading`) — the same boundary as
+  the red flags, and literally the same rule language and evaluator. `grade()` is a pure
+  function of the answers and the frozen question snapshot; the LLM assist may only raise a
+  green to an amber over a `free_voice` answer, may never produce a red, and may never lower
+  anything. Every reason carries `source` so the nurse queue never shows a model's opinion
+  dressed as a protocol.
+- **The check-in personalisation writes wording, never schedule** (S17, `app.checkins.plan`) —
+  `apply_personalisation` matches the model's reply rung by rung against a draft the protocol
+  already fixed, and never reads a day offset or a question set back out of it. Which day a
+  chemotherapy patient is asked about fever is clinical policy an oncologist signs off; a plan
+  the model could reschedule would put that decision inside a vendor's weights.
+- **A `Checkin` is answered against `asked`, not against the bank** (S17) — the questions are
+  frozen onto the row when it is created, so re-authoring a protocol cannot change what a
+  patient was asked last week, or what her "2" meant. Same argument as S11's `meds` snapshot.
+- **A check-in nobody could reach expires with no grade** (S17) — `EXPIRED`, never green.
+  "We could not reach her" and "she said she is fine" are different clinical facts, and a
+  system that recorded the first as the second would be worse than one that never asked.
+- **Quiet hours are code, not a beat schedule** (S17, `app.checkins.window`) — `opd.checkins.send`
+  fires every ten minutes round the clock and the job is a no-op inside 21:00–08:00. Moving the
+  rule into the crontab would make the box's timezone the only thing between a patient and a 3am
+  phone call. Deferral never consumes a delivery attempt.
 - **A dosing schedule is never inferred** (S11, `app.prescription.parse_schedule`) —
   the patient copy's pictograms are read by someone who cannot read the caption under
   them, so an icon *is* the instruction. Slots are drawn only when the dictation names a
@@ -488,10 +540,41 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **The check-in protocol bank is clinically unreviewed** (S17) — six regimen families, seven
+  question sets, 41 grading rules in `seeds/protocols.json`, model-drafted like the tree bank
+  and pending S21. It is the first content in this system that **rings a phone at a threshold
+  nobody has signed off** (fever `yes`, temp ≥38, five vomits, orthopnoea). The mr/te text
+  carries the same unreviewed-language caveat as everything else.
+- **No check-in has ever reached a patient** (S17) — every rung is proven against the provider
+  fakes, the same first-send caveat every other channel carries.
+- **The voice rung of the check-in ladder has no applet behind it** (S17) — there is no voice-gw
+  check-in handler (S14 built intake, S15 the receptionist), so `EXOTEL_CHECKIN_APPLET_URL` is
+  empty by default, the rung records "not configured" and the ladder falls through to SMS.
+  Dialling a patient into an applet that answers with silence is worse than not dialling.
+- **The SMS rung of the check-in ladder is a nudge, not a questionnaire** (S17) — structured
+  answers over a DLT-templated Indian SMS gateway does not work, so it says "reply on WhatsApp
+  or call us". What it buys is a human knowing to ring her.
+- **The "immediate call task" for a red check-in is the nurse queue plus an SMS** (S17, doc 03
+  §9 says "immediate call task") — this pilot has no task table, so the call is placed by the
+  human the alert reaches, and there is nowhere to record that someone rang her (only that the
+  check-in was resolved). A real task model is backlog.
+- **The LLM check-in assist has never run on a real model** (S17) — `FakeLLMProvider` has no
+  canned `checkin_triage` reply, so on a fake stack a free-text answer gets no assist at all.
+  Same for `checkin_personalize`: a local demo shows the plain fallback message, not a
+  personalised one.
+- **One protocol per plan** (S17) — a carboplatin/paclitaxel doublet matches two families and
+  follows the higher-precedence one (taxane); the platinum GI questions are not merged in. Every
+  family that matched is recorded on `CheckinPlan.personalisation.matched_protocols`.
+- **The protocol bank is a seed file read at boot, not a table** (S17) — so the admin panel is
+  read-only, like the message-template registry. An editor needs it in the database first
+  (S18-late), moved the way S4's trees moved, with `parse()` still the only constructor.
 - **The app's chemo cycles are counted from appointments, not from a regimen** (S16) —
   `chemo_calendar` numbers a patient's own `chemo_review` appointments and shows the generic
-  what-to-expect text from `seeds/regimen_notes.json`. Real per-regimen personalisation is S17's
-  protocol templates. The dates are real; the advice is generic-but-true.
+  what-to-expect text from `seeds/regimen_notes.json`. The dates are real; the advice is
+  generic-but-true. **S17 did not change this**: the protocol bank now knows a patient's regimen
+  family and cycle length, and `CheckinPlan.next_cycle_at` knows when the next one is due, so
+  the app could read a real cycle count — but rewiring `chemo_calendar` was outside S17's scope
+  and is backlog.
 - **"What-to-expect audio clips" are device TTS over text** (S16, doc 03 §1c.5) — a tenth of the
   bytes, works offline, and the same strings the language QA harness checks. Recorded clips would
   need a voice artist per language.
@@ -515,11 +598,11 @@ the only gate right now.**
   is code-defined (`app/whatsapp/templates.py`); the voice-pack panel is a coverage checklist
   (every clip `recorded: false` → TTS) because the pack storage format is S7's. Upload/re-record
   and a DB-backed editable template registry are S18-late/S7/S15.
-- **Protocol-template + slot-template editors are deferred placeholders** (S18E) — `GET
-  /admin/protocol-templates` and `/admin/slot-templates` return a `{deferred, arrives_in}` marker
-  (S17 / S18-late); the console renders an honest "arrives with" card. `SlotTemplate` **now
-  exists** (S15) and is edited by `seeds/slot_templates.json` + `make seed`; the protocol model
-  still does not.
+- **The slot-template editor is a deferred placeholder** (S18E) — `GET /admin/slot-templates`
+  returns a `{deferred, arrives_in}` marker and the console renders an honest "arrives with"
+  card; `SlotTemplate` exists (S15) and is edited by `seeds/slot_templates.json` + `make seed`.
+  `GET /admin/protocol-templates` stopped being a marker in **S17** and now returns the real
+  bank, read-only (the editor is S18-late — see the seed-file note below).
 - **The campaign has never dialled a real number** (S15) — `CAMPAIGN_ENABLED=false` everywhere,
   and the whole ladder is proven against `FakeTelephonyProvider`. Turning it on needs a live
   Exotel number, `EXOTEL_APPLET_URL`, `EXOTEL_STATUS_CALLBACK_URL` and `EXOTEL_WEBHOOK_TOKEN`
@@ -616,9 +699,8 @@ the only gate right now.**
 - **`_was_said` is token presence, not alignment** (S10) — a drug the doctor said in a
   *different* sentence than the one the model quoted still passes. Tighter matching needs
   word timings from the STT, which we do not store.
-- **Signing a dictation emits nothing** (S10) — doc 03 §7 says it generates the
-  prescription (§8) and the check-in plan draft (§9); those are S11 and S17. Writing a
-  half-shaped `Prescription` row now would be a migration for a later session to undo.
+- ~~**Signing a dictation emits nothing** (S10)~~ — resolved: signing generates the
+  prescription (S11) and now drafts the check-in plan (S17). Neither can fail the signature.
 - **The formulary is a seed file read at boot**, not a table — a hospital adding a drug
   needs a deploy until S18's admin console owns it.
 - **The doctor's day list has no appointments** — doc 03 §5 says "appointments+walk-ins".
@@ -630,10 +712,9 @@ the only gate right now.**
 - **The doctor's staff token is localStorage**, and deliberately the *same* key as the
   coordinator console so one staff session covers a shift — same S19/S20 httpOnly
   hardening note.
-- **Symptom sparklines read a shape S17 does not write yet** — `Checkin.responses` is
-  S17's, so `app.doctor._trends` picks out numeric values defensively and needs ≥2 points
-  to draw. The trendline lights up when S17 starts writing check-ins; until then only
-  `seed_doctor_demo` produces one.
+- **Symptom sparklines now have a real writer** (S17) — `Checkin.responses` is written by
+  `app.checkins.grading`, so `app.doctor._trends` draws from real answers once a patient has
+  answered two check-ins. It still picks out numeric values defensively and needs ≥2 points.
 - **The queue + downtime flag are in-memory, single-process** (`app.queue_hub`) —
   correct for the one pilot api container; a second replica would each hold their own
   WS clients and downtime flag and miss each other's. Fix is a Redis pub/sub channel
@@ -718,7 +799,8 @@ the only gate right now.**
   in S18; every unit-economics number depends on them.
 - WhatsApp meters per message; **Meta bills per 24h conversation** — over-counts until S12.
 - Cached tokens are priced at the full `token_in` rate (vendors discount ~25%) — over-estimates.
-- **Nothing schedules `CostGuard.evaluate()`** — on-demand only; needs a beat job (S17).
+- **Nothing schedules `CostGuard.evaluate()`** — on-demand only; needs a beat job. S17 added
+  beat jobs but only for check-ins; this one is still unscheduled (S18/S19).
 - Sarvam STT reports no confidence (`confidence=None`); doc 03 §4's `[unclear: ...]` contract
   leans on Google's until that is solved.
 - **The classifier's ≥85% AC (S4) is unmeasured.** The 60-utterance eval set, the harness and
@@ -767,7 +849,7 @@ the only gate right now.**
   + SQLAlchemy 2.0's `create_constraint=False`).
 - Staff username+TOTP login is modelled on `users` but not implemented; phone-OTP is the only path.
 - No IP rate limiting on OTP verify (per-challenge attempt cap only) — S20.
-- `otp_codes` rows are never pruned — S17.
+- `otp_codes` rows are never pruned — still unscheduled after S17 (S19/S20).
 - Migrations applied by hand (`make migrate`); no auto-migrate on container start.
 - worker/beat: placeholder `opd.ping` Celery task only.
 - web route groups: on-brand scaffold pages, no component library.
