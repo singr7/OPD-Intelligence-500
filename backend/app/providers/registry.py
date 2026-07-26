@@ -16,6 +16,7 @@ Two rules worth keeping:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from fastapi import Depends
@@ -213,15 +214,45 @@ _FALLBACK_SETTING = {
 # instance would report the fallback's outage as the primary's.
 _instances: dict[tuple[str, str], Provider] = {}
 
+#: The credentials each cached instance was built from, so a console that changes
+#: them (S-GL.1) gets a rebuilt provider rather than one still holding the old
+#: token. Fingerprints, not values — this dict must not become a second place
+#: credentials live.
+_fingerprints: dict[tuple[str, str], str] = {}
+
+#: Keys a fixture pinned with `install()`. Their fingerprints are never checked:
+#: a test that handed us a specific fake must keep getting that fake.
+_pinned: set[tuple[str, str]] = set()
+
+
+def _fingerprint(kind: str, name: str, settings: Settings) -> str:
+    """A short digest of the credential fields this provider is built from.
+
+    Only the fields the runtime overlay may write (`app.providers.runtime`), so an
+    unrelated settings change does not churn every provider in the process.
+    """
+    from app.providers.runtime import CREDENTIAL_FIELDS
+
+    fields = CREDENTIAL_FIELDS.get(f"{kind}:{name}")
+    if not fields:
+        return ""
+    joined = "\x00".join(str(getattr(settings, field, "")) for field in fields)
+    return hashlib.sha256(joined.encode()).hexdigest()[:16]
+
 
 def _get(kind: str, settings: Settings | None = None, *, name: str | None = None) -> Provider:
     settings = settings or get_settings()
     build, setting = _BUILDERS[kind]
     chosen = name or getattr(settings, setting)
     key = (kind, chosen)
-    if key not in _instances:
+    fingerprint = "" if key in _pinned else _fingerprint(kind, chosen, settings)
+    if key not in _instances or _fingerprints.get(key, "") != fingerprint:
+        if key in _instances:
+            logger.info("provider %s -> %s rebuilt: credentials changed", kind, chosen)
+        else:
+            logger.info("provider %s -> %s", kind, chosen)
         _instances[key] = build(chosen, settings)
-        logger.info("provider %s -> %s", kind, chosen)
+        _fingerprints[key] = fingerprint
     return _instances[key]
 
 
@@ -341,8 +372,13 @@ def telephony_provider_dependency(settings: Settings = Depends(get_settings)) ->
 def reset_providers() -> None:
     """Drop cached providers. Test fixtures use this for isolation between tests."""
     _instances.clear()
+    _fingerprints.clear()
+    _pinned.clear()
 
 
 def install(kind: str, provider: Provider, *, name: str | None = None) -> None:
     """Force a specific instance in — for fixtures that need a handle on the fake."""
-    _instances[(kind, name or provider.name)] = provider
+    key = (kind, name or provider.name)
+    _instances[key] = provider
+    _fingerprints[key] = ""
+    _pinned.add(key)

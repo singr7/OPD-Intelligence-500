@@ -36,6 +36,7 @@ from app.models.enums import Channel, Lang
 from app.providers.base import ProviderError
 from app.providers.messaging import OutboundMessage
 from app.providers.registry import get_messaging_provider
+from app.providers.runtime import effective_settings
 from app.queue_hub import QueueHub
 from app.whatsapp import ConversationStore
 from app.whatsapp.bot import Inbound, WhatsAppBot
@@ -72,11 +73,17 @@ async def verify(
     token: str | None = Query(default=None, alias="hub.verify_token"),
     challenge: str | None = Query(default=None, alias="hub.challenge"),
     settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
     """Meta's one-time subscription check: echo `hub.challenge` back as plain text
     only when `hub.verify_token` matches ours. A mismatch is a 403 — anyone can hit
     this URL, and echoing the challenge to a stranger would subscribe an impostor.
+
+    The verify token is one of the credentials the console can set (S-GL.1), and
+    this handshake is the *first* thing Meta does after an admin points it at us —
+    so it reads the overlay, or the console flow would stall on its first step.
     """
+    settings = await effective_settings(session, settings)
     if mode == "subscribe" and token and token == settings.meta_verify_token:
         # Meta wants the challenge echoed verbatim, as text/plain.
         return Response(content=challenge or "", media_type="text/plain")
@@ -101,6 +108,12 @@ async def inbound(
     message must not make it redeliver the whole batch forever — we log, skip, and
     acknowledge. Genuine duplicates are dropped by message id in the bot.
     """
+    # Credentials an admin entered in the console overlay `.env` (S-GL.1), so a
+    # WhatsApp opened from the Channels tab answers with no restart. Resolved
+    # before the signature check, because the app secret is one of them: a token
+    # set in the console must verify the very next webhook Meta sends.
+    settings = await effective_settings(session, settings)
+
     raw = await request.body()
     _verify_signature(raw, x_hub_signature_256, settings.meta_app_secret)
 
@@ -120,6 +133,8 @@ async def inbound(
     # S-GL.1: the channel switch, checked before the bot is built. A shut WhatsApp
     # answers once, civilly, and does not run a line of intake logic — the state
     # doc 12 §4 asks for, in place of a bot that tries and fails per message.
+    # `settings` here already carries the console's credentials, so "ready" means
+    # what an admin just entered — not what `.env` said at boot.
     state = channel_state(await resolve_config(session), Channel.WHATSAPP, settings)
     if not state.is_open:
         await _decline(provider, conversations, messages, state)

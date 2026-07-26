@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     # Lets the dev/test kiosk log in without reading logs. Never set outside local.
     otp_debug_echo: bool = False
 
+    # --- Provider credential store (S-GL.1, doc 12 §7) -----------------------
+    # Encrypts the vendor credentials an admin enters in the console
+    # (`app/providers/secrets.py`). A urlsafe-base64 32-byte Fernet key; generate
+    # one with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    #
+    # Empty derives a key from JWT_SECRET so the feature works on a box that has
+    # not been redeployed. That is deliberate and it costs something: the two
+    # secrets become coupled, and rotating JWT_SECRET makes every stored
+    # credential unreadable (honestly — each row records which key wrote it).
+    # Setting this explicitly is the right end state.
+    secrets_key: str = ""
+
     # --- Provider selection (S3) ---------------------------------------------
     # Every one of these is a config-only swap (doc 02 §9). `fake` is the
     # deterministic in-process impl; anything else names a vendor.

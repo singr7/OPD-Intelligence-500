@@ -33,17 +33,23 @@ async def seeded(session: AsyncSession):
 # -- GET verification ---------------------------------------------------------
 
 
-async def test_verify_echoes_the_challenge_on_a_matching_token(settings: Settings):
+async def test_verify_echoes_the_challenge_on_a_matching_token(
+    settings: Settings, session: AsyncSession
+):
     tokened = settings.model_copy(update={"meta_verify_token": "s3cr3t"})
-    resp = await wh.verify(mode="subscribe", token="s3cr3t", challenge="12345", settings=tokened)
+    resp = await wh.verify(
+        mode="subscribe", token="s3cr3t", challenge="12345", settings=tokened, session=session
+    )
     assert resp.body == b"12345"
     assert resp.media_type == "text/plain"
 
 
-async def test_verify_rejects_a_wrong_token(settings: Settings):
+async def test_verify_rejects_a_wrong_token(settings: Settings, session: AsyncSession):
     tokened = settings.model_copy(update={"meta_verify_token": "s3cr3t"})
     with pytest.raises(Exception) as exc:  # HTTPException(403)
-        await wh.verify(mode="subscribe", token="wrong", challenge="1", settings=tokened)
+        await wh.verify(
+            mode="subscribe", token="wrong", challenge="1", settings=tokened, session=session
+        )
     assert getattr(exc.value, "status_code", None) == 403
 
 

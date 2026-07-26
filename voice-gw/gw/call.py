@@ -47,6 +47,7 @@ from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.providers.audio import PCM16, AudioClip
 from app.providers.base import ProviderError
 from app.providers.metering import get_meter, usage_scope
+from app.providers.runtime import effective_settings
 from app.providers.tts import TTSProvider
 from app.trees import bank
 from app.trees.schema import Tree
@@ -534,7 +535,11 @@ async def handle_call(
     # and no visit or intake row is written.
     if sessionmaker is not None:
         async with sessionmaker() as db:
-            phone_state = channel_state(await resolve_config(db), Channel.PHONE, settings)
+            # Effective settings: Exotel credentials entered in the console count
+            # as configured here, or opening phone would still need a restart.
+            phone_state = channel_state(
+                await resolve_config(db), Channel.PHONE, await effective_settings(db, settings)
+            )
         if not phone_state.is_open:
             with usage_scope(channel=PHONE, tier=tier):
                 await pump.play(await say(closed_message(Channel.PHONE, lang)))

@@ -36,11 +36,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import record_admin_action
 from app.checkins import protocols
-from app.models.content import ProtocolBankVersion, QuestionTree
+from app.config import Settings, get_settings
+from app.models.content import (
+    ChannelConfigVersion,
+    ProtocolBankVersion,
+    ProviderSecret,
+    QuestionTree,
+)
 from app.models.enums import AuditAction, ContentStatus, Lang, PriceUnit, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department
+from app.providers import runtime
 from app.providers.pricing import get_price_book
+from app.providers.probe import probe
+from app.providers.secrets import SecretUnreadable, decrypt, encrypt, using_a_derived_key
+from app.tiers import SWITCHABLE, TierConfigError, get_tier_config, parse_tier_config
 from app.trees import bank
 from app.trees.schema import Tree, TreeError, parse
 from app.trees.walker import AnswerError, Walk
@@ -346,6 +356,422 @@ async def publish_protocol_bank(session: AsyncSession, *, version: int) -> BankV
         meta={"version": version, "status": "published"},
     )
     return _bank_version(row)
+
+
+# -- the channel document (S-GL.1) --------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelConfigVersionOut:
+    id: Any
+    version: int
+    status: str
+    published_at: datetime | None
+    notes: str | None
+    #: `{channel: enabled}` — enough for the version list to read as history
+    #: ("v3 is the one that closed WhatsApp") without loading each document.
+    enabled: dict[str, bool]
+
+
+async def list_channel_configs(session: AsyncSession) -> list[ChannelConfigVersionOut]:
+    rows = (
+        (
+            await session.execute(
+                select(ChannelConfigVersion)
+                .where(ChannelConfigVersion.deleted_at.is_(None))
+                .order_by(ChannelConfigVersion.version.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [_channel_version(row) for row in rows]
+
+
+async def get_channel_config(session: AsyncSession, version: int | None = None) -> dict[str, Any]:
+    """One stored document, or — with nothing stored — the file (S-GL.1).
+
+    Falling back to the file matters for the editor's first use: an admin opening
+    the Channels tab on a box that has never published sees the ladders actually
+    in force, edits those, and publishes. The alternative is an empty form that
+    silently discards `config/tiers.yaml`'s content on first save.
+    """
+    if version is None:
+        row = await _latest_channel_row(session)
+        if row is None:
+            return get_tier_config().to_json()
+        return row.config
+    return (await _load_channel_row(session, version)).config
+
+
+async def save_channel_config_draft(
+    session: AsyncSession, *, config: dict[str, Any], notes: str | None = None
+) -> ChannelConfigVersionOut:
+    """Validate an edited channel document and store it as a new **draft**.
+
+    `parse_tier_config` is the same validator the file goes through, so a document
+    typed into a console cannot express a ladder, a seat share or a campaign mix
+    the file could not — and the checks that only make sense document-wide (a
+    share larger than the box, a mix that does not sum to 100) are made here,
+    before anybody can publish them.
+    """
+    try:
+        parse_tier_config(config)
+    except TierConfigError as exc:
+        raise AdminError(f"invalid channel document: {exc}") from exc
+
+    next_version = (
+        await session.scalar(select(func.coalesce(func.max(ChannelConfigVersion.version), 0)))
+    ) + 1
+    row = ChannelConfigVersion(
+        version=next_version, config=config, status=ContentStatus.DRAFT, notes=notes
+    )
+    session.add(row)
+    await session.flush()
+    record_admin_action(
+        session,
+        action=AuditAction.CREATE,
+        entity=ChannelConfigVersion.__tablename__,
+        entity_id=row.id,
+        meta={"version": next_version, "status": "draft"},
+    )
+    return _channel_version(row)
+
+
+async def publish_channel_config(session: AsyncSession, *, version: int) -> ChannelConfigVersionOut:
+    """Make one version the live one — the act that opens or closes a channel.
+
+    Exactly one published version, like the trees and the banks, so `resolve_config`
+    has an unambiguous answer and publishing an older version is a working
+    rollback. Re-validated from the stored JSON: a row that somehow became
+    unparseable must not go live, because the thing it decides is whether anything
+    answers at all.
+
+    The audit row names which channels this publish opens and closes. "Who turned
+    WhatsApp off on Tuesday" is exactly the question an operator asks afterwards,
+    and a version number alone does not answer it.
+    """
+    row = await _load_channel_row(session, version)
+    try:
+        config = parse_tier_config(row.config)
+    except TierConfigError as exc:  # pragma: no cover - the draft save gates this
+        raise AdminError(f"refusing to publish an invalid channel document: {exc}") from exc
+
+    siblings = (
+        (
+            await session.execute(
+                select(ChannelConfigVersion).where(ChannelConfigVersion.deleted_at.is_(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for sibling in siblings:
+        sibling.status = ContentStatus.DRAFT
+        sibling.published_at = None
+
+    row.status = ContentStatus.PUBLISHED
+    row.published_at = datetime.now(UTC)
+    await session.flush()
+    record_admin_action(
+        session,
+        action=AuditAction.UPDATE,
+        entity=ChannelConfigVersion.__tablename__,
+        entity_id=row.id,
+        meta={
+            "version": version,
+            "status": "published",
+            "open": sorted(c.value for c in SWITCHABLE if config.is_enabled(c)),
+            "closed": sorted(c.value for c in SWITCHABLE if not config.is_enabled(c)),
+        },
+    )
+    return _channel_version(row)
+
+
+async def _latest_channel_row(session: AsyncSession) -> ChannelConfigVersion | None:
+    return (
+        await session.execute(
+            select(ChannelConfigVersion)
+            .where(ChannelConfigVersion.deleted_at.is_(None))
+            .order_by(ChannelConfigVersion.version.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def _load_channel_row(session: AsyncSession, version: int) -> ChannelConfigVersion:
+    row = (
+        await session.execute(
+            select(ChannelConfigVersion).where(
+                ChannelConfigVersion.version == version,
+                ChannelConfigVersion.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise AdminError(f"no channel document version {version}")
+    return row
+
+
+def _channel_version(row: ChannelConfigVersion) -> ChannelConfigVersionOut:
+    try:
+        config = parse_tier_config(row.config)
+        enabled = {c.value: config.is_enabled(c) for c in SWITCHABLE}
+    except TierConfigError:
+        # A stored draft that no longer parses still has to list, or an admin
+        # cannot see the version they need to fix.
+        enabled = {}
+    return ChannelConfigVersionOut(
+        id=row.id,
+        version=row.version,
+        status=str(row.status),
+        published_at=row.published_at,
+        notes=row.notes,
+        enabled=enabled,
+    )
+
+
+# -- provider credentials (S-GL.1) --------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCredentialStatus:
+    """Everything the console is ever told about a credential set.
+
+    Note what is not here: the credentials. There is no field for them and no
+    function that returns them to a route — the console shows whether a vendor is
+    configured, when it was last set, and what the vendor itself said the last
+    time we tested it. `configured` is computed from the required fields, so a set
+    missing its phone number id reads as incomplete rather than as ready.
+    """
+
+    provider: str
+    configured: bool
+    #: Which required fields are still missing — the actionable half of "not
+    #: configured", and safe to show: field *names*, never values.
+    missing: list[str]
+    source: str  # "console" | "env" | "unset"
+    updated_at: datetime | None
+    last_test: dict[str, Any]
+    #: True when the encrypting key is derived from JWT_SECRET rather than set
+    #: explicitly, which couples the two secrets (see app/providers/secrets.py).
+    derived_key: bool
+    #: Set when a stored row will not decrypt — a rotated key. Distinguished from
+    #: "never entered", which has a different fix.
+    unreadable: bool = False
+
+
+async def provider_credentials(
+    session: AsyncSession, settings: Settings | None = None
+) -> list[ProviderCredentialStatus]:
+    """The status of every credential set the console can manage."""
+    settings = settings or get_settings()
+    rows = {
+        row.provider: row
+        for row in (
+            (
+                await session.execute(
+                    select(ProviderSecret).where(ProviderSecret.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    }
+
+    out: list[ProviderCredentialStatus] = []
+    for name in sorted(runtime.CREDENTIAL_FIELDS):
+        row = rows.get(name)
+        stored: dict[str, Any] = {}
+        unreadable = False
+        if row is not None:
+            try:
+                stored = runtime.sanitise(name, decrypt(row.secret, row.key_id, settings))
+            except SecretUnreadable:
+                unreadable = True
+
+        # `.env` is the floor: a vendor credentialed there is configured even with
+        # no row, and the console says so rather than offering to "set it up".
+        from_env = {
+            field: str(getattr(settings, field, "") or "")
+            for field in runtime.CREDENTIAL_FIELDS[name]
+        }
+        effective = {**{k: v for k, v in from_env.items() if v}, **stored}
+        missing = runtime.missing_fields(name, effective)
+        source = "console" if stored else ("env" if not missing else "unset")
+
+        out.append(
+            ProviderCredentialStatus(
+                provider=name,
+                configured=not missing and not unreadable,
+                missing=missing,
+                source=source,
+                updated_at=row.updated_at if row is not None else None,
+                last_test=dict(row.last_test) if row is not None else {},
+                derived_key=using_a_derived_key(settings),
+                unreadable=unreadable,
+            )
+        )
+    return out
+
+
+async def save_provider_credentials(
+    session: AsyncSession,
+    *,
+    provider: str,
+    values: dict[str, Any],
+    actor_id: Any = None,
+    settings: Settings | None = None,
+) -> ProviderCredentialStatus:
+    """Store (or replace) one vendor's credentials, encrypted.
+
+    Merged over what is already stored rather than replacing it wholesale, so an
+    admin who re-enters one field does not silently blank the other three — a real
+    hazard on a form that cannot show what it currently holds.
+
+    Nothing is logged, nothing is echoed, and the audit row records the field
+    *names* that changed and never their values.
+    """
+    settings = settings or get_settings()
+    incoming = runtime.sanitise(runtime.known(provider), values)
+    if not incoming:
+        raise AdminError(
+            f"no recognised credential fields for {provider}; "
+            f"expected some of {list(runtime.CREDENTIAL_FIELDS[provider])}"
+        )
+
+    row = (
+        await session.execute(
+            select(ProviderSecret).where(
+                ProviderSecret.provider == provider, ProviderSecret.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+
+    existing: dict[str, Any] = {}
+    if row is not None:
+        try:
+            existing = runtime.sanitise(provider, decrypt(row.secret, row.key_id, settings))
+        except SecretUnreadable:
+            # Unreadable under the current key: this save replaces it outright,
+            # which is the only way out of a rotation anyway.
+            existing = {}
+
+    merged = {**existing, **incoming}
+    ciphertext, kid = encrypt(merged, settings)
+
+    if row is None:
+        row = ProviderSecret(provider=provider, secret=ciphertext, key_id=kid)
+        session.add(row)
+    else:
+        row.secret = ciphertext
+        row.key_id = kid
+        row.last_test = {}  # a new credential has not been tested yet
+    row.updated_by = actor_id
+    await session.flush()
+
+    record_admin_action(
+        session,
+        action=AuditAction.UPDATE,
+        entity=ProviderSecret.__tablename__,
+        entity_id=row.id,
+        meta={"provider": provider, "fields": sorted(incoming)},
+    )
+    # The admin who just typed these will press "test" next; that must not read a
+    # ten-second-old overlay from before the save.
+    runtime.invalidate()
+    return next(
+        status
+        for status in await provider_credentials(session, settings)
+        if status.provider == provider
+    )
+
+
+async def clear_provider_credentials(
+    session: AsyncSession, *, provider: str, actor_id: Any = None
+) -> None:
+    """Drop a stored credential set — the box falls back to `.env`.
+
+    A hard delete, not a soft one. A soft-deleted secret is still a live vendor
+    credential sitting in the database after somebody decided it should not be,
+    which is the opposite of what "remove" means here.
+    """
+    row = (
+        await session.execute(
+            select(ProviderSecret).where(
+                ProviderSecret.provider == runtime.known(provider),
+                ProviderSecret.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise AdminError(f"no stored credentials for {provider}")
+    record_admin_action(
+        session,
+        action=AuditAction.DELETE,
+        entity=ProviderSecret.__tablename__,
+        entity_id=row.id,
+        meta={"provider": provider},
+    )
+    await session.delete(row)
+    await session.flush()
+    runtime.invalidate()
+
+
+async def test_provider_credentials(
+    session: AsyncSession, *, provider: str, settings: Settings | None = None
+) -> dict[str, Any]:
+    """One real round-trip against the vendor, recorded on the row.
+
+    **The vendor's own error is kept verbatim.** "The access token has expired" is
+    the entire value of a test button; paraphrasing it into "connection failed"
+    throws away the only part an admin can act on.
+
+    A test that cannot even be attempted (nothing configured) says that rather
+    than reporting a failure, because they are different problems.
+    """
+    settings = settings or get_settings()
+    runtime.known(provider)
+    effective = await runtime.effective_settings(session, settings)
+
+    status = next(
+        s for s in await provider_credentials(session, effective) if s.provider == provider
+    )
+    if not status.configured:
+        result = {
+            "ok": False,
+            "at": datetime.now(UTC).isoformat(),
+            "detail": (
+                "not configured — missing " + ", ".join(status.missing)
+                if status.missing
+                else "credentials are unreadable under the current key; enter them again"
+            ),
+        }
+        await _record_test(session, provider, result)
+        return result
+
+    kind, vendor = provider.split(":", 1)
+    try:
+        checked = await probe(kind, vendor, effective)
+        result = {"ok": True, "at": datetime.now(UTC).isoformat(), "detail": checked}
+    except Exception as exc:  # noqa: BLE001 — a vendor's own failure, whatever shape
+        result = {"ok": False, "at": datetime.now(UTC).isoformat(), "detail": str(exc)}
+    await _record_test(session, provider, result)
+    return result
+
+
+async def _record_test(session: AsyncSession, provider: str, result: dict[str, Any]) -> None:
+    row = (
+        await session.execute(
+            select(ProviderSecret).where(
+                ProviderSecret.provider == provider, ProviderSecret.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return  # credentials live in `.env`; there is no row to annotate
+    row.last_test = result
+    await session.flush()
 
 
 # -- price book ---------------------------------------------------------------

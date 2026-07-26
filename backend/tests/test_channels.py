@@ -250,6 +250,102 @@ async def test_the_patient_never_sees_the_operator_reason(settings: Settings):
     assert message == CLOSED_MESSAGE[Channel.WHATSAPP][Lang.HI]
 
 
+# -- the seat share -----------------------------------------------------------
+
+
+async def test_a_channel_share_is_built_from_the_document():
+    config = parse_tier_config(
+        {
+            "channels": {
+                "phone": {"ladder": ["v_oss"], "max_concurrent": 4},
+                "kiosk": {"ladder": ["v_oss"]},
+            },
+            "admission": {"max_oss_sessions": 12},
+        }
+    )
+    admission = config.admission_controller()
+    assert admission.limit("v_oss") == 12
+    assert admission.share("phone") == 4
+    assert admission.share("kiosk") is None, "no share means the global cap only"
+
+
+async def test_phone_cannot_starve_the_patient_standing_at_the_kiosk():
+    """The S-GL.1 AC, and the reason the share exists at all: twelve calls can
+    take every seat on the box, and the one patient who *cannot* be rung back is
+    the one then pushed to the zero-AI floor."""
+    config = parse_tier_config(
+        {
+            "channels": {
+                "phone": {"ladder": ["v_oss", "v2", "v3"], "max_concurrent": 4},
+                "kiosk": {"ladder": ["v_oss", "v3"]},
+            },
+            "admission": {"max_oss_sessions": 12},
+        }
+    )
+    admission = config.admission_controller()
+
+    for _ in range(4):
+        await admission.reserve("v_oss", "phone")
+
+    # The fifth call is refused — and refused *now*, routed down phone's ladder
+    # rather than queued on the GPU (doc 08 §3).
+    async with admission.slot("v_oss", "phone") as admitted:
+        assert not admitted
+
+    # ...while the room still gets the box.
+    async with admission.slot("v_oss", "kiosk") as admitted:
+        assert admitted
+    assert admission.active("v_oss") == 4
+
+
+async def test_a_refused_call_holds_no_seat():
+    """The refusal must not leak a seat, or the cap walks down to zero over a
+    morning and every caller lands on fallback forever."""
+    admission = parse_tier_config(
+        {
+            "channels": {"phone": {"ladder": ["v_oss"], "max_concurrent": 1}},
+            "admission": {"max_oss_sessions": 4},
+        }
+    ).admission_controller()
+
+    await admission.reserve("v_oss", "phone")
+    async with admission.slot("v_oss", "phone") as admitted:
+        assert not admitted
+    assert admission.active("v_oss", "phone") == 1
+    await admission.release("v_oss", "phone")
+    assert admission.active("v_oss", "phone") == 0
+    assert admission.active("v_oss") == 0
+
+
+async def test_a_crashed_call_frees_its_share_too():
+    admission = parse_tier_config(
+        {
+            "channels": {"phone": {"ladder": ["v_oss"], "max_concurrent": 1}},
+            "admission": {"max_oss_sessions": 4},
+        }
+    ).admission_controller()
+
+    with pytest.raises(RuntimeError):
+        async with admission.slot("v_oss", "phone") as admitted:
+            assert admitted
+            raise RuntimeError("the call died mid-turn")
+
+    assert admission.active("v_oss", "phone") == 0
+    async with admission.slot("v_oss", "phone") as admitted:
+        assert admitted
+
+
+async def test_the_global_cap_still_bites_when_no_share_is_configured():
+    admission = parse_tier_config(
+        {"channels": {"kiosk": {"ladder": ["v_oss"]}}, "admission": {"max_oss_sessions": 2}}
+    ).admission_controller()
+
+    await admission.reserve("v_oss", "kiosk")
+    await admission.reserve("v_oss", "kiosk")
+    async with admission.slot("v_oss", "kiosk") as admitted:
+        assert not admitted
+
+
 # -- the gates ----------------------------------------------------------------
 
 

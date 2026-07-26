@@ -28,7 +28,7 @@ import json
 import pytest
 
 from app.languages import PILOT_LANGUAGES
-from app.models.enums import Lang, Priority
+from app.models.enums import Priority
 from app.seed import SEEDS_DIR
 from app.trees import rules as rule_lang
 from app.trees.bank import TREES_DIR, load_bank

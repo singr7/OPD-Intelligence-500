@@ -28,11 +28,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import admin as admin_svc
 from app import analytics
+from app import channels as channel_svc
 from app.auth.rbac import Principal, require_admin
 from app.checkins import store as checkin_store
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, UsagePurpose
+from app.providers import runtime
 from app.providers.costguard import CostGuard, get_guard
 from app.whatsapp import templates as wa_templates
 
@@ -807,6 +809,248 @@ async def publish_protocol_bank(
     except admin_svc.AdminError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _bank_out(published)
+
+
+# -- the switchboard: channels + provider credentials (S-GL.1) -----------------
+
+
+class ChannelStateOut(BaseModel):
+    """One channel's row in the Channels tab.
+
+    `enabled` and `ready` are separate fields, not one `open`, because they are
+    different problems with different fixes — and `open` is derived rather than
+    sent so the console cannot drift from the gate's own answer.
+    """
+
+    channel: str
+    enabled: bool
+    ready: bool
+    open: bool
+    reason: str
+    ladder: list[str]
+    max_concurrent: int
+
+
+class ChannelsOut(BaseModel):
+    channels: list[ChannelStateOut]
+    max_oss_sessions: int
+    campaign_mix: dict[str, int]
+    #: True when what is in force comes from `config/tiers.yaml` because nothing
+    #: has been published. The console says so — an admin should know whether
+    #: they are looking at a file or at a decision somebody made.
+    from_file: bool
+    version: int | None
+
+
+class ChannelVersionOut(BaseModel):
+    id: uuid.UUID
+    version: int
+    status: str
+    published_at: datetime | None
+    notes: str | None
+    enabled: dict[str, bool]
+
+
+class SaveChannelsIn(BaseModel):
+    config: dict
+    notes: str | None = None
+
+
+def _channel_version_out(v: admin_svc.ChannelConfigVersionOut) -> ChannelVersionOut:
+    return ChannelVersionOut(
+        id=v.id,
+        version=v.version,
+        status=v.status,
+        published_at=v.published_at,
+        notes=v.notes,
+        enabled=v.enabled,
+    )
+
+
+@router.get("/channels", response_model=ChannelsOut)
+async def channels(
+    session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)
+) -> ChannelsOut:
+    """What is actually open right now — the gate's own view, not the document's.
+
+    Readiness is resolved against the *effective* settings, so a credential set in
+    this console a moment ago is reflected here without a restart.
+    """
+    effective = await runtime.effective_settings(session, settings)
+    config = await channel_svc.resolve_config(session)
+    published = await channel_svc.published_config(session)
+    versions = await admin_svc.list_channel_configs(session)
+    live = next((v for v in versions if v.status == "published"), None)
+
+    return ChannelsOut(
+        channels=[
+            ChannelStateOut(
+                channel=state.channel.value,
+                enabled=state.enabled,
+                ready=state.ready,
+                open=state.is_open,
+                reason=state.reason,
+                ladder=list(state.ladder),
+                max_concurrent=state.max_concurrent,
+            )
+            for state in channel_svc.channel_states(config, effective)
+        ],
+        max_oss_sessions=config.max_oss_sessions,
+        campaign_mix={c.value: pct for c, pct in config.campaign_mix.items()},
+        from_file=published is None,
+        version=live.version if live is not None else None,
+    )
+
+
+@router.get("/channels/document")
+async def channel_document(
+    version: int | None = Query(default=None), session: AsyncSession = Depends(get_session)
+) -> dict:
+    """The document the editor loads — a stored version, or the file's own."""
+    try:
+        return await admin_svc.get_channel_config(session, version)
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/channels/versions", response_model=list[ChannelVersionOut])
+async def channel_versions(
+    session: AsyncSession = Depends(get_session),
+) -> list[ChannelVersionOut]:
+    return [_channel_version_out(v) for v in await admin_svc.list_channel_configs(session)]
+
+
+@router.post("/channels/draft", response_model=ChannelVersionOut)
+async def save_channel_draft(
+    body: SaveChannelsIn, session: AsyncSession = Depends(get_session)
+) -> ChannelVersionOut:
+    try:
+        version = await admin_svc.save_channel_config_draft(
+            session, config=body.config, notes=body.notes
+        )
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _channel_version_out(version)
+
+
+@router.post("/channels/{version}/publish", response_model=ChannelVersionOut)
+async def publish_channels(
+    version: int, session: AsyncSession = Depends(get_session)
+) -> ChannelVersionOut:
+    """Open or close channels. Live on the next intake, with no deploy."""
+    try:
+        published = await admin_svc.publish_channel_config(session, version=version)
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _channel_version_out(published)
+
+
+class ProviderCredentialOut(BaseModel):
+    """Deliberately without a field for the credentials themselves. There is no
+    read path here to grow a "reveal" button onto later — see the model docstring
+    on `ProviderSecret`."""
+
+    provider: str
+    configured: bool
+    missing: list[str]
+    source: str
+    updated_at: datetime | None
+    last_test: dict
+    derived_key: bool
+    unreadable: bool
+    #: Which fields this vendor takes, so the console renders the right form
+    #: without hardcoding a vendor's shape.
+    fields: list[str]
+
+
+class SaveCredentialsIn(BaseModel):
+    #: Field name → value. Unknown keys are dropped, not stored: a console may
+    #: supply this vendor's credentials and nothing else.
+    values: dict[str, str]
+
+
+def _credential_out(status: admin_svc.ProviderCredentialStatus) -> ProviderCredentialOut:
+    return ProviderCredentialOut(
+        provider=status.provider,
+        configured=status.configured,
+        missing=status.missing,
+        source=status.source,
+        updated_at=status.updated_at,
+        last_test=status.last_test,
+        derived_key=status.derived_key,
+        unreadable=status.unreadable,
+        fields=list(runtime.CREDENTIAL_FIELDS[status.provider]),
+    )
+
+
+@router.get("/providers/credentials", response_model=list[ProviderCredentialOut])
+async def provider_credentials(
+    session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)
+) -> list[ProviderCredentialOut]:
+    """Whether each vendor is configured, and how it was last tested. Never what."""
+    return [_credential_out(s) for s in await admin_svc.provider_credentials(session, settings)]
+
+
+@router.put("/providers/{name}/credentials", response_model=ProviderCredentialOut)
+async def set_provider_credentials(
+    name: str,
+    body: SaveCredentialsIn,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    principal: Principal = Depends(require_admin),
+) -> ProviderCredentialOut:
+    """Store a vendor's credentials, encrypted. Write-only: the response says
+    whether they are complete, never what was stored."""
+    try:
+        status = await admin_svc.save_provider_credentials(
+            session,
+            provider=name,
+            values=body.values,
+            actor_id=principal.id,
+            settings=settings,
+        )
+    except (admin_svc.AdminError, runtime.UnknownProviderSecret) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _credential_out(status)
+
+
+@router.delete("/providers/{name}/credentials", status_code=204)
+async def clear_provider_credentials(
+    name: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require_admin),
+) -> None:
+    """Remove stored credentials — the box falls back to `.env`."""
+    try:
+        await admin_svc.clear_provider_credentials(
+            session, provider=name, actor_id=principal.id
+        )
+    except (admin_svc.AdminError, runtime.UnknownProviderSecret) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await session.commit()
+
+
+@router.post("/providers/{name}/test")
+async def test_provider(
+    name: str,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """One real round-trip against the vendor, reporting the vendor's own error.
+
+    Always 200, even when the vendor rejects us: "Meta says the token expired" is
+    a successful test with a failing result, and a 4xx here would make the console
+    render its own generic error instead of the one sentence that matters.
+    """
+    try:
+        result = await admin_svc.test_provider_credentials(
+            session, provider=name, settings=settings
+        )
+    except runtime.UnknownProviderSecret as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await session.commit()
+    return result
 
 
 @router.get("/slot-templates")

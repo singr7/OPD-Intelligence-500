@@ -40,6 +40,7 @@ from app.providers.audio import AudioClip
 from app.providers.base import ProviderError
 from app.providers.metering import usage_scope
 from app.providers.registry import get_telephony_provider, stt_chain, tts_chain
+from app.providers.runtime import effective_settings
 from app.providers.stt import STTProvider
 from app.providers.telephony import TransferRequest
 from app.providers.tts import TTSProvider
@@ -130,7 +131,9 @@ async def handle_receptionist_call(
     # number nobody has announced is precisely the half-configured channel doc 12 §4
     # is about.
     async with sessionmaker() as db:
-        phone_state = channel_state(await resolve_config(db), Channel.PHONE, settings)
+        phone_state = channel_state(
+            await resolve_config(db), Channel.PHONE, await effective_settings(db, settings)
+        )
     if not phone_state.is_open:
         await pump.play(await say(closed_message(Channel.PHONE, lang)))
         record.end_reason = "channel_closed"
