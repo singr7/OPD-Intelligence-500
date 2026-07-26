@@ -33,7 +33,7 @@ Every module lists: capabilities, key behaviors, edge cases, acceptance criteria
 - Max 8 min; graceful exit saves partial intake; retry policy 2 attempts then WhatsApp fallback message.
 - Consent line at call start, recorded.
 
-## §1c Android app (Phase 1) / iOS (Phase 2)
+## §1c Android app (Phase 1) / iOS (Phase 4)
 
 Why a patient installs it (the persuasion set — build these, they are the point):
 1. **"My Cancer Care File"** — every prescription, summary, and report photo in one place, works offline, shareable to any doctor as PDF. (Rural patients carry plastic bags of papers; this is the killer feature.)
@@ -44,7 +44,7 @@ Why a patient installs it (the persuasion set — build these, they are the poin
 6. **Family access**: caregiver phone linked, sees everything with patient consent.
 7. Low-end friendly: <15MB, offline-first, SMS-based OTP login, works on Android 8+.
 
-iOS Phase 2: same API; SwiftUI; add HealthKit weight/temperature logging.
+iOS **Phase 4** (moved 2026-07-26; sessions S-P4.1/S-P4.2 in doc 12 §10): same API; SwiftUI; add HealthKit weight/temperature logging. Note the two things that are not a port — iOS has **no exact alarms**, so dose reminders are best-effort and must say so, and App Store review plus Developer Program enrollment is the long pole, not the code.
 
 ## §1d WhatsApp bot
 

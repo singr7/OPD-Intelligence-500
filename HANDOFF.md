@@ -16,7 +16,8 @@
 **1082** (was 1071), voice-gw **22**, web typecheck+lint+**48** conformance, **Android 6 JVM**.
 `make lang-qa` clean across [en,hi,mr,te]. **Migration `cb011d62f829`** (`protocol_banks` +
 `checkins.grading_rules`) — run `make migrate` before anything. Postgres on host port **5433**;
-voice-gw on **8090**. **The mainline sequence resumes at S19 (deploy + observability).**
+voice-gw on **8090**. **The sequence is now doc 12's go-live track: next is S-GL.1** (S19 is
+superseded — see below).
 
 ⚠️ `make lint` still fails on the **same pre-existing unformatted files** (none of S18L's).
 There is also one pre-existing unused import (`tests/test_tree_bank.py:31`, `Lang`). Not in
@@ -37,24 +38,40 @@ Tuesday's answers, so `Checkin.grading_rules` now freezes the rules beside the q
 Doc 03 §11's **tier-mix what-if** exists and is measured rather than modelled; when a tier has
 never run on a channel it says so instead of pricing phone V2 off kiosk intakes.
 
-## Next session — S19 (Deploy to AWS + observability)
+## Next session — S-GL.1 (the channel switchboard) — **Phase 1, go-live**
 
-- Objective: doc 06 S19 — apply Terraform; ECR + GitHub Actions deploy pipeline; Caddy TLS;
-  CloudWatch alarms; Loki/Grafana dashboards (turn latency, provider health, queue depth,
-  check-in outcomes) + a Grafana **infra**-cost panel distinct from the in-app product
-  analytics; backup jobs + restore runbook, **executing one real restore**.
-- **Load:** doc 05 (full).
-- **AC:** production URL live; alarm test fires; documented restore completed from
-  last-night backup.
-- **What S18L changes for it:** two new pieces of state a restore has to bring back and a
-  deploy must not lose — `protocol_banks` (whichever version is published *is* clinical
-  policy) and `checkins.grading_rules`. A restore that silently loses the published bank
-  degrades to the seed file rather than failing, which is the right behaviour and exactly the
-  kind of thing a restore drill should be made to notice.
-- **Note on the operator's box:** the pilot runs on-prem on the 4090, not on AWS. S19 as
-  written assumes AWS; confirm with the operator whether this is a real deploy target or
-  whether S19 becomes "observability + backup/restore on the box" with Terraform left
-  plan-only.
+**The mainline sequence is redirected.** After a planning pass on 2026-07-26 the operator chose
+a **kiosk-first go-live**: kiosk open on the box, WhatsApp/telephony/app intake dark. Doc 06's
+S19 is superseded for the pilot by **S-GL.6** (AWS becomes the GPU-free disaster-recovery
+profile, not the primary deployment). Full reasoning, evidence and every session:
+**[doc 12](docs/12-GO-LIVE-PLAN.md)**; the phase table is doc 06's tail.
+
+- **Objective:** doc 12 §7 S-GL.1 — per-channel enable/disable + tier ladder + GPU seat share,
+  editable from the admin console; **runtime provider credentials** (set-and-test for Meta and
+  Exotel, no restart); campaign channel-mix weights. Without this there is no honest "off",
+  and today a patient who messages the hospital's WhatsApp number reaches a bot that fails per
+  message.
+- **Load:** doc 12 (§1, §4, §7), doc 02 §9, doc 08 §3/§5, `config/tiers.yaml`, `app/tiers.py`,
+  `app/config.py`, `app/providers/registry.py`, `sessions/SESSION-18L.md`.
+- **AC:** with every channel but kiosk disabled, a WhatsApp inbound and a phone call are both
+  refused politely, nothing 500s, the kiosk is untouched; entering + testing Meta credentials
+  in the console makes the bot answer **with no restart**; a test fills the phone seat share
+  and a kiosk session is still admitted; campaign dry-run at 30/70 produces the documented
+  split.
+- **What S18L gives it:** the versioned draft→publish→resolve pattern now exists **twice**
+  (`app/trees/store.py`, `app/checkins/store.py`) with the file as the floor and a validator as
+  the only constructor. Channel config is the third instance — **reuse it, do not invent a
+  third shape**. `app/admin.py` + the console's tab structure are the template for the UI.
+- **One design warning:** provider credentials are secrets, and nothing in this repo stores a
+  secret in the database yet. They must be **write-only over the wire** (set and test, never
+  read back) and encrypted at rest, and `.env` stays the floor exactly as the seed files do.
+  If that cannot be done well in the session, ship enable/disable + ladder + seats and leave
+  credentials in `.env` — a half-secure secret store is worse than an honest env var.
+
+- **Then:** S-GL.2 (staff onboarding + roster import — a doctor cannot be added without editing
+  a seed file today) → S-GL.3 (the on-box reality pass; builds almost nothing, and every item
+  in it is something no human has looked at). That is the go-live cut.
+
 - **Start from `main`.** First commands:
 ```
 make dev && make migrate && make seed && make slots   # 12 slot templates -> ~800 slots
@@ -100,8 +117,14 @@ Admin login: `+915550000001` (seeded Priya Sharma); the OTP is echoed locally.
   button**, which sharpens this: the review has somewhere to land. *(carried, sharpened)*
 - **Is the LLM assist allowed to escalate free text to red?** S18L did not change S17's answer
   (no — it may only raise green→amber). *(carried)*
-- **Is S19 an AWS deploy, or observability + restore on the on-prem box?** The pilot is live
-  on the 4090; doc 06 S19 and doc 05 assume AWS. *(new)*
+- **Answered 2026-07-26:** S19 is neither — AWS becomes the **GPU-free DR profile** (S-GL.6)
+  and the pilot goes live kiosk-first on the box. Doc 12 records the reasoning.
+- **Has an oncologist reviewed the *tree bank*?** Carried since S4 and now sharper than the
+  protocol-bank question: a kiosk-first pilot makes the trees the **only** clinical content in
+  front of a patient. Same model-drafted, unreviewed status. *(new emphasis)*
+- **Are check-ins on or off for day one?** With WhatsApp dark the delivery ladder has no first
+  rung and falls to an SMS nudge. Either hold plans in draft (they need a doctor's tap anyway)
+  or set `CHECKINS_ENABLED=false` until WhatsApp is live. *(new)*
 - **A live Exotel number + creds** — still blocking three proofs: the S14 intake bridge, the
   S15 receptionist/campaign, and S17's voice rung. *(carried)*
 - **Who is the coordinator on `COORDINATOR_PHONE`** — they get every red check-in alert.

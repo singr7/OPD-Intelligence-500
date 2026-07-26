@@ -179,12 +179,47 @@ reconciles to usage_events.
 
 ### Go-live track — S-GL (operator, 2026-07-26)
 
-Answers to six operator questions (channel mix, streaming V2V, realtime vendor adapters,
-on-box viability, a GPU-free cloud fallback, staff onboarding) and the sessions they imply
-live in **[doc 12](12-GO-LIVE-PLAN.md)**. In short: **S-GL.1** channel switchboard + runtime
-provider config, **S-GL.2** on-box reality pass, **S-GL.3** staff onboarding + roster import,
-**S-GL.4** Gemini Live adapter + real VAD, **S-GL.5** OpenAI Realtime as the second adapter,
-**S-GL.6** the GPU-free AWS disaster-recovery profile (**supersedes S19 for the pilot**),
-**S-GL.7** dress rehearsal (narrows S22). S-GL.1–3 is the kiosk-first go-live cut.
+Six operator questions (channel mix, streaming V2V, realtime vendor adapters, on-box
+viability, a GPU-free cloud fallback, staff onboarding) are answered against the actual repo
+in **[doc 12](12-GO-LIVE-PLAN.md)**, which also holds the sessions below in full. **The
+numbering is the execution order.**
 
-**Phase 2 backlog (tracked, not built):** iOS app; handwritten-Rx OCR; WhatsApp native calling API; FHIR export; urban/multi-site tenanting; analytics warehouse.
+**Phase 1 — go live, kiosk-first (now).** Kiosk open; WhatsApp, telephony and app intake dark
+behind the new switch. Every path in it is built and tested; what they lack is a real patient.
+- **S-GL.1** — the switchboard: per-channel enable/disable + tier ladder + seat share in the
+  admin console, runtime provider credentials (set-and-test, no restart), campaign channel-mix
+  weights. Without this there is no honest "off".
+- **S-GL.2** — staff onboarding + roster: create doctors/users from the console, invite by
+  phone, slot-template editor with CSV roster import and a dry run. Without this a new doctor
+  means editing a seed file on the box.
+- **S-GL.3** — on-box hardening: the "owed on omen" list paid down (Telugu render, admin
+  console on a screen with real data, a real Qwen3 summary read by a human, the downtime drill
+  executed, GPU concurrency **measured** so `max_oss_sessions` stops being an estimate).
+  Builds almost nothing; every item is a first-contact-with-reality item.
+
+**Phase 3 — conversational voice + resilience (after go-live).** Needs vendor credentials and
+real-call tuning; do not compress. Telephony opens the day the VAD is measured on real Alwar
+calls, not the day the adapter compiles.
+- **S-GL.4** — the real Gemini Live adapter behind the existing `RealtimeVoiceProvider`
+  interface, a realtime intake prompt with scope guardrails **and an eval set**, Silero VAD +
+  smart-turn replacing the energy-threshold endpointer, 6-minute timebox.
+- **S-GL.5** — OpenAI Realtime as a second adapter against the same interface and prompt;
+  vendor choice becomes config-only and per-channel; price-book rows for realtime minutes.
+- **S-GL.6** — the GPU-free AWS profile: boots with every AI provider off, ladders end at
+  `v3`, LLM-dependent surfaces degrade *visibly* to manual entry, replication + a rehearsed
+  failover and restore. **Supersedes S19 for the pilot** (AWS is DR here, not primary).
+- **S-GL.7** — dress rehearsal on the box with the failover drill mid-day (narrows S22).
+
+**Phase 4 — second platform.** iOS, moved here from the Phase 2 backlog: **S-P4.1** (SwiftUI
+care file, queue, patient-token login) and **S-P4.2** (home intake, reminders with honest
+approximate-timing copy — iOS has no exact alarms — chemo calendar, HealthKit, App Store).
+Start the Apple Developer enrollment before the code; it is the long pole. Do not start until
+the Android app has run on a real handset for a fortnight.
+
+**Not in any phase:** opening WhatsApp and telephony on the **existing V2 pipeline** needs no
+build at all once Meta and Exotel are provisioned — just the S-GL.1 switch.
+
+**Phase 2 backlog (tracked, unscheduled):** handwritten-Rx OCR; WhatsApp native calling API;
+FHIR export; urban/multi-site tenanting; analytics warehouse. Numbered below Phase 3 but
+sequenced after it — these are "someone asks for this" items, whereas Phase 3 finishes what
+the pilot started.

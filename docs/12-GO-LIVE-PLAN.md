@@ -5,7 +5,7 @@ the work as sessions in doc 06's format. Written after S18-late; repo at `dce226
 
 **The headline, first: "live in a couple of days" is achievable for one shape of go-live and
 not for another.** A **kiosk-first pilot on the 4090, tap + local voice, WhatsApp and
-telephony dark** is roughly two sessions away, because that is close to what is deployed now.
+telephony dark** is three sessions away, because that is close to what is deployed now.
 A **fully conversational speech-to-speech telephony pilot with vendor realtime, robust VAD and
 barge-in** is not two days' work under any honest estimate: the realtime adapters do not
 exist, the VAD is an energy proxy, and neither has ever met a real phone call. §7 splits the
@@ -102,7 +102,7 @@ What already works there: the whole app stack, plus Whisper + Qwen3 + Kokoro TTS
 - **Nothing lets you enable a vendor without editing `.env` and restarting.** Provider
   selection, Meta credentials and Exotel credentials are all boot-time settings. Your "simple
   way to set it up when it arrives" does not exist. This is the §1 switchboard's second half
-  and is built in **S-GL.1** / **S-GL.2**.
+  and is built in **S-GL.1**.
 - **A half-configured channel fails badly rather than staying shut.** With no
   `EXOTEL_CHECKIN_APPLET_URL`, the check-in ladder correctly skips the voice rung; but there is
   no equivalent for "WhatsApp is not provisioned" — the bot would try and fail per message.
@@ -149,15 +149,27 @@ deferred placeholder. Onboarding a doctor today means editing a seed file and re
 seed on the box — not something a hospital administrator can do, and a real blocker for going
 live with more than the five seeded doctors.
 
-Built in **S-GL.3**.
+Built in **S-GL.2**.
 
 ---
 
 ## 7. The sequence
 
-Each session is doc 06 format. **S-GL.1 → S-GL.3 is the two-day go-live cut** for a
-kiosk-first pilot; S-GL.4 onward is the conversational-telephony track, which needs vendor
-credentials and real-call tuning and should not be compressed.
+Each session is doc 06 format, and **the numbering is the execution order** — S-GL.1, then
+S-GL.2, then S-GL.3, and so on. Three phases:
+
+| | | |
+|---|---|---|
+| **Phase 1 — go live, kiosk-first** | S-GL.1 → S-GL.2 → S-GL.3 | Now. Every path in it is built; what they lack is a real patient. |
+| **Phase 3 — conversational voice + resilience** | S-GL.4 → S-GL.5 → S-GL.6 → S-GL.7 | After go-live. Needs vendor credentials and real-call tuning; do not compress. |
+| **Phase 4 — second platform** | S-P4.1 → S-P4.2 | iOS, moved out of the doc 06 Phase 2 backlog (§9). |
+
+(Phase 2 remains doc 06's unscheduled product backlog — handwritten-Rx OCR, WhatsApp native
+calling, FHIR export, multi-site tenanting, the analytics warehouse. It is numbered below
+Phase 3 but sequenced after it: those are "someone asks for this" items, whereas Phase 3 is
+finishing what the pilot started. Opening WhatsApp and telephony on the **existing V2
+pipeline** is not in any of these phases — it needs no build at all once credentials exist,
+just the S-GL.1 switch, and should happen whenever Meta and Exotel are provisioned.)
 
 ### S-GL.1 — The switchboard: channel enablement, capacity, and runtime provider config
 - **Load:** doc 02 §9, doc 08 §3/§5, `config/tiers.yaml`, `app/tiers.py`, `app/config.py`,
@@ -188,21 +200,7 @@ credentials and real-call tuning and should not be compressed.
 - **Note:** treat "disabled" as the safe default for any channel with no tested credentials —
   going live should not require remembering to switch things off.
 
-### S-GL.2 — Go-live hardening on the box (kiosk-first)
-- **Load:** docs 09, 10, doc 01 §5, `HANDOFF.md` → "Owed on omen".
-- **Build:** pay down the on-box debt that is currently owed and blocks a real patient:
-  Telugu kiosk render checked on the actual screen; the admin console walked tab by tab
-  against real data; a real Qwen3 run of `checkin_personalize` and `summarize` read by a human
-  (that text is what a frightened person reads); one full kiosk intake per language on the box;
-  the downtime drill executed on the box, not in a test; GPU contention measured — kiosk
-  read-aloud during N concurrent local sessions, and `max_oss_sessions` set from the
-  measurement rather than from doc 08's estimate.
-- **AC:** a written record in the session log of each item observed on the box, with the
-  measured concurrency envelope and the value `max_oss_sessions` was set to and why.
-- **Note:** this session builds almost nothing. It exists because everything in it is a
-  first-contact-with-reality item, and the pilot's first day is the wrong time for all of them.
-
-### S-GL.3 — Staff onboarding + roster (doc 03 §10's unbuilt half)
+### S-GL.2 — Staff onboarding + roster (doc 03 §10's unbuilt half)
 - **Load:** doc 03 §2/§10, `app/scheduling.py`, `app/models/org.py`, S18-late's editor pattern.
 - **Build:** admin **People** tab — create/deactivate a user with a role, create a doctor
   against a department, and an **invite** flow that is just "this phone number can now sign in"
@@ -215,6 +213,20 @@ credentials and real-call tuning and should not be compressed.
   and appears in the receptionist's inventory and the doctor console — entirely from the
   console, on a box, with no seed run and no deploy; the import dry-run refuses a row naming an
   unknown doctor and says which row.
+
+### S-GL.3 — Go-live hardening on the box (kiosk-first)
+- **Load:** docs 09, 10, doc 01 §5, `HANDOFF.md` → "Owed on omen".
+- **Build:** pay down the on-box debt that is currently owed and blocks a real patient:
+  Telugu kiosk render checked on the actual screen; the admin console walked tab by tab
+  against real data; a real Qwen3 run of `checkin_personalize` and `summarize` read by a human
+  (that text is what a frightened person reads); one full kiosk intake per language on the box;
+  the downtime drill executed on the box, not in a test; GPU contention measured — kiosk
+  read-aloud during N concurrent local sessions, and `max_oss_sessions` set from the
+  measurement rather than from doc 08's estimate.
+- **AC:** a written record in the session log of each item observed on the box, with the
+  measured concurrency envelope and the value `max_oss_sessions` was set to and why.
+- **Note:** this session builds almost nothing. It exists because everything in it is a
+  first-contact-with-reality item, and the pilot's first day is the wrong time for all of them.
 
 ### S-GL.4 — Gemini Live realtime adapter + a real turn detector
 - **Load:** doc 02 §5, doc 03 §1b, doc 08 §2, `app/providers/realtime.py`, `voice-gw/gw/call.py`.
@@ -264,22 +276,113 @@ credentials and real-call tuning and should not be compressed.
 
 ---
 
-## 8. What I would cut to go live this week
+## 8. Phase 1 in detail — what "go live" means and what it does not
 
-Open **kiosk only**, on the box, with WhatsApp and telephony disabled by the S-GL.1 switch:
+Open **kiosk only**, on the box, with WhatsApp, telephony and app intake dark behind the
+S-GL.1 switch. In order:
 
-- **S-GL.1** (the switchboard — without it there is no honest "off")
-- **S-GL.3** (staff onboarding — without it you cannot add a doctor)
-- **S-GL.2** (the on-box reality pass — the cheapest insurance in this document)
+1. **S-GL.1 — the switchboard.** Without it there is no honest "off": a patient who messages
+   the hospital's WhatsApp number today reaches a bot that will try and fail per message.
+2. **S-GL.2 — staff onboarding + roster.** Without it you cannot add a doctor without editing
+   a seed file on the box.
+3. **S-GL.3 — the on-box reality pass.** The cheapest insurance in this document, and the only
+   session that builds almost nothing.
 
-That is a defensible pilot: a patient does a kiosk intake in her language, gets a token, the
-board calls her, the doctor reads a summary, dictates a note, prints a prescription. Every one
-of those paths is built and tested; what they have not had is a real patient.
+**What a patient gets on day one:** she walks up, picks her language, describes her problem in
+her own words to a local Whisper, answers a reviewed question tree by tap with everything read
+aloud in Hindi/Marathi/Telugu/English, confirms a read-back, and takes a printed token. The
+board calls her number. The doctor reads a summary with the red flags on top, dictates a note
+that maps to structured fields with no silent drug substitution, signs it, and prints a
+prescription with pictograms. If the network dies mid-morning, the kiosk keeps issuing tokens
+from its offline block and reconciles when it returns.
 
-Then, in order and unhurried: **S-GL.4** (realtime + real VAD) → **S-GL.5** (second vendor) →
-**S-GL.6** (cloud DR) → **S-GL.7** (rehearsal). Telephony should open the day the VAD is
-measured on real calls, not the day the adapter compiles.
+**What is explicitly not open on day one**, and what to tell staff:
 
-Two things I would push back on if you asked me to compress further: **the eval sets in S-GL.4**
-(a duplex model with no eval is an unreviewable clinical surface) and **the on-box pass in
-S-GL.2** (every item in it is something no human has yet looked at).
+- **No phone intake, no AI receptionist, no outbound campaign** — no Exotel number yet, and the
+  turn detector is not ready for a real line either way (§2).
+- **No WhatsApp** — no approved Meta templates. Check-ins therefore have no first rung: the
+  delivery ladder would fall to SMS, so **hold check-in plans in draft** (they need a doctor's
+  tap anyway) or leave `CHECKINS_ENABLED=false` until WhatsApp is live.
+- **No app intake** — the Android APK is unsigned and has never run on a real handset.
+- **Adaptive voice answering stays off** (`INTAKE_ADAPTIVE=0`) — built, never proven with the
+  flag on.
+- **One box, no failover** — until S-GL.6 a hardware fault is a paper day. The Downtime
+  Protocol covers this and should be drilled in S-GL.3, not discovered.
+
+**Two things worth deciding before day one, not during it:** who is on `COORDINATOR_PHONE`,
+and whether an oncologist has reviewed the **tree bank** — the trees a kiosk patient answers
+are model-drafted and clinically unreviewed, exactly like the check-in protocol bank. The
+kiosk-first pilot makes the trees the *only* clinical content in front of a patient, which
+raises rather than lowers how much that review matters.
+
+## 9. Phase 3 — conversational voice and resilience
+
+Unchanged from the sessions above (**S-GL.4** Gemini Live + real VAD, **S-GL.5** OpenAI
+Realtime as the second adapter, **S-GL.6** the GPU-free cloud DR profile, **S-GL.7** the dress
+rehearsal), with one sequencing rule: **telephony opens the day the VAD is measured on real
+Alwar calls, not the day the adapter compiles.**
+
+Entry conditions, so this phase does not start half-blind:
+
+- A live Exotel number and credentials, and at least one Meta-approved WhatsApp template.
+- Phase 1 complete, with the S-GL.3 concurrency measurement in hand — a realtime tier's seat
+  budget is decided against that number, not against doc 08's estimate.
+- A decision on **who pays for realtime minutes**: Gemini Live and OpenAI Realtime are cloud
+  services on a box built for zero cloud AI (§4). The tier ladder already expresses "phone is
+  allowed to be expensive, the kiosk is not"; that choice should be made explicitly and priced
+  in the cost guard before the first minute.
+
+Two things I would refuse to drop from Phase 3 if it is compressed: **the S-GL.4 eval sets** (a
+duplex model with no eval is an unreviewable clinical surface) and **the rehearsed restore in
+S-GL.6** (an untested backup is not a backup).
+
+## 10. Phase 4 — iOS
+
+Moved here from doc 06's Phase 2 backlog. Doc 03 §1c specifies it as "same API; SwiftUI; add
+HealthKit weight/temperature logging", which understates the work in one important way and
+overstates it in another.
+
+**Why it is smaller than it looks:** every `/patient/*` route, the patient-token identity
+model, the caregiver grant, the dose-event adherence keying and the offline care-file contract
+were built platform-neutrally in S16. iOS is a client against a proven API, not a new backend.
+
+**Why it is not a port:** three Android affordances the app leans on do not exist on iOS.
+
+- **Exact alarms.** S16's dose reminders use Android exact alarms and the invariant that *the
+  phone never invents a dose time*. iOS has no exact-alarm equivalent — `UNCalendarNotification`
+  is best-effort and the system may defer it. The reminder feature is therefore **weaker on
+  iOS, and must say so** rather than quietly drifting; a dose reminder that arrives forty
+  minutes late without explanation is worse than one that admits it is approximate.
+- **Background sync.** `BGAppRefreshTask` is scheduled at the system's discretion, so the care
+  file syncs on foreground rather than overnight. Fine — the file is small and ETag-conditional.
+- **Distribution.** App Store review is days, not minutes, and the first submission needs an
+  Apple Developer Program enrollment (an organisation account needs a D-U-N-S number, which can
+  itself take a week), a privacy policy URL, and privacy-nutrition-label declarations covering
+  health data. **Start the enrollment before the code**, because it is the long pole and it is
+  pure paperwork.
+
+**S-P4.1 — iOS client: care file, queue, login.**
+- Load: doc 03 §1c, `backend/app/routes/patient.py`, `android/` for the contract it proved.
+- Build: SwiftUI app, phone-OTP login against the shared `/auth/patient/*` flow with the
+  `kind: "patient"` token claim; SwiftData-backed offline **My Cancer Care File** with
+  ETag-conditional sync and PDF share; live queue position with the "leave home by" hint;
+  family access via the existing `caregiver_links` grant, re-read per request.
+- AC: the care file opens and shares in airplane mode; a revoked caregiver link closes the file
+  at the next screen; the app never sends a `patient_id` (identity comes from the token).
+
+**S-P4.2 — iOS: home intake, reminders, chemo calendar, and the store.**
+- Load: S-P4.1's output, doc 03 §1c.4/5, doc 04 §3.
+- Build: Talk-to-Dhara home intake over `SFSpeechRecognizer` + `AVSpeechSynthesizer` against
+  the same kiosk handler bodies the Android app uses; dose reminders on
+  `UNUserNotificationCenter` with **honest approximate-timing copy** and the same refusal to
+  invent a time the doctor did not state; chemo calendar with spoken what-to-expect text;
+  HealthKit weight/temperature logging (doc 03 §1c, read-write, opt-in, and **never** a clinical
+  input — it is the patient's own record, not a vital sign the system grades); App Store
+  submission with privacy labels and a TestFlight build for the OPD staff.
+- AC: a full home intake completes on a real device; a reminder fires for a dose time the
+  doctor actually stated and none fires for a bare "BD"; the build passes App Store review, or
+  the rejection reasons are logged and addressed.
+
+**Do not start Phase 4 until the Android app has run on a real handset for a fortnight.** Its
+open questions — Doze behaviour overnight, whether patients install anything at all — are
+answers Phase 4 should be built on, not guesses it should repeat.
