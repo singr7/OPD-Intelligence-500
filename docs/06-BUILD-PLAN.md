@@ -186,9 +186,14 @@ numbering is the execution order.**
 
 **Phase 1 — go live, kiosk-first (now).** Kiosk open; WhatsApp, telephony and app intake dark
 behind the new switch. Every path in it is built and tested; what they lack is a real patient.
-- **S-GL.1** — the switchboard: per-channel enable/disable + tier ladder + seat share in the
-  admin console, runtime provider credentials (set-and-test, no restart), campaign channel-mix
-  weights. Without this there is no honest "off".
+- **S-GL.1 — the switchboard (BUILT, 2026-07-26; `sessions/SESSION-GL1.md`).** Per-channel
+  enable/disable + tier ladder + GPU seat share as a versioned document (`config/tiers.yaml` the
+  floor, published rows win), hard gates at kiosk / app / WhatsApp / both voice-gw applets / the
+  campaign dialler, encrypted runtime provider credentials (write-only, set-and-test, live in
+  ~10s with no restart), campaign channel-mix weights, and an admin **Channels** tab. A channel
+  is open only if switched on **and** its vendor is provisioned, and readiness is computed rather
+  than asserted — so going live does not depend on remembering to switch things off. *Not* done:
+  the seat share is not yet wired into the live voice path (stays S-OSS.2).
 - **S-GL.2** — staff onboarding + roster: create doctors/users from the console, invite by
   phone, slot-template editor with CSV roster import and a dry run. Without this a new doctor
   means editing a seed file on the box.

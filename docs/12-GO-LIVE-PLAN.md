@@ -172,6 +172,14 @@ pipeline** is not in any of these phases — it needs no build at all once crede
 just the S-GL.1 switch, and should happen whenever Meta and Exotel are provisioned.)
 
 ### S-GL.1 — The switchboard: channel enablement, capacity, and runtime provider config
+**BUILT — 2026-07-26. Session log: `sessions/SESSION-GL1.md`.** Every item below shipped except
+the seat share's *live wiring* into the voice path, which stays S-OSS.2 (the document, the cap,
+the console and the tests are all here; routing an over-share call down its ladder is not). Two
+things the plan did not anticipate and the session decided: the shipped `config/tiers.yaml`
+changes nothing (channels stay open, the mix stays commented out — the go-live act is three taps
+in the console, and the readiness rule already darkens the vendor channels on a box with no
+account), and a `fake` provider counts as ready on a local box **but says so**, because the pilot
+box runs `ENV=local` and would otherwise have shown a false green.
 - **Load:** doc 02 §9, doc 08 §3/§5, `config/tiers.yaml`, `app/tiers.py`, `app/config.py`,
   `app/providers/registry.py`, `sessions/SESSION-18L.md`.
 - **Build:**

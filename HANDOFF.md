@@ -1,4 +1,4 @@
-# HANDOFF — after Session S18-late (Admin console remainder)
+# HANDOFF — after Session S-GL.1 (the switchboard)
 
 > **Operator's current priority (2026-07-22):** the pilot is **deployed live** on
 > an on-prem RTX 4090 box with **STT + LLM + TTS all local** (kiosk voice-in via
@@ -10,164 +10,152 @@
 > `gh workflow run ci.yml`. **`make test` locally is the only gate** — plus `make lang-qa`.
 >
 > **🚩 Adaptive intake (S-ADAPT) is on `main` but NEVER PROVEN with its flags on.**
-> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults. Unchanged by S18L.
+> `INTAKE_ADAPTIVE=0` / `NEXT_PUBLIC_KIOSK_ADAPTIVE=0` are the defaults. Unchanged by S-GL.1.
 
-**Repo state:** **`main`**, last commit `S 18L: session close`. `make test` green: backend
-**1082** (was 1071), voice-gw **22**, web typecheck+lint+**48** conformance, **Android 6 JVM**.
-`make lang-qa` clean across [en,hi,mr,te]. **Migration `cb011d62f829`** (`protocol_banks` +
-`checkins.grading_rules`) — run `make migrate` before anything. Postgres on host port **5433**;
-voice-gw on **8090**. **The sequence is now doc 12's go-live track: next is S-GL.1** (S19 is
-superseded — see below).
+**Repo state:** **`main`**, last commit `S GL.1: the closed notice joins the language harness`.
+`make test` green: backend **1156** (was 1082), voice-gw **25** (was 22), web typecheck+lint+**48**
+conformance, **Android 6 JVM**. `make lang-qa` clean across [en,hi,mr,te]. **`make lint` is green
+for the first time** — the carried "worth one ruff format commit" item is closed.
+**Migration `2c978d44c900`** (`channel_configs` + `provider_secrets`) — run `make migrate` before
+anything. **New backend dependency: `cryptography`** — `pip install -e '.[dev]'` in
+`backend/.venv`, and the box's api/voice-gw images must be rebuilt. Postgres on host port **5433**;
+voice-gw on **8090**. **Next is S-GL.2** (doc 12 §7).
 
-⚠️ `make lint` still fails on the **same pre-existing unformatted files** (none of S18L's).
-There is also one pre-existing unused import (`tests/test_tree_bank.py:31`, `Lang`). Not in
-`make test`. Still worth one `ruff format . && ruff check --fix .` commit.
+**One paragraph:** S-GL.1 gave the system an honest "off". Before it, a patient who messaged the
+hospital's WhatsApp number reached a bot that tried and failed per message, and going live was
+therefore conditional on Meta and Exotel existing. There is now a **channel document** —
+versioned, published and resolved exactly like the trees and the protocol bank, with
+`config/tiers.yaml` as the floor — carrying per-channel `enabled`, `ladder`, `max_concurrent` and
+the campaign mix. Every entry point is gated on **start** and never mid-flow, so a closed channel
+takes no new patients but abandons nobody mid-sentence: the kiosk and app 503 with the line in her
+own language, WhatsApp answers once per thread and runs no bot logic, and both voice-gw applets
+answer, speak, and hang up without taking consent for an intake that will not happen. The switch
+is deliberately **not** the whole story — whether a vendor is actually provisioned is computed
+from settings and cannot be asserted from a console, so a hospital that forgets to close WhatsApp
+still has a closed WhatsApp. Vendor credentials can now be entered in the console, encrypted, and
+are live within about ten seconds with no restart; they are write-only over the wire, restricted
+to their own vendor's fields, and `.env` stays the floor. Rendering the tab found a **false
+green** no test would have: the box runs `ENV=local`, so a `fake` provider read as "configured".
 
-**One paragraph:** S18L finished the console. The headline S18 criterion — "a non-technical
-user edits a tree, publishes, sees it live with no deploy" — was previously true only of
-someone willing to edit JSON; there is now a **visual editor** that draws the tree as a spine
-in ask order, branches indented under the option that leads to them, red-flag stations stamped,
-with the words a patient reads editable in all four languages and a try-it panel that dry-walks
-the edit through the real walker. It edits **words, not shape**: adding or rewiring a question
-stays in the seed file and a pull request, where the validator's unreachable-question and cycle
-checks get read by a person. The **check-in protocol bank moved into a table** the way the trees
-did — versioned, draft/publish/rollback, `parse()` still the only constructor, the seed file
-still the floor — which forced the one new clinical invariant of the session: because a grade is
-recomputed on every answer, an editable bank would let an afternoon's publish re-decide
-Tuesday's answers, so `Checkin.grading_rules` now freezes the rules beside the questions.
-Doc 03 §11's **tier-mix what-if** exists and is measured rather than modelled; when a tier has
-never run on a channel it says so instead of pricing phone V2 off kiosk intakes.
+## Next session — S-GL.2 (staff onboarding + roster) — **Phase 1, go-live**
 
-## Next session — S-GL.1 (the channel switchboard) — **Phase 1, go-live**
+- **Objective:** doc 12 §7 S-GL.2 — an admin **People** tab (create/deactivate a user with a role,
+  create a doctor against a department, invite by phone — the OTP login already exists, so an
+  invite is just "this number can now sign in"), and the **slot-template editor**: the weekly
+  clinic grid per doctor, a CSV/XLSX roster import with a **dry run that shows what would be
+  created before it writes**, and a "generate slots" button over `app.scheduling.generate_slots`.
+  Deactivation must not orphan booked appointments — surface them and make the admin decide.
+- **Load:** doc 12 §6/§7, doc 03 §2/§10, `app/scheduling.py`, `app/models/org.py`,
+  `seeds/{doctors,slot_templates}.json`, `sessions/SESSION-GL1.md`.
+- **AC:** a new doctor is onboarded, given a Tuesday clinic by CSV import, has slots generated,
+  and appears in the receptionist's inventory and the doctor console — entirely from the console,
+  on a box, with no seed run and no deploy; the import dry-run refuses a row naming an unknown
+  doctor and **says which row**.
+- **What S-GL.1 gives it:** the versioned draft→publish→resolve pattern now exists **three**
+  times (`app/trees/store.py`, `app/checkins/store.py`, `app/channels/store.py`) — but note that
+  people and slot templates are probably **not** a fourth instance of it: a doctor is not
+  authored content with a review cycle, and forcing them into draft/publish would make hiring
+  somebody a two-step act for no safety gained. The tab structure, the `useLoad` hook and the
+  write-only form pattern in `ChannelsTab.tsx` are the reusable parts. `app/routes/admin.py` now
+  has an example of an explicit `await session.commit()` and **why it is needed** (see below).
+- **One design warning:** the slot-template editor writes to inventory that already has
+  appointments booked against it. Regenerating slots after an edit must not silently orphan or
+  double-book — S15's `generate_slots` is idempotent but was never asked to run against a
+  *changed* template. Decide what happens to a booked slot whose template moved before writing
+  the button, not after.
 
-**The mainline sequence is redirected.** After a planning pass on 2026-07-26 the operator chose
-a **kiosk-first go-live**: kiosk open on the box, WhatsApp/telephony/app intake dark. Doc 06's
-S19 is superseded for the pilot by **S-GL.6** (AWS becomes the GPU-free disaster-recovery
-profile, not the primary deployment). Full reasoning, evidence and every session:
-**[doc 12](docs/12-GO-LIVE-PLAN.md)**; the phase table is doc 06's tail.
-
-- **Objective:** doc 12 §7 S-GL.1 — per-channel enable/disable + tier ladder + GPU seat share,
-  editable from the admin console; **runtime provider credentials** (set-and-test for Meta and
-  Exotel, no restart); campaign channel-mix weights. Without this there is no honest "off",
-  and today a patient who messages the hospital's WhatsApp number reaches a bot that fails per
-  message.
-- **Load:** doc 12 (§1, §4, §7), doc 02 §9, doc 08 §3/§5, `config/tiers.yaml`, `app/tiers.py`,
-  `app/config.py`, `app/providers/registry.py`, `sessions/SESSION-18L.md`.
-- **AC:** with every channel but kiosk disabled, a WhatsApp inbound and a phone call are both
-  refused politely, nothing 500s, the kiosk is untouched; entering + testing Meta credentials
-  in the console makes the bot answer **with no restart**; a test fills the phone seat share
-  and a kiosk session is still admitted; campaign dry-run at 30/70 produces the documented
-  split.
-- **What S18L gives it:** the versioned draft→publish→resolve pattern now exists **twice**
-  (`app/trees/store.py`, `app/checkins/store.py`) with the file as the floor and a validator as
-  the only constructor. Channel config is the third instance — **reuse it, do not invent a
-  third shape**. `app/admin.py` + the console's tab structure are the template for the UI.
-- **One design warning:** provider credentials are secrets, and nothing in this repo stores a
-  secret in the database yet. They must be **write-only over the wire** (set and test, never
-  read back) and encrypted at rest, and `.env` stays the floor exactly as the seed files do.
-  If that cannot be done well in the session, ship enable/disable + ladder + seats and leave
-  credentials in `.env` — a half-secure secret store is worse than an honest env var.
-
-- **Then:** S-GL.2 (staff onboarding + roster import — a doctor cannot be added without editing
-  a seed file today) → S-GL.3 (the on-box reality pass; builds almost nothing, and every item
-  in it is something no human has looked at). That is the go-live cut.
+- **Then:** S-GL.3 (the on-box reality pass — builds almost nothing, and every item in it is
+  something no human has looked at). That is the go-live cut.
 
 - **Start from `main`.** First commands:
 ```
-make dev && make migrate && make seed && make slots   # 12 slot templates -> ~800 slots
-make test                                             # 1082 backend / 22 voice-gw / 48 web / 6 android
-make lang-qa                                          # expect clean across [en,hi,mr,te]
-make checkin-demo                                     # a plan, a red D+2, a pending D+7
+cd backend && .venv/bin/pip install -e '.[dev]'   # cryptography is new in S-GL.1
+make dev && make migrate && make seed && make slots
+make test        # 1156 backend / 25 voice-gw / 48 web / 6 android
+make lang-qa     # expect clean across [en,hi,mr,te]
+make lint        # green — keep it that way
 ```
-To see the console (it needs a live api with S18L code — the dockerised image may be older):
+To see the console (it needs a live api with S-GL.1 code — the dockerised image may be older):
 ```
 cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
   OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 \
   JWT_SECRET=local-dev-secret-padded-to-32-chars-plus .venv/bin/python -m uvicorn app.main:app --port 8123
 cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
-cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 npm run e2e:admin
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 npm run e2e:channels
 ```
 Admin login: `+915550000001` (seeded Priya Sharma); the OTP is echoed locally.
 
-## Watch out for (S18L fragile edges)
+## Watch out for (S-GL.1 fragile edges)
 
-- **Publishing a protocol bank is a clinical act with no confirmation dialog.** One tap in the
-  console changes what every subsequent signed note commits a patient to. Nothing is published
-  today (the seed writes v1 as a **draft**, so `resolve_bank` serves the file) — the first
-  publish should be an oncologist's, not a developer's.
-- **`Checkin.grading_rules` is NULL on pre-S18L rows and those grade against the live bank.**
-  That is the intended fallback, but it means a bank published now *would* re-grade an
-  in-flight check-in created before this migration. There are none in production yet; if that
-  changes before the first publish, backfill the column from the bank first.
-- **The tree editor cannot add, delete or rewire a node** — deliberate, and said on the screen.
-  Do not "finish" it by adding structural editing without re-reading why: the validator's
-  reachability and cycle checks are the review, and a builder that orphans a question silently
-  is worse than a diff.
-- **`web/e2e/admin.spec.ts` really publishes.** Each run saves and publishes a new version of
-  `general_medicine_routing` on whatever database it points at. Fine on a dev box; never point
-  it at the pilot.
-- **The severity select in the tree editor must stay in step with `Priority`.** It offers
-  exactly `urgent` and `semi` because those are the only severities a red flag may carry;
-  offering a value the schema lacks silently rewrites a flag's severity on the next save.
+- **`web/e2e/channels.spec.ts` really publishes**, like `admin.spec.ts`. Each run leaves published
+  channel documents on whatever database it points at; its last test reopens everything. Fine on
+  a dev box; **never point it at the pilot** — a failed run mid-suite can leave channels shut.
+- **A `yield` dependency's cleanup runs *after* the response is sent.** The channel draft/publish
+  routes commit explicitly because of it; the e2e caught a client publishing a version before its
+  own draft had landed. **The tree and protocol-bank draft routes still rely on the dependency**
+  and have the same latent race — they have not been hit because their console flow pauses for a
+  human between save and publish. Worth fixing when either is next touched.
+- **The credential encryption key is derived from `JWT_SECRET` unless `SECRETS_KEY` is set.**
+  Rotating the JWT secret makes every stored credential unreadable — honestly (each row records
+  which key wrote it, and the console says so), but they must then be entered again. **Set
+  `SECRETS_KEY` on the box before entering real Meta/Exotel credentials**; generate one with
+  `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+- **"No restart" is a 10-second TTL, not an invalidation protocol.** Three processes read the
+  overlay independently. Deliberate — a missed invalidation message is a vendor that silently
+  stays off — but do not describe it to an operator as instant.
+- **The seat share is configured, capped and tested, but not wired into the live voice path.**
+  Routing an over-share call down its ladder is still S-OSS.2. The console shows the share; it
+  does not yet bite on a real call.
+- **A `fake` provider counts as ready on a local box** (which the pilot box is) and says so with
+  a note. If that note is ever dropped from the tab, the tab starts lying on the box.
 
 ## Decisions needed from the human
 
-- **The check-in protocol bank still needs an oncologist** — six regimen families, seven
-  question sets, 41 grading rules, all model-drafted, none reviewed. It now has a **publish
-  button**, which sharpens this: the review has somewhere to land. *(carried, sharpened)*
-- **Is the LLM assist allowed to escalate free text to red?** S18L did not change S17's answer
-  (no — it may only raise green→amber). *(carried)*
-- **Answered 2026-07-26:** S19 is neither — AWS becomes the **GPU-free DR profile** (S-GL.6)
-  and the pilot goes live kiosk-first on the box. Doc 12 records the reasoning.
-- **Has an oncologist reviewed the *tree bank*?** Carried since S4 and now sharper than the
-  protocol-bank question: a kiosk-first pilot makes the trees the **only** clinical content in
-  front of a patient. Same model-drafted, unreviewed status. *(new emphasis)*
+- **Has an oncologist reviewed the *tree bank*?** A kiosk-first pilot makes the trees the **only**
+  clinical content in front of a patient, and they are model-drafted and unreviewed. This is now
+  the most load-bearing open question in the project. *(carried, sharpest)*
+- **The check-in protocol bank still needs an oncologist** — six regimen families, seven question
+  sets, 41 grading rules, all model-drafted, none reviewed. It has a publish button. *(carried)*
 - **Are check-ins on or off for day one?** With WhatsApp dark the delivery ladder has no first
-  rung and falls to an SMS nudge. Either hold plans in draft (they need a doctor's tap anyway)
-  or set `CHECKINS_ENABLED=false` until WhatsApp is live. *(new)*
-- **A live Exotel number + creds** — still blocking three proofs: the S14 intake bridge, the
-  S15 receptionist/campaign, and S17's voice rung. *(carried)*
-- **Who is the coordinator on `COORDINATOR_PHONE`** — they get every red check-in alert.
-  *(carried)*
+  rung and falls to SMS. Either hold plans in draft or set `CHECKINS_ENABLED=false`. S-GL.1 does
+  not decide this — the channel switch closes WhatsApp *intake*, and the check-in ladder is a
+  separate path. *(carried, sharpened)*
+- **Who is the coordinator on `COORDINATOR_PHONE`** — they get every red check-in alert. *(carried)*
+- **Is the LLM assist allowed to escalate free text to red?** (S17's answer: no.) *(carried)*
+- **A live Exotel number + creds** — still blocking three proofs; S-GL.1 removes the *deploy* from
+  turning it on but not the account. *(carried)*
 - **Does the app go on the Play Store, or sideload at the OPD desk?** *(carried)*
-- **mr/te still need a native + clinical review before a patient reads them** (S21). *(carried)*
+- **mr/te still need a native + clinical review before a patient reads them** (S21) — now
+  including the four channel-closed notices. *(carried)*
 
 ## Owed on omen (before the pilot's continuity loop faces real use)
 
-- **The admin console on a screen, on the box** — S18L is the first session to actually render
-  it (6 screenshots, `web/screenshots/s18l/`), but only against a local dev stack. The tabs
-  S18E built (cost, operations, price book, templates) still have never been looked at with
-  real data behind them. *(carried, half-paid)*
-- **One check-in, end to end, on the box** — `make checkin-demo`, then
-  `python -m app.worker opd.checkins.send`, and answer it from a real WhatsApp thread. Nothing
-  in the check-in engine has ever reached a handset. *(carried)*
-- **A real Qwen3 personalisation** — on a fake stack `checkin_personalize` has no canned reply,
-  so every demo message is the plain fallback. *(carried)*
-- **The app on a real handset** *(carried)*; **live Exotel smoke, both applets** *(carried)*;
-  **the campaign for one evening on real numbers** *(carried)*; **phone-on-GPU contention**
-  *(carried)*; **Telugu kiosk render** *(carried)*; **adaptive on** *(carried)*; **doctor
-  console + consult note on-box** *(carried)*.
+- **The admin console on a screen, on the box** — now with a **Channels** tab that is the first
+  thing an operator sees, and the one place a wrong answer means a patient cannot register.
+  Everything in `web/screenshots/sgl1/` is a local dev stack. *(carried, sharpened)*
+- **Set `SECRETS_KEY` on the box** *(new)*; **one check-in end to end on the box** *(carried)*;
+  **a real Qwen3 personalisation** *(carried)*; **the app on a real handset** *(carried)*;
+  **live Exotel smoke, both applets** *(carried)*; **the campaign for one evening on real
+  numbers** *(carried)*; **phone-on-GPU contention** *(carried)*; **Telugu kiosk render**
+  *(carried)*; **adaptive on** *(carried)*; **doctor console + consult note on-box** *(carried)*.
 
-## Backlog additions (S18L)
+## Backlog additions (S-GL.1)
 
-- **The four S18-late items still unbuilt**, in the order they are worth doing:
-  **slot-template editor** (the last deferred placeholder; `SlotTemplate` has existed since
-  S15, so this is CRUD + a "regenerate slots" button); **editable message-template registry**
-  (needs a DB overlay over the code-defined registry, and a story for what happens when the
-  repo and Meta disagree); **node-level abandonment report** (needs per-node answer timestamps
-  the intake path does not emit — the telemetry is the work, not the report); **voice-pack
-  upload** (still blocked on S7's pack format).
-- **A per-rung protocol form**, now that the bank is a table — the reading view already shows
-  the structure; editing a day offset or a threshold in a field beats editing the document.
-- **Backfill `Checkin.grading_rules`** for any rows created before `cb011d62f829`, if the
-  pilot creates check-ins before the first bank publish.
-- **A confirmation step on publish** (both trees and banks) naming what changes and who will
-  be affected — cheap, and this is the one console button with clinical reach.
-- Carried, unchanged: `make lint` red on pre-existing files; a voice-gw check-in applet
-  (`WS /exotel/checkin`); check-ins in the Android app; merging a doublet's question sets; a
-  canned `checkin_personalize`/`checkin_triage` fake reply; a real task table for the
-  "immediate call task"; the app's chemo calendar counting real cycles; `Checkin` on the
-  patient timeline; mr/te unreviewed (S21); report photos in the care file; booking from the
-  app; Play Store signing; `TokenStore` at rest; appointment waitlist; language detection from
-  the caller's greeting; campaign observability; V1 continuous caller-audio streaming; surface
-  STT confidence instead of the energy proxy; tune VAD/DTMF thresholds on real Alwar telephony.
+- **Wire the seat share into voice-gw** (S-OSS.2's item, now with the config half built).
+- **A confirmation step on publish**, naming what changes and who is affected — carried for trees
+  and banks, and now sharper: publishing a channel document can shut the OPD in one tap, and the
+  Channels tab has no "are you sure".
+- **Fix the commit race in the tree and protocol-bank draft routes** (see Watch out for).
+- **A "kiosk-first" preset button** on the Channels tab — three taps is not many, but the go-live
+  configuration is a named thing and could be one.
+- **Per-channel realtime vendor choice** in the Channels tab — S-GL.5's item, which assumes the
+  tab this session built.
+- Carried, unchanged: the four S18-late items (slot-template editor → **now S-GL.2**, editable
+  message-template registry, node-level abandonment report, voice-pack upload); a per-rung
+  protocol form; backfill `Checkin.grading_rules`; a voice-gw check-in applet; check-ins in the
+  Android app; merging a doublet's question sets; a canned `checkin_personalize` fake reply; a
+  real task table for the immediate-call task; the app's chemo calendar counting real cycles;
+  `Checkin` on the patient timeline; report photos in the care file; booking from the app; Play
+  Store signing; `TokenStore` at rest; appointment waitlist; language detection from the caller's
+  greeting; campaign observability; V1 continuous caller-audio streaming; surface STT confidence
+  instead of the energy proxy; tune VAD/DTMF thresholds on real Alwar telephony.
