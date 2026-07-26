@@ -177,4 +177,14 @@ reconciles to usage_events.
 
 ---
 
+### Go-live track — S-GL (operator, 2026-07-26)
+
+Answers to six operator questions (channel mix, streaming V2V, realtime vendor adapters,
+on-box viability, a GPU-free cloud fallback, staff onboarding) and the sessions they imply
+live in **[doc 12](12-GO-LIVE-PLAN.md)**. In short: **S-GL.1** channel switchboard + runtime
+provider config, **S-GL.2** on-box reality pass, **S-GL.3** staff onboarding + roster import,
+**S-GL.4** Gemini Live adapter + real VAD, **S-GL.5** OpenAI Realtime as the second adapter,
+**S-GL.6** the GPU-free AWS disaster-recovery profile (**supersedes S19 for the pilot**),
+**S-GL.7** dress rehearsal (narrows S22). S-GL.1–3 is the kiosk-first go-live cut.
+
 **Phase 2 backlog (tracked, not built):** iOS app; handwritten-Rx OCR; WhatsApp native calling API; FHIR export; urban/multi-site tenanting; analytics warehouse.
