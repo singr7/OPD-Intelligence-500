@@ -13,7 +13,7 @@ HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
 
 .PHONY: help dev down logs test test-backend test-voicegw test-web lint \
         tf-validate build deploy venv clean migrate migration seed eval-routing \
-        slots campaign-dryrun app-demo \
+        slots campaign-dryrun app-demo checkin-demo \
         android-test android-test-device android-apk android-emulator android-install \
         tree-fixtures check-tree-fixtures
 
@@ -101,6 +101,9 @@ android-install: ## Install the debug app on a booted device, pointed at the loc
 
 app-demo: ## Give the first seeded patient a prescription, a cycle and a caregiver (S16 demo)
 	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m scripts.seed_app_demo
+
+checkin-demo: ## Sign a chemo note, approve the plan, answer D+2 red (S17 demo)
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m scripts.seed_checkin_demo
 
 tree-fixtures: ## Regenerate the Python→TS walker conformance fixtures (S7)
 	cd backend && .venv/bin/python -m app.tree_fixtures
