@@ -1,8 +1,8 @@
 "use client";
 
-// The admin console shell (doc 03 §10/§11, S18). A tab bar over the panels whose
-// backing models exist today; the two deferred panels (protocol/slot) render an
-// explicit "arrives with S15/S17" placeholder driven by the API's deferred marker,
+// The admin console shell (doc 03 §10/§11, S18). A tab bar over the editors and
+// the analytics. One panel is still a placeholder — slot templates — and it says
+// so, driven by the API's own deferred marker rather than by a hardcoded string,
 // so the shape of the finished console is visible without pretending the data is.
 
 import { useState } from "react";
@@ -13,9 +13,9 @@ import { OpsTab } from "./OpsTab";
 import { TreesTab } from "./TreesTab";
 import { PriceBookTab } from "./PriceBookTab";
 import { RegistryTab } from "./RegistryTab";
-import { ComingSoonTab } from "./ComingSoonTab";
+import { ProtocolsTab } from "./ProtocolsTab";
 
-type TabId = "cost" | "ops" | "trees" | "prices" | "registry" | "soon";
+type TabId = "cost" | "ops" | "trees" | "prices" | "registry" | "protocols";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "cost", label: "Cost & tokens" },
@@ -23,7 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "trees", label: "Trees" },
   { id: "prices", label: "Price book" },
   { id: "registry", label: "Templates & voice" },
-  { id: "soon", label: "Protocols & slots" },
+  { id: "protocols", label: "Protocols & slots" },
 ];
 
 export function Console({ token, onSignOut }: { token: string; onSignOut: () => void }) {
@@ -60,7 +60,7 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
         {tab === "trees" && <TreesTab token={token} onError={onError} />}
         {tab === "prices" && <PriceBookTab token={token} onError={onError} />}
         {tab === "registry" && <RegistryTab token={token} onError={onError} />}
-        {tab === "soon" && <ComingSoonTab token={token} onError={onError} />}
+        {tab === "protocols" && <ProtocolsTab token={token} onError={onError} />}
       </main>
     </div>
   );

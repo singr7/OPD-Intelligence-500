@@ -1,21 +1,20 @@
 "use client";
 
-// The tree builder's list + publish surface (doc 03 §10; the S18 headline AC).
-// Lists every version of every tree, shows which one is live, and publishes a
-// version — which the intake path (store.resolve_tree) serves on the very next
-// walk-in, no deploy. Full visual node editing is a larger build; this session
-// ships the version/publish/inspect loop and the on-box "edit the JSON, publish,
-// it's live" path (the AC), with red-flag rules edited inside the same JSON.
+// The tree panel (doc 03 §10; the S18 headline AC). Two screens: the version list
+// — which tree is live, which drafts are waiting — and the visual editor behind
+// "Edit". Publishing a version makes the intake path (`store.resolve_tree`) serve
+// it on the very next walk-in, with no deploy.
 
 import { useState } from "react";
 import type { TabProps } from "./Console";
+import { TreeEditor } from "./TreeEditor";
 import { useLoad } from "../_lib/useLoad";
 import * as api from "../_lib/api";
 
 export function TreesTab({ token, onError }: TabProps) {
   const trees = useLoad(() => api.fetchTrees(token), onError);
   const [busy, setBusy] = useState<string | null>(null);
-  const [inspect, setInspect] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ key: string; version: number } | null>(null);
 
   async function publish(key: string, version: number) {
     setBusy(`${key}@${version}`);
@@ -29,12 +28,26 @@ export function TreesTab({ token, onError }: TabProps) {
     }
   }
 
+  if (editing) {
+    return (
+      <TreeEditor
+        token={token}
+        treeKey={editing.key}
+        version={editing.version}
+        onError={onError}
+        onPublished={trees.reload}
+        onClose={() => setEditing(null)}
+      />
+    );
+  }
+
   return (
     <section>
       <h2>Question trees</h2>
       <p className="muted">
         Publishing a version makes it live on the kiosk on the next intake — no deploy.
-        Exactly one version per tree is live at a time.
+        Exactly one version per tree is live at a time; publishing an older version is how
+        you roll back.
       </p>
       {trees.error && <p className="error">{trees.error}</p>}
       <table>
@@ -61,9 +74,9 @@ export function TreesTab({ token, onError }: TabProps) {
               <td className="num">
                 <button
                   className="ghost"
-                  onClick={() => setInspect(inspect === t.key + t.version ? null : t.key + t.version)}
+                  onClick={() => setEditing({ key: t.key, version: t.version })}
                 >
-                  view
+                  Edit
                 </button>{" "}
                 {t.status !== "published" && (
                   <button
@@ -86,38 +99,6 @@ export function TreesTab({ token, onError }: TabProps) {
           )}
         </tbody>
       </table>
-      {inspect && <TreeJson token={token} keyVersion={inspect} trees={trees.data ?? []} onError={onError} />}
     </section>
-  );
-}
-
-function TreeJson({
-  token,
-  keyVersion,
-  trees,
-  onError,
-}: {
-  token: string;
-  keyVersion: string;
-  trees: api.TreeVersion[];
-  onError: (e: unknown) => void;
-}) {
-  // keyVersion is key+version concatenated; recover the key by longest-prefix match.
-  const match = trees.find((t) => keyVersion === t.key + t.version);
-  const json = useLoad(
-    () =>
-      match
-        ? fetch(`${api.API_BASE}/admin/trees/${match.key}?version=${match.version}`, {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          }).then((r) => r.json())
-        : Promise.resolve(null),
-    onError,
-    [keyVersion],
-  );
-  return (
-    <div style={{ marginTop: 12 }}>
-      <pre>{json.data ? JSON.stringify(json.data, null, 2) : "loading…"}</pre>
-    </div>
   );
 }

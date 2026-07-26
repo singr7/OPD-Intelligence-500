@@ -58,6 +58,15 @@ export default defineConfig({
       testMatch: /dictation\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The S18-late admin console (doc 03 §10). Live stack + a seeded database;
+      // this project *is* the session AC — edit an option in the visual editor,
+      // publish, and the intake path serves it. Screenshots for doc 04 §5. Run
+      // explicitly (`npm run e2e:admin`).
+      name: "admin",
+      testMatch: /admin\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

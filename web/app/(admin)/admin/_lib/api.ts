@@ -166,6 +166,24 @@ export const fetchTrees = (t: string) => get<TreeVersion[]>(t, "/admin/trees");
 export const publishTree = (t: string, key: string, version: number) =>
   post<TreeVersion>(t, `/admin/trees/${key}/publish?version=${version}`, {});
 
+// The tree document itself — what the visual editor loads, edits and posts back.
+// Typed loosely on purpose: the shape is the S4 node schema, the server validates
+// it with `app.trees.schema.parse`, and a second half-copy of that schema in
+// TypeScript would be a second thing to keep in step.
+export const fetchTree = <T,>(t: string, key: string, version: number) =>
+  get<T>(t, `/admin/trees/${key}?version=${version}`);
+export const saveTreeDraft = (t: string, key: string, tree: unknown) =>
+  post<TreeVersion>(t, `/admin/trees/${key}/draft`, { tree });
+
+export type TestRunResult = {
+  path: string[];
+  complete: boolean;
+  red_flags: { id: string; severity: string; label: string }[];
+  error: string | null;
+};
+export const testRunTree = (t: string, tree: unknown, answers: Record<string, unknown>) =>
+  post<TestRunResult>(t, "/admin/trees/test-run", { tree, answers });
+
 export type PriceRow = {
   id: string;
   provider: string;
@@ -208,9 +226,10 @@ export const fetchVoicePacks = (t: string) => get<VoicePackClip[]>(t, "/admin/vo
 
 export type Deferred = { deferred: boolean; arrives_in: string; reason: string };
 
-// The S17 protocol bank, read-only (doc 03 §9/§10). A validated seed file the
-// backend loads at boot, so the console shows what each regimen family asks and
-// when — it does not edit it. The editor is S18-late and wants a table first.
+// The live protocol bank (doc 03 §9/§10) — the published row if there is one, the
+// seed file otherwise. This is the reading view; the editor works on the document
+// (`/admin/protocol-banks`), because the validator's guarantees are properties of
+// the whole bank rather than of one protocol.
 export type ProtocolRung = {
   day_offset: number;
   question_set: string;
@@ -242,3 +261,20 @@ export type ProtocolBank = {
 export const fetchProtocolTemplates = (t: string) =>
   get<ProtocolBank>(t, "/admin/protocol-templates");
 export const fetchSlotTemplates = (t: string) => get<Deferred>(t, "/admin/slot-templates");
+
+export type BankVersion = {
+  id: string;
+  version: number;
+  status: string;
+  published_at: string | null;
+  notes: string | null;
+  protocol_count: number;
+  question_set_count: number;
+};
+export const fetchProtocolBanks = (t: string) => get<BankVersion[]>(t, "/admin/protocol-banks");
+export const fetchProtocolBankDocument = <T,>(t: string, version?: number) =>
+  get<T>(t, `/admin/protocol-banks/document${version ? `?version=${version}` : ""}`);
+export const saveProtocolBankDraft = (t: string, bank: unknown, notes?: string) =>
+  post<BankVersion>(t, "/admin/protocol-banks/draft", { bank, notes });
+export const publishProtocolBank = (t: string, version: number) =>
+  post<BankVersion>(t, `/admin/protocol-banks/${version}/publish`, {});

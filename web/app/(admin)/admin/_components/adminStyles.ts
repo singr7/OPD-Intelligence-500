@@ -73,4 +73,85 @@ export const ADMIN_CSS = `
   overflow-x: auto; font-size: 12px; line-height: 1.5; max-height: 420px; }
 .admin .spark { display: flex; align-items: flex-end; gap: 2px; height: 60px; }
 .admin .spark > i { flex: 1; background: var(--primary); border-radius: 2px 2px 0 0; min-height: 2px; }
+
+/* -- the tree editor (S18-late) ---------------------------------------------
+   The one deliberate move on this surface: the questions are drawn as a spine,
+   each branch indented under the option that leads to it, so an author reads the
+   tree in the order a patient walks it rather than as a list of rows. Everything
+   else here is quiet on purpose — this is the doctor console's clinical spine
+   borrowed for authored content, not a second idea. */
+.admin .editor-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px; position: sticky; top: 60px; z-index: 4; margin-bottom: 14px; }
+.admin .editor-bar .spacer { flex: 1; }
+.admin .editor-bar code, .admin .editor code { font-size: 12px; color: var(--ink-soft); }
+.admin .langs { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.admin .langs button { border: none; background: none; border-radius: 999px; padding: 5px 11px;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--ink-soft); cursor: pointer; }
+.admin .langs button.on { background: var(--primary); color: #fff; }
+.admin button.action.publish { background: var(--accent); color: #4a2f04; }
+.admin .editor-note { margin: 0 0 14px; }
+
+.admin .spine { list-style: none; margin: 0 0 24px; padding: 0; }
+.admin .station { position: relative; padding: 0 0 14px 22px; }
+.admin .station .rail { position: absolute; left: 6px; top: 6px; bottom: -6px; width: 2px;
+  background: var(--line); }
+.admin .station:last-child .rail { bottom: 50%; }
+.admin .station::before { content: ""; position: absolute; left: 1px; top: 16px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--surface); border: 2px solid var(--line); z-index: 1; }
+.admin .station.flagged::before { border-color: var(--danger); background: var(--danger-soft); }
+.admin .station-body { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px; }
+.admin .station.flagged .station-body { border-color: #f1c9c2; }
+.admin .station header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.admin .station .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-soft); background: var(--line); border-radius: 999px; padding: 2px 8px; }
+.admin .station .via { font-size: 12px; color: var(--ink-soft); font-style: italic; }
+.admin .stamp { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  padding: 2px 8px; border-radius: 4px; background: var(--danger-soft); color: var(--danger); }
+.admin .stamp.semi { background: var(--accent-soft); color: #8a5a10; }
+
+.admin .field { display: block; }
+.admin .field > span { display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 4px; }
+.admin textarea { width: 100%; font: inherit; font-size: 14px; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  color: var(--ink); resize: vertical; line-height: 1.6; }
+.admin .options { margin-top: 10px; display: grid; gap: 6px; }
+.admin .opt { display: grid; grid-template-columns: 110px 1fr 150px; gap: 8px; align-items: center; }
+.admin .opt-id { font-size: 11px; color: var(--ink-soft); font-family: ui-monospace, monospace;
+  overflow: hidden; text-overflow: ellipsis; }
+.admin .opt input { width: 100%; line-height: 1.6; }
+.admin .opt .goes { font-size: 11px; color: var(--ink-soft); text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.admin fieldset.flag { margin: 12px 0 0; border: 1px solid #f1c9c2; border-radius: 12px;
+  padding: 10px 12px; background: #fdf6f5; }
+.admin fieldset.flag legend { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--danger); padding: 0 6px; }
+.admin .flag-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.admin .flag-row input { flex: 1; }
+
+.admin .testrun { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px; }
+.admin .testrun h3 { font-size: 14px; margin: 0 0 4px; }
+.admin .try-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px; margin: 12px 0; }
+.admin .try { display: grid; gap: 4px; font-size: 12px; color: var(--ink-soft); }
+.admin .try select, .admin .try input { width: 100%; }
+.admin .try-out { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.admin ul.flags { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+
+/* Question sets read as plain cards, not as seven marigold warnings: the accent
+   is this system's "look at this" colour and spending it on every set would leave
+   nothing louder for the rule that actually rings a phone. The red/amber pills
+   carry the alarm. */
+.admin .set-card { background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; }
+.admin .set-card ul { margin: 8px 0 0; padding-left: 18px; }
+.admin .set-card li { margin: 3px 0; }
+
+.admin .bank-editor { margin-top: 12px; }
+.admin textarea.doc { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; line-height: 1.5; background: #0e1b18; color: #d7e8e2; border-color: #0e1b18; }
 `;
