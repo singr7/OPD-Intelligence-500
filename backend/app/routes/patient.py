@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import kiosk as kiosk_svc
 from app import patient_app, scheduling
 from app.auth.rbac import PatientPrincipal, current_patient, require_patient_self
+from app.channels import require_open, resolve_config
 from app.db import get_session
 from app.intake import IntakeEngine
 from app.models.enums import (
@@ -437,8 +438,15 @@ async def intake_start(
     the tree, the tier ladder and the classifier's `needs_human` behaviour are
     the kiosk's, unchanged — including the department chooser, which the app
     renders as its own screen.
+
+    Gated on the `app` channel being open (S-GL.1). Only intake is gated: her care
+    file, her queue position and her reminders keep working with app intake dark,
+    because none of those start something the OPD then has to staff. Doc 12 §8
+    goes live with exactly this shape — the app installed and useful, its intake
+    shut until the APK has been on a real handset.
     """
     _forbid_caregiver_write(principal)
+    require_open(await resolve_config(session), Channel.APP, lang=payload.lang)
 
     try:
         routed = await kiosk_svc.route_complaint(

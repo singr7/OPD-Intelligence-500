@@ -39,6 +39,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.channels import channel_state, resolve_config
+from app.channels.state import closed_message
 from app.config import Settings, get_settings
 from app.intake import IntakeEngine, PatientTurn, SessionState, SessionStatus
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
@@ -524,6 +526,28 @@ async def handle_call(
             return AudioClip(data=b"")
 
     pump = PlaybackPump(transport, record.stream_sid)
+
+    # S-GL.1: the phone switch, checked before consent. A closed channel is
+    # answered — Exotel has already connected the caller, and dead air is the one
+    # thing worse than "not open yet" — told where to go, and hung up. Nothing
+    # clinical is created: no consent is taken for an intake that will not happen,
+    # and no visit or intake row is written.
+    if sessionmaker is not None:
+        async with sessionmaker() as db:
+            phone_state = channel_state(await resolve_config(db), Channel.PHONE, settings)
+        if not phone_state.is_open:
+            with usage_scope(channel=PHONE, tier=tier):
+                await pump.play(await say(closed_message(Channel.PHONE, lang)))
+            record.end_reason = "channel_closed"
+            record.state = "completed"
+            record.ended_at = datetime.now(UTC).isoformat()
+            await phonecall_store.save(record)
+            logger.info(
+                "phone call %s refused: channel closed (%s)",
+                record.call_sid,
+                phone_state.reason or "not open",
+            )
+            return record
 
     # Consent first, and recorded (doc 03 §1b). Metered under the phone scope.
     consent_scope = {"channel": PHONE, "tier": tier}

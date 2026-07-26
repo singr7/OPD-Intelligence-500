@@ -15,6 +15,10 @@ dependencies = [
     "asyncpg>=0.30",
     "pyjwt>=2.10",
     "argon2-cffi>=23.1",
+    # S-GL.1: Fernet, for the vendor credentials the admin console stores. The one
+    # place this codebase keeps a secret in its own database, so the primitive is
+    # a reviewed one rather than something assembled out of hashlib.
+    "cryptography>=44.0",
     "faker>=33.1",
     "pyyaml>=6.0",
     "redis>=5.2",

@@ -12,14 +12,17 @@ block a call) and the cost guard that owns the tier override. Feature routers
 sessions.
 """
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.auth.routes import router as auth_router
+from app.channels import ChannelClosed
 from app.config import Settings, get_settings
 from app.db import build_sessionmaker, get_engine
 from app.intake import IntakeEngine, build_session_store
@@ -41,6 +44,8 @@ from app.routes.providers import router as providers_router
 from app.routes.queue import router as queue_router
 from app.routes.whatsapp import router as whatsapp_router
 from app.whatsapp import build_conversation_store
+
+logger = logging.getLogger(__name__)
 
 
 def _build_lifespan(settings: Settings):
@@ -113,6 +118,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(AuditMiddleware, settings=settings)
+
+    @app.exception_handler(ChannelClosed)
+    async def _channel_closed(_: Request, exc: ChannelClosed) -> JSONResponse:
+        """A shut channel answers civilly (S-GL.1, doc 12 §7).
+
+        503 with a `Retry-After`, because the channel is expected back: this is
+        "not open yet", not "you are doing something wrong". The body carries the
+        patient-facing line and a machine-readable `channel_closed` so a client
+        can show it rather than its own generic failure — the kiosk and the app
+        both do. `reason` is the operator's diagnosis and belongs in a log and a
+        console, not in front of someone trying to register.
+        """
+        logger.info(
+            "channel closed: %s (%s)", exc.state.channel.value, exc.state.reason or "not open"
+        )
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": "3600"},
+            content={
+                "detail": exc.message,
+                "code": "channel_closed",
+                "channel": exc.state.channel.value,
+            },
+        )
 
     app.state.settings = settings
     app.include_router(health_router)

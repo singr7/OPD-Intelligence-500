@@ -32,6 +32,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.channels import channel_state, resolve_config
+from app.channels.state import closed_message
 from app.config import Settings, get_settings
 from app.models.enums import Channel, Lang
 from app.providers.audio import AudioClip
@@ -121,6 +123,25 @@ async def handle_receptionist_call(
             return AudioClip(data=b"")
 
     pump = PlaybackPump(transport, record.stream_sid)
+
+    # S-GL.1: the same phone switch the intake applet honours. The appointment line
+    # is the other half of the phone channel, and a hospital that has not opened
+    # phone has not opened this either — an AI receptionist booking real slots on a
+    # number nobody has announced is precisely the half-configured channel doc 12 §4
+    # is about.
+    async with sessionmaker() as db:
+        phone_state = channel_state(await resolve_config(db), Channel.PHONE, settings)
+    if not phone_state.is_open:
+        await pump.play(await say(closed_message(Channel.PHONE, lang)))
+        record.end_reason = "channel_closed"
+        record.ended_at = datetime.now(UTC).isoformat()
+        logger.info(
+            "receptionist call %s refused: channel closed (%s)",
+            record.call_sid,
+            phone_state.reason or "not open",
+        )
+        return record
+
     source = ExotelTurnSource(
         lang=record.lang,
         pump=pump,

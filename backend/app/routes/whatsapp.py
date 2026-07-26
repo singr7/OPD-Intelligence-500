@@ -22,20 +22,24 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.channels import ChannelState, channel_state, resolve_config
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.intake import IntakeEngine
+from app.models.enums import Channel, Lang
 from app.providers.base import ProviderError
 from app.providers.messaging import OutboundMessage
 from app.providers.registry import get_messaging_provider
 from app.queue_hub import QueueHub
 from app.whatsapp import ConversationStore
 from app.whatsapp.bot import Inbound, WhatsAppBot
+from app.whatsapp.conversation import WINDOW, Conversation
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +115,17 @@ async def inbound(
         # Delivery receipts / status callbacks land here too — nothing to do.
         return {"status": "ok"}
 
-    bot = WhatsAppBot(engine=engine, conversations=conversations, settings=settings)
     provider = get_messaging_provider(settings)
+
+    # S-GL.1: the channel switch, checked before the bot is built. A shut WhatsApp
+    # answers once, civilly, and does not run a line of intake logic — the state
+    # doc 12 §4 asks for, in place of a bot that tries and fails per message.
+    state = channel_state(await resolve_config(session), Channel.WHATSAPP, settings)
+    if not state.is_open:
+        await _decline(provider, conversations, messages, state)
+        return {"status": "channel_closed"}
+
+    bot = WhatsAppBot(engine=engine, conversations=conversations, settings=settings)
     hub: QueueHub | None = getattr(request.app.state, "queue_hub", None)
 
     for message in messages:
@@ -197,6 +210,47 @@ def _parse_one(raw: dict[str, Any], names: dict[str, str]) -> Inbound | None:
     # Location, contacts, reactions, stickers — not part of intake. Acknowledge and
     # drop; the bot never sees them.
     return None
+
+
+async def _decline(
+    provider,
+    conversations: ConversationStore,
+    messages: list[Inbound],
+    state: ChannelState,
+) -> None:
+    """Tell each thread once that the channel is shut, then stay quiet (S-GL.1).
+
+    Once per thread per 24h, not once per message: a patient who sends "hello",
+    "are you there", "please" would otherwise get three identical refusals, which
+    reads as a broken bot rather than a service that is not open yet. The reply is
+    free-form and that is legal here by construction — she has just messaged us,
+    which is what opens Meta's window (doc 03 §1d).
+
+    Her language is whatever the thread already knew; a brand-new thread gets
+    English, exactly as the bot's own greeting does.
+    """
+    for wa_id in dict.fromkeys(message.wa_id for message in messages):
+        thread = await conversations.get(wa_id) or Conversation(wa_id=wa_id)
+        now = datetime.now(UTC)
+        thread.mark_inbound(now=now)
+        recent = thread.closed_notice_at is not None and now - thread.closed_notice_at < WINDOW
+        if not recent:
+            thread.closed_notice_at = now
+            try:
+                await provider.send(
+                    OutboundMessage(to=wa_id, text=state.message(thread.lang or Lang.EN))
+                )
+            except ProviderError as exc:
+                # Logged, not raised: we still 200 the webhook, and a refusal we
+                # could not deliver must not make Meta redeliver the inbound.
+                thread.closed_notice_at = None
+                logger.warning("whatsapp closed-notice to %s failed: %s", wa_id, exc)
+        await conversations.save(thread)
+    logger.info(
+        "whatsapp inbound refused: channel closed (%s), %d message(s)",
+        state.reason or "not open",
+        len(messages),
+    )
 
 
 async def _send_all(provider, messages: list[OutboundMessage]) -> None:

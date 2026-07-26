@@ -393,5 +393,5 @@ def test_negative_admission_cap_is_a_boot_error():
 def test_channel_without_a_ladder_falls_back_to_cloud_then_zero_ai():
     """A new channel that forgot a ladder keeps working on the safe cloud path
     rather than failing to start."""
-    config = TierConfig(ladders={}, max_oss_sessions=0)
+    config = TierConfig(policies={}, max_oss_sessions=0)
     assert config.ladder_for(Channel.APP) == ("v2", "v3")

@@ -76,6 +76,11 @@ class Conversation:
     checkin_question: str | None = None
     #: The last time the *patient* messaged us — the anchor of the 24h window.
     last_inbound_at: datetime | None = None
+    #: When we last told this thread the channel is shut (S-GL.1). A closed
+    #: WhatsApp answers once and then stays quiet: someone who sends four
+    #: messages should not get four identical refusals, which reads as a broken
+    #: bot rather than as a closed service.
+    closed_notice_at: datetime | None = None
     #: Meta redelivers a message if the webhook does not 200 fast enough; the last
     #: processed message id lets `WhatsAppBot.handle` drop an exact replay so a tap
     #: is never counted twice (double-answering an intake question).
@@ -128,6 +133,9 @@ class Conversation:
             "checkin_id": str(self.checkin_id) if self.checkin_id else None,
             "checkin_question": self.checkin_question,
             "last_inbound_at": self.last_inbound_at.isoformat() if self.last_inbound_at else None,
+            "closed_notice_at": (
+                self.closed_notice_at.isoformat() if self.closed_notice_at else None
+            ),
             "last_message_id": self.last_message_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -158,6 +166,7 @@ class Conversation:
             checkin_id=as_uuid(data.get("checkin_id")),
             checkin_question=data.get("checkin_question"),
             last_inbound_at=as_dt(data.get("last_inbound_at")),
+            closed_notice_at=as_dt(data.get("closed_notice_at")),
             last_message_id=data.get("last_message_id"),
             created_at=as_dt(data.get("created_at")) or datetime.now(UTC),
             updated_at=as_dt(data.get("updated_at")) or datetime.now(UTC),

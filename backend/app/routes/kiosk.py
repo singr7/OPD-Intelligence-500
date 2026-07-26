@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import queue as queue_svc
+from app.channels import require_open, resolve_config
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.intake import IntakeEngine, Interpreter, SessionState, ToolError
@@ -187,7 +188,13 @@ async def start(
 
     Honours the classifier's `needs_human`: an uncertain route yields
     `status="needs_department"` and the chooser, not a guessed session.
+
+    Gated on the kiosk being open (S-GL.1). The gate is on *start* and not on the
+    per-question routes on purpose: a patient half way through her intake when an
+    admin closes the channel finishes it. Closing a channel means "take no new
+    ones", not "abandon whoever is mid-sentence".
     """
+    require_open(await resolve_config(session), Channel.KIOSK, lang=payload.lang)
     try:
         routed = await kiosk_svc.route_complaint(
             session,

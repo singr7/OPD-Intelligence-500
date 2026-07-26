@@ -1,4 +1,18 @@
-# Per-channel tier ladder + V-OSS admission cap (doc 08 §3/§5).
+# The channel document: per-channel enablement, tier ladder, GPU seat share, and
+# the outbound campaign's channel mix (doc 08 §3/§5, doc 12 §1).
+#
+# This file is the **floor**. The admin console edits and publishes versions of
+# this same document into `channel_configs` (S-GL.1), and a published version
+# wins; with nothing published, this is what runs. Same arrangement as the tree
+# bank and the check-in protocol bank, and the same validator either way
+# (`app.tiers.parse_tier_config`).
+#
+# `enabled` is the operator's switch. It is not the whole story: a channel is
+# open only if it is switched on **and** the vendor it needs is configured, which
+# is computed from settings and cannot be asserted from a console
+# (`app.channels.state.readiness`). So the three channels below that need a vendor
+# are already dark on a box with no Meta or Exotel credentials, whatever this file
+# says — going live does not depend on remembering to switch them off.
 #
 # The "ladder" is the ordered list of tiers a channel prefers, best first. It is
 # expressed in labels, not the IntakeTier enum, because V-OSS is not a new enum
@@ -18,13 +32,31 @@
 # falls to the next label in its ladder automatically.
 
 channels:
-  phone: {ladder: [v_oss, v2, v3]}
-  kiosk: {ladder: [v_oss, v3]}
-  whatsapp: {ladder: [v2, v_oss, v3]}
-  app: {ladder: [v_oss, v2, v3]}
+  # `max_concurrent` is a channel's private share of the GPU seats below. Phone is
+  # the only channel given one, and the reason is a room: twelve calls can take
+  # every seat, and the patient standing at the kiosk — who cannot be rung back —
+  # is then the one pushed to the zero-AI floor. 0 = no private share.
+  phone: {ladder: [v_oss, v2, v3], enabled: true, max_concurrent: 6}
+  kiosk: {ladder: [v_oss, v3], enabled: true, max_concurrent: 0}
+  whatsapp: {ladder: [v2, v_oss, v3], enabled: true, max_concurrent: 0}
+  app: {ladder: [v_oss, v2, v3], enabled: true, max_concurrent: 0}
 
 admission:
   # Hard cap on concurrent local voice sessions (doc 08 §3: engineered for 12,
   # tested to 16). Session #(cap+1) is routed to the next ladder tier, never
   # queued on the GPU. 0 means uncapped.
+  #
+  # Still an estimate from doc 08 and not a measurement on the box — S-GL.3 sets
+  # it from a measured concurrency envelope.
   max_oss_sessions: 12
+
+# The D-1 outbound campaign's channel mix (doc 12 §1.2) — the one place a
+# percentage is a real instruction rather than a wish, because it decides who we
+# *invite* on what, which is ours to choose. A patient's side of the split is
+# deterministic in her id, so re-planning tomorrow never reshuffles who gets a
+# call. Omit `campaign` entirely to call everyone we have a number for, which is
+# what the campaign did before S-GL.1.
+campaign:
+  mix:
+    phone: 30
+    whatsapp: 70

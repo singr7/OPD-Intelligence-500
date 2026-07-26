@@ -100,6 +100,74 @@ class ProtocolBankVersion(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin)
     notes: Mapped[str | None] = mapped_column(Text)
 
 
+class ChannelConfigVersion(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
+    """One version of the **whole** channel document (doc 12 §1, S-GL.1).
+
+    The third instance of the versioned draft→publish→resolve pattern, and
+    deliberately the same shape as the second: a document rather than a row per
+    channel, because the checks that matter are document-wide (a channel cannot
+    reserve more GPU seats than the box has; a campaign mix must sum to 100).
+    `app.tiers.parse_tier_config` is the only constructor, so a document typed
+    into the console is validated exactly as `config/tiers.yaml` is, and
+    `config/tiers.yaml` stays the floor (`app.channels.store.resolve_config`).
+
+    What it decides is not clinical, but it is the loudest switch in the system:
+    publishing a document with `whatsapp.enabled = false` is how a hospital says
+    "that number is not answered yet" — and the alternative today is a patient
+    messaging a bot that fails per message (doc 12 §4).
+    """
+
+    __tablename__ = "channel_configs"
+    __table_args__ = (UniqueConstraint("version", name="uq_channel_configs_version"),)
+
+    version: Mapped[int] = mapped_column(Integer, index=True)
+    config: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    status: Mapped[ContentStatus] = mapped_column(
+        enum_type(ContentStatus, "tree_status"), default=ContentStatus.DRAFT, index=True
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: "closed whatsapp until Meta approves the templates" — the line the next
+    #: person reads when they wonder why a channel is dark.
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ProviderSecret(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
+    """A vendor credential set, entered in the console and encrypted at rest (S-GL.1).
+
+    The first secret this codebase keeps in its database, and it is kept under
+    three rules that the rest of the system does not need:
+
+    1. **Write-only over the wire.** No route returns `secret`, ever. The console
+       shows whether a credential is set, when, by whom, and what the vendor said
+       the last time we tested it — never the value. There is no "reveal" button
+       and no GET that could grow one.
+    2. **Encrypted at rest** with a key that is *not* in the database
+       (`app.providers.secrets`), so a database dump is not a set of live vendor
+       credentials.
+    3. **`.env` stays the floor**, exactly as the seed files are the floor for
+       trees and protocols: a row overlays the environment, and deleting the row
+       returns the box to whatever `.env` said.
+
+    `provider` is the registry kind + vendor (`messaging:meta`, `telephony:exotel`)
+    so two vendors of the same kind can be configured before either is selected.
+    """
+
+    __tablename__ = "provider_secrets"
+    __table_args__ = (UniqueConstraint("provider", name="uq_provider_secrets_provider"),)
+
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    #: Fernet ciphertext over the JSON credential mapping. Never rendered.
+    secret: Mapped[str] = mapped_column(Text)
+    #: Which key encrypted it, so a rotated key can tell "cannot decrypt" from
+    #: "wrong key" and say so instead of failing as though nothing were stored.
+    key_id: Mapped[str] = mapped_column(String(32), default="")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    #: The last `POST /admin/providers/{name}/test`: {at, ok, detail}. The vendor's
+    #: own error, kept verbatim — "the token is expired" is the whole value of a
+    #: test button, and paraphrasing it loses the only actionable part.
+    last_test: Mapped[dict[str, Any]] = mapped_column(default=dict)
+
+
 class CheckinPlan(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     """One patient's follow-up after one treatment (doc 03 §9, S17).
 
