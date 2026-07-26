@@ -23,7 +23,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import cast, func, literal, select, update
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.hashing import hash_secret, verify_secret
@@ -115,10 +116,20 @@ async def _retire_open_challenges(session: AsyncSession, phone: str, now: dateti
     )
 
 
-async def _in_cooldown(
-    session: AsyncSession, phone: str, settings: Settings, now: datetime
-) -> bool:
-    cutoff = now - timedelta(seconds=settings.otp_resend_cooldown_seconds)
+async def _in_cooldown(session: AsyncSession, phone: str, settings: Settings) -> bool:
+    """Has this phone been sent a code within the cooldown window?
+
+    The cutoff is computed **in the database**, not in Python. `created_at` is
+    written by Postgres (`server_default=now()`), so comparing it to an app-side
+    timestamp measures the difference between two clocks as much as it measures
+    elapsed time: let the api container drift a minute ahead of the database and
+    every row looks old, which silently turns the resend limiter off. One clock
+    on both sides of the comparison makes the window mean what it says.
+    """
+    seconds = settings.otp_resend_cooldown_seconds
+    if seconds <= 0:  # disabled — and `created_at > now()` is false anyway
+        return False
+    cutoff = func.now() - cast(literal(timedelta(seconds=seconds)), INTERVAL)
     result = await session.execute(
         select(OtpCode.id).where(OtpCode.phone == phone, OtpCode.created_at > cutoff).limit(1)
     )
@@ -148,7 +159,7 @@ async def request_otp(
     now = now or datetime.now(UTC)
     expires_at = now + timedelta(seconds=settings.otp_ttl_seconds)
 
-    if await _in_cooldown(session, phone, settings, now):
+    if await _in_cooldown(session, phone, settings):
         raise OtpRateLimited(f"wait {settings.otp_resend_cooldown_seconds}s between OTP requests")
 
     if known is None:

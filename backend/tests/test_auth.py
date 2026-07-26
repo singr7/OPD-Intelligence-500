@@ -213,6 +213,28 @@ async def test_resend_cooldown_is_enforced(
         await request_otp(session, phone=user.phone, settings=cooling, sms=sms)
 
 
+async def test_resend_cooldown_survives_a_skewed_app_clock(
+    session: AsyncSession, sms: FakeSMSProvider, settings: Settings
+) -> None:
+    """A container clock running ahead of the database must not disable the limiter.
+
+    `created_at` is written by Postgres; comparing it to an app-side cutoff made
+    the window mean "elapsed time *plus* clock skew", so a few minutes of drift
+    (Docker's VM after a host sleep) silently let an attacker mint challenges as
+    fast as they liked. The cutoff is computed in the database now, so a wildly
+    wrong `now` changes nothing about the resend rule.
+    """
+    cooling = settings.model_copy(update={"otp_resend_cooldown_seconds": 30})
+    user = f.make_user()
+    session.add(user)
+    await session.flush()
+
+    await request_otp(session, phone=user.phone, settings=cooling, sms=sms)
+    skewed = datetime.now(UTC) + timedelta(minutes=10)
+    with pytest.raises(OtpRateLimited):
+        await request_otp(session, phone=user.phone, settings=cooling, sms=sms, now=skewed)
+
+
 # --- Tokens ------------------------------------------------------------------
 
 
