@@ -109,6 +109,13 @@ class ChannelState:
     reason: str
     ladder: tuple[str, ...]
     max_concurrent: int
+    #: A caveat about an *open* channel. One thing says it today, and it is the
+    #: one that would otherwise mislead an operator on the pilot box: the box runs
+    #: `ENV=local` (it must, or `assert_production_safe` would refuse to boot with
+    #: no Meta or Exotel account), so a `fake` provider counts as ready — and a
+    #: row reading "Open · configured" for a WhatsApp that does not exist is
+    #: exactly the false green this whole tab exists to prevent.
+    note: str = ""
 
     @property
     def is_open(self) -> bool:
@@ -120,20 +127,34 @@ class ChannelState:
         return closed_message(self.channel, lang)
 
 
-def readiness(channel: Channel, settings: Settings | None = None) -> tuple[bool, str]:
-    """Is the vendor this channel needs configured? `(ready, reason_if_not)`.
+#: What an open channel running a fake provider is told to say about itself. Not
+#: a refusal — the dev stack and the demo depend on the fake working — but it must
+#: never read as a provisioned vendor.
+FAKE_NOTE = "running the fake provider — no real vendor is connected"
+
+
+def readiness(channel: Channel, settings: Settings | None = None) -> tuple[bool, str, str]:
+    """Is the vendor this channel needs configured? `(ready, reason_if_not, note)`.
 
     A `fake` provider counts as configured **only on a local or test box**, where
-    it is the normal state and closing every channel would make the dev stack
-    useless. Outside local it does not, and it cannot: `assert_production_safe`
-    refuses to boot a non-local env with a fake provider at all.
+    it is the normal state and closing every channel would make the dev stack and
+    the demo useless. Outside local it does not, and it cannot:
+    `assert_production_safe` refuses to boot a non-local env with a fake provider
+    at all.
+
+    It counts, but it says so. The pilot box runs `ENV=local` — it has to, with no
+    Meta or Exotel account to satisfy `assert_production_safe` — so without the
+    note an operator would read "WhatsApp · Open · configured" off a box where
+    messaging goes nowhere. That is the precise false green this tab exists to
+    prevent, so the caveat travels with the answer rather than being left for
+    somebody to infer.
     """
     settings = settings or get_settings()
     match channel:
         case Channel.KIOSK | Channel.APP:
             # No vendor: local voice on the box, the browser's own speech, or the
             # zero-AI walker. There is nothing that can be unprovisioned.
-            return True, ""
+            return True, "", ""
         case Channel.WHATSAPP:
             vendor = settings.messaging_provider
             if vendor == "fake":
@@ -141,8 +162,8 @@ def readiness(channel: Channel, settings: Settings | None = None) -> tuple[bool,
             if vendor == "meta" and not (
                 settings.meta_whatsapp_token and settings.meta_phone_number_id
             ):
-                return False, "no Meta credentials — set them in Channels → WhatsApp"
-            return True, ""
+                return False, "no Meta credentials — set them in Channels → WhatsApp", ""
+            return True, "", ""
         case Channel.PHONE:
             vendor = settings.telephony_provider
             if vendor == "fake":
@@ -150,22 +171,22 @@ def readiness(channel: Channel, settings: Settings | None = None) -> tuple[bool,
             if vendor == "exotel" and not (
                 settings.exotel_sid and settings.exotel_api_key and settings.exotel_token
             ):
-                return False, "no Exotel credentials — set them in Channels → Phone"
-            return True, ""
-    return True, ""
+                return False, "no Exotel credentials — set them in Channels → Phone", ""
+            return True, "", ""
+    return True, "", ""
 
 
-def _fake_ready(settings: Settings, kind: str) -> tuple[bool, str]:
+def _fake_ready(settings: Settings, kind: str) -> tuple[bool, str, str]:
     if settings.is_local:
-        return True, ""
-    return False, f"the {kind} provider is still 'fake' — no vendor is configured"
+        return True, "", FAKE_NOTE
+    return False, f"the {kind} provider is still 'fake' — no vendor is configured", ""
 
 
 def channel_state(
     config: TierConfig, channel: Channel, settings: Settings | None = None
 ) -> ChannelState:
     policy = config.policy_for(channel)
-    ready, why = readiness(channel, settings)
+    ready, why, note = readiness(channel, settings)
     reason = ""
     if not policy.enabled:
         reason = "switched off in the admin console"
@@ -178,6 +199,7 @@ def channel_state(
         reason=reason,
         ladder=policy.ladder,
         max_concurrent=policy.max_concurrent,
+        note=note,
     )
 
 

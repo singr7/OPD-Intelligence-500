@@ -376,3 +376,84 @@ async def test_an_unparseable_published_bank_falls_through_to_the_file(session) 
 
     assert await checkin_store.published_bank(session) is None
     assert (await checkin_store.resolve_bank(session)).protocols  # the seed file
+
+
+# -- the channel document (S-GL.1) --------------------------------------------
+
+
+def _channel_doc(**enabled: bool) -> dict:
+    on = {"kiosk": True, "phone": True, "whatsapp": True, "app": True, **enabled}
+    return {
+        "channels": {
+            name: {"ladder": ["v2", "v3"], "enabled": value} for name, value in on.items()
+        },
+        "admission": {"max_oss_sessions": 12},
+    }
+
+
+async def test_publishing_a_channel_document_changes_what_is_open(session) -> None:
+    """The S-GL.1 headline: a switch thrown in the console is live on the next
+    intake, with no deploy — the property S18-early gave the trees."""
+    from app import channels as channel_svc
+    from app.models.enums import Channel
+
+    assert (await channel_svc.resolve_config(session)).is_enabled(Channel.WHATSAPP)
+
+    v = await admin_svc.save_channel_config_draft(session, config=_channel_doc(whatsapp=False))
+    # A draft alone changes nothing — publishing is the deliberate second step.
+    assert (await channel_svc.resolve_config(session)).is_enabled(Channel.WHATSAPP)
+
+    await admin_svc.publish_channel_config(session, version=v.version)
+    assert not (await channel_svc.resolve_config(session)).is_enabled(Channel.WHATSAPP)
+
+
+async def test_an_invalid_channel_document_is_refused_at_draft(session) -> None:
+    with pytest.raises(admin_svc.AdminError, match="invalid channel document"):
+        await admin_svc.save_channel_config_draft(
+            session, config={"channels": {"kiosk": {"ladder": ["v9"]}}}
+        )
+
+
+async def test_publishing_a_channel_document_names_what_it_closed(session) -> None:
+    """ "Who turned WhatsApp off on Tuesday" is the question asked afterwards, and
+    a version number alone does not answer it."""
+    v = await admin_svc.save_channel_config_draft(
+        session, config=_channel_doc(whatsapp=False, phone=False)
+    )
+    await admin_svc.publish_channel_config(session, version=v.version)
+
+    rows = (
+        (await session.execute(select(AuditLog).where(AuditLog.entity == "channel_configs")))
+        .scalars()
+        .all()
+    )
+    published = [r for r in rows if r.meta.get("status") == "published"]
+    assert len(published) == 1
+    assert published[0].meta["closed"] == ["phone", "whatsapp"]
+    assert published[0].meta["open"] == ["app", "kiosk"]
+
+
+async def test_rolling_back_to_an_earlier_channel_document(session) -> None:
+    from app import channels as channel_svc
+    from app.models.enums import Channel
+
+    v1 = await admin_svc.save_channel_config_draft(session, config=_channel_doc())
+    v2 = await admin_svc.save_channel_config_draft(session, config=_channel_doc(kiosk=False))
+
+    await admin_svc.publish_channel_config(session, version=v2.version)
+    assert not (await channel_svc.resolve_config(session)).is_enabled(Channel.KIOSK)
+
+    await admin_svc.publish_channel_config(session, version=v1.version)
+    assert (await channel_svc.resolve_config(session)).is_enabled(Channel.KIOSK)
+
+    published = [
+        c for c in await admin_svc.list_channel_configs(session) if c.status == "published"
+    ]
+    assert [c.version for c in published] == [v1.version]
+
+
+async def test_the_editor_opens_on_the_file_when_nothing_is_stored(session) -> None:
+    """Otherwise the first save silently discards config/tiers.yaml's content."""
+    from app.tiers import get_tier_config
+
+    assert await admin_svc.get_channel_config(session) == get_tier_config().to_json()

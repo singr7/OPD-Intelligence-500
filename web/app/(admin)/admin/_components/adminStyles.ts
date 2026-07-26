@@ -151,6 +151,15 @@ export const ADMIN_CSS = `
 .admin .set-card ul { margin: 8px 0 0; padding-left: 18px; }
 .admin .set-card li { margin: 3px 0; }
 
+/* Credential fields (S-GL.1). Every input is a password field with a placeholder
+   of "unchanged" rather than a value, because there is no value to render — the
+   API never returns one. The grid is wide enough that a Meta token is not typed
+   into a box the width of a postcode. */
+.admin .cred-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px; margin: 12px 0; }
+.admin .cred-fields input { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; }
+
 .admin .bank-editor { margin-top: 12px; }
 .admin textarea.doc { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; line-height: 1.5; background: #0e1b18; color: #d7e8e2; border-color: #0e1b18; }

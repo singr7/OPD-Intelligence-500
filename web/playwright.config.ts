@@ -67,6 +67,15 @@ export default defineConfig({
       testMatch: /admin\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The S-GL.1 switchboard (doc 12 §1). Live stack + a seeded database; this
+      // project *is* the session AC — close every channel but the kiosk from the
+      // console, and watch WhatsApp refuse civilly while the kiosk carries on.
+      // Run explicitly (`npm run e2e:channels`); it publishes.
+      name: "channels",
+      testMatch: /channels\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

@@ -290,6 +290,98 @@ export type BankVersion = {
   question_set_count: number;
 };
 export const fetchProtocolBanks = (t: string) => get<BankVersion[]>(t, "/admin/protocol-banks");
+
+// -- the switchboard (S-GL.1, doc 12 §1) --------------------------------------
+//
+// `enabled` and `ready` are two fields rather than one, and `open` is derived
+// server-side. A console can switch a channel off; it cannot assert that Meta is
+// provisioned when it is not, so readiness comes back computed and read-only.
+
+export type ChannelState = {
+  channel: string;
+  enabled: boolean;
+  ready: boolean;
+  open: boolean;
+  reason: string;
+  ladder: string[];
+  max_concurrent: number;
+  note: string;
+};
+export type Channels = {
+  channels: ChannelState[];
+  max_oss_sessions: number;
+  campaign_mix: Record<string, number>;
+  from_file: boolean;
+  version: number | null;
+};
+export type ChannelVersion = {
+  id: string;
+  version: number;
+  status: string;
+  published_at: string | null;
+  notes: string | null;
+  enabled: Record<string, boolean>;
+};
+
+export const fetchChannels = (t: string) => get<Channels>(t, "/admin/channels");
+export const fetchChannelVersions = (t: string) =>
+  get<ChannelVersion[]>(t, "/admin/channels/versions");
+export const fetchChannelDocument = <T,>(t: string, version?: number) =>
+  get<T>(t, `/admin/channels/document${version ? `?version=${version}` : ""}`);
+export const saveChannelDraft = (t: string, config: unknown, notes?: string) =>
+  post<ChannelVersion>(t, "/admin/channels/draft", { config, notes });
+export const publishChannels = (t: string, version: number) =>
+  post<ChannelVersion>(t, `/admin/channels/${version}/publish`, {});
+
+// Credentials are write-only over the wire: there is no fetcher that returns one,
+// and there must never be. `configured`, `missing` and `last_test` are the whole
+// of what this console is ever told about a vendor's secrets.
+export type ProviderCredential = {
+  provider: string;
+  configured: boolean;
+  missing: string[];
+  source: string;
+  updated_at: string | null;
+  last_test: { ok?: boolean; at?: string; detail?: string };
+  derived_key: boolean;
+  unreadable: boolean;
+  fields: string[];
+};
+export type ProviderTest = { ok: boolean; at: string; detail: string };
+
+export const fetchProviderCredentials = (t: string) =>
+  get<ProviderCredential[]>(t, "/admin/providers/credentials");
+export const testProvider = (t: string, name: string) =>
+  post<ProviderTest>(t, `/admin/providers/${name}/test`, {});
+
+// PUT and DELETE, which the two helpers above do not cover: a credential is
+// replaced or removed, never appended to.
+async function send<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: authHeaders(token),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
+  return res.status === 204 ? (undefined as T) : res.json();
+}
+
+export const setProviderCredentials = (
+  t: string,
+  name: string,
+  values: Record<string, string>,
+) => send<ProviderCredential>(t, "PUT", `/admin/providers/${name}/credentials`, { values });
+export const clearProviderCredentials = (t: string, name: string) =>
+  send<void>(t, "DELETE", `/admin/providers/${name}/credentials`);
 export const fetchProtocolBankDocument = <T,>(t: string, version?: number) =>
   get<T>(t, `/admin/protocol-banks/document${version ? `?version=${version}` : ""}`);
 export const saveProtocolBankDraft = (t: string, bank: unknown, notes?: string) =>

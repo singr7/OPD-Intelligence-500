@@ -13,7 +13,8 @@
     "e2e:queue": "playwright test --project=queue",
     "e2e:doctor": "playwright test --project=doctor",
     "e2e:dictation": "playwright test --project=dictation",
-    "e2e:admin": "playwright test --project=admin"
+    "e2e:admin": "playwright test --project=admin",
+    "e2e:channels": "playwright test --project=channels"
   },
   "dependencies": {
     "dexie": "^4.4.4",

@@ -829,6 +829,8 @@ class ChannelStateOut(BaseModel):
     reason: str
     ladder: list[str]
     max_concurrent: int
+    #: A caveat about an open channel — today, that it is running a fake provider.
+    note: str
 
 
 class ChannelsOut(BaseModel):
@@ -892,6 +894,7 @@ async def channels(
                 reason=state.reason,
                 ladder=list(state.ladder),
                 max_concurrent=state.max_concurrent,
+                note=state.note,
             )
             for state in channel_svc.channel_states(config, effective)
         ],
@@ -930,6 +933,11 @@ async def save_channel_draft(
         )
     except admin_svc.AdminError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Committed here rather than left to the session dependency: a `yield`
+    # dependency's cleanup runs *after* the response is sent, so a client that
+    # publishes the version it was just handed can beat its own draft to the
+    # database. Every write on this tab is followed by another request.
+    await session.commit()
     return _channel_version_out(version)
 
 
@@ -942,6 +950,9 @@ async def publish_channels(
         published = await admin_svc.publish_channel_config(session, version=version)
     except admin_svc.AdminError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # See `save_channel_draft`: the caller's next request is usually "is it open
+    # now?", and it must not be answered from before this publish.
+    await session.commit()
     return _channel_version_out(published)
 
 
@@ -1023,9 +1034,7 @@ async def clear_provider_credentials(
 ) -> None:
     """Remove stored credentials — the box falls back to `.env`."""
     try:
-        await admin_svc.clear_provider_credentials(
-            session, provider=name, actor_id=principal.id
-        )
+        await admin_svc.clear_provider_credentials(session, provider=name, actor_id=principal.id)
     except (admin_svc.AdminError, runtime.UnknownProviderSecret) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await session.commit()

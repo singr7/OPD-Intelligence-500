@@ -23,7 +23,13 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.channels import channel_state, resolve_config
-from app.channels.state import CLOSED_MESSAGE, ChannelClosed, readiness, require_open
+from app.channels.state import (
+    CLOSED_MESSAGE,
+    FAKE_NOTE,
+    ChannelClosed,
+    readiness,
+    require_open,
+)
 from app.config import Settings
 from app.languages import PILOT_LANGUAGES
 from app.models.content import ChannelConfigVersion
@@ -169,15 +175,15 @@ async def test_kiosk_and_app_need_no_vendor(settings: Settings):
     """Why go-live is kiosk-first (doc 12 §8): these two have nothing that can be
     unprovisioned — local voice, the browser's own speech, the zero-AI floor."""
     for channel in (Channel.KIOSK, Channel.APP):
-        ready, why = readiness(channel, settings)
-        assert ready and why == ""
+        ready, why, note = readiness(channel, settings)
+        assert ready and why == "" and note == ""
 
 
 async def test_whatsapp_without_meta_credentials_is_not_ready(settings: Settings):
     configured = settings.model_copy(
         update={"messaging_provider": "meta", "meta_whatsapp_token": "", "meta_phone_number_id": ""}
     )
-    ready, why = readiness(Channel.WHATSAPP, configured)
+    ready, why, _ = readiness(Channel.WHATSAPP, configured)
     assert not ready
     assert "Meta credentials" in why
 
@@ -189,7 +195,7 @@ async def test_whatsapp_without_meta_credentials_is_not_ready(settings: Settings
 
 async def test_phone_without_exotel_credentials_is_not_ready(settings: Settings):
     configured = settings.model_copy(update={"telephony_provider": "exotel"})
-    ready, why = readiness(Channel.PHONE, configured)
+    ready, why, _ = readiness(Channel.PHONE, configured)
     assert not ready
     assert "Exotel credentials" in why
 
@@ -197,9 +203,15 @@ async def test_phone_without_exotel_credentials_is_not_ready(settings: Settings)
 async def test_a_fake_vendor_is_ready_locally_and_nowhere_else(settings: Settings):
     """The dev stack must keep working; a box that is not local must not treat a
     fake provider as a provisioned one."""
-    assert readiness(Channel.WHATSAPP, settings)[0]
+    ready, _, note = readiness(Channel.WHATSAPP, settings)
+    assert ready
+    # ...but it says so. The pilot box runs ENV=local (it has to, with no Meta
+    # account), so without this note the console would read "Open · configured"
+    # off a box where messaging goes nowhere.
+    assert note == FAKE_NOTE
+
     boxed = settings.model_copy(update={"env": "pilot"})
-    ready, why = readiness(Channel.WHATSAPP, boxed)
+    ready, why, _ = readiness(Channel.WHATSAPP, boxed)
     assert not ready
     assert "still 'fake'" in why
 

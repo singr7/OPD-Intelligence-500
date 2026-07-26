@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
 import { ADMIN_CSS } from "./adminStyles";
+import { ChannelsTab } from "./ChannelsTab";
 import { CostTab } from "./CostTab";
 import { OpsTab } from "./OpsTab";
 import { TreesTab } from "./TreesTab";
@@ -15,9 +16,12 @@ import { PriceBookTab } from "./PriceBookTab";
 import { RegistryTab } from "./RegistryTab";
 import { ProtocolsTab } from "./ProtocolsTab";
 
-type TabId = "cost" | "ops" | "trees" | "prices" | "registry" | "protocols";
+type TabId = "channels" | "cost" | "ops" | "trees" | "prices" | "registry" | "protocols";
 
+// Channels leads (S-GL.1): it is the tab that answers "can a patient reach us at
+// all", which outranks every question the others answer.
 const TABS: { id: TabId; label: string }[] = [
+  { id: "channels", label: "Channels" },
   { id: "cost", label: "Cost & tokens" },
   { id: "ops", label: "Operations" },
   { id: "trees", label: "Trees" },
@@ -27,7 +31,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export function Console({ token, onSignOut }: { token: string; onSignOut: () => void }) {
-  const [tab, setTab] = useState<TabId>("cost");
+  const [tab, setTab] = useState<TabId>("channels");
 
   // A 401 anywhere means the token expired mid-session; drop straight to login.
   const onError = (err: unknown) => {
@@ -55,6 +59,7 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
         ))}
       </nav>
       <main>
+        {tab === "channels" && <ChannelsTab token={token} onError={onError} />}
         {tab === "cost" && <CostTab token={token} onError={onError} />}
         {tab === "ops" && <OpsTab token={token} onError={onError} />}
         {tab === "trees" && <TreesTab token={token} onError={onError} />}
