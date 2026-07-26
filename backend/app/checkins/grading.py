@@ -37,11 +37,23 @@ shows a model's opinion dressed as a protocol.
 Same rule as red flags (S5): a corrected answer that removes the alarming value
 removes the grade. `grade` is a pure function of the answers and the frozen
 question snapshot, so re-running it is always safe.
+
+## …which is exactly why the rules are frozen too (S18-late)
+
+Recomputing on every answer is safe only while the *rules* hold still. Since the
+protocol bank became editable from the admin console, they no longer do: a bank
+published on Wednesday afternoon would re-decide answers given on Tuesday, in
+either direction and with nothing on the record to say so. So a `Checkin` carries
+`grading_rules` — the set's rules as they stood when it was created, frozen
+beside the questions — and `grade` reads the bank only for rows written before
+that column existed. A snapshot the validator no longer accepts grades **amber,
+by hand**: never green, and never a red nobody can explain.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -171,8 +183,32 @@ def unanswered(checkin: Checkin) -> list[dict[str, Any]]:
 # -- grading -------------------------------------------------------------------
 
 
+def _frozen_rules(checkin: Checkin) -> tuple[protocol_bank.GradingRule, ...] | None:
+    """The rules frozen onto this row, or `None` for a pre-S18-late check-in."""
+    if not checkin.grading_rules:
+        return None
+    kinds = {str(q.get("id")): str(q.get("type")) for q in frozen_questions(checkin)}
+    return protocol_bank.rules_from_snapshot(checkin.grading_rules, kinds=kinds)
+
+
 def grade(checkin: Checkin, *, bank: protocol_bank.ProtocolBank | None = None) -> Grading:
-    """The deterministic grade. Pure, and safe to re-run after a correction."""
+    """The deterministic grade. Pure, and safe to re-run after a correction.
+
+    The rules come off the **row** when they were frozen there (every check-in
+    created since S18-late), and only otherwise from the bank. That ordering is
+    the point: a grade is recomputed on every answer, so a bank published this
+    afternoon would otherwise re-decide answers a patient gave on Tuesday.
+    """
+    try:
+        frozen = _frozen_rules(checkin)
+    except (protocol_bank.ProtocolError, protocol_bank.rule_lang.RuleError):
+        # A snapshot the validator no longer accepts. Nobody is escalated on
+        # rules we cannot read, and nobody is told she is fine either.
+        logger.exception("check-in %s has an unreadable grading snapshot", checkin.id)
+        return _by_hand(checkin, "Its grading rules could not be read")
+    if frozen is not None:
+        return _evaluate(frozen, checkin)
+
     bank = bank or protocol_bank.get_bank()
     try:
         qset = bank.question_set(checkin.question_set)
@@ -183,23 +219,35 @@ def grade(checkin: Checkin, *, bank: protocol_bank.ProtocolBank | None = None) -
         logger.warning(
             "check-in %s cites unknown question set %s", checkin.id, checkin.question_set
         )
-        return Grading(
-            grade=CheckinGrade.AMBER,
-            reasons=(
-                Reason(
-                    id="bank.missing",
-                    grade=CheckinGrade.AMBER,
-                    reason=f"Question set {checkin.question_set!r} is no longer in the protocol "
-                    "bank — grade by hand",
-                    source="system",
-                ),
-            ),
+        return _by_hand(
+            checkin, f"Question set {checkin.question_set!r} is no longer in the protocol bank"
         )
 
+    return _evaluate(qset.grading, checkin)
+
+
+def _by_hand(checkin: Checkin, why: str) -> Grading:
+    """Amber, with the reason a nurse needs — for a check-in this code cannot
+    grade. Never green: "we could not read the rules" and "she is fine" are
+    different facts, the same distinction an expired check-in draws."""
+    return Grading(
+        grade=CheckinGrade.AMBER,
+        reasons=(
+            Reason(
+                id="bank.missing",
+                grade=CheckinGrade.AMBER,
+                reason=f"{why} — grade by hand",
+                source="system",
+            ),
+        ),
+    )
+
+
+def _evaluate(rules: Sequence[protocol_bank.GradingRule], checkin: Checkin) -> Grading:
     values = dict(checkin.responses or {})
     reasons = [
         Reason(id=rule.id, grade=rule.grade, reason=rule.reason)
-        for rule in qset.grading
+        for rule in rules
         if protocol_bank.rule_lang.evaluate(rule.when, values)
     ]
     return Grading(grade=_worst([r.grade for r in reasons]), reasons=tuple(reasons))

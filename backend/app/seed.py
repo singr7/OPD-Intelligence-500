@@ -32,8 +32,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import Actor, acting_as
+from app.checkins import protocols
 from app.db import build_engine, build_sessionmaker
-from app.models.content import QuestionTree
+from app.models.content import ProtocolBankVersion, QuestionTree
 from app.models.enums import Lang, PriceUnit, Role, Sex, SlotType, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department, Doctor, Hospital, User
@@ -427,6 +428,37 @@ async def _upsert_slot_templates(
     await session.flush()
 
 
+async def _upsert_protocol_bank(session: AsyncSession, report: SeedReport) -> None:
+    """Seed `protocol_banks` from `seeds/protocols.json` (doc 03 §9, S18-late).
+
+    The bank moved into a table so the admin console can edit it; the file stays
+    the authored source and the runtime floor (`app.checkins.store.resolve_bank`),
+    exactly as `seeds/trees/` does. Loaded through `protocols.parse`, so a seed
+    run is also a validation run.
+
+    **Seeded as draft**, for the same reason the trees are: publishing is a
+    clinical act. This bank rings a doctor's phone at thresholds no oncologist has
+    signed off yet (S21), and a seed script marking it published would be this
+    system asserting a review that has not happened. Until somebody publishes,
+    the resolver falls through to the identical file — so nothing changes.
+    """
+    payload = _load("protocols.json")
+    protocols.parse(payload)  # refuse to seed a bank the grader could not read
+    version = int(payload["version"])
+
+    row = await session.scalar(
+        select(ProtocolBankVersion).where(ProtocolBankVersion.version == version)
+    )
+    if row is None:
+        session.add(ProtocolBankVersion(version=version, bank=payload))
+        report.record(report.created, "protocol_bank")
+    elif _apply(row, {"bank": payload}):
+        report.record(report.updated, "protocol_bank")
+    else:
+        report.record(report.unchanged, "protocol_bank")
+    await session.flush()
+
+
 async def seed(
     session: AsyncSession, *, patients: int = 50, publish_trees: bool = False
 ) -> SeedReport:
@@ -450,6 +482,7 @@ async def seed(
         await _upsert_patients(session, hospital, patients, report)
         await _upsert_price_book(session, price_data["entries"], report)
         await _upsert_trees(session, departments, report, publish=publish_trees)
+        await _upsert_protocol_bank(session, report)
 
     return report
 

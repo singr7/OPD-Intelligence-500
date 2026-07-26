@@ -180,6 +180,67 @@ def test_the_frozen_snapshot_is_what_is_validated_against_not_the_live_bank() ->
         g.record_answer(checkin, question_id="ck.myelo.temp", raw=41)
 
 
+def test_the_grading_rules_are_frozen_too_so_a_published_bank_cannot_re_grade() -> None:
+    """The sibling of the snapshot rule above, and S18-late is why it exists.
+
+    A grade is recomputed on every answer and every correction. Once an admin can
+    publish a new bank from a console, rules read live would silently re-decide
+    answers a patient already gave — so a check-in carries the rules it will be
+    graded by, and the bank is consulted only for rows written before that.
+    """
+    checkin = make_checkin(responses={"ck.myelo.fever": "yes"})
+    assert g.grade(checkin).grade is CheckinGrade.RED  # the bank's rule, unfrozen
+
+    # The same answers, graded by the rules as they stood when she was asked.
+    checkin.grading_rules = [
+        {
+            "id": "ck.frozen.fever",
+            "grade": "amber",
+            "reason": "Fever reported — as the protocol read that week",
+            "when": {"op": "eq", "node": "ck.myelo.fever", "value": "yes"},
+        }
+    ]
+    graded_frozen = g.grade(checkin)
+    assert graded_frozen.grade is CheckinGrade.AMBER
+    assert [r.id for r in graded_frozen.reasons] == ["ck.frozen.fever"]
+
+
+def test_a_frozen_rule_the_validator_rejects_grades_amber_by_hand() -> None:
+    """Never green. "We cannot read the rules" and "she is fine" stay different
+    facts — the same distinction an expired check-in draws."""
+    checkin = make_checkin(responses={"ck.myelo.fever": "yes"})
+    checkin.grading_rules = [
+        # A rule over a question that was never asked: `rules.validate` refuses it.
+        {
+            "id": "bad",
+            "grade": "red",
+            "reason": "…",
+            "when": {"op": "eq", "node": "nope", "value": "yes"},
+        }
+    ]
+    result = g.grade(checkin)
+    assert result.grade is CheckinGrade.AMBER
+    assert result.reasons[0].source == "system"
+    assert "grade by hand" in result.reasons[0].reason
+
+
+def test_a_frozen_rule_over_free_text_is_refused_like_any_other() -> None:
+    """The snapshot is not a way around the boundary: rules still cannot match
+    ASR output, so "no blood in my stool" cannot fire a bleeding grade."""
+    checkin = make_checkin("palliative_comfort")
+    free_text = next(q["id"] for q in checkin.asked if q["type"] == "free_voice")
+    checkin.responses = {free_text: "some bleeding"}
+    checkin.grading_rules = [
+        {
+            "id": "bad",
+            "grade": "red",
+            "reason": "…",
+            "when": {"op": "eq", "node": free_text, "value": "some bleeding"},
+        }
+    ]
+    assert g.grade(checkin).grade is CheckinGrade.AMBER  # by hand, not red
+
+
 def test_unanswered_lists_what_is_still_outstanding_in_order() -> None:
     checkin = make_checkin(responses={"ck.myelo.fever": "no"})
     assert [q["id"] for q in g.unanswered(checkin)] == [

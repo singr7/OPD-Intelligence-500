@@ -51,6 +51,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.checkins import protocols as protocol_bank
+from app.checkins.store import resolve_bank
 from app.checkins.window import send_time_on
 from app.config import Settings, get_settings
 from app.dictation import DictationMapping, current_mapping
@@ -440,7 +441,11 @@ async def _draft(
     mapping = current_mapping(dictation)
     if mapping is None:
         return None
-    protocol = choose_protocol(mapping)
+    # The published bank if there is one, the seed file otherwise — resolved once
+    # and threaded through, so a plan is drafted entirely against one version of
+    # clinical policy even if somebody publishes mid-signature.
+    bank = await resolve_bank(session)
+    protocol = choose_protocol(mapping, bank=bank)
     if protocol is None:
         logger.info("dictation %s matches no regimen family — no plan", dictation.id)
         return None
@@ -457,12 +462,28 @@ async def _draft(
         anchor=anchor,
         lang=lang,
         rungs=draft_schedule(
-            protocol=protocol, anchor=anchor, lang=lang, channels=channels, settings=settings
+            protocol=protocol,
+            anchor=anchor,
+            lang=lang,
+            channels=channels,
+            bank=bank,
+            settings=settings,
         ),
         next_cycle_at=next_cycle_at(mapping, protocol=protocol, anchor=anchor),
     )
-    await personalise(draft, mapping=mapping, patient=patient, channels=channels, settings=settings)
-    draft.personalisation["matched_protocols"] = [p.key for p in matching_protocols(mapping)]
+    await personalise(
+        draft,
+        mapping=mapping,
+        patient=patient,
+        channels=channels,
+        bank=bank,
+        settings=settings,
+    )
+    draft.personalisation["matched_protocols"] = [
+        p.key for p in matching_protocols(mapping, bank=bank)
+    ]
+    # Which version of the bank drafted this, for the reviewer six months later.
+    draft.personalisation["bank_version"] = bank.version
 
     plan = CheckinPlan(
         patient_id=patient.id,
@@ -517,7 +538,7 @@ async def approve(
         raise PlanError(f"plan {plan.id} is {plan.status}, not a draft")
 
     now = now or datetime.now(UTC)
-    bank = protocol_bank.get_bank()
+    bank = await resolve_bank(session)
     created: list[Checkin] = []
     for rung in plan.schedule or []:
         qset = bank.question_set(str(rung["question_set"]))
@@ -528,6 +549,10 @@ async def approve(
             day_offset=int(rung["day_offset"]),
             question_set=qset.key,
             asked=[question.to_json() for question in qset.questions],
+            # Frozen together: the questions as asked and the rules they will be
+            # graded by. Publishing a new bank changes the next plan, never this
+            # patient's (`app.models.content.Checkin`).
+            grading_rules=[rule.to_json() for rule in qset.grading],
             message=str(rung.get("message", "")),
             lang=plan.lang,
             channel=Channel(str(rung["channel"])),

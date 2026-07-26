@@ -73,6 +73,13 @@ class TreeStatus(StrEnum):
     PUBLISHED = "published"
 
 
+#: Authored content — trees, protocol banks — shares one draft→published
+#: lifecycle. The Postgres type is named `tree_status` for the first table that
+#: needed it; an identical second type would be two things to migrate in step
+#: for no gain. Use this alias where the content is not a tree.
+ContentStatus = TreeStatus
+
+
 class AppointmentStatus(StrEnum):
     BOOKED = "booked"
     CONFIRMED = "confirmed"

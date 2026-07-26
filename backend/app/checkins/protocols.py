@@ -133,6 +133,19 @@ class GradingRule:
     reason: str
     when: dict[str, Any]
 
+    def to_json(self) -> dict[str, Any]:
+        """The snapshot shape. A `Checkin` freezes the rules it will be graded by
+        (`Checkin.grading_rules`) in this shape, so publishing a new bank cannot
+        re-grade answers a patient has already given — the same argument as
+        `Question.to_json` next door, and it became load-bearing the moment the
+        bank became editable from a console (S18-late)."""
+        return {
+            "id": self.id,
+            "grade": str(self.grade),
+            "reason": self.reason,
+            "when": self.when,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class QuestionSet:
@@ -461,6 +474,26 @@ def parse(payload: dict[str, Any]) -> ProtocolBank:
     if not isinstance(version, int):
         raise ProtocolError("protocols.json needs an integer 'version'")
     return ProtocolBank(version=version, question_sets=sets, protocols=protocols)
+
+
+def rules_from_snapshot(payload: Any, *, kinds: dict[str, str]) -> tuple[GradingRule, ...]:
+    """Rebuild frozen grading rules from `Checkin.grading_rules`.
+
+    Goes through `_parse_grading` — the same validator the bank is loaded with —
+    so a snapshot cannot become the one path into the grader that skips the
+    checks (a `green` rule, a rule over a `free_voice` answer, a rule addressing
+    a question that was never asked). `kinds` comes from the frozen questions on
+    the same row, so the type-check is against what the patient actually saw.
+
+    Raises `ProtocolError`, which `app.checkins.grading` turns into an amber and
+    a line for the nurse rather than a failed answer submission.
+    """
+    if not isinstance(payload, list):
+        raise ProtocolError("grading snapshot: expected a list of rules")
+    return tuple(
+        _parse_grading(raw, where=f"grading snapshot[{i}]", kinds=kinds)
+        for i, raw in enumerate(payload)
+    )
 
 
 @cache

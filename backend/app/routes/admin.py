@@ -13,10 +13,7 @@ content and exposes whole-hospital cost. Two shapes worth knowing:
 
 The remaining deferred panel (slot templates → S15) answers 200 with
 `{"deferred": true, "arrives_in": "S15"}` rather than 404, so the console renders
-an explicit "arrives with S15" placeholder instead of a broken link. Protocol
-templates stopped being a placeholder in S17 and now show the real bank,
-read-only — like the message-template registry next door, and for the same
-reason: it is a validated file the code loads at boot, not a table.
+an explicit "arrives with S15" placeholder instead of a broken link.
 """
 
 from __future__ import annotations
@@ -32,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import admin as admin_svc
 from app import analytics
 from app.auth.rbac import Principal, require_admin
-from app.checkins import protocols as protocol_bank
+from app.checkins import store as checkin_store
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, UsagePurpose
@@ -643,22 +640,20 @@ async def voice_packs() -> list[VoicePackClipOut]:
 
 
 @router.get("/protocol-templates")
-async def protocol_templates() -> dict:
-    """The S17 protocol bank, read-only (doc 03 §10).
+async def protocol_templates(session: AsyncSession = Depends(get_session)) -> dict:
+    """The **live** protocol bank, rendered for reading (doc 03 §10).
 
-    Same stance as the message-template registry next door: the bank is a
-    validated seed file (`seeds/protocols.json`), a Meta-style contract the code
-    loads once at boot, so the console *shows* what a regimen family asks and
-    when — it does not edit it. An editor that could move a check-in day would be
-    an editor that changes clinical policy without the validator that catches an
-    unreachable question set or a grading rule that can never fire; that is the
-    S18-late item, and it wants the bank in a table first.
+    What a plan drafted right now would use: the published row if there is one,
+    `seeds/protocols.json` otherwise. This is the summary view — families, rungs,
+    counts. The editor works on the document itself (`/admin/protocol-banks`),
+    because the validator's guarantees are properties of the whole bank.
     """
-    bank = protocol_bank.get_bank()
+    bank = await checkin_store.resolve_bank(session)
+    published = await checkin_store.published_bank(session)
     return {
         "version": bank.version,
-        "editable": False,
-        "source": "seeds/protocols.json",
+        "editable": True,
+        "source": "protocol_banks" if published is not None else "seeds/protocols.json",
         "protocols": [
             {
                 "key": protocol.key,
@@ -698,6 +693,74 @@ async def protocol_templates() -> dict:
             for qset in sorted(bank.question_sets.values(), key=lambda s: s.key)
         ],
     }
+
+
+class BankVersionOut(BaseModel):
+    id: uuid.UUID
+    version: int
+    status: str
+    published_at: datetime | None
+    notes: str | None
+    protocol_count: int
+    question_set_count: int
+
+
+def _bank_out(v: admin_svc.BankVersion) -> BankVersionOut:
+    return BankVersionOut(
+        id=v.id,
+        version=v.version,
+        status=v.status,
+        published_at=v.published_at,
+        notes=v.notes,
+        protocol_count=v.protocol_count,
+        question_set_count=v.question_set_count,
+    )
+
+
+@router.get("/protocol-banks", response_model=list[BankVersionOut])
+async def list_protocol_banks(session: AsyncSession = Depends(get_session)) -> list[BankVersionOut]:
+    return [_bank_out(v) for v in await admin_svc.list_protocol_banks(session)]
+
+
+@router.get("/protocol-banks/document")
+async def get_protocol_bank(
+    version: int | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """The stored bank JSON — what the editor loads, edits and posts back."""
+    try:
+        return await admin_svc.get_protocol_bank(session, version)
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class SaveBankIn(BaseModel):
+    bank: dict
+    notes: str | None = None
+
+
+@router.post("/protocol-banks/draft", response_model=BankVersionOut)
+async def save_protocol_bank_draft(
+    body: SaveBankIn, session: AsyncSession = Depends(get_session)
+) -> BankVersionOut:
+    try:
+        version = await admin_svc.save_protocol_bank_draft(
+            session, bank_json=body.bank, notes=body.notes
+        )
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _bank_out(version)
+
+
+@router.post("/protocol-banks/{version}/publish", response_model=BankVersionOut)
+async def publish_protocol_bank(
+    version: int, session: AsyncSession = Depends(get_session)
+) -> BankVersionOut:
+    try:
+        published = await admin_svc.publish_protocol_bank(session, version=version)
+    except admin_svc.AdminError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _bank_out(published)
 
 
 @router.get("/slot-templates")

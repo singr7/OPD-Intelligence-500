@@ -27,6 +27,7 @@ from app.models.enums import (
     CheckinGrade,
     CheckinPlanStatus,
     CheckinState,
+    ContentStatus,
     Lang,
     TreeStatus,
 )
@@ -65,6 +66,38 @@ class QuestionTree(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
         enum_type(TreeStatus, "tree_status"), default=TreeStatus.DRAFT, index=True
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProtocolBankVersion(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
+    """One version of the **whole** check-in protocol bank (doc 03 §9/§10, S18-late).
+
+    The trees moved from disk to this table one *tree* at a time, because a tree
+    is self-contained. A protocol bank is not: `parse()` cross-checks the whole
+    document — that no two protocols share a precedence, that no question set is
+    orphaned, that every rung names a set that exists. Storing a protocol per row
+    would let a half-edit pass row-level validation and fail those checks only at
+    load, on a box, at the moment a doctor signs a note. So the versioned unit is
+    the document, exactly as the file is.
+
+    `bank` is the same JSON as `seeds/protocols.json`, and it reaches a
+    `ProtocolBank` only through `app.checkins.protocols.parse` — the invariant the
+    whole S17 session hangs off. The disk file stays the floor
+    (`app.checkins.store.resolve_bank`), so a database with nothing published
+    behaves exactly as it did before this table existed.
+    """
+
+    __tablename__ = "protocol_banks"
+    __table_args__ = (UniqueConstraint("version", name="uq_protocol_banks_version"),)
+
+    version: Mapped[int] = mapped_column(Integer, index=True)
+    bank: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    status: Mapped[ContentStatus] = mapped_column(
+        enum_type(ContentStatus, "tree_status"), default=ContentStatus.DRAFT, index=True
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Free text from the editor — "added D+5 fever check for taxane", the line a
+    #: clinical reviewer reads next to a version number.
+    notes: Mapped[str | None] = mapped_column(Text)
 
 
 class CheckinPlan(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
@@ -122,6 +155,13 @@ class Checkin(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     `asked` freezes the questions as they were sent. A patient answers "2" three
     days later and the answer has to mean what the question meant when she read
     it, not what the bank says today.
+
+    `grading_rules` freezes the rules for the same reason, and S18-late is why it
+    has to. While the bank was a file in a pull request, "the rules moved under a
+    live check-in" meant a deploy; now that an admin can publish a new bank from
+    a console, it means an afternoon. A grade is recomputed on every answer and
+    on every correction, so an unfrozen rule set would re-grade answers already
+    given — quietly, and in either direction.
     """
 
     __tablename__ = "checkins"
@@ -132,6 +172,10 @@ class Checkin(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
     question_set: Mapped[str] = mapped_column(String(64), default="")
     #: The frozen question snapshot: `[Question.to_json(), ...]`.
     asked: Mapped[list[Any]] = mapped_column(default=list)
+    #: The frozen grading rules: `[GradingRule.to_json(), ...]`, the set's rules
+    #: as they stood when this check-in was created. NULL on rows written before
+    #: S18-late, which grade against the bank as they always did.
+    grading_rules: Mapped[list[Any] | None] = mapped_column(nullable=True)
     #: The personalised covering line, in the patient's language.
     message: Mapped[str] = mapped_column(Text, default="")
     lang: Mapped[Lang] = mapped_column(enum_type(Lang, "lang"), default=Lang.HI)

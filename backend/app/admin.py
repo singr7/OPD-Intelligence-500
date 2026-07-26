@@ -12,11 +12,16 @@ invariants hold across every function:
   `audit_log` row via `record_admin_action`. A publish, a price change and a
   cost-guard clear are exactly the acts an operator must be able to point at.
 
-Scope note (S18-early): this covers the panels whose backing models exist —
-trees, red-flag rules (they live *inside* the tree JSON, so the tree editor is
-their editor), the price book, and the cost guard. The protocol-template and
-slot-template editors are deferred with their models (S17, S15); the routes
-return an explicit "deferred" marker rather than a half-built schema.
+Red-flag rules need no editor of their own: they live *inside* the tree JSON, so
+the tree editor is their editor and `parse` validates them in place.
+
+Two content types are versioned here, and they are versioned at different
+granularities on purpose. A **tree** is versioned per key — it is self-contained,
+and one department's tree going live has nothing to do with another's. The
+**protocol bank** is versioned as one document, because `protocols.parse`
+cross-checks the whole thing (no orphaned question set, no tied precedence); a
+protocol-at-a-time editor would let a half-edit pass and fail those checks later,
+on a box, at the moment a doctor signs a note.
 """
 
 from __future__ import annotations
@@ -30,8 +35,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import record_admin_action
-from app.models.content import QuestionTree
-from app.models.enums import AuditAction, Lang, PriceUnit, TreeStatus
+from app.checkins import protocols
+from app.models.content import ProtocolBankVersion, QuestionTree
+from app.models.enums import AuditAction, ContentStatus, Lang, PriceUnit, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department
 from app.providers.pricing import get_price_book
@@ -215,6 +221,133 @@ def test_run(tree_json: dict[str, Any], answers: dict[str, Any]) -> TestRun:
     return TestRun(path=list(walk.path()), complete=walk.is_complete, red_flags=flags)
 
 
+# -- protocol bank ------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BankVersion:
+    id: Any
+    version: int
+    status: str
+    published_at: datetime | None
+    notes: str | None
+    protocol_count: int
+    question_set_count: int
+
+
+async def list_protocol_banks(session: AsyncSession) -> list[BankVersion]:
+    """Every stored version of the check-in protocol bank, newest first."""
+    rows = (
+        (
+            await session.execute(
+                select(ProtocolBankVersion)
+                .where(ProtocolBankVersion.deleted_at.is_(None))
+                .order_by(ProtocolBankVersion.version.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [_bank_version(row) for row in rows]
+
+
+async def get_protocol_bank(session: AsyncSession, version: int | None = None) -> dict[str, Any]:
+    """One stored bank's JSON — the document the editor loads and posts back."""
+    return (await _load_bank_row(session, version)).bank
+
+
+async def save_protocol_bank_draft(
+    session: AsyncSession, *, bank_json: dict[str, Any], notes: str | None = None
+) -> BankVersion:
+    """Validate an edited protocol bank and store it as a new **draft** version.
+
+    The version number is assigned here, not taken from the body: the document's
+    own `version` field is rewritten to match the row so the two can never
+    disagree, and an editor cannot overwrite a version some `CheckinPlan` was
+    drafted against by posting the same number twice.
+
+    Validation is `app.checkins.protocols.parse` — the whole document, including
+    the cross-checks a per-protocol editor could not make: no orphaned question
+    set, no tied precedence, no rung naming a set that does not exist. A bank
+    that would grade nothing, or grade `free_voice` text, or carry a `green`
+    rule, is refused here rather than discovered on a patient.
+    """
+    next_version = (
+        await session.scalar(select(func.coalesce(func.max(ProtocolBankVersion.version), 0)))
+    ) + 1
+    payload = {**bank_json, "version": next_version}
+    try:
+        parsed = protocols.parse(payload)
+    except protocols.ProtocolError as exc:
+        raise AdminError(f"invalid protocol bank: {exc}") from exc
+
+    row = ProtocolBankVersion(
+        version=next_version,
+        bank=payload,
+        status=ContentStatus.DRAFT,
+        notes=notes,
+    )
+    session.add(row)
+    await session.flush()
+    record_admin_action(
+        session,
+        action=AuditAction.CREATE,
+        entity=ProtocolBankVersion.__tablename__,
+        entity_id=row.id,
+        meta={
+            "version": next_version,
+            "status": "draft",
+            "protocols": len(parsed.protocols),
+            "question_sets": len(parsed.question_sets),
+        },
+    )
+    return _bank_version(row)
+
+
+async def publish_protocol_bank(session: AsyncSession, *, version: int) -> BankVersion:
+    """Make one version of the bank the live one.
+
+    Exactly one published version, like the trees: publishing demotes every
+    sibling, so `store.resolve_bank` has an unambiguous answer and publishing an
+    older version is a working rollback. Re-validated from the stored JSON, so a
+    row that somehow became unparseable cannot go live.
+
+    What this does **not** do is touch a check-in already created: those carry
+    their own frozen questions and grading rules. Publishing changes the next
+    plan a doctor signs.
+    """
+    row = await _load_bank_row(session, version)
+    try:
+        protocols.parse(row.bank)
+    except protocols.ProtocolError as exc:  # pragma: no cover - the draft save gates this
+        raise AdminError(f"refusing to publish an invalid protocol bank: {exc}") from exc
+
+    siblings = (
+        (
+            await session.execute(
+                select(ProtocolBankVersion).where(ProtocolBankVersion.deleted_at.is_(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for sibling in siblings:
+        sibling.status = ContentStatus.DRAFT
+        sibling.published_at = None
+
+    row.status = ContentStatus.PUBLISHED
+    row.published_at = datetime.now(UTC)
+    await session.flush()
+    record_admin_action(
+        session,
+        action=AuditAction.UPDATE,
+        entity=ProtocolBankVersion.__tablename__,
+        entity_id=row.id,
+        meta={"version": version, "status": "published"},
+    )
+    return _bank_version(row)
+
+
 # -- price book ---------------------------------------------------------------
 
 
@@ -335,6 +468,31 @@ def _version(row: QuestionTree, department_code: str | None) -> TreeVersion:
         published_at=row.published_at,
         node_count=node_count,
     )
+
+
+def _bank_version(row: ProtocolBankVersion) -> BankVersion:
+    bank = row.bank if isinstance(row.bank, dict) else {}
+    return BankVersion(
+        id=row.id,
+        version=row.version,
+        status=row.status.value,
+        published_at=row.published_at,
+        notes=row.notes,
+        protocol_count=len(bank.get("protocols", {})),
+        question_set_count=len(bank.get("question_sets", {})),
+    )
+
+
+async def _load_bank_row(session: AsyncSession, version: int | None) -> ProtocolBankVersion:
+    stmt = select(ProtocolBankVersion).where(ProtocolBankVersion.deleted_at.is_(None))
+    if version is not None:
+        stmt = stmt.where(ProtocolBankVersion.version == version)
+    stmt = stmt.order_by(ProtocolBankVersion.version.desc())
+    row = (await session.execute(stmt)).scalars().first()
+    if row is None:
+        what = f"v{version}" if version is not None else "any version"
+        raise AdminError(f"no protocol bank ({what}) — run `make seed`")
+    return row
 
 
 async def _load_row(session: AsyncSession, key: str, version: int | None) -> QuestionTree:

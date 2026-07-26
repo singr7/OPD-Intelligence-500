@@ -18,10 +18,13 @@ from sqlalchemy import func, select
 
 from app import admin as admin_svc
 from app.auth.tokens import create_access_token
+from app.checkins import protocols
+from app.checkins import store as checkin_store
 from app.config import Settings
 from app.models.audit import AuditLog
-from app.models.enums import Role, TreeStatus
+from app.models.enums import ContentStatus, Role, TreeStatus
 from app.models.metering import PriceBook
+from app.seed import SEEDS_DIR
 from app.trees import store
 from app.trees.bank import TREES_DIR
 from tests.factories import make_department, make_hospital, make_user
@@ -234,10 +237,10 @@ async def test_admin_can_list_trees_and_deferred_panels(client: AsyncClient, ses
     assert (await client.get("/admin/trees", headers=headers)).status_code == 200
     assert (await client.get("/admin/templates", headers=headers)).status_code == 200
 
-    # Protocol templates stopped being a placeholder in S17 — the panel now shows
-    # the real bank, read-only (the editor is S18-late and wants a table first).
+    # The protocol panel shows the *live* bank — the seed file until something is
+    # published, the published row after (S18-late).
     protocol = (await client.get("/admin/protocol-templates", headers=headers)).json()
-    assert protocol["editable"] is False
+    assert protocol["editable"] is True
     assert protocol["source"] == "seeds/protocols.json"
     assert {p["key"] for p in protocol["protocols"]} == {
         "platinum",
@@ -254,3 +257,122 @@ async def test_admin_can_list_trees_and_deferred_panels(client: AsyncClient, ses
 
     slots = await client.get("/admin/slot-templates", headers=headers)
     assert slots.json()["deferred"] is True and slots.json()["arrives_in"] == "S15"
+
+
+# -- protocol bank: publish → live on the check-in path ------------------------
+
+
+def _raw_bank() -> dict:
+    return json.loads((SEEDS_DIR / "protocols.json").read_text())
+
+
+async def test_publishing_a_protocol_bank_makes_it_live_for_the_next_plan(session) -> None:
+    """The S18-late mirror of the tree AC, on the check-in side.
+
+    Edit a protocol, publish, and the call every check-in entry point makes
+    (`checkin_store.resolve_bank`) returns the edit — no deploy, no re-seed.
+    """
+    # Nothing published: the resolver is the seed file, exactly as before S18-late.
+    assert await checkin_store.published_bank(session) is None
+    floor = await checkin_store.resolve_bank(session)
+    assert (
+        floor.protocol("platinum").cycle_days
+        == protocols.get_bank().protocol("platinum").cycle_days
+    )
+
+    raw = _raw_bank()
+    raw["protocols"]["platinum"]["checkins"].append(
+        {"day_offset": 21, "question_set": "gi_platinum"}
+    )
+    v = await admin_svc.save_protocol_bank_draft(session, bank_json=raw, notes="added a D+21 rung")
+
+    # A draft changes nothing — publishing is the deliberate second step.
+    assert await checkin_store.published_bank(session) is None
+
+    await admin_svc.publish_protocol_bank(session, version=v.version)
+    live = await checkin_store.resolve_bank(session)
+    assert [rung.day_offset for rung in live.protocol("platinum").checkins] == [2, 7, 14, 21]
+
+
+async def test_a_protocol_bank_that_could_not_grade_is_refused(session) -> None:
+    """Every whole-document check the validator makes still applies to an edit."""
+    orphan = _raw_bank()
+    orphan["question_sets"]["never_asked"] = orphan["question_sets"]["gi_platinum"]
+    with pytest.raises(admin_svc.AdminError, match="no protocol uses"):
+        await admin_svc.save_protocol_bank_draft(session, bank_json=orphan)
+
+    ungraded = _raw_bank()
+    ungraded["question_sets"]["gi_platinum"]["grading"] = []
+    with pytest.raises(admin_svc.AdminError, match="grading"):
+        await admin_svc.save_protocol_bank_draft(session, bank_json=ungraded)
+
+    tied = _raw_bank()
+    tied["protocols"]["platinum"]["precedence"] = tied["protocols"]["taxane"]["precedence"]
+    with pytest.raises(admin_svc.AdminError, match="precedence"):
+        await admin_svc.save_protocol_bank_draft(session, bank_json=tied)
+
+    # A green rule is still a load error — green is the absence of a fired rule.
+    greened = _raw_bank()
+    greened["question_sets"]["gi_platinum"]["grading"][0]["grade"] = "green"
+    with pytest.raises(admin_svc.AdminError, match="red' or 'amber"):
+        await admin_svc.save_protocol_bank_draft(session, bank_json=greened)
+
+    # None of the four wrote a row.
+    assert await admin_svc.list_protocol_banks(session) == []
+
+
+async def test_saving_a_bank_draft_versions_it_and_audits(session) -> None:
+    raw = _raw_bank()
+    raw["version"] = 999  # the body does not get to choose
+
+    first = await admin_svc.save_protocol_bank_draft(session, bank_json=raw, notes="one")
+    second = await admin_svc.save_protocol_bank_draft(session, bank_json=raw, notes="two")
+    assert (first.version, second.version) == (1, 2)
+    assert first.status == "draft"
+
+    # The document's own version is rewritten to match the row it lives in, so
+    # `parse()` and the table can never disagree about which bank this is.
+    assert (await admin_svc.get_protocol_bank(session, 2))["version"] == 2
+
+    rows = await session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.entity == "protocol_banks", AuditLog.action == "create")
+    )
+    assert rows == 2
+
+
+async def test_publishing_an_older_bank_version_rolls_back(session) -> None:
+    raw = _raw_bank()
+    v1 = await admin_svc.save_protocol_bank_draft(session, bank_json=raw)
+
+    edited = _raw_bank()
+    edited["protocols"]["platinum"]["cycle_days"] = 28
+    v2 = await admin_svc.save_protocol_bank_draft(session, bank_json=edited)
+
+    await admin_svc.publish_protocol_bank(session, version=v2.version)
+    assert (await checkin_store.resolve_bank(session)).protocol("platinum").cycle_days == 28
+
+    await admin_svc.publish_protocol_bank(session, version=v1.version)
+    live = await checkin_store.resolve_bank(session)
+    assert live.protocol("platinum").cycle_days == raw["protocols"]["platinum"]["cycle_days"]
+
+    published = [b for b in await admin_svc.list_protocol_banks(session) if b.status == "published"]
+    assert [b.version for b in published] == [v1.version]
+
+
+async def test_an_unparseable_published_bank_falls_through_to_the_file(session) -> None:
+    """A bad publish must not be the reason a signed note drafts no follow-up."""
+    from app.models.content import ProtocolBankVersion
+
+    session.add(
+        ProtocolBankVersion(
+            version=1,
+            bank={"version": 1, "protocols": {}, "question_sets": {}, "option_sets": {}},
+            status=ContentStatus.PUBLISHED,
+        )
+    )
+    await session.flush()
+
+    assert await checkin_store.published_bank(session) is None
+    assert (await checkin_store.resolve_bank(session)).protocols  # the seed file

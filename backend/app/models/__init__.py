@@ -9,7 +9,7 @@ from app.models.audit import AuditLog
 from app.models.auth import OtpCode, RefreshToken
 from app.models.base import Base, Clinical, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKey
 from app.models.clinical import Dictation, DoseEvent, Intake, Prescription, Visit
-from app.models.content import Checkin, CheckinPlan, QuestionTree
+from app.models.content import Checkin, CheckinPlan, ProtocolBankVersion, QuestionTree
 from app.models.enums import (
     AppointmentStatus,
     AuditAction,
@@ -77,6 +77,7 @@ __all__ = [
     # content / continuity
     "QuestionTree",
     "CheckinPlan",
+    "ProtocolBankVersion",
     "Checkin",
     # metering
     "PriceBook",

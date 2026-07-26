@@ -33,7 +33,7 @@ from app import doctor as doctor_svc
 from app.auth.rbac import Principal, require_clinical, require_doctor
 from app.checkins import grading as grading_svc
 from app.checkins import plan as plan_svc
-from app.checkins import protocols as protocol_bank
+from app.checkins.store import resolve_bank
 from app.db import get_session
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import CheckinPlanStatus
@@ -102,7 +102,7 @@ async def _doctor(session: AsyncSession, principal: Principal):
 
 
 async def _plan_out(session: AsyncSession, plan: CheckinPlan) -> PlanOut:
-    bank = protocol_bank.get_bank()
+    bank = await resolve_bank(session)
     patient = await session.get(Patient, plan.patient_id)
     rungs = []
     for rung in plan.schedule or []:
