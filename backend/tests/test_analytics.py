@@ -235,3 +235,95 @@ async def test_live_strip_reads_the_trailing_minute(session) -> None:
     assert strip.tokens_per_min == 300  # (100+50) * 2
     assert strip.inr_per_min == Decimal("0.2000")
     assert strip.active_sessions_by_tier == {"conversational": 2}
+
+
+# -- tier-mix what-if ---------------------------------------------------------
+
+
+async def _completed(session, clinic, *, channel: Channel, tier: IntakeTier, costs: list[str]):
+    for cost in costs:
+        visit = make_visit(clinic["patient"], clinic["department"], channel=channel)
+        session.add(visit)
+        await session.flush()
+        session.add(make_intake(visit, tier=tier, completed_at=REPLAY, cost_inr=Decimal(cost)))
+    await session.flush()
+
+
+async def test_tier_mix_matches_a_hand_calculation(session) -> None:
+    """Doc 03 §11: "if phone intake ran V2 instead of V1: −₹X/day".
+
+    Both sides are medians this hospital actually booked, so the answer is
+    `intakes × (to_median − from_median)` and nothing else.
+    """
+    clinic = await build_clinic(session)
+    # Three phone V1 intakes (median ₹4.00) and two phone V2 (median ₹1.50).
+    await _completed(
+        session,
+        clinic,
+        channel=Channel.PHONE,
+        tier=IntakeTier.CONVERSATIONAL,
+        costs=["2.0000", "4.0000", "9.0000"],
+    )
+    await _completed(
+        session,
+        clinic,
+        channel=Channel.PHONE,
+        tier=IntakeTier.RULE_BASED,
+        costs=["1.0000", "2.0000"],
+    )
+
+    mix = await analytics.tier_mix(
+        session,
+        start=REPLAY - timedelta(hours=1),
+        end=REPLAY + timedelta(hours=1),
+        channel=Channel.PHONE,
+        from_tier=IntakeTier.CONVERSATIONAL,
+        to_tier=IntakeTier.RULE_BASED,
+    )
+
+    assert mix.basis == "observed"
+    assert mix.intakes == 3
+    assert mix.from_median_inr == Decimal("4.0000")
+    assert mix.to_median_inr == Decimal("1.5000")
+    # By hand: 3 × 4.00 = 12.00 today, 3 × 1.50 = 4.50 on V2, so −₹7.50.
+    assert mix.baseline_inr == Decimal("12.00")
+    assert mix.adjusted_inr == Decimal("4.50")
+    assert mix.delta_inr == Decimal("-7.50")
+
+
+async def test_tier_mix_refuses_rather_than_modelling_an_unobserved_tier(session) -> None:
+    """No phone intake has ever run V2 → no number, and the reason why.
+
+    The alternative is pricing phone V2 off the kiosk's V2 intakes, which are a
+    different unit of work; a confident wrong number here would be an operator
+    switching a channel's tier on the strength of it.
+    """
+    clinic = await build_clinic(session)
+    await _completed(
+        session,
+        clinic,
+        channel=Channel.PHONE,
+        tier=IntakeTier.CONVERSATIONAL,
+        costs=["4.0000"],
+    )
+    await _completed(
+        session,
+        clinic,
+        channel=Channel.KIOSK,
+        tier=IntakeTier.RULE_BASED,
+        costs=["0.2000"],
+    )
+
+    mix = await analytics.tier_mix(
+        session,
+        start=REPLAY - timedelta(hours=1),
+        end=REPLAY + timedelta(hours=1),
+        channel=Channel.PHONE,
+        from_tier=IntakeTier.CONVERSATIONAL,
+        to_tier=IntakeTier.RULE_BASED,
+    )
+
+    assert mix.to_median_inr is None
+    assert "no measured cost to re-price against" in mix.basis
+    # Unknown means unchanged, never zero: the panel shows no saving, not a saving.
+    assert mix.delta_inr == Decimal("0.00")

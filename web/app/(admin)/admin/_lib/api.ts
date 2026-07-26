@@ -146,6 +146,24 @@ export const fetchOps = (t: string) => get<Ops>(t, "/admin/analytics/ops");
 export const fetchCostGuard = (t: string) => get<CostGuard>(t, "/admin/costguard");
 export const clearCostGuard = (t: string, channel: string) =>
   post<{ cleared: boolean }>(t, `/admin/costguard/${channel}/clear`, {});
+export type TierMix = {
+  channel: string;
+  from_tier: string;
+  to_tier: string;
+  intakes: number;
+  from_median_inr: string | null;
+  to_median_inr: string | null;
+  baseline_inr: string;
+  adjusted_inr: string;
+  delta_inr: string;
+  basis: string;
+};
+export const runTierMix = (t: string, channel: string, from_tier: string, to_tier: string) =>
+  get<TierMix>(
+    t,
+    `/admin/analytics/tier-mix?channel=${channel}&from_tier=${from_tier}&to_tier=${to_tier}`,
+  );
+
 export const runWhatIf = (
   t: string,
   overrides: { provider?: string; model?: string; factor: string }[],

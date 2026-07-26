@@ -275,6 +275,52 @@ async def analytics_whatif(
     )
 
 
+class TierMixOut(BaseModel):
+    channel: str
+    from_tier: str
+    to_tier: str
+    intakes: int
+    from_median_inr: str | None
+    to_median_inr: str | None
+    baseline_inr: str
+    adjusted_inr: str
+    delta_inr: str
+    basis: str
+
+
+@router.get("/analytics/tier-mix", response_model=TierMixOut)
+async def analytics_tier_mix(
+    channel: Channel,
+    from_tier: IntakeTier,
+    to_tier: IntakeTier,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> TierMixOut:
+    """ "If this channel had run that tier" — doc 03 §11's tier-mix recompute."""
+    lo, hi = _default_window()
+    mix = await analytics.tier_mix(
+        session,
+        start=start or lo,
+        end=end or hi,
+        channel=channel,
+        from_tier=from_tier,
+        to_tier=to_tier,
+    )
+    return TierMixOut(
+        channel=mix.channel.value,
+        from_tier=mix.from_tier.value,
+        to_tier=mix.to_tier.value,
+        intakes=mix.intakes,
+        from_median_inr=str(mix.from_median_inr) if mix.from_median_inr is not None else None,
+        to_median_inr=str(mix.to_median_inr) if mix.to_median_inr is not None else None,
+        baseline_inr=str(mix.baseline_inr),
+        adjusted_inr=str(mix.adjusted_inr),
+        delta_inr=str(mix.delta_inr),
+        basis=mix.basis,
+    )
+
+
 # -- analytics: anomalies -----------------------------------------------------
 
 

@@ -451,9 +451,8 @@ async def what_if(
     not a re-priced quantity, the delta is exactly `Σ cost·(factor−1)` over the
     matched groups — which is what the test asserts by hand.
 
-    Tier-mix what-if ("if phone ran V2 not V1") is a different, harder recompute
-    that needs a cross-tier provider mapping; it is deliberately out of scope
-    here (backlog, pairs with S14 giving telephony real V1/V2 cost shapes).
+    Tier-mix what-if ("if phone ran V2 not V1") is the other half of doc 03
+    §11's panel and a different recompute — `tier_mix`, below.
     """
     stmt = _window(
         select(
@@ -477,6 +476,106 @@ async def what_if(
                 factor = ov.factor  # last matching override wins, most-specific last by convention
         adjusted += cost * factor
     return WhatIf(baseline_inr=baseline.quantize(CENT), adjusted_inr=adjusted.quantize(CENT))
+
+
+# -- tier-mix what-if ---------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class TierMix:
+    """ "If phone intake had run V2 instead of V1, what would the week have cost?"
+    (doc 03 §11 what-if, second half).
+
+    Deliberately **measured, not modelled**: both sides of the comparison are
+    medians of `Intake.cost_inr` this hospital actually booked, on this channel,
+    at each tier. So the answer is arithmetic anyone can check —
+    `intakes × (to_median − from_median)` — rather than the output of a cost
+    model with assumptions nobody wrote down.
+
+    Which is also why it refuses. With no completed intakes on the target tier
+    for that channel there is nothing to price against, and `basis` says so
+    instead of the panel showing a confident number derived from the other
+    channels' shapes. A phone V1 minute and a kiosk V1 turn are not the same
+    unit of work, and averaging them would make the panel worse than absent.
+    """
+
+    channel: Channel
+    from_tier: IntakeTier
+    to_tier: IntakeTier
+    intakes: int
+    from_median_inr: Decimal | None
+    to_median_inr: Decimal | None
+    #: "observed", or the reason there is no answer.
+    basis: str
+
+    @property
+    def baseline_inr(self) -> Decimal:
+        if self.from_median_inr is None:
+            return Decimal("0.00")
+        return (self.from_median_inr * self.intakes).quantize(CENT)
+
+    @property
+    def adjusted_inr(self) -> Decimal:
+        if self.to_median_inr is None:
+            return self.baseline_inr
+        return (self.to_median_inr * self.intakes).quantize(CENT)
+
+    @property
+    def delta_inr(self) -> Decimal:
+        return (self.adjusted_inr - self.baseline_inr).quantize(CENT)
+
+
+async def tier_mix(
+    session: AsyncSession,
+    *,
+    start: datetime,
+    end: datetime,
+    channel: Channel,
+    from_tier: IntakeTier,
+    to_tier: IntakeTier,
+) -> TierMix:
+    """Re-price one channel's completed intakes at another tier's observed median."""
+    observed = {
+        (u.channel, u.tier): u
+        for u in await _per_completed_intake(session, start=start, end=end)
+        if u.channel is not None and u.tier is not None
+    }
+    source = observed.get((channel, from_tier))
+    target = observed.get((channel, to_tier))
+
+    if source is None or source.median_inr is None:
+        return TierMix(
+            channel=channel,
+            from_tier=from_tier,
+            to_tier=to_tier,
+            intakes=0,
+            from_median_inr=None,
+            to_median_inr=target.median_inr if target else None,
+            basis=f"no completed {channel.value} intakes ran on {from_tier.value} in this window",
+        )
+    if target is None or target.median_inr is None:
+        return TierMix(
+            channel=channel,
+            from_tier=from_tier,
+            to_tier=to_tier,
+            intakes=source.count,
+            from_median_inr=source.median_inr,
+            to_median_inr=None,
+            basis=(
+                f"no completed {channel.value} intakes ran on {to_tier.value} in this window, "
+                "so there is no measured cost to re-price against"
+            ),
+        )
+
+    return TierMix(
+        channel=channel,
+        from_tier=from_tier,
+        to_tier=to_tier,
+        intakes=source.count,
+        from_median_inr=source.median_inr,
+        to_median_inr=target.median_inr,
+        basis="observed",
+    )
 
 
 # -- live strip ---------------------------------------------------------------

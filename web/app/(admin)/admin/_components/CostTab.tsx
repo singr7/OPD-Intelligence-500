@@ -244,6 +244,7 @@ export function CostTab({ token, onError }: TabProps) {
       </section>
 
       <WhatIf token={token} onError={onError} />
+      <TierMixPanel token={token} onError={onError} />
     </>
   );
 }
@@ -337,3 +338,87 @@ function WhatIf({ token, onError }: TabProps) {
     </section>
   );
 }
+
+/** The other half of doc 03 §11's what-if: not "what if this rate changed" but
+ *  "what if this channel had run a different tier". Both numbers are medians
+ *  this hospital actually booked, so when there is nothing measured to compare
+ *  against the panel says that instead of showing a modelled saving — the
+ *  distinction matters, because a number here is what an operator would switch a
+ *  channel's tier on. */
+function TierMixPanel({ token, onError }: TabProps) {
+  const [channel, setChannel] = useState("phone");
+  const [from, setFrom] = useState("conversational");
+  const [to, setTo] = useState("rule_based");
+  const [result, setResult] = useState<api.TierMix | null>(null);
+
+  const saved = result && Number(result.delta_inr) <= 0;
+
+  return (
+    <section>
+      <h2>What-if: a different tier mix</h2>
+      <p className="muted">
+        Re-prices the last 7 days of completed intakes on one channel at another tier&rsquo;s
+        observed median cost. Measured, not modelled — if that tier has never run on that
+        channel there is no answer to give.
+      </p>
+      <div className="row">
+        <select value={channel} onChange={(e) => setChannel(e.target.value)}>
+          {["kiosk", "phone", "whatsapp", "app"].map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <select value={from} onChange={(e) => setFrom(e.target.value)}>
+          {MIXABLE_TIERS.map((t) => (
+            <option key={t.id} value={t.id}>
+              from {t.label}
+            </option>
+          ))}
+        </select>
+        <select value={to} onChange={(e) => setTo(e.target.value)}>
+          {MIXABLE_TIERS.map((t) => (
+            <option key={t.id} value={t.id}>
+              to {t.label}
+            </option>
+          ))}
+        </select>
+        <button
+          className="action"
+          onClick={async () => {
+            try {
+              setResult(await api.runTierMix(token, channel, from, to));
+            } catch (e) {
+              onError(e);
+            }
+          }}
+        >
+          Recompute
+        </button>
+      </div>
+      {result &&
+        (result.basis === "observed" ? (
+          <p>
+            {result.intakes} completed {result.channel} intakes at ₹{result.from_median_inr}{" "}
+            median → ₹{result.to_median_inr} median:{" "}
+            <b>₹{result.baseline_inr}</b> becomes <b>₹{result.adjusted_inr}</b> (
+            <b style={{ color: saved ? "var(--primary)" : "var(--danger)" }}>
+              {saved ? "" : "+"}₹{result.delta_inr}
+            </b>
+            )
+          </p>
+        ) : (
+          <p className="muted">No answer: {result.basis}.</p>
+        ))}
+    </section>
+  );
+}
+
+// The three tiers a completed intake can have run on, with the names an operator
+// uses. `TIERS` above is the filter list (blank = all, plus `paper`, which is a
+// downtime record rather than a tier anything could be re-priced onto).
+const MIXABLE_TIERS = [
+  { id: "conversational", label: "V1 conversational" },
+  { id: "rule_based", label: "V2 pipeline" },
+  { id: "prerecorded", label: "V3 pre-recorded" },
+];
