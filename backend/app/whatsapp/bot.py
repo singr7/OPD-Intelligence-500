@@ -39,12 +39,16 @@ from app import kiosk as kiosk_svc
 from app import prescription as rx_svc
 from app import queue as queue_svc
 from app import rx_sheets, scheduling
+from app.checkins import delivery as checkin_delivery
+from app.checkins import grading as checkin_grading
 from app.config import Settings
 from app.intake import IntakeEngine
 from app.models.clinical import Intake, Visit
+from app.models.content import Checkin, CheckinPlan
 from app.models.enums import (
     AppointmentStatus,
     Channel,
+    CheckinState,
     IntakeTier,
     Lang,
     UsagePurpose,
@@ -85,6 +89,36 @@ _CONFIRM_NO = "confirm:no"
 #: The one-tap appointment buttons (doc 03 §2). `app.notify` writes these ids onto
 #: the confirmation message; this is the other end of them.
 _APPT_PREFIX = "appt:"
+_CHECKIN_PREFIX = "ck:"
+
+#: A tap on a check-in that has since been answered, expired or cancelled.
+_CHECKIN_CLOSED: dict[Lang, str] = {
+    Lang.EN: "Thank you. That question is already closed — if something is wrong, "
+    "please call the hospital.",
+    Lang.HI: "धन्यवाद। वह सवाल अब बंद हो चुका है — अगर कुछ तकलीफ़ है तो कृपया अस्पताल में फ़ोन करें।",
+    Lang.MR: "धन्यवाद. तो प्रश्न आता बंद झाला आहे — काही त्रास असेल तर कृपया रुग्णालयात फोन करा.",
+    Lang.TE: "ధన్యవాదాలు. ఆ ప్రశ్న ఇప్పుడు ముగిసింది — ఏదైనా ఇబ్బంది ఉంటే దయచేసి ఆసుపత్రికి ఫోన్ చేయండి.",
+}
+
+#: An answer the question cannot accept. Re-asked, never guessed at.
+_CHECKIN_AGAIN: dict[Lang, str] = {
+    Lang.EN: "Sorry, I did not understand that. Please answer again:",
+    Lang.HI: "माफ़ कीजिए, मैं समझ नहीं पाया। कृपया दोबारा उत्तर दें:",
+    Lang.MR: "क्षमस्व, मला समजलं नाही. कृपया पुन्हा उत्तर द्या:",
+    Lang.TE: "క్షమించండి, నాకు అర్థం కాలేదు. దయచేసి మళ్లీ సమాధానం ఇవ్వండి:",
+}
+
+#: The same close, whatever the grade — a bot does not tell a patient her answer
+#: was alarming. `app.checkins.grading.submit` has already raised the escalation.
+_CHECKIN_THANKS: dict[Lang, str] = {
+    Lang.EN: "Thank you. We have your answers, and the hospital will contact you if "
+    "anything needs attention.",
+    Lang.HI: "धन्यवाद। आपके उत्तर हमें मिल गए हैं। अगर किसी बात पर ध्यान देने की ज़रूरत हुई तो "
+    "अस्पताल आपसे संपर्क करेगा।",
+    Lang.MR: "धन्यवाद. तुमची उत्तरं आम्हाला मिळाली आहेत. काही लक्ष देण्यासारखं असेल तर रुग्णालय "
+    "तुमच्याशी संपर्क करेल.",
+    Lang.TE: "ధన్యవాదాలు. మీ సమాధానాలు మాకు అందాయి. దేనికైనా శ్రద్ధ అవసరమైతే ఆసుపత్రి మిమ్మల్ని సంప్రదిస్తుంది.",
+}
 
 #: What a tap gets back. Short — the patient already has the details in the
 #: message they tapped.
@@ -196,6 +230,21 @@ class WhatsAppBot:
         # cancelling tomorrow's slot must not have to finish an intake first.
         if inbound.reply_id and inbound.reply_id.startswith(_APPT_PREFIX):
             return await self._appointment_tap(session, conv, inbound)
+
+        # Same argument for a check-in tap (S17): the id is namespaced and
+        # carries the check-in it answers, so it is unambiguous whatever else
+        # the thread is doing, and a woman with a fever should not have to
+        # finish an intake before she can say so.
+        if inbound.reply_id and inbound.reply_id.startswith(_CHECKIN_PREFIX):
+            return await self._checkin_tap(session, conv, inbound)
+        # A typed answer only counts as a check-in answer while one is open and
+        # the outstanding question is one you type into (a number or her own
+        # words). Everything else falls through to the intake FSM below.
+        if conv.checkin_id is not None and conv.step in {
+            ConversationStep.IDLE,
+            ConversationStep.DONE,
+        }:
+            return await self._checkin_typed(session, conv, inbound)
 
         # A command wins whenever we are not mid-answer — a patient checking their
         # token should not have to finish an intake first.
@@ -466,6 +515,106 @@ class WhatsAppBot:
         return reply
 
     # -- commands -------------------------------------------------------------
+
+    # -- check-ins (S17, doc 03 §9) -------------------------------------------
+
+    async def _checkin_tap(
+        self, session: AsyncSession, conv: Conversation, inbound: Inbound
+    ) -> BotReply:
+        """A tapped option on a check-in question.
+
+        The button id carries the **check-in** it answers, so a reply that
+        arrives after the next check-in has gone out is applied to the one it was
+        actually an answer to — or, if that one is closed, to none at all.
+        """
+        raw_checkin, _, rest = inbound.reply_id[len(_CHECKIN_PREFIX) :].partition(":")
+        question_id, _, value = rest.partition(":")
+        checkin = await self._open_checkin(session, conv, raw_checkin)
+        if checkin is None:
+            return self._say(conv, _CHECKIN_CLOSED[conv.lang or Lang.HI])
+        return await self._checkin_answer(session, conv, checkin, question_id, value)
+
+    async def _checkin_typed(
+        self, session: AsyncSession, conv: Conversation, inbound: Inbound
+    ) -> BotReply:
+        """A typed answer to the outstanding question — a count, or her own words."""
+        checkin = await self._open_checkin(session, conv, str(conv.checkin_id))
+        if checkin is None or not conv.checkin_question:
+            conv.checkin_id = None
+            conv.checkin_question = None
+            return await self._ask_language_or_complaint(session, conv, inbound)
+        return await self._checkin_answer(
+            session, conv, checkin, conv.checkin_question, (inbound.text or "").strip()
+        )
+
+    async def _open_checkin(
+        self, session: AsyncSession, conv: Conversation, raw_id: str
+    ) -> Checkin | None:
+        """The check-in this reply is for, if it is still open and still hers."""
+        try:
+            checkin_id = uuid.UUID(raw_id)
+        except (ValueError, AttributeError):
+            return None
+        checkin = await session.get(Checkin, checkin_id)
+        if checkin is None or checkin.deleted_at is not None:
+            return None
+        if checkin.state not in {CheckinState.PENDING, CheckinState.SENT}:
+            return None
+        patient = await self._resolve_patient(session, conv.wa_id)
+        plan = await session.get(CheckinPlan, checkin.plan_id)
+        if patient is None or plan is None or plan.patient_id != patient.id:
+            # Authorised by the number it came from, exactly like an appointment
+            # tap: the button id is in the message, and a forwarded message must
+            # not let anyone answer a stranger's check-in.
+            return None
+        return checkin
+
+    async def _checkin_answer(
+        self,
+        session: AsyncSession,
+        conv: Conversation,
+        checkin: Checkin,
+        question_id: str,
+        value: str,
+    ) -> BotReply:
+        lang = checkin.lang
+        try:
+            _, finished = await checkin_grading.answer_one(
+                session,
+                checkin=checkin,
+                question_id=question_id,
+                raw=value,
+                settings=self._settings,
+            )
+        except checkin_grading.AnswerError:
+            # Re-ask rather than guess. A "hundred and two" into a Celsius
+            # question is a real patient reading a real thermometer in the other
+            # unit, and coercing it invents a red flag.
+            question = next((q for q in checkin.asked or [] if q.get("id") == question_id), None)
+            if question is None:
+                return self._say(conv, _CHECKIN_CLOSED[lang])
+            conv.checkin_question = question_id
+            return BotReply(
+                messages=[
+                    OutboundMessage(to=conv.wa_id, text=_CHECKIN_AGAIN[lang]),
+                    checkin_delivery.question_message(checkin, question, to=conv.wa_id),
+                ]
+            )
+
+        if not finished:
+            question = checkin_grading.unanswered(checkin)[0]
+            conv.checkin_id = checkin.id
+            conv.checkin_question = str(question["id"])
+            return BotReply(
+                messages=[checkin_delivery.question_message(checkin, question, to=conv.wa_id)]
+            )
+
+        conv.checkin_id = None
+        conv.checkin_question = None
+        # Deliberately the same thank-you whatever the grade. A patient is not
+        # told "this is serious" by a bot — that is a nurse's call and a nurse's
+        # phone call, and the escalation has already been raised by `submit`.
+        return self._say(conv, _CHECKIN_THANKS[lang])
 
     async def _appointment_tap(
         self, session: AsyncSession, conv: Conversation, inbound: Inbound

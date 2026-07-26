@@ -450,9 +450,7 @@ async def print_intake_sheets(
         (tree.to_json(), dept_names.get(tree.department or "", tree.department or "General"))
         for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)
     ]
-    html = print_sheets.render_intake_sheets(
-        sheets, hospital_name=hospital_name, langs=lang
-    )
+    html = print_sheets.render_intake_sheets(sheets, hospital_name=hospital_name, langs=lang)
     return HTMLResponse(html)
 
 

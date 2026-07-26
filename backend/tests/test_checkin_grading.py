@@ -427,6 +427,72 @@ async def test_an_alert_that_cannot_be_sent_still_escalates(
     assert [row[0].id for row in await g.review_queue(session)] == [checkin.id]
 
 
+async def test_a_red_answer_ends_the_checkin_on_the_spot(
+    session: AsyncSession, settings, monkeypatch
+) -> None:
+    """She has said something that needs a phone call today. Asking her three
+    more questions before escalating would be this session's point, missed —
+    the nurse who rings her can ask the rest."""
+    sms = FakeSMSProvider()
+    monkeypatch.setattr(g, "get_sms_provider", lambda s=None: sms)
+    _, _, checkin = await _plan_with_checkin(session)
+
+    grading, finished = await g.answer_one(
+        session, checkin=checkin, question_id="ck.gi.vomit", raw=9, settings=settings
+    )
+
+    assert finished
+    assert grading.grade is CheckinGrade.RED
+    assert checkin.state is CheckinState.ANSWERED
+    assert checkin.escalated_at is not None
+    assert sms.sent
+    # The unasked questions stay unasked, and stay visible as such.
+    assert [q["id"] for q in g.unanswered(checkin)] == [
+        "ck.gi.intake",
+        "ck.gi.urine",
+        "ck.gi.tingling",
+    ]
+
+
+async def test_an_amber_answer_keeps_asking(session: AsyncSession, settings, monkeypatch) -> None:
+    monkeypatch.setattr(g, "get_sms_provider", lambda s=None: FakeSMSProvider())
+    _, _, checkin = await _plan_with_checkin(session)
+
+    grading, finished = await g.answer_one(
+        session, checkin=checkin, question_id="ck.gi.vomit", raw=3, settings=settings
+    )
+
+    assert not finished
+    assert grading.grade is CheckinGrade.AMBER
+    assert checkin.state is CheckinState.SENT
+    assert checkin.escalated_at is None
+
+
+async def test_the_last_answer_finishes_and_grades_with_the_assist(
+    session: AsyncSession, settings, monkeypatch
+) -> None:
+    monkeypatch.setattr(g, "get_sms_provider", lambda s=None: FakeSMSProvider())
+    _, _, checkin = await _plan_with_checkin(session)
+    for question_id, value in (
+        ("ck.gi.vomit", 0),
+        ("ck.gi.intake", "normal"),
+        ("ck.gi.urine", "no"),
+    ):
+        _, finished = await g.answer_one(
+            session, checkin=checkin, question_id=question_id, raw=value, settings=settings
+        )
+        assert not finished
+
+    grading, finished = await g.answer_one(
+        session, checkin=checkin, question_id="ck.gi.tingling", raw="none", settings=settings
+    )
+
+    assert finished
+    assert grading.grade is CheckinGrade.GREEN
+    assert checkin.state is CheckinState.ANSWERED
+    assert checkin.answered_at is not None
+
+
 # =============================================================================
 # 5. the nurse review queue
 # =============================================================================

@@ -251,9 +251,7 @@ class _ScriptedInterpreter:
     def push(self, interpretation: Any) -> None:
         self.queue.append(interpretation)
 
-    async def interpret(
-        self, node: Any, utterance: str, lang: Any, *, others: Any = ()
-    ) -> Any:
+    async def interpret(self, node: Any, utterance: str, lang: Any, *, others: Any = ()) -> Any:
         self.calls.append((node.id, utterance))
         self.last_others = [n.id for n in others]
         return self.queue.pop(0)

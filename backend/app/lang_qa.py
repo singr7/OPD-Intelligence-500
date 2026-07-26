@@ -137,6 +137,36 @@ def _check_templates(out: list[Problem]) -> None:
                 )
 
 
+def _check_protocols(out: list[Problem]) -> None:
+    """The S17 check-in bank (doc 03 §9).
+
+    Every question a patient is asked days after her treatment, and every option
+    she can tap back, in all four languages. The bank's own loader already
+    refuses a missing language; what this adds is the *script* check — hi text
+    that is actually romanised, which parses fine and reads as gibberish.
+    """
+    from app.checkins import protocols as pb
+
+    bank = pb.get_bank()
+    for protocol in bank.protocols.values():
+        _check_block("protocols", f"{protocol.key}.label", protocol.label, out)
+    for qset in bank.question_sets.values():
+        _check_block("protocols", f"{qset.key}.title", qset.title, out)
+        for question in qset.questions:
+            _check_block("protocols", question.id, question.prompt, out)
+            for option in question.options:
+                _check_block("protocols", f"{question.id}/{option.id}", option.label, out)
+
+    from app.checkins.plan import _PLAIN_MESSAGE
+
+    for lang in PILOT_LANGUAGES:
+        text = _PLAIN_MESSAGE.get(lang)
+        if not text:
+            out.append(Problem("protocols", f"no plain check-in message for {lang}"))
+        elif not looks_like_script(text, lang):
+            out.append(Problem("protocols", f"{lang} plain check-in message is not in script"))
+
+
 def _check_readback(out: list[Problem]) -> None:
     from app.intake.summary import _READBACK_TEMPLATE
 
@@ -214,6 +244,7 @@ def check() -> list[Problem]:
     problems: list[Problem] = []
     _check_trees(problems)
     _check_templates(problems)
+    _check_protocols(problems)
     _check_readback(problems)
     _check_glossary(problems)
     _check_bcp47(problems)

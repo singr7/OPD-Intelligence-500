@@ -385,7 +385,7 @@ def _schedule_art(schedule: Schedule | None, lang: Lang | str, freq: str | None)
 
 
 def _duration_text(lang: Lang | str, duration: str) -> str:
-    """"for 5 days" / "5 days तक".
+    """ "for 5 days" / "5 days तक".
 
     A `{d}` template per language rather than a label + value, because Hindi puts
     the postposition after the duration and a leading label reads as a form field

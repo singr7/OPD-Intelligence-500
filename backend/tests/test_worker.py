@@ -27,6 +27,8 @@ async def test_every_scheduled_job_exists(settings):
         "opd.campaign.launch",
         "opd.campaign.dial",
         "opd.campaign.fallback",
+        "opd.checkins.send",
+        "opd.checkins.cycles",
     }
 
 

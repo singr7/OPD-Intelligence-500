@@ -379,6 +379,52 @@ async def _doctor_for(session: AsyncSession, *, plan: CheckinPlan | None) -> Doc
     return await session.get(Doctor, doctor_id) if doctor_id else None
 
 
+async def answer_one(
+    session: AsyncSession,
+    *,
+    checkin: Checkin,
+    question_id: str,
+    raw: Any,
+    now: datetime | None = None,
+    settings: Settings | None = None,
+) -> tuple[Grading, bool]:
+    """Record one answer and decide whether the check-in is finished.
+
+    Returns `(grading, finished)`. Two things end a check-in:
+
+    * **A red answer, immediately.** She has said something that needs a phone
+      call today, and the remaining questions can be asked by the nurse who makes
+      it. Waiting for her to finish four questions before escalating a fever
+      would be the whole session's point, missed.
+    * **The last question.**
+
+    Anything else asks the next question. The grade is recomputed from all the
+    answers so far each time, so nothing accumulates.
+    """
+    now = now or datetime.now(UTC)
+    record_answer(checkin, question_id=question_id, raw=raw)
+
+    grading = grade(checkin)
+    if grading.grade is CheckinGrade.RED:
+        apply_grade(checkin, grading)
+        await _close(session, checkin=checkin, now=now)
+        await escalate(session, checkin=checkin, now=now, settings=settings)
+        return grading, True
+
+    if unanswered(checkin):
+        await session.flush()
+        return grading, False
+
+    return await submit(session, checkin=checkin, answers={}, now=now, settings=settings), True
+
+
+async def _close(session: AsyncSession, *, checkin: Checkin, now: datetime) -> None:
+    checkin.state = CheckinState.ANSWERED
+    checkin.answered_at = now
+    checkin.next_attempt_at = None
+    await session.flush()
+
+
 async def submit(
     session: AsyncSession,
     *,
@@ -399,10 +445,7 @@ async def submit(
 
     grading = await grade_with_assist(checkin, settings=settings)
     apply_grade(checkin, grading)
-    checkin.state = CheckinState.ANSWERED
-    checkin.answered_at = now
-    checkin.next_attempt_at = None
-    await session.flush()
+    await _close(session, checkin=checkin, now=now)
 
     if grading.grade is CheckinGrade.RED:
         await escalate(session, checkin=checkin, now=now, settings=settings)

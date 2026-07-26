@@ -161,8 +161,7 @@ def _question(node: dict[str, Any], langs: tuple[Lang, ...]) -> str:
             alt = _text(opt.get("text"), rest[0]) if rest else ""
             alt_html = f" <span class='alt'>{escape(alt)}</span>" if alt and alt != label else ""
             opts.append(
-                f"<span class='opt'><span class='box'>{_BOX}</span>"
-                f"{escape(label)}{alt_html}</span>"
+                f"<span class='opt'><span class='box'>{_BOX}</span>{escape(label)}{alt_html}</span>"
             )
         body = f"<div class='opts'>{''.join(opts)}</div>"
     elif kind == "scale":

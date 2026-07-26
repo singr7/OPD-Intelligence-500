@@ -206,9 +206,7 @@ async def enqueue(
     queue = await get_or_create_queue(session, department_id=visit.department_id, on=visit.date)
 
     existing = await session.scalar(
-        select(QueueEntry).where(
-            QueueEntry.queue_id == queue.id, QueueEntry.visit_id == visit.id
-        )
+        select(QueueEntry).where(QueueEntry.queue_id == queue.id, QueueEntry.visit_id == visit.id)
     )
     if existing is not None:
         if PRIORITY_RANK.get(priority, 2) < PRIORITY_RANK.get(existing.priority, 2):
@@ -234,9 +232,7 @@ async def enqueue(
     return entry
 
 
-async def enqueue_from_intake(
-    session: AsyncSession, *, visit: Visit, intake: Intake
-) -> QueueEntry:
+async def enqueue_from_intake(session: AsyncSession, *, visit: Visit, intake: Intake) -> QueueEntry:
     """Enqueue a confirmed intake, taking its priority from its red flags.
 
     This is the seam the kiosk confirm (and offline sync) calls: an intake that
@@ -251,12 +247,8 @@ async def enqueue_from_intake(
     return await enqueue(session, visit=visit, priority=priority, priority_reason=reason)
 
 
-async def _entries_for_queue(
-    session: AsyncSession, queue_id: uuid.UUID
-) -> list[QueueEntry]:
-    result = await session.execute(
-        select(QueueEntry).where(QueueEntry.queue_id == queue_id)
-    )
+async def _entries_for_queue(session: AsyncSession, queue_id: uuid.UUID) -> list[QueueEntry]:
+    result = await session.execute(select(QueueEntry).where(QueueEntry.queue_id == queue_id))
     return list(result.scalars().all())
 
 
@@ -266,9 +258,7 @@ def _waiting_sorted(entries: list[QueueEntry]) -> list[QueueEntry]:
     return waiting
 
 
-async def call_next(
-    session: AsyncSession, *, queue_id: uuid.UUID
-) -> QueueEntry | None:
+async def call_next(session: AsyncSession, *, queue_id: uuid.UUID) -> QueueEntry | None:
     """Call the front of the line: mark it CALLED, stamp `called_at`.
 
     Returns the called entry, or None if nobody is waiting. Any entry already
@@ -383,9 +373,7 @@ async def reorder(
 # -- estimation + snapshots ---------------------------------------------------
 
 
-async def _mean_consult_minutes(
-    session: AsyncSession, *, queue_id: uuid.UUID
-) -> float:
+async def _mean_consult_minutes(session: AsyncSession, *, queue_id: uuid.UUID) -> float:
     """Observed mean consult time today, or the configured seed if none yet."""
     result = await session.execute(
         select(QueueEntry.started_at, QueueEntry.ended_at).where(
@@ -471,7 +459,7 @@ async def department_queue(
     meta = await _chief_and_flags(session, [e.visit_id for e in entries])
 
     active = [e for e in entries if e.state in _ACTIVE_STATES]
-    active.sort(key=lambda e: (e.called_at or datetime.min.replace(tzinfo=UTC)))
+    active.sort(key=lambda e: e.called_at or datetime.min.replace(tzinfo=UTC))
     waiting = _waiting_sorted(entries)
     lab = [e for e in entries if e.state == QueueEntryState.LAB_REQUEUE]
     lab.sort(key=_sort_key)
@@ -483,9 +471,7 @@ async def department_queue(
     return views
 
 
-async def board(
-    session: AsyncSession, *, on: date_type | None = None
-) -> list[DepartmentBoard]:
+async def board(session: AsyncSession, *, on: date_type | None = None) -> list[DepartmentBoard]:
     """The whole TV board: every active department, now-serving + next 3 + wait.
 
     A department with nothing queued today is omitted — the board shows rooms
@@ -504,9 +490,7 @@ async def board(
 
     depts = {
         d.id: d
-        for d in (
-            await session.execute(select(Department).where(Department.id.in_(dept_ids)))
-        )
+        for d in (await session.execute(select(Department).where(Department.id.in_(dept_ids))))
         .scalars()
         .all()
     }
@@ -520,7 +504,7 @@ async def board(
             continue
         entries = list(queue.entries)
         active = [e for e in entries if e.state in _ACTIVE_STATES]
-        active.sort(key=lambda e: (e.called_at or datetime.min.replace(tzinfo=UTC)))
+        active.sort(key=lambda e: e.called_at or datetime.min.replace(tzinfo=UTC))
         waiting = _waiting_sorted(entries)
         if not active and not waiting:
             continue  # department is done for the day — keep it off the board
@@ -605,9 +589,7 @@ async def paper_entry(
         async with session.begin_nested():
             await session.flush()
     except IntegrityError as exc:
-        raise QueueError(
-            f"token {token_no} is already issued for {department.code} today"
-        ) from exc
+        raise QueueError(f"token {token_no} is already issued for {department.code} today") from exc
 
     intake = Intake(
         visit_id=visit.id,

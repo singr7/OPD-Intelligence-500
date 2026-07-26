@@ -168,9 +168,13 @@ async def adaptive_report(
 
     usage_events = 0
     if intake_ids:
-        count_stmt = select(func.count()).select_from(UsageEvent).where(
-            UsageEvent.intake_id.in_(intake_ids),
-            UsageEvent.purpose == UsagePurpose.INTAKE_TURN,
+        count_stmt = (
+            select(func.count())
+            .select_from(UsageEvent)
+            .where(
+                UsageEvent.intake_id.in_(intake_ids),
+                UsageEvent.purpose == UsagePurpose.INTAKE_TURN,
+            )
         )
         usage_events = int((await session.execute(count_stmt)).scalar_one())
 

@@ -67,9 +67,7 @@ async def test_an_invented_intent_goes_to_a_human(providers):
 
 
 async def test_low_confidence_goes_to_a_human(providers):
-    guess = await rec.classify_intent(
-        "hmm", providers=_llm({"intent": "book", "confidence": 0.3})
-    )
+    guess = await rec.classify_intent("hmm", providers=_llm({"intent": "book", "confidence": 0.3}))
     assert guess.intent is rec.Intent.BOOK
     assert guess.needs_human  # the intent is kept for the whisper; the human decides
 
@@ -135,9 +133,7 @@ async def test_a_booking_sends_whatsapp_and_sms(session, providers, sms):
 
 
 async def _one_appointment(session, clinic):
-    [appointment] = await scheduling.upcoming_for_patient(
-        session, patient_id=clinic["patient"].id
-    )
+    [appointment] = await scheduling.upcoming_for_patient(session, patient_id=clinic["patient"].id)
     return appointment
 
 

@@ -101,6 +101,33 @@ async def campaign_fallback_job(session: AsyncSession, settings: Settings) -> st
     return f"messaged {len(sent)}"
 
 
+async def checkins_send_job(session: AsyncSession, settings: Settings) -> str:
+    """Deliver every check-in whose moment has come (doc 03 §9).
+
+    The whole ladder — rungs, retries, expiry — is one call, because
+    `app.checkins.delivery` decides all of it from the row. Quiet hours are
+    enforced inside, not by the beat schedule: beat firing at 22:00 on a box in
+    the wrong timezone must not be the only thing standing between a patient and
+    a 3am phone call.
+    """
+    from app.checkins.delivery import send_due
+
+    if not settings.checkins_enabled:
+        return "check-ins disabled"
+    sent = await send_due(session, settings=settings)
+    return f"delivered {len(sent)} check-ins"
+
+
+async def checkin_cycles_job(session: AsyncSession, settings: Settings) -> str:
+    """The D-2 and D-0 next-cycle reminders (doc 03 §9)."""
+    from app.checkins.cycles import send_due_reminders
+
+    if not settings.checkins_enabled:
+        return "check-ins disabled"
+    reminded = await send_due_reminders(session, settings=settings)
+    return f"reminded {len(reminded)} patients"
+
+
 #: Job name → coroutine. The Celery tasks and the CLI both dispatch through this,
 #: so there is exactly one list of what this worker can be asked to do.
 JOBS: dict[str, Callable[[AsyncSession, Settings], Awaitable[str]]] = {
@@ -108,6 +135,8 @@ JOBS: dict[str, Callable[[AsyncSession, Settings], Awaitable[str]]] = {
     "opd.campaign.launch": campaign_launch_job,
     "opd.campaign.dial": campaign_dial_job,
     "opd.campaign.fallback": campaign_fallback_job,
+    "opd.checkins.send": checkins_send_job,
+    "opd.checkins.cycles": checkin_cycles_job,
 }
 
 #: name → (hour, minute) as crontab fields, in the hospital timezone (beat runs on
@@ -123,6 +152,15 @@ SCHEDULE: dict[str, tuple[str, str]] = {
     # outside calling hours, so running it round the clock costs nothing.
     "opd.campaign.dial": ("*", "*/15"),
     "opd.campaign.fallback": ("*", "20"),
+    # Every ten minutes, round the clock. The job is a no-op inside quiet hours
+    # (the rule lives in `app.checkins.window`, not in this schedule), and a
+    # ten-minute tick is what makes the S17 acceptance criterion — a red D+2
+    # answer escalating within a minute — true of the *answer* path: the answer
+    # itself escalates synchronously, and this is only how the question goes out.
+    "opd.checkins.send": ("*", "*/10"),
+    # Once an hour: a reminder is about a day, not a minute, and `rung_due` is
+    # "on or after" so a missed tick still sends.
+    "opd.checkins.cycles": ("*", "5"),
 }
 
 

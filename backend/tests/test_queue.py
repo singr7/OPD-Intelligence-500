@@ -283,12 +283,18 @@ async def test_paper_entry_creates_visit_intake_and_enqueues(session: AsyncSessi
 async def test_paper_entry_duplicate_token_refuses(session: AsyncSession) -> None:
     clinic = await _clinic(session)
     await q.paper_entry(
-        session, department=clinic["department"], token_no=502, lang=f.Lang.HI,
+        session,
+        department=clinic["department"],
+        token_no=502,
+        lang=f.Lang.HI,
         chief_complaint=None,
     )
     with pytest.raises(q.QueueError):
         await q.paper_entry(
-            session, department=clinic["department"], token_no=502, lang=f.Lang.HI,
+            session,
+            department=clinic["department"],
+            token_no=502,
+            lang=f.Lang.HI,
             chief_complaint=None,
         )
 
@@ -310,7 +316,10 @@ async def test_mean_consult_uses_observed_durations(session: AsyncSession) -> No
 
 def _staff_headers(settings: Settings, user) -> dict[str, str]:
     token = create_access_token(
-        user_id=user.id, role=user.role, name=user.name, settings=settings,
+        user_id=user.id,
+        role=user.role,
+        name=user.name,
+        settings=settings,
         hospital_id=user.hospital_id,
     ).token
     return {"Authorization": f"Bearer {token}"}
@@ -408,7 +417,10 @@ async def test_reconciliation_lists_paper_entries(
     clinic = await _clinic(session)
     user = await _coordinator(session, clinic)
     await q.paper_entry(
-        session, department=clinic["department"], token_no=560, lang=f.Lang.HI,
+        session,
+        department=clinic["department"],
+        token_no=560,
+        lang=f.Lang.HI,
         chief_complaint="बुखार",
     )
     resp = await client.get("/queue/reconciliation", headers=_staff_headers(settings, user))
@@ -512,7 +524,9 @@ def test_render_intake_sheet_from_tree() -> None:
 
     tree = sorted(bank.load_bank().values(), key=lambda t: t.key)[0]
     html = print_sheets.render_intake_sheet(
-        tree.to_json(), hospital_name="Alwar OPD", department_name="Dermatology",
+        tree.to_json(),
+        hospital_name="Alwar OPD",
+        department_name="Dermatology",
         langs=[Lang.HI, Lang.EN],
     )
     assert "Alwar OPD" in html
@@ -525,7 +539,9 @@ def test_render_token_block_sheet_lists_every_number() -> None:
 
     html = print_sheets.render_token_block_sheet(
         [{"department_name": "Med Onc", "start_no": 500, "end_no": 504}],
-        hospital_name="Alwar OPD", kiosk_id="K1", date_str="2026-07-20",
+        hospital_name="Alwar OPD",
+        kiosk_id="K1",
+        date_str="2026-07-20",
     )
     for n in range(500, 505):
         assert f">{n}<" in html
@@ -540,9 +556,7 @@ async def test_intake_sheets_route_renders_html(
 ) -> None:
     clinic = await _clinic(session)
     user = await _coordinator(session, clinic)
-    resp = await client.get(
-        "/queue/print/intake-sheets", headers=_staff_headers(settings, user)
-    )
+    resp = await client.get("/queue/print/intake-sheets", headers=_staff_headers(settings, user))
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert "<!doctype html>" in resp.text.lower()

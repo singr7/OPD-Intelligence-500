@@ -85,9 +85,7 @@ class CheckinPlan(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinica
     visit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("visits.id"), index=True)
     #: The signed note this plan came out of. A plan without one would be a
     #: follow-up nobody prescribed.
-    dictation_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("dictations.id"), index=True
-    )
+    dictation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("dictations.id"), index=True)
     protocol_key: Mapped[str] = mapped_column(String(64), index=True)
     #: The instant the day offsets count from — the treatment date the doctor
     #: dictated, falling back to the signature. Stored because "D+2" is
