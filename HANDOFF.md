@@ -51,6 +51,28 @@ obvious answer was wrong — see *Watch out for*.
   feature's first contact with reality and something the pilot needs anyway. Do it on the box, not
   by editing a seed file.
 
+## ⚠ Before any deploy to omen — read `docs/13-OMEN-UPGRADE-RUNBOOK.md`
+
+Preparing the box upgrade found a **blocking bug**: `cryptography` went into
+`backend/pyproject.toml` in S-GL.1 but not into `backend/requirements.txt`, which is what the
+**Docker image** installs. The whole suite was green (tests run in the venv, from pyproject) and
+the api image would have crash-looped on `import app.main` — taking the kiosk down. Fixed, and
+guarded permanently:
+
+```
+make preflight   # builds the api + voice-gw images and proves they can import
+```
+
+**Run it before every box deploy.** It is the gap between "tests are green" and "the container
+boots", and this repo has fallen into that gap twice now (`python-multipart` → `1e4f0ce`, then
+`cryptography`). `make test` cannot see it by construction.
+
+`deploy/omen-checkpoint.sh` and `deploy/omen-rollback.sh` are the restore point and the way back:
+the checkpoint saves the commit, the **running images** (retagged, so a rollback is a retag rather
+than a rebuild) and a pg_dump; the rollback restores code + images and **deliberately leaves the
+database alone**, because the S-GL.1 migration only *adds* tables and old code is happy against
+the new schema — restoring the dump would discard every intake since the checkpoint.
+
 ## Watch out for (S-GL.2 fragile edges)
 
 - **`generate_slots` dedupes on `(doctor, instant)` regardless of `blocked`.** This is the trap the

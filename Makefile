@@ -124,6 +124,18 @@ tf-validate: ## terraform fmt-check + validate (plan-only in the pilot)
 build: ## Build all docker images without starting
 	docker compose build
 
+preflight: ## Build the api + voice-gw images and prove they can actually import (run before any box deploy)
+	@# `make test` runs in the venvs, which install from pyproject; the images
+	@# install from backend/requirements.txt. When those two drift, every test
+	@# passes and the container crash-loops on boot. It has happened twice —
+	@# python-multipart (1e4f0ce) and cryptography (S-GL.1) — so this is the
+	@# check that belongs between "tests green" and "pull on the box".
+	docker build -q -t opd-preflight-api ./backend
+	docker run --rm opd-preflight-api python -c "import app.main" && echo "  api image imports OK"
+	docker build -q -t opd-preflight-vgw -f voice-gw/Dockerfile .
+	docker run --rm opd-preflight-vgw python -c "import sys; sys.path[:0]=['/app/backend','/app/voice-gw']; import gw.main" \
+		&& echo "  voice-gw image imports OK"
+
 # --- Deploy (runs on the EC2 box via SSM in S19) ------------------------------
 deploy: ## git pull -> build -> up -> smoke (doc 05 §3)
 	git pull --ff-only

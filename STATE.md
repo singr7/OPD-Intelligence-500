@@ -356,6 +356,9 @@ make dev                 # full stack (11 services)
 make migrate             # apply migrations to the local DB
 make seed                # load the pilot dataset + price book + trees (idempotent)
 make test                # backend + voice-gw pytest, web typecheck/lint, android JVM tests
+make preflight           # build the api+voice-gw IMAGES and prove they import — run before any
+                         #   box deploy. `make test` runs in the venvs (pyproject); the images
+                         #   install backend/requirements.txt, and the two have drifted twice.
 make migration m="..."   # autogenerate a revision from model changes
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 make app-demo            # give the first seeded patient a prescription, a cycle, a caregiver

@@ -25,3 +25,12 @@ faker>=33.1
 # redis: the cost guard's tier-override store, shared across api/worker/voice-gw.
 pyyaml>=6.0
 redis>=5.2
+
+# --- Vendor credential store (S-GL.1) ---
+# Fernet, for the credentials the admin console stores. Imported at module scope
+# by app/providers/secrets.py, which app/routes/admin.py pulls in — so a missing
+# wheel here is not a degraded feature, it is an api that will not boot. This is
+# the second time this file has drifted from pyproject (see 1e4f0ce,
+# python-multipart); `docker run <api-image> python -c "import app.main"` is the
+# check that catches it, and it is in the omen runbook for that reason.
+cryptography>=44.0
