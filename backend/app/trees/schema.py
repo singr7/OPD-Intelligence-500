@@ -87,6 +87,7 @@ _NODE_KEYS = {
     "unit",
     "adaptive_hints",
     "adaptive",
+    "summary_role",
     "red_flag_if",
     "red_flag",
 }
@@ -123,6 +124,16 @@ class NodeType(StrEnum):
     @property
     def wants_range(self) -> bool:
         return self in {NodeType.SCALE, NodeType.NUMBER}
+
+
+class SummaryRole(StrEnum):
+    """Presentation-only placement for the kiosk's truthful live recap."""
+
+    PRIMARY_SYMPTOM = "primary_symptom"
+    DURATION = "duration"
+    SEVERITY = "severity"
+    SYMPTOM_DETAIL = "symptom_detail"
+    CONTEXT = "context"
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +208,9 @@ class Node:
     #: per-node and S18-editable. Default false ⇒ the node behaves exactly as V1
     #: (map, or clarify only when the answer is too vague).
     adaptive: bool = False
+    #: Presentation metadata only. The walker, rules, routing and clinical
+    #: summarizer deliberately never read this field.
+    summary_role: SummaryRole | None = None
 
     def option(self, option_id: str) -> Option | None:
         return next((o for o in self.options if o.id == option_id), None)
@@ -229,6 +243,7 @@ class Node:
             "unit": self.unit,
             "adaptive_hints": self.adaptive_hints,
             "adaptive": self.adaptive,
+            "summary_role": str(self.summary_role) if self.summary_role is not None else None,
         }
 
 
@@ -455,6 +470,16 @@ def _parse_node(
     adaptive = raw.get("adaptive", False)
     if not isinstance(adaptive, bool):
         raise TreeError(f"{where}: adaptive must be a boolean")
+    summary_role_raw = raw.get("summary_role")
+    try:
+        summary_role = (
+            SummaryRole(summary_role_raw) if summary_role_raw is not None else None
+        )
+    except ValueError:
+        raise TreeError(
+            f"{where}: summary_role must be one of "
+            f"{[str(item) for item in SummaryRole]}, got {summary_role_raw!r}"
+        ) from None
 
     node = Node(
         id=node_id,
@@ -468,6 +493,7 @@ def _parse_node(
         unit=unit,
         adaptive_hints=hints,
         adaptive=adaptive,
+        summary_role=summary_role,
     )
     return node, _parse_node_flags(raw, node, languages, where=where)
 

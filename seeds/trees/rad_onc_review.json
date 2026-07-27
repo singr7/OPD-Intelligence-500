@@ -19,6 +19,7 @@
     {
       "id": "rt.site",
       "type": "single",
+      "summary_role": "context",
       "text": {
         "en": "Which part of your body is getting the radiation?",
         "hi": "आपके शरीर के किस हिस्से पर सिकाई हो रही है?",
@@ -582,6 +583,7 @@
     {
       "id": "rt.fatigue",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
         "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।",

@@ -19,6 +19,7 @@
     {
       "id": "pall.pain",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "Right now, how bad is your pain? Zero is none, ten is the worst possible.",
         "hi": "अभी आपका दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे भयानक।",
@@ -272,6 +273,7 @@
     {
       "id": "pall.words",
       "type": "free_voice",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "What is troubling you most today? Say it in your own words.",
         "hi": "आज आपको सबसे ज़्यादा क्या परेशान कर रहा है? अपने शब्दों में बताएं।",

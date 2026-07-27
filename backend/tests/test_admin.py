@@ -90,11 +90,13 @@ async def test_publish_makes_the_edit_live_on_the_intake_path(session) -> None:
     # Publish an edited version, then the intake path serves the edit.
     raw = _raw_tree()
     _set_root_text(raw, "EDITED: what brings you in today?")
+    next(n for n in raw["nodes"] if n["id"] == TREE_ROOT)["summary_role"] = "context"
     v = await admin_svc.save_tree_draft(session, key=TREE_KEY, tree_json=raw)
     await admin_svc.publish_tree(session, key=TREE_KEY, version=v.version)
 
     live = await store.resolve_tree(session, TREE_DEPT)
     assert live.node(TREE_ROOT).text["en"] == "EDITED: what brings you in today?"
+    assert str(live.node(TREE_ROOT).summary_role) == "context"
 
     # A second edit + publish supersedes it — exactly one published version wins.
     raw2 = _raw_tree()

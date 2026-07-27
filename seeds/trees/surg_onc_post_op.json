@@ -19,6 +19,7 @@
     {
       "id": "so.op.days_since",
       "type": "number",
+      "summary_role": "context",
       "text": {
         "en": "How many days ago was your operation?",
         "hi": "आपका ऑपरेशन कितने दिन पहले हुआ था?",
@@ -36,6 +37,7 @@
     {
       "id": "so.op.wound",
       "type": "single",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "How does the wound look?",
         "hi": "टाँके वाली जगह कैसी दिख रही है?",
@@ -126,6 +128,7 @@
     {
       "id": "so.op.pain",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "How bad is the pain at the operation site? Zero is none, ten is the worst.",
         "hi": "ऑपरेशन वाली जगह पर दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।",

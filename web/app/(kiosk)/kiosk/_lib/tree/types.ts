@@ -20,6 +20,13 @@ export type NodeType =
   | "body_map"
   | "free_voice";
 
+export type SummaryRole =
+  | "primary_symptom"
+  | "duration"
+  | "severity"
+  | "symptom_detail"
+  | "context";
+
 /** Node kinds whose answer is a list of option ids — they branch by `default`
  *  only, because a list cannot select one edge. Mirrors `_LIST_ANSWER_TYPES`. */
 export const LIST_ANSWER_TYPES: ReadonlySet<NodeType> = new Set<NodeType>([
@@ -50,6 +57,8 @@ export type TreeNode = {
    *  ignores it (it is a hint to the online interpreter, never to branching), so it
    *  is optional here. */
   adaptive?: boolean;
+  /** Presentation-only recap placement; never consumed by the walker. */
+  summary_role: SummaryRole | null;
 };
 
 export type Severity = "routine" | "semi" | "urgent";

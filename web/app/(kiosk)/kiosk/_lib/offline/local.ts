@@ -33,6 +33,7 @@
 import { treeRef, type NodeType, type Tree } from "../tree/types";
 import { Walk } from "../tree/walker";
 import type { AnswersJson, RedFlagHit } from "../tree/walker";
+import type { SummaryRole } from "../tree/types";
 import { blockFor, enqueue, takeToken, treeFor } from "./db";
 
 export type LocalSession = {
@@ -223,6 +224,7 @@ export type WireNode = {
   max: number | null;
   unit: string | null;
   audio: string | null;
+  summary_role: SummaryRole | null;
 };
 
 export function renderNode(tree: Tree, nodeId: string, lang: string): WireNode | null {
@@ -243,6 +245,7 @@ export function renderNode(tree: Tree, nodeId: string, lang: string): WireNode |
     // The clip name for V3 audio; the caller resolves it against the pack or
     // falls back to TTS/Web Speech. Offline that fallback is Web Speech only.
     audio: node.audio[lang] ?? null,
+    summary_role: node.summary_role,
   };
 }
 

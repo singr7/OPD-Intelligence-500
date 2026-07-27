@@ -111,6 +111,7 @@ class NodeOut(BaseModel):
     max: float | None = None
     unit: str | None = None
     audio: str | None = None
+    summary_role: str | None = None
 
 
 class DeptOut(BaseModel):
@@ -947,4 +948,5 @@ def _node_out(result: dict[str, Any]) -> NodeOut | None:
         max=node.get("max"),
         unit=node.get("unit"),
         audio=node.get("audio"),
+        summary_role=node.get("summary_role"),
     )

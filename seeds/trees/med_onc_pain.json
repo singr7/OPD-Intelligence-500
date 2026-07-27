@@ -19,6 +19,7 @@
     {
       "id": "pain.where",
       "type": "body_map",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "Where is the pain? Touch the place on the picture.",
         "hi": "दर्द कहाँ है? तस्वीर पर उस जगह को छुएँ।",
@@ -125,6 +126,7 @@
     {
       "id": "pain.severity",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "How bad is the pain right now? Zero is no pain, ten is the worst pain you can imagine.",
         "hi": "अभी दर्द कितना है? शून्य मतलब दर्द नहीं, दस मतलब सबसे भयानक दर्द।",
@@ -177,6 +179,7 @@
     {
       "id": "pain.duration",
       "type": "number",
+      "summary_role": "duration",
       "text": {
         "en": "How many days have you had this pain?",
         "hi": "यह दर्द कितने दिनों से है?",
@@ -193,6 +196,7 @@
     {
       "id": "pain.character",
       "type": "single",
+      "summary_role": "symptom_detail",
       "text": {
         "en": "What kind of pain is it?",
         "hi": "दर्द किस तरह का है?",

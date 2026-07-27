@@ -19,6 +19,7 @@
     {
       "id": "mo.cyc.days_since",
       "type": "number",
+      "summary_role": "context",
       "text": {
         "en": "How many days ago was your last chemotherapy?",
         "hi": "आपकी पिछली कीमोथेरेपी कितने दिन पहले हुई थी?",
@@ -53,6 +54,7 @@
     {
       "id": "mo.cyc.nausea",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "How bad has the nausea been? Zero is none, ten is the worst.",
         "hi": "जी मिचलाना कितना रहा? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -68,6 +70,7 @@
     {
       "id": "mo.cyc.vomiting",
       "type": "single",
+      "summary_role": "symptom_detail",
       "text": {
         "en": "How many times have you vomited in the last day?",
         "hi": "पिछले एक दिन में कितनी बार उल्टी हुई?",

@@ -19,6 +19,7 @@
     {
       "id": "pu.problem",
       "type": "single",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "What is troubling you most today?",
         "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -101,6 +102,7 @@
     {
       "id": "pu.duration",
       "type": "number",
+      "summary_role": "duration",
       "text": {
         "en": "For how many days has this been going on?",
         "hi": "यह कितने दिनों से है?",

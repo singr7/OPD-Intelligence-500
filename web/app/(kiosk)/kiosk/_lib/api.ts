@@ -3,6 +3,7 @@
 // per tool. The kiosk is a V3 client: taps in, nodes out.
 
 import type { Tree as CanonicalTree } from "./tree/types";
+import type { SummaryRole } from "./tree/types";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -16,6 +17,7 @@ export type KioskNode = {
   max: number | null;
   unit: string | null;
   audio: string | null;
+  summary_role: SummaryRole | null;
 };
 
 export type Dept = { key: string; name: string };

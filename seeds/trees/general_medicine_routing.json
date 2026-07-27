@@ -19,6 +19,7 @@
     {
       "id": "gm.problem",
       "type": "single",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "What is troubling you most today?",
         "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -101,6 +102,7 @@
     {
       "id": "gm.duration",
       "type": "number",
+      "summary_role": "duration",
       "text": {
         "en": "For how many days?",
         "hi": "कितने दिनों से?",
@@ -155,6 +157,7 @@
     {
       "id": "gm.severity",
       "type": "scale",
+      "summary_role": "severity",
       "text": {
         "en": "How bad is it right now? Zero is fine, ten is the worst.",
         "hi": "अभी कितनी तकलीफ़ है? शून्य मतलब ठीक हूँ, दस मतलब सबसे ज़्यादा।",

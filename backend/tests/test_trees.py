@@ -29,7 +29,7 @@ import pytest
 
 from app.models.enums import Lang, Priority
 from app.trees import rules as rule_lang
-from app.trees.schema import MAX_OPTIONS, NodeType, TreeError, parse
+from app.trees.schema import MAX_OPTIONS, NodeType, SummaryRole, TreeError, parse
 from app.trees.walker import Answer, AnswerError, Walk
 
 # -- fixtures ------------------------------------------------------------------
@@ -49,6 +49,7 @@ def demo() -> dict[str, Any]:
             {
                 "id": "site",
                 "type": "single",
+                "summary_role": "primary_symptom",
                 "text": {"en": "Where is the problem?", "hi": "समस्या कहाँ है?"},
                 "options": [
                     {"id": "chest", "text": {"en": "Chest", "hi": "छाती"}},
@@ -825,6 +826,18 @@ def test_asking_for_an_unknown_node_is_loud():
     tree = parse(demo())
     with pytest.raises(TreeError, match="no node"):
         tree.node("ghost")
+
+
+def test_summary_role_is_typed_and_survives_canonical_round_trip():
+    tree = parse(demo())
+    assert tree.node("site").summary_role is SummaryRole.PRIMARY_SYMPTOM
+    assert parse(tree.to_json()).node("site").summary_role is SummaryRole.PRIMARY_SYMPTOM
+
+
+def test_unknown_summary_role_is_rejected():
+    tree = demo()
+    tree["nodes"][0]["summary_role"] = "clinical_priority"
+    rejects(tree, because="summary_role must be one of")
 
 
 def test_answer_from_json_tolerates_a_missing_lang():

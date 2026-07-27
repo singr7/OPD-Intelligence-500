@@ -39,6 +39,7 @@ type Node = {
   unit?: string;
   min?: number;
   max?: number;
+  summary_role?: "primary_symptom" | "duration" | "severity" | "symptom_detail" | "context" | null;
 };
 type Tree = {
   key: string;
@@ -198,6 +199,27 @@ export function TreeEditor({
                     })
                   }
                 />
+              </label>
+
+              <label className="field">
+                <span>Live summary placement</span>
+                <select
+                  value={node.summary_role ?? ""}
+                  onChange={(e) =>
+                    edit((t) => {
+                      const value = e.target.value;
+                      nodeIn(t, node.id).summary_role =
+                        value === "" ? null : (value as NonNullable<Node["summary_role"]>);
+                    })
+                  }
+                >
+                  <option value="">Not shown in live summary</option>
+                  <option value="primary_symptom">Main concern</option>
+                  <option value="duration">Duration</option>
+                  <option value="severity">Severity</option>
+                  <option value="symptom_detail">Symptom detail</option>
+                  <option value="context">Context</option>
+                </select>
               </label>
 
               {node.options && node.options.length > 0 && (

@@ -450,6 +450,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today?",
               "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -470,6 +471,7 @@
               "default": "de.changing"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days has it been there?",
               "hi": "यह कितने दिनों से है?",
@@ -531,6 +533,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Has it been changing — growing, bleeding, or changing colour?",
               "hi": "क्या इसमें बदलाव हो रहा है — बढ़ रहा है, खून आता है, या रंग बदल रहा है?",
@@ -582,6 +585,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Is it in one place, or spreading over your body?",
               "hi": "क्या यह एक ही जगह है, या शरीर पर फैल रहा है?",
@@ -600,6 +604,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Tell me in your own words what is happening.",
               "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
@@ -5281,6 +5286,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today?",
               "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -5322,6 +5328,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Is it hard to breathe, or is there any noise when you breathe in?",
               "hi": "क्या साँस लेने में तकलीफ़ है, या साँस लेते समय आवाज़ आती है?",
@@ -5342,6 +5349,7 @@
               "default": "ent.tobacco"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days has this been going on?",
               "hi": "यह कितने दिनों से है?",
@@ -5393,6 +5401,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you chew tobacco, gutka, or smoke?",
               "hi": "क्या आप तंबाकू, गुटखा खाते हैं, या धूम्रपान करते हैं?",
@@ -5411,6 +5420,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Tell me in your own words what is happening.",
               "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
@@ -10216,6 +10226,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today?",
               "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -10236,6 +10247,7 @@
               "default": "gm.fever_temp"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days?",
               "hi": "कितने दिनों से?",
@@ -10256,6 +10268,7 @@
               "default": "gm.severity"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "If you measured your temperature, what was it? Say 0 if you have not.",
               "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।",
@@ -10276,6 +10289,7 @@
               "default": "gm.words"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "How bad is it right now? Zero is fine, ten is the worst.",
               "hi": "अभी कितनी तकलीफ़ है? शून्य मतलब ठीक हूँ, दस मतलब सबसे ज़्यादा।",
@@ -10294,6 +10308,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Tell me in your own words what is happening.",
               "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
@@ -15082,6 +15097,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today?",
               "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -15133,6 +15149,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Are you bleeding heavily right now — soaking a pad in an hour or less?",
               "hi": "क्या अभी बहुत खून बह रहा है — एक घंटे या उससे कम में पैड भीग जाता है?",
@@ -15153,6 +15170,7 @@
               "default": "gy.words"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days has this been going on?",
               "hi": "यह कितने दिनों से है?",
@@ -15171,6 +15189,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Tell me in your own words what is happening.",
               "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
@@ -20825,6 +20844,7 @@
               "default": "mo.cyc.fever_temp"
             },
             "options": [],
+            "summary_role": "context",
             "text": {
               "en": "How many days ago was your last chemotherapy?",
               "hi": "आपकी पिछली कीमोथेरेपी कितने दिन पहले हुई थी?",
@@ -20845,6 +20865,7 @@
               "default": "mo.cyc.nausea"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Have you had fever since then? If you measured it, what was the highest? Say 0 if there was no fever.",
               "hi": "उसके बाद क्या बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।",
@@ -20865,6 +20886,7 @@
               "default": "mo.cyc.vomiting"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "How bad has the nausea been? Zero is none, ten is the worst.",
               "hi": "जी मिचलाना कितना रहा? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -20926,6 +20948,7 @@
                 }
               }
             ],
+            "summary_role": "symptom_detail",
             "text": {
               "en": "How many times have you vomited in the last day?",
               "hi": "पिछले एक दिन में कितनी बार उल्टी हुई?",
@@ -20977,6 +21000,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Are you able to keep water down?",
               "hi": "क्या आप पानी पेट में रोक पा रहे हैं?",
@@ -21038,6 +21062,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you have mouth ulcers or soreness?",
               "hi": "क्या मुँह में छाले या जलन है?",
@@ -21099,6 +21124,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Any numbness or tingling in your hands or feet?",
               "hi": "क्या हाथ-पैर में सुन्नपन या झुनझुनी है?",
@@ -21119,6 +21145,7 @@
               "default": "mo.cyc.appetite"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
               "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।",
@@ -21180,6 +21207,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How is your appetite compared to before?",
               "hi": "पहले के मुकाबले आपकी भूख कैसी है?",
@@ -21241,6 +21269,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How have your bowels been?",
               "hi": "आपका पेट कैसा चल रहा है?",
@@ -21282,6 +21311,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Any bleeding, or new blue-black marks on your skin?",
               "hi": "क्या कहीं से खून आ रहा है, या त्वचा पर नए नीले-काले निशान हैं?",
@@ -21300,6 +21330,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Is there anything else you want the doctor to know?",
               "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
@@ -34662,6 +34693,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Has a doctor already told you what the illness is?",
               "hi": "क्या किसी डॉक्टर ने बताया है कि बीमारी क्या है?",
@@ -34713,6 +34745,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Have you brought your reports or files today?",
               "hi": "क्या आज आप अपनी रिपोर्ट या फाइल लाए हैं?",
@@ -34784,6 +34817,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most right now? Choose all that apply.",
               "hi": "अभी आपको सबसे ज़्यादा क्या तकलीफ़ है? जो भी लागू हो चुनें।",
@@ -34804,6 +34838,7 @@
               "default": "mo.new.weight_loss"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days has this been going on?",
               "hi": "यह तकलीफ़ कितने दिनों से है?",
@@ -34855,6 +34890,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Have your clothes become loose, or has your weight dropped?",
               "hi": "क्या आपके कपड़े ढीले हो गए हैं, या वज़न घटा है?",
@@ -34875,6 +34911,7 @@
               "default": "mo.new.chest"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "If you have measured your temperature, what was it? Say 0 if you have not.",
               "hi": "अगर आपने बुखार नापा है तो कितना था? न नापा हो तो 0 बोलें।",
@@ -34936,6 +34973,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you have chest pain, or trouble breathing?",
               "hi": "क्या आपको सीने में दर्द है, या साँस लेने में तकलीफ़?",
@@ -34977,6 +35015,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Is there any bleeding right now — from anywhere?",
               "hi": "क्या अभी कहीं से खून आ रहा है?",
@@ -35028,6 +35067,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Have you been vomiting? For how long?",
               "hi": "क्या आपको उल्टी हो रही है? कितने समय से?",
@@ -35069,6 +35109,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Has anyone at home noticed you being confused or very drowsy?",
               "hi": "क्या घर में किसी ने देखा कि आप उलझन में हैं या बहुत सुस्त हैं?",
@@ -35140,6 +35181,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you have any of these other illnesses?",
               "hi": "क्या आपको इनमें से कोई और बीमारी है?",
@@ -35160,6 +35202,7 @@
               "default": "mo.new.words"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Which medicines are you taking now? Say their names, or read them from the strip.",
               "hi": "आप अभी कौन सी दवाइयाँ ले रहे हैं? नाम बोलें, या पत्ते पर से पढ़कर बताएं।",
@@ -35178,6 +35221,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Is there anything else you want the doctor to know?",
               "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
@@ -50253,6 +50297,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "Where is the pain? Touch the place on the picture.",
               "hi": "दर्द कहाँ है? तस्वीर पर उस जगह को छुएँ।",
@@ -50273,6 +50318,7 @@
               "default": "pain.worst"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "How bad is the pain right now? Zero is no pain, ten is the worst pain you can imagine.",
               "hi": "अभी दर्द कितना है? शून्य मतलब दर्द नहीं, दस मतलब सबसे भयानक दर्द।",
@@ -50293,6 +50339,7 @@
               "default": "pain.duration"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "And at its worst in the last week?",
               "hi": "और पिछले हफ़्ते में सबसे ज़्यादा कितना था?",
@@ -50313,6 +50360,7 @@
               "default": "pain.character"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "How many days have you had this pain?",
               "hi": "यह दर्द कितने दिनों से है?",
@@ -50384,6 +50432,7 @@
                 }
               }
             ],
+            "summary_role": "symptom_detail",
             "text": {
               "en": "What kind of pain is it?",
               "hi": "दर्द किस तरह का है?",
@@ -50435,6 +50484,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Does the pain wake you at night?",
               "hi": "क्या दर्द से रात में नींद खुल जाती है?",
@@ -50496,6 +50546,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Are you taking anything for the pain, and does it help?",
               "hi": "क्या आप दर्द के लिए कुछ ले रहे हैं, और क्या उससे आराम मिलता है?",
@@ -50516,6 +50567,7 @@
               "default": "pain.words"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Which medicine is it? Say the name, or read it from the strip.",
               "hi": "कौन सी दवा है? नाम बोलें, या पत्ते पर से पढ़कर बताएं।",
@@ -50534,6 +50586,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Anything else about the pain you want the doctor to know?",
               "hi": "दर्द के बारे में और कुछ जो आप डॉक्टर को बताना चाहते हैं?",
@@ -60313,6 +60366,7 @@
               "default": "pall.tired"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "Right now, how bad is your pain? Zero is none, ten is the worst possible.",
               "hi": "अभी आपका दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे भयानक।",
@@ -60333,6 +60387,7 @@
               "default": "pall.nausea"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How tired do you feel right now? Zero is not tired, ten is the most tired possible.",
               "hi": "अभी आप कितना थका महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -60353,6 +60408,7 @@
               "default": "pall.appetite"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How much nausea do you feel right now? Zero is none, ten is the worst possible.",
               "hi": "अभी आपको कितना जी मिचला रहा है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।",
@@ -60373,6 +60429,7 @@
               "default": "pall.breath"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How is your appetite right now? Zero is normal appetite, ten is no appetite at all.",
               "hi": "अभी आपकी भूख कैसी है? शून्य मतलब सामान्य भूख, दस मतलब बिल्कुल भूख नहीं।",
@@ -60393,6 +60450,7 @@
               "default": "pall.drowsy"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How short of breath do you feel right now? Zero is not at all, ten is the worst possible.",
               "hi": "अभी आपको साँस की कितनी तकलीफ़ है? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -60413,6 +60471,7 @@
               "default": "pall.low"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How drowsy do you feel right now? Zero is wide awake, ten is unable to stay awake.",
               "hi": "अभी आपको कितनी सुस्ती लग रही है? शून्य मतलब पूरी तरह जागे हुए, दस मतलब जाग ही नहीं पाते।",
@@ -60433,6 +60492,7 @@
               "default": "pall.anxious"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How low or sad do you feel right now? Zero is not at all, ten is the worst possible.",
               "hi": "अभी आप कितना उदास महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -60453,6 +60513,7 @@
               "default": "pall.wellbeing"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How anxious or worried do you feel right now? Zero is not at all, ten is the worst possible.",
               "hi": "अभी आप कितना घबराहट या चिंता महसूस कर रहे हैं? शून्य मतलब बिल्कुल नहीं, दस मतलब सबसे ज़्यादा।",
@@ -60473,6 +60534,7 @@
               "default": "pall.bowels"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Overall, how is your wellbeing right now? Zero is best, ten is worst.",
               "hi": "कुल मिलाकर, अभी आपकी तबीयत कैसी है? शून्य मतलब सबसे अच्छी, दस मतलब सबसे खराब।",
@@ -60534,6 +60596,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "When did your bowels last move?",
               "hi": "पिछली बार शौच कब हुआ था?",
@@ -60552,6 +60615,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today? Say it in your own words.",
               "hi": "आज आपको सबसे ज़्यादा क्या परेशान कर रहा है? अपने शब्दों में बताएं।",
@@ -71476,6 +71540,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "What is troubling you most today?",
               "hi": "आज आपको सबसे ज़्यादा क्या तकलीफ़ है?",
@@ -71496,6 +71561,7 @@
               "default": "pu.breathless_now"
             },
             "options": [],
+            "summary_role": "duration",
             "text": {
               "en": "For how many days has this been going on?",
               "hi": "यह कितने दिनों से है?",
@@ -71547,6 +71613,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Right now, can you speak a full sentence in one breath?",
               "hi": "अभी, क्या आप एक साँस में पूरा वाक्य बोल सकते हैं?",
@@ -71598,6 +71665,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you smoke, or did you ever?",
               "hi": "क्या आप धूम्रपान करते हैं, या कभी करते थे?",
@@ -71616,6 +71684,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Tell me in your own words what is happening.",
               "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
@@ -76786,6 +76855,7 @@
                 }
               }
             ],
+            "summary_role": "context",
             "text": {
               "en": "Which part of your body is getting the radiation?",
               "hi": "आपके शरीर के किस हिस्से पर सिकाई हो रही है?",
@@ -76847,6 +76917,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How is your swallowing?",
               "hi": "आपको निगलने में कैसा लग रहा है?",
@@ -76908,6 +76979,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you have mouth ulcers or soreness?",
               "hi": "क्या मुँह में छाले या जलन है?",
@@ -76969,6 +77041,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you have a cough?",
               "hi": "क्या आपको खाँसी है?",
@@ -77030,6 +77103,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Does it hurt or burn when you swallow?",
               "hi": "निगलते समय दर्द या जलन होती है?",
@@ -77101,6 +77175,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How is passing urine?",
               "hi": "पेशाब करने में कैसा लग रहा है?",
@@ -77162,6 +77237,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How are your bowels?",
               "hi": "पेट कैसा चल रहा है?",
@@ -77233,6 +77309,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "How does the skin look where the radiation goes?",
               "hi": "जहाँ सिकाई हो रही है, वहाँ की त्वचा कैसी दिख रही है?",
@@ -77253,6 +77330,7 @@
               "default": "rt.sessions"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "How tired have you been? Zero is normal, ten is unable to get out of bed.",
               "hi": "आप कितना थका हुआ महसूस करते हैं? शून्य मतलब सामान्य, दस मतलब बिस्तर से उठ भी नहीं पाते।",
@@ -77273,6 +77351,7 @@
               "default": "rt.words"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "How many radiation sessions have you had so far?",
               "hi": "अब तक कितनी सिकाई हो चुकी है?",
@@ -77291,6 +77370,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Is there anything else you want the doctor to know?",
               "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
@@ -83684,6 +83764,7 @@
               "default": "so.op.wound"
             },
             "options": [],
+            "summary_role": "context",
             "text": {
               "en": "How many days ago was your operation?",
               "hi": "आपका ऑपरेशन कितने दिन पहले हुआ था?",
@@ -83745,6 +83826,7 @@
                 }
               }
             ],
+            "summary_role": "primary_symptom",
             "text": {
               "en": "How does the wound look?",
               "hi": "टाँके वाली जगह कैसी दिख रही है?",
@@ -83765,6 +83847,7 @@
               "default": "so.op.pain"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Have you had fever since the operation? If you measured it, what was the highest? Say 0 if there was no fever.",
               "hi": "ऑपरेशन के बाद बुखार आया? अगर नापा था तो सबसे ज़्यादा कितना था? बुखार न हो तो 0 बोलें।",
@@ -83785,6 +83868,7 @@
               "default": "so.op.eating"
             },
             "options": [],
+            "summary_role": "severity",
             "text": {
               "en": "How bad is the pain at the operation site? Zero is none, ten is the worst.",
               "hi": "ऑपरेशन वाली जगह पर दर्द कितना है? शून्य मतलब नहीं, दस मतलब सबसे ज़्यादा।",
@@ -83846,6 +83930,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Are you able to eat and drink?",
               "hi": "क्या आप खा-पी पा रहे हैं?",
@@ -83897,6 +83982,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Have your bowels moved, and are you passing gas?",
               "hi": "क्या शौच हुआ है, और गैस निकल रही है?",
@@ -83948,6 +84034,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Any new swelling or pain in your legs?",
               "hi": "क्या टाँगों में नई सूजन या दर्द है?",
@@ -83999,6 +84086,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "Do you still have a tube or drain in place?",
               "hi": "क्या अभी भी कोई नली या ड्रेन लगी है?",
@@ -84017,6 +84105,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "Is there anything else you want the doctor to know?",
               "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
@@ -93316,6 +93405,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"
@@ -93359,6 +93449,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"
@@ -93377,6 +93468,7 @@
               "default": "d.number"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"
@@ -93395,6 +93487,7 @@
               "default": "e.body"
             },
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"
@@ -93438,6 +93531,7 @@
                 }
               }
             ],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"
@@ -93454,6 +93548,7 @@
             "min": null,
             "next": {},
             "options": [],
+            "summary_role": null,
             "text": {
               "en": "coverage",
               "hi": "कवरेज"

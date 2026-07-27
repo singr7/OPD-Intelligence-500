@@ -110,6 +110,7 @@
     {
       "id": "mo.new.problems",
       "type": "multi",
+      "summary_role": "primary_symptom",
       "text": {
         "en": "What is troubling you most right now? Choose all that apply.",
         "hi": "अभी आपको सबसे ज़्यादा क्या तकलीफ़ है? जो भी लागू हो चुनें।",
@@ -175,6 +176,7 @@
     {
       "id": "mo.new.duration",
       "type": "number",
+      "summary_role": "duration",
       "text": {
         "en": "For how many days has this been going on?",
         "hi": "यह तकलीफ़ कितने दिनों से है?",
