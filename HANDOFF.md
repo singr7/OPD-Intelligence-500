@@ -1,67 +1,65 @@
-# HANDOFF - correct kiosk intake and prescription before merge
+# HANDOFF - run physical acceptance for kiosk and prescription hardening
 
-> **Immediate next action:** create `uiux-kiosk-rx-hardening` from
-> `uiux-enterprise-revamp` and implement `docs/15-KIOSK-INTAKE-AND-PRESCRIPTION-HARDENING.md`.
-> Do not merge the current UI branch to `main`: operator review found the kiosk intake
-> and prescription document below acceptance.
+> **Immediate next action:** deploy committed branch `uiux-kiosk-rx-hardening` to
+> the Omen using `docs/13-OMEN-UPGRADE-RUNBOOK.md`, then execute doc 15's physical
+> kiosk/tablet/printer matrix. Do not merge to `main` until photographs and operator
+> acceptance are recorded.
 
 ## Current state
 
-- Branch: `uiux-enterprise-revamp`.
-- Design plan and mocks commit: `82b7719`.
-- Implementation commit: see `git log -1` after this session closes.
-- `/` is now the production role gateway; `/mocks` remains isolated reference.
-- Doctor, prescription, coordinator, public board, admin, shared staff sign-in, and
-  kiosk visual treatment use the enterprise system.
-- The branch is technically green, but its kiosk still omits patient name and a live
-  intake summary, control alignment is not reliable on tablet sizes, and the current
-  prescription is authenticated print HTML rather than a polished downloadable PDF.
+- Branch: `uiux-kiosk-rx-hardening`, based on `uiux-enterprise-revamp`.
+- Build commits are the ordered seven-commit sequence in doc 15.
+- Local automated build is complete and green.
+- The parent enterprise branch remains preserved as the review line.
+- The existing local `web/tsconfig.tsbuildinfo` modification is intentionally
+  uncommitted and was not included in this work.
 
-## Corrective build scope
+## What changed
 
-1. Add patient name through online start, offline queue/sync, and `Patient.name`,
-   with a rolling-deploy fallback for old clients.
-2. Add a deterministic live summary rail for name, concern, department, duration,
-   and symptom answers. Tree metadata may classify presentation only; it must never
-   affect clinical behavior.
-3. Replace wrapping/auto-fit choice layouts with stable kiosk/tablet grids and prove
-   no overflow in all four languages at 100 and 200 percent.
-4. Produce one clean prescription letterhead source with authenticated PDF preview,
-   download, and print.
-5. Purge or redact successfully synced kiosk PII from IndexedDB.
+1. Kiosk name capture now reaches online visits, offline reconciliation, and the
+   doctor-facing patient record. Old clients retain the documented walk-in fallback.
+2. Successfully synced offline queue rows are deleted, removing patient name and
+   answer PII from unattended kiosk storage.
+3. Optional tree `summary_role` metadata populates a truthful live intake rail and
+   is excluded from routing, traversal, branching, red flags, and clinical rules.
+4. Kiosk controls use stable responsive grids. The primary action remains visible
+   at 1280x800, 1024x768, and 800x1280 at 100% and 200% text scale.
+5. Prescription preview/download/print use one protected letterhead renderer.
+   Downloads are real authenticated PDFs; bearer tokens never enter query strings.
+6. A concurrent duplicate offline-block lease now adopts the winning row, avoiding
+   the development double-boot race found during live offline acceptance.
 
-## Verified this session
+## Automated evidence
 
-- `npm run build`
-- `make test`: backend 1212, voice-gw 25, web conformance 48, Android unit tests
-- `make lang-qa`: all four languages clean
-- `npm run e2e:a11y`: gateway, staff sign-in, and kiosk clean
-- Queue live-stack suite passed.
-- Admin suite passed after a precise accessible-heading selector correction.
-- Focused signed-prescription flow passed after fixing a nested sticky-header click
-  obstruction.
+- `make test`: backend 1,223; voice-gw 25; web conformance 48; Android unit tests.
+- `make lang-qa`: en/hi/mr/te clean.
+- `make preflight`: API and voice-gateway images build and import.
+- `cd web && npm run build`: optimized production build passes.
+- `cd web && npm run e2e`: 3 kiosk tests pass, including the six-case tablet matrix.
+- `npx playwright test --project=offline-demo`: three offline intakes sync with
+  distinct tokens and leave zero local PII rows.
+- Focused backend UX suites: 102 pass; prescription suite: 61 pass.
+- PDF visual QA: one-page Hindi patient copy and two-page 24-medication clinical
+  copy render cleanly with repeated headers, coherent signature, and reserved footer.
+- Updated acceptance screenshots are tracked in `web/screenshots/s6/` and `s7/`.
 
-## Known follow-up
+One full `make test` attempt hit a pre-existing async voice-gateway fake timing
+failure. The isolated assertion passed three consecutive runs, and the complete
+repository gate then passed.
 
-- The doctor, coordinator, and admin surfaces still keep their established large
-  scoped CSS strings. Shared tokens/login/primitives are extracted, but completing
-  the CSS-module migration and visual-regression matrix remains S-UX.5 hardening.
-- Existing OTP acceptance suites now reuse one token per serial worker to respect the
-  local rate limiter.
-- Automatic GitHub CI remains disabled; local gates plus manual CI are authoritative.
+## Physical release gate still required
 
-## Omen deploy blocker
+1. Complete online intake on the Omen in en/hi/mr/te.
+2. Complete offline intake, restore connectivity, and verify reconciliation.
+3. Exercise landscape and portrait on the target Android tablet.
+4. Download and print both prescription copies with short and long medication lists.
+5. Confirm real paper has no clipping and Indic glyph shaping is correct.
+6. Confirm idle/reset cannot reveal the previous patient's name or answers.
+7. Add screenshots, print photographs, deployed commit SHA, and operator acceptance
+   to `sessions/SESSION-UX2.md`.
 
-The API container still requires `./config:/config:ro` in Compose. Without it,
-`POST /kiosk/start` can fail with
-`TierConfigError: tiers config not found at /config/tiers.yaml` while `/health`
-remains green. Fix and commit that mount before deploying this branch.
+## Deployment notes
 
-Omen uses existing nginx on ports 80/443. Keep Caddy stopped/excluded, follow
-`docs/13-OMEN-UPGRADE-RUNBOOK.md`, and never use `docker compose down` casually.
-
-## Next session
-
-Follow doc 15's branch command, file map, ordered commits, tests, and physical-device
-gate. Preserve the enterprise branch as the parent review line. Merge only after the
-corrective branch is accepted on Omen and the target Android tablet.
+The Compose API config mount fix is already committed (`374efed`). Omen uses existing
+nginx on ports 80/443: keep Caddy stopped/excluded and never use `docker compose down`
+casually. Deploy only committed code; do not patch the Omen manually.

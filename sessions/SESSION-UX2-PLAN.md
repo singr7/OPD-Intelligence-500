@@ -3,6 +3,7 @@
 **Date:** 2026-07-27
 **Current branch:** `uiux-enterprise-revamp`
 **Next build branch:** `uiux-kiosk-rx-hardening`
+**Closed by:** `sessions/SESSION-UX2.md` (local build complete; physical gate pending)
 
 ## Operator findings
 

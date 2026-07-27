@@ -1,11 +1,21 @@
 # STATE
 
-**Current build priority (2026-07-27):** do not merge
-`uiux-enterprise-revamp` yet. Build `uiux-kiosk-rx-hardening` from it and execute
-doc 15. Operator review requires patient-name capture, a deterministic live intake
-summary, stable multilingual kiosk/tablet layouts, IndexedDB PII cleanup, and a clean
-letterhead with authenticated PDF download/print. Preserve routing, tree traversal,
-red flags, queue priority, signature, audit, and offline equivalence.
+**Current release priority (2026-07-27):** the corrective build is complete on
+`uiux-kiosk-rx-hardening`, but do not merge it yet. Execute doc 15's physical gate on
+the Omen kiosk, target Android tablet, and real printer; capture photographs and record
+operator acceptance. Automated tests, language QA, production web build, live kiosk and
+offline browser flows, PDF render inspection, and container preflight are green.
+
+**Built (SESSION-UX2):** Kiosk intake now captures a normalized Unicode patient name
+online and offline, retains rolling-client fallback behavior, and purges successfully
+synced IndexedDB PII. Optional tree `summary_role` metadata drives a presentation-only
+live rail without entering traversal, routing, red flags, or clinical rules. The kiosk
+uses deterministic responsive layouts with a 1280x800, 1024x768, and 800x1280 matrix at
+100%/200% text scale. Prescriptions share one letterhead renderer for protected preview,
+download, and print; the authenticated PDF route uses WeasyPrint with Noto Indic fonts,
+repeating table headers, coherent page breaks, and complete mr/te patient strings.
+`make test`, `make lang-qa`, `make preflight`, `npm run build`, kiosk E2E, and offline
+sync E2E pass. Physical-device and printer acceptance remain the only release blocker.
 
 **Built (S1):** Monorepo skeleton — `backend/` (FastAPI api + Celery worker/beat), `voice-gw/`
 (FastAPI), `web/` (Next.js 14, 5 route groups, design tokens), `infra/` (Terraform pilot,
