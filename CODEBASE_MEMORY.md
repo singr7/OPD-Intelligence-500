@@ -70,6 +70,13 @@ The deterministic intake, multilingual shells, offline token blocks, reconciliat
 service worker, server STT/TTS switches, and browser/ESC-POS printing code exist.
 It is the intended first live pathway.
 
+The current kiosk contract creates `Walk-in patient`; it does not collect a name.
+Name must be carried through both online start and offline sync. The next UI build
+also adds a deterministic live summary rail. Any tree `summary_role` metadata is
+presentation-only and must not influence traversal, red flags, or routing.
+Successfully synced IndexedDB rows must not retain patient names and answers
+indefinitely.
+
 Launch is still gated by oncologist review of the tree bank, native and clinical
 review of patient-facing Marathi/Telugu, the missing Surgical Oncology new-lump
 tree, real Omen acceptance, real printer output, and downtime/recovery drills.
@@ -87,8 +94,11 @@ future backend work. Public screens do not expose clinical red-flag reasons.
 ### Doctor And Prescription
 
 The doctor worklist, priority ordering, summary provenance, dictation review,
-medication validation, signature boundary, prescription snapshot/PDF, and audit
-trail are implemented. Safety-critical behavior is strong.
+medication validation, signature boundary, prescription snapshot/print HTML, and
+audit trail are implemented. Safety-critical behavior is strong. The current print
+route is HTML opened through the browser; a real authenticated PDF download is still
+required. PDF and HTML must share one prescription renderer, support Indic shaping,
+and use only stored/configured letterhead facts.
 
 The worklist is queue-only, scheduled appointments do not yet become queue visits,
 and access-token refresh is not used by web clients. The console now has a denser
@@ -155,8 +165,9 @@ network acceptance remain. The check-in protocol bank requires oncologist review
 
 ## Current Priority Order
 
-1. Validate `uiux-enterprise-revamp` on the local stack and physical Omen pathways;
-   finish S-UX.5 hardening before merging to `main`.
+1. Execute doc 15 on `uiux-kiosk-rx-hardening`, based on
+   `uiux-enterprise-revamp`; do not merge to `main` before kiosk/tablet and printed
+   prescription acceptance.
 2. Approve clinical content and complete S-GL.3 on the real Omen/kiosk hardware.
 3. Add a safe pilot environment profile, network exposure controls, real readiness,
    migration gating, worker/beat checks, and backup/restore automation.

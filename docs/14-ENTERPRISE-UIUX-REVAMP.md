@@ -1,13 +1,17 @@
 # 14 - Enterprise UI/UX Revamp
 
-Status: approved build specification  
-Priority: immediate next build track  
+Status: implemented on `uiux-enterprise-revamp`, corrective acceptance pending
+Priority: superseded for immediate work by doc 15
 Primary surfaces: `/`, `/doctor`, `/coordinator`, `/board`, `/admin`, `/kiosk`
 
 This document turns the existing UI/UX direction into an implementation contract.
 It is intentionally detailed enough for a fresh GPT-5.5 or Claude Opus session to
 execute without redesigning the product, changing clinical behavior, or inventing
 data the backend does not provide.
+
+Operator review on 2026-07-27 did not accept the kiosk intake or prescription
+document as complete. Do not merge this feature line to `main` until
+`docs/15-KIOSK-INTAKE-AND-PRESCRIPTION-HARDENING.md` is implemented and accepted.
 
 Read this document together with:
 

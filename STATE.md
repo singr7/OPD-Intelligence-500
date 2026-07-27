@@ -1,12 +1,11 @@
 # STATE
 
-**Current build priority (2026-07-27):** validate branch
-`uiux-enterprise-revamp` locally and on Omen, then merge only after physical pathway
-acceptance. The branch implements doc 14's enterprise gateway, shared staff login and
-tokens, doctor/prescription hierarchy, coordinator dashboard, privacy-safe board,
-grouped admin navigation, and kiosk polish without changing backend or clinical
-contracts. S-UX.5 still owns CSS-module migration, full visual-regression coverage,
-and real-device hardening.
+**Current build priority (2026-07-27):** do not merge
+`uiux-enterprise-revamp` yet. Build `uiux-kiosk-rx-hardening` from it and execute
+doc 15. Operator review requires patient-name capture, a deterministic live intake
+summary, stable multilingual kiosk/tablet layouts, IndexedDB PII cleanup, and a clean
+letterhead with authenticated PDF download/print. Preserve routing, tree traversal,
+red flags, queue priority, signature, audit, and offline equivalence.
 
 **Built (S1):** Monorepo skeleton — `backend/` (FastAPI api + Celery worker/beat), `voice-gw/`
 (FastAPI), `web/` (Next.js 14, 5 route groups, design tokens), `infra/` (Terraform pilot,

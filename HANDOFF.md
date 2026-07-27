@@ -1,9 +1,9 @@
-# HANDOFF - enterprise UI branch ready for Omen validation
+# HANDOFF - correct kiosk intake and prescription before merge
 
-> **Immediate next action:** review and deploy branch
-> `uiux-enterprise-revamp` on the local/Omen stack. The production UI overhaul is
-> implemented and committed separately from `main`; do not merge until the operator
-> has completed pathway checks.
+> **Immediate next action:** create `uiux-kiosk-rx-hardening` from
+> `uiux-enterprise-revamp` and implement `docs/15-KIOSK-INTAKE-AND-PRESCRIPTION-HARDENING.md`.
+> Do not merge the current UI branch to `main`: operator review found the kiosk intake
+> and prescription document below acceptance.
 
 ## Current state
 
@@ -13,21 +13,22 @@
 - `/` is now the production role gateway; `/mocks` remains isolated reference.
 - Doctor, prescription, coordinator, public board, admin, shared staff sign-in, and
   kiosk visual treatment use the enterprise system.
-- Backend routes, queue transitions, dictation validation, signature semantics,
-  prescription generation, and offline walker logic were not changed.
+- The branch is technically green, but its kiosk still omits patient name and a live
+  intake summary, control alignment is not reliable on tablet sizes, and the current
+  prescription is authenticated print HTML rather than a polished downloadable PDF.
 
-## What to validate
+## Corrective build scope
 
-1. Run the branch at `http://localhost:3030` and review `/`, `/doctor`,
-   `/coordinator`, `/board`, `/admin`, and `/kiosk`.
-2. At 1280x800, sign a doctor note and confirm the issued prescription, first
-   medicine, safety state, and patient-print action are easy to find.
-3. Confirm the coordinator metrics remain truthful and public board urgency never
-   exposes its clinical reason.
-4. Confirm admin grouping does not hide Trees, Protocols, People, Channels, Prices,
-   Analytics, Cost guard, or AI configuration.
-5. Exercise Hindi, Marathi, Telugu, and English on the physical kiosk at 200 percent
-   text scale before accepting the visual work.
+1. Add patient name through online start, offline queue/sync, and `Patient.name`,
+   with a rolling-deploy fallback for old clients.
+2. Add a deterministic live summary rail for name, concern, department, duration,
+   and symptom answers. Tree metadata may classify presentation only; it must never
+   affect clinical behavior.
+3. Replace wrapping/auto-fit choice layouts with stable kiosk/tablet grids and prove
+   no overflow in all four languages at 100 and 200 percent.
+4. Produce one clean prescription letterhead source with authenticated PDF preview,
+   download, and print.
+5. Purge or redact successfully synced kiosk PII from IndexedDB.
 
 ## Verified this session
 
@@ -61,6 +62,6 @@ Omen uses existing nginx on ports 80/443. Keep Caddy stopped/excluded, follow
 
 ## Next session
 
-Create a narrow infrastructure commit for the `/config` mount, validate the branch
-locally, then deploy it to Omen and perform the physical kiosk/doctor/queue smoke
-matrix. Record real-hardware findings before merging to `main`.
+Follow doc 15's branch command, file map, ordered commits, tests, and physical-device
+gate. Preserve the enterprise branch as the parent review line. Merge only after the
+corrective branch is accepted on Omen and the target Android tablet.
