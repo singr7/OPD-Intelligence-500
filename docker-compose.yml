@@ -62,7 +62,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes: *seeds
+    volumes:
+      - ./seeds:/seeds:ro
+      - ./config:/config:ro
     ports:
       - "${API_HOST_PORT:-8000}:8000"
     healthcheck:
