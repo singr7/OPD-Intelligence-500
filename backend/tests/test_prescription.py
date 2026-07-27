@@ -18,10 +18,12 @@ No test here calls a vendor: delivery goes through the provider-layer fakes.
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -396,6 +398,9 @@ async def test_routes_require_a_doctor(
 ) -> None:
     clinic, visit, _dictation = await _signed(session)
     assert (await client.get(f"/prescriptions/visits/{visit.id}")).status_code == 401
+    prescription = await rx.for_visit(session, visit_id=visit.id)
+    assert prescription is not None
+    assert (await client.get(f"/prescriptions/{prescription.id}/pdf")).status_code == 401
 
     coordinator = f.make_user(clinic["hospital"], role=Role.COORDINATOR)
     session.add(coordinator)
@@ -454,6 +459,96 @@ async def test_the_clinical_copy_prints_the_letterhead_and_the_dictated_name(
     assert clinic["doctor"].reg_no in html  # the signature block
     assert "Ondansetron" in html
     assert "1-0-1" in html  # frequency printed as dictated
+
+
+async def test_authenticated_pdf_has_document_headers_and_extractable_clinical_text(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    note = {
+        "diagnosis": "Ca breast",
+        "meds": [
+            {
+                "name": "Zolfenac",
+                "dose": "50 mg",
+                "freq": "1-0-1",
+                "duration": "5 days",
+                "acknowledged": True,
+            }
+        ],
+    }
+    clinic, _visit, dictation = await _signed(session, note)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+
+    response = await client.get(
+        f"/prescriptions/{prescription.id}/pdf?copy=clinical",
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"].startswith("attachment; filename=")
+    assert response.content.startswith(b"%PDF")
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 1
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert clinic["patient"].name in text
+    assert "Zolfenac" in text
+    assert clinic["doctor"].reg_no in text
+    assert "formulary" in text
+
+
+async def test_long_prescription_pdf_repeats_across_expected_pages(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    note = {
+        "diagnosis": "Supportive care",
+        "meds": [
+            {
+                "name": "Ondansetron",
+                "dose": "8 mg",
+                "route": "oral",
+                "freq": "1-0-1",
+                "duration": f"{index + 1} days",
+                "as_spoken": "ondansetron aath emji subah shaam paanch din",
+            }
+            for index in range(24)
+        ],
+    }
+    clinic, _visit, dictation = await _signed(session, note)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+    response = await client.get(
+        f"/prescriptions/{prescription.id}/pdf?copy=clinical",
+        headers=_headers(settings, clinic["user"]),
+    )
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 2
+    # WeasyPrint repeats the semantic table header on every continuation page.
+    for page in reader.pages:
+        assert "DRUG" in (page.extract_text() or "")
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [("mr", "तुमची औषधे"), ("te", "మీ మందులు")],
+)
+async def test_patient_document_strings_cover_marathi_and_telugu(
+    client: AsyncClient,
+    session: AsyncSession,
+    settings: Settings,
+    lang: str,
+    expected: str,
+) -> None:
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+    response = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=patient&lang={lang}",
+        headers=_headers(settings, clinic["user"]),
+    )
+    assert response.status_code == 200
+    assert expected in response.text
 
 
 async def test_the_patient_copy_draws_pictograms_only_for_a_stated_schedule(

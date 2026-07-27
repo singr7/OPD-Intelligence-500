@@ -4,6 +4,7 @@
 
 .shell {
   position: relative;
+  height: 100dvh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -705,9 +706,11 @@
 /* --- truthful live intake summary ---------------------------------------- */
 .summaryRail {
   min-width: 0;
+  min-height: 0;
   align-self: stretch;
   border-right: 1px solid var(--line);
   padding-right: var(--sp-4);
+  overflow-y: auto;
 }
 .summaryDetails { height: 100%; }
 .summaryToggle { display: none; }

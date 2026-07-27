@@ -18,7 +18,7 @@ import path from "node:path";
 // as an error to show the patient.
 
 const SHOTS = path.join(__dirname, "..", "screenshots", "s7");
-const API = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8123";
+const API = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 async function shot(page: Page, name: string) {
   await page.waitForTimeout(300);
@@ -45,11 +45,21 @@ async function typeInto(page: Page, text: string) {
   await page.getByRole("textbox").fill(text);
 }
 
+async function submitAnswer(page: Page) {
+  const button = page.getByTestId("answer-submit");
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+}
+
 async function walkOneOfflineIntake(page: Page): Promise<number> {
   // From welcome → token, entirely offline. Returns the token shown.
   await page.getByTestId("welcome-lang-hi").click();
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
   await page.getByText("मैं अपने लिए").click();
+
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "name");
+  await page.getByTestId("patient-name").fill("सीमा देवी");
+  await page.getByTestId("name-next").click();
 
   await expect(page.locator("main")).toHaveAttribute("data-screen", "complaint");
   await typeInto(page, "mujhe pet mein dard hai");
@@ -69,21 +79,30 @@ async function walkOneOfflineIntake(page: Page): Promise<number> {
     const screen = await page.getAttribute("main", "data-screen");
     if (screen !== "question") break;
     const type = (await page.getAttribute("main", "data-node-type")) ?? "";
+    const nodeId = (await page.getAttribute("main", "data-node-id")) ?? "";
     if (type === "single") {
       await page.getByTestId("option").first().click();
     } else if (type === "multi" || type === "body_map") {
       await page.getByTestId("option").first().click();
-      await page.getByTestId("answer-submit").click();
+      await submitAnswer(page);
     } else if (type === "scale") {
       await page.getByTestId("face").nth(3).click();
-      await page.getByTestId("answer-submit").click();
+      await submitAnswer(page);
     } else if (type === "number") {
-      await page.getByTestId("answer-submit").click();
+      await submitAnswer(page);
     } else if (type === "free_voice") {
       await typeInto(page, "bahut dard hai");
-      await page.getByTestId("answer-submit").click();
+      await submitAnswer(page);
     }
-    await page.waitForTimeout(200);
+    await expect
+      .poll(
+        async () => ({
+          screen: await page.getAttribute("main", "data-screen"),
+          nodeId: await page.getAttribute("main", "data-node-id"),
+        }),
+        { timeout: 15_000 }
+      )
+      .not.toEqual({ screen: "question", nodeId });
   }
 
   await expect(page.locator("main")).toHaveAttribute("data-screen", "readback", {
@@ -142,8 +161,8 @@ test("kiosk completes three intakes offline, then syncs with zero collisions", a
   await reviveApi(page);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
-  // 5. Every queued intake reaches the server and is marked synced locally —
-  //    the full round trip through the real /kiosk/sync.
+  // 5. Every queued intake reaches the server and is purged locally so the
+  //    unattended kiosk retains no patient name or answers.
   await expect
     .poll(
       () =>
@@ -168,9 +187,9 @@ test("kiosk completes three intakes offline, then syncs with zero collisions", a
         }),
       { timeout: 20_000, message: "all offline intakes should sync" }
     )
-    .toEqual({ total: 3, pending: 0, synced: 3 });
+    .toEqual({ total: 0, pending: 0, synced: 0 });
   // A rejection (a collision, a token outside the block) would leave the intake
-  // pending, not synced — so "3 synced, 0 pending" is the zero-collision proof,
+  // pending, not purged — so "0 local rows after sync" is the zero-collision proof,
   // observed through the real /kiosk/sync round trip. The service-layer test
   // asserts the same three tokens land as distinct visits server-side.
 

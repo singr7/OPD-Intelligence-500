@@ -21,6 +21,12 @@ async function typeInto(page: Page, text: string) {
   await page.getByRole("textbox").fill(text);
 }
 
+async function submitAnswer(page: Page) {
+  const button = page.getByTestId("answer-submit");
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+}
+
 async function answerCurrent(page: Page): Promise<boolean> {
   // Returns false once we've left the question flow (readback reached).
   const screen = await page.getAttribute("main", "data-screen");
@@ -31,15 +37,15 @@ async function answerCurrent(page: Page): Promise<boolean> {
     await page.getByTestId("option").first().click();
   } else if (type === "multi" || type === "body_map") {
     await page.getByTestId("option").first().click();
-    await page.getByTestId("answer-submit").click();
+    await submitAnswer(page);
   } else if (type === "scale") {
     await page.getByTestId("face").nth(3).click();
-    await page.getByTestId("answer-submit").click();
+    await submitAnswer(page);
   } else if (type === "number") {
-    await page.getByTestId("answer-submit").click();
+    await submitAnswer(page);
   } else if (type === "free_voice") {
     await typeInto(page, "mujhe pet mein dard hai");
-    await page.getByTestId("answer-submit").click();
+    await submitAnswer(page);
   }
   await page.waitForTimeout(400);
   return true;
@@ -57,20 +63,26 @@ test("full hindi kiosk intake, welcome → token", async ({ page }) => {
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
   await shot(page, "02-caregiver");
 
-  // 3. Chief complaint (tap-to-type fallback in headless).
+  // 3. Patient name.
   await page.getByText("मैं अपने लिए").click();
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "name");
+  await page.getByTestId("patient-name").fill("सीमा देवी");
+  await expect(page.getByTestId("summary-patient")).toHaveText("सीमा देवी");
+  await page.getByTestId("name-next").click();
+
+  // 4. Chief complaint (tap-to-type fallback in headless).
   await expect(page.locator("main")).toHaveAttribute("data-screen", "complaint");
   await typeInto(page, "mujhe seene mein dard aur khaansi hai");
   await shot(page, "03-complaint");
 
-  // 4. Department chooser (fake classifier is uncertain → honour needs_human).
+  // 5. Department chooser (fake classifier is uncertain → honour needs_human).
   await page.getByTestId("cc-next").click();
   await expect(page.locator("main")).toHaveAttribute("data-screen", "chooser", {
     timeout: 20_000,
   });
   await shot(page, "04-chooser");
 
-  // 5. First tree question.
+  // 6. First tree question.
   await page.getByTestId("option").filter({ hasText: "Medical Oncology" }).click();
   await expect(page.locator("main")).toHaveAttribute("data-screen", "question", {
     timeout: 20_000,
@@ -104,6 +116,50 @@ test("full hindi kiosk intake, welcome → token", async ({ page }) => {
   });
   await expect(page.locator("main")).toContainText("टोकन");
   await shot(page, "08-token");
+});
+
+test("tablet matrix keeps name, summary and primary action inside the viewport", async ({
+  page,
+}) => {
+  const viewports = [
+    { width: 1280, height: 800 },
+    { width: 1024, height: 768 },
+    { width: 800, height: 1280 },
+  ];
+  for (const viewport of viewports) {
+    for (const scale of [1, 2]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/kiosk");
+      if (scale === 2) await page.addStyleTag({ content: "html { font-size: 200%; }" });
+      await page.getByTestId("welcome-lang-te").click();
+      await page.getByText("నా కోసం").click();
+      await page.getByTestId("patient-name").fill("శ్రీమతి వెంకట లక్ష్మీ దేవి");
+
+      const metrics = await page.evaluate(() => {
+        const action = document.querySelector<HTMLElement>('[data-testid="name-next"]');
+        const box = action?.getBoundingClientRect();
+        return {
+          horizontalOverflow:
+            document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          actionVisible:
+            !!box &&
+            box.width > 0 &&
+            box.height >= 64 &&
+            box.left >= 0 &&
+            box.right <= window.innerWidth &&
+            box.top >= 0 &&
+            box.bottom <= window.innerHeight,
+        };
+      });
+      expect(metrics.horizontalOverflow, `${viewport.width}x${viewport.height} @ ${scale}x`).toBe(
+        false
+      );
+      expect(metrics.actionVisible, `${viewport.width}x${viewport.height} @ ${scale}x`).toBe(true);
+      await expect(page.getByTestId("summary-patient")).toHaveText(
+        "శ్రీమతి వెంకట లక్ష్మీ దేవి"
+      );
+    }
+  }
 });
 
 test("english welcome renders", async ({ page }) => {

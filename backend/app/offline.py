@@ -202,7 +202,20 @@ async def _create_block(
                 await session.flush()
             return block
         except IntegrityError:
-            session.expunge(block)
+            # React strict mode, a second tab, or a retrying proxy can issue the
+            # same lease twice. The competing transaction may have created this
+            # kiosk/department block while we were waiting on the unique index;
+            # adopt it instead of trying to expunge an instance the savepoint
+            # rollback has already detached.
+            existing = await session.scalar(
+                select(OfflineTokenBlock).where(
+                    OfflineTokenBlock.kiosk_id == kiosk_id,
+                    OfflineTokenBlock.department_id == department.id,
+                    OfflineTokenBlock.date == on,
+                )
+            )
+            if existing is not None:
+                return existing
     raise OfflineError("could not lease a token block — too many concurrent kiosks")
 
 

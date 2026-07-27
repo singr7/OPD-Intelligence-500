@@ -316,6 +316,7 @@ export function KioskApp() {
       className={s.shell}
       data-screen={screen}
       data-node-type={node?.type ?? ""}
+      data-node-id={node?.id ?? ""}
       onPointerDown={kick}
       onKeyDown={kick}
     >
@@ -561,6 +562,7 @@ function SummaryRail({
   speaking: boolean;
   status?: string;
 }) {
+  const [open, setOpen] = useState(false);
   const primary = [...summary.answers]
     .reverse()
     .find((answer) => answer.role === "primary_symptom");
@@ -574,9 +576,21 @@ function SummaryRail({
   const hiddenCount = symptomRows.length - shownSymptoms.length;
   const empty = t("notAnswered", lang);
 
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 901px)");
+    const sync = () => setOpen(desktop.matches);
+    sync();
+    desktop.addEventListener("change", sync);
+    return () => desktop.removeEventListener("change", sync);
+  }, []);
+
   return (
     <aside className={s.summaryRail} aria-label={t("liveSummary", lang)}>
-      <details className={s.summaryDetails}>
+      <details
+        className={s.summaryDetails}
+        open={open}
+        onToggle={(event) => setOpen(event.currentTarget.open)}
+      >
         <summary className={s.summaryToggle}>
           <span>{t("liveSummary", lang)}</span>
           <strong>{summary.patientName || empty}</strong>

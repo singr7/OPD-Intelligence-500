@@ -140,7 +140,7 @@ body {
   font-family: "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu", sans-serif;
   color: var(--ink); margin: 0; font-size: 12pt; line-height: 1.5;
 }
-@page { size: A4; margin: 14mm; }
+@page { size: A4; margin: 14mm 14mm 20mm; }
 .sheet { page-break-after: always; }
 .sheet:last-child { page-break-after: auto; }
 .masthead {
@@ -178,7 +178,7 @@ table.rx th {
   text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .04em;
   color: var(--ink-soft); border-bottom: 2px solid var(--line); padding: 6px 8px;
 }
-table.rx td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top;
+table.rx td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top;
   break-inside: avoid; }
 table.rx thead { display: table-header-group; }
 table.rx tr { break-inside: avoid; page-break-inside: avoid; }
@@ -196,13 +196,16 @@ tr.flagged .name { color: var(--danger); }
 .block h3 { font-size: 10pt; text-transform: uppercase; letter-spacing: .04em;
   color: var(--ink-soft); margin: 0 0 4px; }
 .block ul { margin: 0; padding-left: 18px; }
-.sign { margin-top: 26px; display: flex; justify-content: flex-end;
+.sign { margin-top: 16px; display: flex; justify-content: flex-end;
   break-inside: avoid; page-break-inside: avoid; }
 .sign .line { width: 240px; border-top: 1.5px solid var(--ink); padding-top: 6px;
   text-align: center; font-size: 10pt; }
 .sign .name { font-weight: 700; font-size: 11pt; }
-.foot { margin-top: 12px; color: var(--ink-soft); font-size: 8.5pt;
-  border-top: 1px solid var(--line); padding-top: 6px; }
+.foot {
+  position: fixed; left: 0; right: 0; bottom: -14mm;
+  color: var(--ink-soft); font-size: 7.5pt;
+  border-top: 1px solid var(--line); padding-top: 4px;
+}
 /* patient copy — large type, icon-led */
 .who.p-who { grid-template-columns: 1fr auto; }
 .p-title { font-size: 22pt; font-weight: 800; color: var(--primary-d); margin: 0 0 10px; }
