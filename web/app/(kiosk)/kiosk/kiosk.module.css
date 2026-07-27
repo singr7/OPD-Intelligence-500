@@ -429,6 +429,11 @@
   justify-content: space-between;
   gap: var(--sp-3);
   margin-top: var(--sp-4);
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding: var(--sp-2) 0;
+  background: #edf4f1;
 }
 .btn {
   min-height: var(--tap-min);
@@ -462,9 +467,10 @@
 /* --- department chooser --------------------------------------------------- */
 .deptGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-2);
 }
+.deptGrid > :nth-last-child(1):nth-child(odd) { grid-column: 1 / -1; }
 
 /* --- summary read-back ---------------------------------------------------- */
 .summaryChips { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); max-width: 760px; }
@@ -644,9 +650,13 @@
   text-align: center;
   gap: var(--sp-4);
 }
-.welcomeLangs { display: flex; gap: var(--sp-3); }
+.welcomeLangs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
 .welcomeLang {
-  min-width: 260px;
+  min-width: 0;
   min-height: 120px;
   border-radius: var(--radius-lg);
   border: 3px solid var(--line);
@@ -661,10 +671,13 @@
 .welcomeLang:hover { transform: translateY(-4px); border-color: var(--primary); }
 
 /* --- caregiver choice ----------------------------------------------------- */
-.bigChoices { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+.bigChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
 .bigChoice {
-  flex: 1;
-  min-width: 260px;
+  min-width: 0;
   min-height: 160px;
   border-radius: var(--radius-lg);
   border: 3px solid var(--line);
@@ -680,7 +693,14 @@
 }
 .bigChoice:hover { transform: translateY(-4px); border-color: var(--primary); }
 .bigChoiceIcon { width: 64px; height: 64px; }
-.bigChoiceText { font-size: var(--fs-option); font-weight: 700; }
+.bigChoiceText {
+  min-width: 0;
+  font-size: var(--fs-option);
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
 /* --- truthful live intake summary ---------------------------------------- */
 .summaryRail {
@@ -812,8 +832,8 @@
   .summarySymptoms { grid-column: 2; }
   .options { grid-template-columns: minmax(0, 1fr); }
   .options[data-count="5"] > :last-child { grid-column: auto; }
-  .bigChoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .bigChoice { min-width: 0; }
+  .deptGrid { grid-template-columns: minmax(0, 1fr); }
+  .deptGrid > :nth-last-child(1):nth-child(odd) { grid-column: auto; }
 }
 
 @media (max-width: 620px) {
@@ -824,6 +844,20 @@
   .summaryBody .assistantCol { display: none; }
   .summaryFacts, .summarySymptoms { grid-column: 1; }
   .bigChoices { grid-template-columns: minmax(0, 1fr); }
+  .welcomeLangs { grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .welcomeLang { width: 100%; min-height: 88px; font-size: var(--fs-question); }
+}
+
+@media (max-height: 850px) and (min-width: 901px) {
+  .shell { padding-block: var(--sp-2); }
+  .topbar { margin-bottom: var(--sp-2); }
+  .panel .audioBar { margin-bottom: var(--sp-2); }
+  .question { margin-bottom: var(--sp-2); }
+  .micBtn { width: 132px; height: 132px; }
+  .micIcon { width: 56px; height: 56px; }
+  .optionCard { min-height: 76px; padding-block: 10px; }
+  .optionIcon { width: 48px; height: 48px; }
+  .btnBig { min-height: 72px; }
 }
 
 /* --- downtime banner (S7, doc 01 §5) ------------------------------------- */
