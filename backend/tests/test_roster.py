@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import io
 import zipfile
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, time
 
 import pytest
 from httpx import AsyncClient
@@ -522,9 +522,7 @@ async def test_the_console_walks_the_whole_roster_flow(client: AsyncClient, sess
 
     # A file with the bad row removed applies.
     good = {"file": ("roster.csv", (HEADER + csv.splitlines()[1] + "\n").encode(), "text/csv")}
-    applied = await client.post(
-        "/admin/roster/import?dry_run=false", headers=headers, files=good
-    )
+    applied = await client.post("/admin/roster/import?dry_run=false", headers=headers, files=good)
     assert applied.status_code == 200
     assert applied.json()["applied"]["created"] == 1
     assert applied.json()["applied"]["slots_generated"] > 0
@@ -542,9 +540,7 @@ async def test_the_console_walks_the_whole_roster_flow(client: AsyncClient, sess
     ).json()
     assert impact["needs_a_decision"] is False and impact["empty_future_slots"] > 0
 
-    gone = await client.delete(
-        f"/admin/slot-templates/{grid[0]['template_id']}", headers=headers
-    )
+    gone = await client.delete(f"/admin/slot-templates/{grid[0]['template_id']}", headers=headers)
     assert gone.status_code == 200
     assert (await client.get("/admin/slot-templates", headers=headers)).json() == []
 

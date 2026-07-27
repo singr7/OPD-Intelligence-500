@@ -1219,7 +1219,7 @@ async def invite(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> InviteOut:
-    """"This number can now sign in" — an SMS, and nothing minted. The OTP login
+    """ "This number can now sign in" — an SMS, and nothing minted. The OTP login
     is the credential, so there is no invite token here to expire or leak."""
     try:
         result = await people.send_invite(session, user_id=user_id, settings=settings)
@@ -1283,9 +1283,7 @@ async def deactivate(
     session: AsyncSession = Depends(get_session),
 ) -> DeactivateOut:
     try:
-        result = await people.deactivate(
-            session, user_id=user_id, acknowledge=body.acknowledge
-        )
+        result = await people.deactivate(session, user_id=user_id, acknowledge=body.acknowledge)
     except people.PeopleError as exc:
         # 409, not 422: the request is well-formed and the state is the problem,
         # and the console distinguishes "fix your input" from "confirm this".
@@ -1301,9 +1299,7 @@ async def deactivate(
 
 
 @router.post("/people/{user_id}/activate", response_model=PersonOut)
-async def activate(
-    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
-) -> PersonOut:
+async def activate(user_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> PersonOut:
     """Let somebody back in. Their clinic does not come back with them — see
     `app.people.activate`."""
     try:
@@ -1442,9 +1438,7 @@ async def clinic_impact(
 
 
 @router.post("/slot-templates", response_model=ClinicOut, status_code=201)
-async def create_clinic(
-    body: ClinicIn, session: AsyncSession = Depends(get_session)
-) -> ClinicOut:
+async def create_clinic(body: ClinicIn, session: AsyncSession = Depends(get_session)) -> ClinicOut:
     try:
         template, _ = await roster.save_clinic(session, write=body.to_write())
     except roster.RosterError as exc:

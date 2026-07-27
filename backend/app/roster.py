@@ -476,9 +476,7 @@ async def save_clinic(
     # Reconcile *after* the template carries its new shape, so the instants come
     # from the same function generation uses (`instants_on`) rather than from a
     # second copy of the rule.
-    reconciled = (
-        await _reconcile(session, template) if template_id else Reconciliation(0, 0)
-    )
+    reconciled = await _reconcile(session, template) if template_id else Reconciliation(0, 0)
     await session.flush()
     record_admin_action(
         session,
@@ -721,9 +719,7 @@ def _parse_slot_type(raw: str) -> SlotType:
         "chemo_review": SlotType.CHEMO_REVIEW,
     }
     if value not in aliases:
-        raise ValueError(
-            f"{raw!r} is not a slot type — use new_consult, follow_up or chemo_review"
-        )
+        raise ValueError(f"{raw!r} is not a slot type — use new_consult, follow_up or chemo_review")
     return aliases[value]
 
 
@@ -747,13 +743,11 @@ async def plan_roster(session: AsyncSession, rows: list[RosterRow]) -> RosterPla
     file wants all of its problems at once rather than one upload per typo.
     """
     doctors = (
-
-            await session.execute(
-                select(Doctor, Department)
-                .join(Department, Department.id == Doctor.department_id)
-                .where(Doctor.deleted_at.is_(None), Doctor.active.is_(True))
-            )
-
+        await session.execute(
+            select(Doctor, Department)
+            .join(Department, Department.id == Doctor.department_id)
+            .where(Doctor.deleted_at.is_(None), Doctor.active.is_(True))
+        )
     ).all()
     by_reg = {doctor.reg_no.strip().lower(): (doctor, dept) for doctor, dept in doctors}
     by_name: dict[str, list[tuple[Doctor, Department]]] = {}
@@ -763,9 +757,7 @@ async def plan_roster(session: AsyncSession, rows: list[RosterRow]) -> RosterPla
     existing = {
         (t.doctor_id, t.weekday, t.start_time, t.slot_type): t
         for t in (
-            await session.execute(
-                select(SlotTemplate).where(SlotTemplate.deleted_at.is_(None))
-            )
+            await session.execute(select(SlotTemplate).where(SlotTemplate.deleted_at.is_(None)))
         )
         .scalars()
         .all()
@@ -995,9 +987,7 @@ async def generate(
         entity=AppointmentSlot.__tablename__,
         meta={"generated": len(created), "days": days, "from": begins.isoformat()},
     )
-    return GenerationResult(
-        created=len(created), start=begins, days=days, doctor_id=doctor_id
-    )
+    return GenerationResult(created=len(created), start=begins, days=days, doctor_id=doctor_id)
 
 
 def sample_csv() -> str:

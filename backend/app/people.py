@@ -205,9 +205,7 @@ async def _hospital(session: AsyncSession) -> Hospital:
 
 
 async def _user_by_phone(session: AsyncSession, phone: str) -> User | None:
-    return (
-        await session.execute(select(User).where(User.phone == phone))
-    ).scalar_one_or_none()
+    return (await session.execute(select(User).where(User.phone == phone))).scalar_one_or_none()
 
 
 async def create_user(
@@ -345,8 +343,7 @@ INVITE_SMS: dict[Lang, str] = {
         "याच फोन नंबरने साइन इन करा — तुम्हाला एकदाच वापरायचा कोड मिळेल."
     ),
     Lang.TE: (
-        "{name}, {hospital}లో మీ OPD ఖాతా పనిచేస్తోంది. "
-        "ఇదే ఫోన్ నంబర్‌తో సైన్ ఇన్ చేయండి — మీకు ఒకసారి వాడే కోడ్ వస్తుంది."
+        "{name}, {hospital}లో మీ OPD ఖాతా పనిచేస్తోంది. ఇదే ఫోన్ నంబర్‌తో సైన్ ఇన్ చేయండి — మీకు ఒకసారి వాడే కోడ్ వస్తుంది."
     ),
 }
 

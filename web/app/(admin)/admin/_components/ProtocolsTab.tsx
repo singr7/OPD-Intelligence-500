@@ -24,7 +24,6 @@ import * as api from "../_lib/api";
 export function ProtocolsTab({ token, onError }: TabProps) {
   const bank = useLoad(() => api.fetchProtocolTemplates(token), onError);
   const versions = useLoad(() => api.fetchProtocolBanks(token), onError);
-  const slots = useLoad(() => api.fetchSlotTemplates(token), onError);
   const [editing, setEditing] = useState(false);
 
   function reload() {
@@ -164,9 +163,8 @@ export function ProtocolsTab({ token, onError }: TabProps) {
       <section>
         <h2>Slot templates</h2>
         <div className="notice">
-          <b>Arrives with {slots.data?.arrives_in ?? "S15"}.</b>{" "}
-          {slots.data?.reason ??
-            "Slot templates need the appointment slot inventory (telephony part 2)."}
+          Moved to the <b>People &amp; roster</b> tab (S-GL.2), where the weekly grid sits beside
+          the doctors it belongs to. This panel was a placeholder from S18E until then.
         </div>
       </section>
 

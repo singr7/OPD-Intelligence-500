@@ -244,6 +244,197 @@ export const fetchVoicePacks = (t: string) => get<VoicePackClip[]>(t, "/admin/vo
 
 export type Deferred = { deferred: boolean; arrives_in: string; reason: string };
 
+// -- people + roster (S-GL.2, doc 03 §2/§10) ----------------------------------
+//
+// Deliberately not versioned, unlike the trees, the protocol bank and the channel
+// document: a doctor is not authored content with a review cycle. See the note at
+// the top of `backend/app/people.py`.
+
+export type Person = {
+  user_id: string;
+  name: string;
+  phone: string;
+  role: string;
+  lang: string;
+  active: boolean;
+  last_login_at: string | null;
+  doctor_id: string | null;
+  reg_no: string | null;
+  qualification: string | null;
+  department_code: string | null;
+  department_name: string | null;
+  clinics: number;
+  upcoming_appointments: number;
+};
+
+export type Booked = {
+  appointment_id: string;
+  patient_name: string;
+  patient_phone: string;
+  at: string;
+  slot_type: string | null;
+};
+
+export type DeactivationImpact = {
+  user_id: string;
+  name: string;
+  role: string;
+  is_doctor: boolean;
+  active_clinics: number;
+  open_future_slots: number;
+  booked: Booked[];
+  needs_a_decision: boolean;
+};
+
+export type Department = { code: string; name: string };
+
+export const fetchPeople = (t: string) => get<Person[]>(t, "/admin/people");
+export const fetchDepartments = (t: string) => get<Department[]>(t, "/admin/departments");
+export const createStaff = (
+  t: string,
+  body: { name: string; phone: string; role: string; lang?: string },
+) => post<Person>(t, "/admin/people", body);
+export const createDoctor = (
+  t: string,
+  body: {
+    name: string;
+    phone: string;
+    department_code: string;
+    reg_no: string;
+    qualification?: string;
+    lang?: string;
+  },
+) => post<Person>(t, "/admin/people/doctors", body);
+export const invitePerson = (t: string, userId: string) =>
+  post<{ sent: boolean; to: string; detail: string }>(t, `/admin/people/${userId}/invite`, {});
+export const fetchDeactivationImpact = (t: string, userId: string) =>
+  get<DeactivationImpact>(t, `/admin/people/${userId}/deactivation-impact`);
+export const deactivatePerson = (t: string, userId: string, acknowledge: boolean) =>
+  post<{ clinics_retired: number; slots_blocked: number; appointments_left: Booked[] }>(
+    t,
+    `/admin/people/${userId}/deactivate`,
+    { acknowledge },
+  );
+export const activatePerson = (t: string, userId: string) =>
+  post<Person>(t, `/admin/people/${userId}/activate`, {});
+
+export type Clinic = {
+  template_id: string;
+  doctor_id: string;
+  doctor_name: string;
+  reg_no: string;
+  department_code: string;
+  weekday: number;
+  weekday_name: string;
+  start: string;
+  end: string;
+  slot_minutes: number;
+  capacity: number;
+  slot_type: string;
+  active: boolean;
+  slots_per_week: number;
+  future_slots: number;
+  future_booked: number;
+  next_dates: string[];
+};
+
+export type ClinicWrite = {
+  doctor_id: string;
+  weekday: number;
+  start: string;
+  end: string;
+  slot_type?: string;
+  capacity?: number;
+  slot_minutes?: number;
+  acknowledge?: boolean;
+};
+
+export type ChangeImpact = {
+  template_id: string;
+  label: string;
+  empty_future_slots: number;
+  booked: Booked[];
+  needs_a_decision: boolean;
+};
+
+export type PlannedClinic = {
+  line: number;
+  doctor_label: string;
+  doctor_name: string | null;
+  department_code: string | null;
+  weekday_name: string;
+  start: string;
+  end: string;
+  slot_type: string;
+  capacity: number;
+  slot_minutes: number;
+  slots_per_week: number;
+  action: string;
+  error: string | null;
+};
+
+export type RosterPlan = {
+  ok: boolean;
+  counts: Record<string, number>;
+  rows: PlannedClinic[];
+};
+
+export type ImportResult = {
+  created: number;
+  updated: number;
+  unchanged: number;
+  slots_generated: number;
+  disturbed: Booked[];
+};
+
+export const fetchClinics = (t: string) => get<Clinic[]>(t, "/admin/slot-templates");
+export const fetchClinicImpact = (t: string, templateId: string) =>
+  get<ChangeImpact>(t, `/admin/slot-templates/${templateId}/impact`);
+export const createClinic = (t: string, body: ClinicWrite) =>
+  post<Clinic>(t, "/admin/slot-templates", body);
+export const updateClinic = (t: string, templateId: string, body: ClinicWrite) =>
+  send<Clinic>(t, "PUT", `/admin/slot-templates/${templateId}`, body);
+export const retireClinic = (t: string, templateId: string, acknowledge: boolean) =>
+  send<ChangeImpact>(
+    t,
+    "DELETE",
+    `/admin/slot-templates/${templateId}?acknowledge=${acknowledge}`,
+  );
+export const generateSlots = (t: string, body: { doctor_id?: string; days?: number }) =>
+  post<{ created: number; start: string; days: number }>(t, "/admin/slots/generate", body);
+
+/** Upload a roster. Dry run by default — the preview and the apply are the same
+ *  request with one flag flipped, so what an admin previews is what happens. */
+export async function importRoster(
+  token: string,
+  file: File,
+  opts: { dryRun: boolean; acknowledge?: boolean } = { dryRun: true },
+): Promise<{ plan: RosterPlan; applied: ImportResult | null }> {
+  const form = new FormData();
+  form.append("file", file);
+  const params = new URLSearchParams({
+    dry_run: String(opts.dryRun),
+    acknowledge: String(opts.acknowledge ?? false),
+  });
+  const res = await fetch(`${API_BASE}/admin/roster/import?${params}`, {
+    method: "POST",
+    // No Content-Type: the browser must set the multipart boundary itself.
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
 // The live protocol bank (doc 03 §9/§10) — the published row if there is one, the
 // seed file otherwise. This is the reading view; the editor works on the document
 // (`/admin/protocol-banks`), because the validator's guarantees are properties of
@@ -278,7 +469,6 @@ export type ProtocolBank = {
 };
 export const fetchProtocolTemplates = (t: string) =>
   get<ProtocolBank>(t, "/admin/protocol-templates");
-export const fetchSlotTemplates = (t: string) => get<Deferred>(t, "/admin/slot-templates");
 
 export type BankVersion = {
   id: string;

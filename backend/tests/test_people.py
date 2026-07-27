@@ -21,8 +21,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 
-from app import people, roster
-from app import scheduling
+from app import people, roster, scheduling
 from app.auth.tokens import create_access_token
 from app.config import Settings
 from app.models.audit import AuditLog
@@ -133,9 +132,7 @@ async def test_a_taken_number_names_the_person_who_has_it(session):
     await session.flush()
 
     with pytest.raises(people.PeopleError, match="Rekha Meena"):
-        await people.create_user(
-            session, name="Someone Else", phone="9812345678", role=Role.NURSE
-        )
+        await people.create_user(session, name="Someone Else", phone="9812345678", role=Role.NURSE)
 
 
 async def test_a_patient_identity_cannot_be_minted_from_the_console(session):
@@ -144,9 +141,7 @@ async def test_a_patient_identity_cannot_be_minted_from_the_console(session):
     # (S16). A console that could create either would be a second, unaudited
     # path into the patient identity model.
     with pytest.raises(people.PeopleError):
-        await people.create_user(
-            session, name="Kamla Devi", phone="9812345670", role=Role.PATIENT
-        )
+        await people.create_user(session, name="Kamla Devi", phone="9812345670", role=Role.PATIENT)
 
 
 async def test_a_duplicate_registration_number_is_refused_by_name(session):
@@ -252,9 +247,7 @@ async def _booked_doctor(session):
         .all()
     )
     assert len(slots) >= 2
-    await scheduling.book(
-        session, patient=patient, slot_id=slots[0].id, source=Channel.KIOSK
-    )
+    await scheduling.book(session, patient=patient, slot_id=slots[0].id, source=Channel.KIOSK)
     return hospital, department, doctor, user, patient, slots
 
 
@@ -427,9 +420,7 @@ async def test_the_whole_thing_over_http(client: AsyncClient, session, settings)
     ).json()
     assert impact["needs_a_decision"] is False
 
-    off = await client.post(
-        f"/admin/people/{body['user_id']}/deactivate", headers=headers, json={}
-    )
+    off = await client.post(f"/admin/people/{body['user_id']}/deactivate", headers=headers, json={})
     assert off.status_code == 200
     assert (await client.get("/admin/people", headers=headers)).json()
 
@@ -452,6 +443,4 @@ async def test_the_people_routes_are_admin_only(client: AsyncClient, session, se
     headers = {"Authorization": f"Bearer {token}"}
 
     assert (await client.get("/admin/people", headers=headers)).status_code == 403
-    assert (
-        await client.post("/admin/people", headers=headers, json={})
-    ).status_code == 403
+    assert (await client.post("/admin/people", headers=headers, json={})).status_code == 403

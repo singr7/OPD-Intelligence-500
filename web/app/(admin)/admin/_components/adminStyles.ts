@@ -163,4 +163,52 @@ export const ADMIN_CSS = `
 .admin .bank-editor { margin-top: 12px; }
 .admin textarea.doc { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; line-height: 1.5; background: #0e1b18; color: #d7e8e2; border-color: #0e1b18; }
+
+/* The week (S-GL.2). A hospital reads its roster as a timetable on a wall, so
+   this is seven columns and one row per doctor rather than a table sorted by id
+   — and a doctor with an empty week reads as *empty*, which a list of rows
+   cannot show you. The tab's one deliberate risk (doc 04 §5); everything else on
+   it stays quiet. */
+.admin .week { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+  overflow-x: auto; }
+.admin .week-head, .admin .week-row { display: grid; grid-template-columns: 190px repeat(7, minmax(104px, 1fr));
+  min-width: 900px; }
+.admin .week-head { border-bottom: 1px solid var(--line); background: var(--bg); }
+.admin .week-head span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--ink-soft); padding: 8px 10px; font-weight: 700; }
+.admin .week-row { border-bottom: 1px solid var(--line); }
+.admin .week-row:last-child { border-bottom: none; }
+.admin .week-row .who { padding: 10px; border-right: 1px solid var(--line); display: grid;
+  align-content: start; gap: 2px; }
+.admin .week-row .who .muted { font-size: 11px; }
+.admin .week-row .empty-week { font-size: 11px; color: var(--ink-soft); font-style: italic; }
+.admin .week .day { padding: 6px; border-right: 1px solid var(--line); display: grid; gap: 6px;
+  align-content: start; }
+.admin .week .day:last-child { border-right: none; }
+
+/* A clinic block is the marigold accent because it is the thing on this screen a
+   patient's appointment eventually hangs off. An *ungenerated* clinic is drawn
+   hollow rather than merely annotated: "authored" and "bookable" are different
+   facts, and the hollow block is the one the receptionist cannot offer. */
+.admin .clinic { display: grid; gap: 1px; text-align: left; padding: 7px 9px; border-radius: 9px;
+  border: 1px solid #f0d49a; background: var(--accent-soft); color: var(--ink); cursor: pointer;
+  font: inherit; }
+.admin .clinic b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.admin .clinic span { font-size: 11px; color: var(--ink-soft); }
+.admin .clinic .counts { font-size: 10px; letter-spacing: .01em; }
+.admin .clinic.unbuilt { background: repeating-linear-gradient(135deg, transparent, transparent 5px,
+  rgba(0,0,0,.035) 5px, rgba(0,0,0,.035) 10px); border-style: dashed; }
+.admin .clinic.unbuilt .counts { color: var(--danger); }
+/* Faint rather than hidden: an affordance that only exists on hover is one a
+   first-time administrator never finds, and this is the control that turns an
+   empty week into a clinic. */
+.admin .add-clinic { border: 1px dashed var(--line); background: none; color: var(--ink-soft);
+  border-radius: 9px; padding: 4px; font-size: 14px; line-height: 1; cursor: pointer;
+  opacity: .3; transition: opacity .12s ease; }
+.admin .week .day:hover .add-clinic, .admin .add-clinic:focus { opacity: 1; }
+
+.admin .notice.flash { border-color: var(--primary); background: var(--primary-soft); }
+.admin tr.inactive td { opacity: .55; }
+.admin tr.bad-row td { background: var(--danger-soft); }
+.admin .notice.bad-notice { background: var(--danger-soft); border-color: #f1c9c2; }
 `;

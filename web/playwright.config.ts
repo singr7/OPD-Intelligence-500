@@ -76,6 +76,16 @@ export default defineConfig({
       testMatch: /channels\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // Staff onboarding + roster (S-GL.2, doc 12 §7). This project *is* the
+      // session AC: onboard a doctor, give her a Tuesday clinic by CSV import,
+      // generate her slots, and find her in the receptionist's inventory —
+      // entirely from the console. Run explicitly (`npm run e2e:people`); it
+      // creates real staff rows on whatever database it points at.
+      name: "people",
+      testMatch: /people\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,
