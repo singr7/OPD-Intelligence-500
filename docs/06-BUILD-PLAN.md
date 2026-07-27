@@ -1,4 +1,4 @@
-# 06 — Build Plan: 22 sessions
+# 06 — Build Plan: core sessions + go-live and revamp tracks
 
 Each session = one focused Claude Opus working session (~2–4h human time), sized to fit comfortably in one context window with room for iteration. Every session ends with green tests, commits, `sessions/SESSION-NN.md`, and an updated `HANDOFF.md` (see doc 07).
 
@@ -223,6 +223,33 @@ the Android app has run on a real handset for a fortnight.
 
 **Not in any phase:** opening WhatsApp and telephony on the **existing V2 pipeline** needs no
 build at all once Meta and Exotel are provisioned — just the S-GL.1 switch.
+
+### Enterprise UI/UX revamp track — S-UX (operator, 2026-07-27)
+
+The production UI has working workflows but not yet the visual hierarchy, prescription
+legibility, operational density, and product-wide consistency required for the pilot. The
+authoritative build specification is **[doc 14](14-ENTERPRISE-UIUX-REVAMP.md)**. Its sessions
+are sequential and preserve the current backend/API/clinical contracts.
+
+- **S-UX.1 — foundation, enterprise gateway, and doctor prescription (NEXT).** Shared staff
+  foundations and primitives; replace the developer landing directory; rebuild the doctor
+  consultation hierarchy; make the signed prescription a prominent, readable clinical
+  document with clear print/delivery actions. Preserve all queue, dictation, medication,
+  signature, and prescription behavior. May close as S-UX.1A/S-UX.1B under doc 07's context
+  rule.
+- **S-UX.2 — coordinator operations + public board.** Truthful queue pressure strip,
+  state-aware queue rows, accessible reorder, downtime/reconciliation clarity, and removal of
+  clinical reasons from the public board.
+- **S-UX.3 — administration.** Grouped side navigation, shared forms/tables/notices/dialogs,
+  routable view state, and a split People/Week/Import workflow across all eight existing views.
+- **S-UX.4 — kiosk polish.** Preserve the state machine and offline behavior while proving
+  every state at the actual Omen viewport, all four languages, and 200 percent text scale.
+- **S-UX.5 — product-wide hardening.** Remove remaining duplicated/injected presentation,
+  complete keyboard/axe/responsive/visual-regression gates, and refresh operator screenshots.
+
+The S-UX track does **not** absorb appointment arrival, token-refresh security, missing queue
+metrics, or clinical-content review. Those remain separate functional/go-live work unless a
+session explicitly accepts a small additive backend read contract with tests.
 
 **Phase 2 backlog (tracked, unscheduled):** handwritten-Rx OCR; WhatsApp native calling API;
 FHIR export; urban/multi-site tenanting; analytics warehouse. Numbered below Phase 3 but

@@ -1,5 +1,12 @@
 # 04 — UI/UX Guide (mandatory reading for every frontend session)
 
+> **2026-07-27:** This guide remains authoritative for patient safety,
+> multilingual behavior, accessibility, voice, and the anti-generic clause.
+> **[Doc 14](14-ENTERPRISE-UIUX-REVAMP.md)** is the newer implementation
+> specification for the product-wide enterprise visual system, staff information
+> architecture, responsive matrix, prescription legibility, and the sequenced
+> `S-UX` build track. Frontend sessions must read both.
+
 This product's UI must **not** look like a default AI-generated dashboard (no gradient hero cards, no cramped gray admin tables, no purple-on-white SaaS look). It should feel like a **calm, warm, government-hospital-meets-modern-clinic** system: trustworthy, spacious, voice-forward, designed for stressed families and hurried clinicians.
 
 ## 1. Design tokens (derived from the approved kiosk demo — use these)
