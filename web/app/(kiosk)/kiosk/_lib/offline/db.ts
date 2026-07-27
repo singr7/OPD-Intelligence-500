@@ -59,6 +59,7 @@ export type QueuedIntake = {
   redFlags: { id: string; severity: string }[];
   chiefComplaint: string | null;
   caregiver: boolean;
+  patientName: string;
   completedAt: string;
   /** "pending" → not yet accepted; "synced" → the server has it; "rejected" →
    *  the server refused it and retrying will not help (a human must look). */
@@ -206,7 +207,10 @@ export async function pendingCount(): Promise<number> {
 }
 
 export async function markSynced(clientId: string): Promise<void> {
-  await getDb().queue.update(clientId, { status: "synced", lastError: null });
+  // A successful sync means the server owns the durable record. Keeping the
+  // kiosk payload would retain directly identifying name + clinical answers on
+  // an unattended shared terminal.
+  await getDb().queue.delete(clientId);
 }
 
 export async function markRejected(clientId: string, error: string): Promise<void> {

@@ -35,6 +35,7 @@ import { MicButton } from "./_components/MicButton";
 type Screen =
   | "welcome"
   | "caregiver"
+  | "name"
   | "complaint"
   | "chooser"
   | "question"
@@ -49,6 +50,7 @@ export function KioskApp() {
   const [lang, setLang] = useState<KioskLang>("hi");
   const [screen, setScreen] = useState<Screen>("welcome");
   const [caregiver, setCaregiver] = useState(false);
+  const [patientName, setPatientName] = useState("");
   const [complaint, setComplaint] = useState("");
 
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -113,6 +115,7 @@ export function KioskApp() {
     cancelSpeech();
     setScreen("welcome");
     setCaregiver(false);
+    setPatientName("");
     setComplaint("");
     setSessionId(null);
     setNode(null);
@@ -165,6 +168,7 @@ export function KioskApp() {
           lang,
           chiefComplaint: complaint || "—",
           caregiver,
+          patientName: patientName.trim(),
           deptKey: dept?.key,
           deptName: dept?.name,
         });
@@ -312,7 +316,7 @@ export function KioskApp() {
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(false);
-                setScreen("complaint");
+                setScreen("name");
               }}
             >
               <span className={s.bigChoiceIcon}>
@@ -324,13 +328,53 @@ export function KioskApp() {
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(true);
-                setScreen("complaint");
+                setScreen("name");
               }}
             >
               <span className={s.bigChoiceIcon}>
                 <Icon name="hands-holding" />
               </span>
               <span className={s.bigChoiceText}>{t("itsForSomeone", lang)}</span>
+            </button>
+          </div>
+        </Stage>
+      )}
+
+      {screen === "name" && (
+        <Stage
+          lang={lang}
+          speaking={speaking}
+          status={t("nameHint", lang)}
+          promptText={t(caregiver ? "patientNameTitle" : "yourNameTitle", lang)}
+          onReplay={() => say(t(caregiver ? "patientNameTitle" : "yourNameTitle", lang))}
+          autoSpeak={t(caregiver ? "patientNameTitle" : "yourNameTitle", lang)}
+          say={say}
+        >
+          <VoiceCapture
+            lang={lang}
+            value={patientName}
+            onChange={setPatientName}
+            busy={busy}
+            alwaysEditable
+            singleLine
+            inputLabel={t("nameInput", lang)}
+          />
+          <div className={s.footer}>
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              onClick={() => setPatientName("")}
+              disabled={!patientName}
+            >
+              {t("clear", lang)}
+            </button>
+            <div className={s.spacer} />
+            <button
+              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+              disabled={busy || patientName.trim().length === 0 || patientName.length > 200}
+              onClick={() => setScreen("complaint")}
+              data-testid="name-next"
+            >
+              {t("next", lang)} →
             </button>
           </div>
         </Stage>
@@ -568,18 +612,26 @@ function VoiceCapture({
   value,
   onChange,
   busy,
+  alwaysEditable = false,
+  singleLine = false,
+  inputLabel,
 }: {
   lang: KioskLang;
   value: string;
   onChange: (v: string) => void;
   busy: boolean;
+  alwaysEditable?: boolean;
+  singleLine?: boolean;
+  inputLabel?: string;
 }) {
   // Server-STT mode records the clip and sends it to local Whisper on the box
   // (V-OSS, fully local); default mode uses the browser's Web Speech.
   const useServer = serverSttEnabled();
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
-  const [showType, setShowType] = useState(!useServer && !sttSupported());
+  const [showType, setShowType] = useState(
+    alwaysEditable || (!useServer && !sttSupported())
+  );
   const stopRef = useRef<(() => void) | null>(null);
 
   const toggleMic = () => {
@@ -643,15 +695,29 @@ function VoiceCapture({
         {value ? `${t("youSaid", lang)} ${value}` : t("tapToSpeak", lang)}
       </div>
       {showType ? (
-        <textarea
-          className={s.typeField}
-          rows={2}
-          value={value}
-          disabled={busy}
-          placeholder={t("typeInstead", lang)}
-          onChange={(e) => onChange(e.target.value)}
-          aria-label={t("typeInstead", lang)}
-        />
+        singleLine ? (
+          <input
+            className={`${s.typeField} ${s.nameField}`}
+            value={value}
+            disabled={busy}
+            maxLength={200}
+            autoComplete="off"
+            placeholder={inputLabel ?? t("typeInstead", lang)}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label={inputLabel ?? t("typeInstead", lang)}
+            data-testid="patient-name"
+          />
+        ) : (
+          <textarea
+            className={s.typeField}
+            rows={2}
+            value={value}
+            disabled={busy}
+            placeholder={t("typeInstead", lang)}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label={t("typeInstead", lang)}
+          />
+        )
       ) : (
         <button
           className={`${s.btn} ${s.btnGhost}`}

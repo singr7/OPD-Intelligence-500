@@ -46,6 +46,7 @@ export type LocalSession = {
   departmentName: string;
   chiefComplaint: string;
   caregiver: boolean;
+  patientName: string;
   startedAt: string;
 };
 
@@ -77,6 +78,7 @@ export async function startLocal(input: {
   lang: string;
   chiefComplaint: string;
   caregiver: boolean;
+  patientName: string;
   departmentKey: string;
   departmentName: string;
 }): Promise<LocalSession> {
@@ -97,6 +99,7 @@ export async function startLocal(input: {
     departmentName: input.departmentName,
     chiefComplaint: input.chiefComplaint,
     caregiver: input.caregiver,
+    patientName: input.patientName,
     startedAt: new Date().toISOString(),
   };
   sessions.set(session.sessionId, session);
@@ -183,6 +186,7 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
     redFlags: redFlags.map((hit) => ({ id: hit.id, severity: hit.severity })),
     chiefComplaint: session.chiefComplaint || null,
     caregiver: session.caregiver,
+    patientName: session.patientName,
     completedAt: new Date().toISOString(),
     status: "pending",
     attempts: 0,

@@ -46,6 +46,7 @@ export type StartInput = {
   lang: string;
   chiefComplaint: string;
   caregiver: boolean;
+  patientName: string;
   deptKey?: string;
   deptName?: string;
 };
@@ -62,6 +63,7 @@ export function makeFlow({ net }: FlowDeps) {
           lang: input.lang,
           chief_complaint: input.chiefComplaint || "—",
           caregiver: input.caregiver,
+          patient_name: input.patientName,
           dept_key: input.deptKey,
         });
         net.observedSuccess();
@@ -86,6 +88,7 @@ export function makeFlow({ net }: FlowDeps) {
       lang: input.lang,
       chiefComplaint: input.chiefComplaint,
       caregiver: input.caregiver,
+      patientName: input.patientName,
       departmentKey: input.deptKey,
       departmentName: input.deptName,
     });

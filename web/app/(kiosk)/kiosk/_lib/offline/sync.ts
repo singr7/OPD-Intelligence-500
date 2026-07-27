@@ -60,6 +60,7 @@ export async function syncPending(): Promise<SyncSummary> {
         answers: row.answers,
         chief_complaint: row.chiefComplaint,
         caregiver: row.caregiver,
+        patient_name: row.patientName,
         completed_at: row.completedAt,
       })),
     });

@@ -96,6 +96,7 @@ class StartIn(BaseModel):
     lang: Lang
     chief_complaint: str = Field(min_length=1, max_length=2000)
     caregiver: bool = False
+    patient_name: str | None = Field(default=None, max_length=200)
     #: A confirmed department (staff- or patient-picked from the chooser). When
     #: present the classifier is skipped entirely.
     dept_key: str | None = None
@@ -214,13 +215,17 @@ async def start(
         )
 
     assert routed.department is not None and routed.tree is not None
-    walk_in = await kiosk_svc.create_walk_in(
-        session,
-        department=routed.department,
-        lang=payload.lang,
-        tree=routed.tree,
-        caregiver=payload.caregiver,
-    )
+    try:
+        walk_in = await kiosk_svc.create_walk_in(
+            session,
+            department=routed.department,
+            lang=payload.lang,
+            tree=routed.tree,
+            caregiver=payload.caregiver,
+            patient_name=payload.patient_name,
+        )
+    except kiosk_svc.KioskError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     state = await engine.start_session(
         tree=routed.tree,
@@ -808,6 +813,7 @@ class SyncIntakeIn(BaseModel):
     answers: dict[str, Any]
     chief_complaint: str | None = None
     caregiver: bool = False
+    patient_name: str | None = Field(default=None, max_length=200)
     completed_at: datetime | None = None
 
 
@@ -894,6 +900,7 @@ async def sync(
             answers=item.answers,
             chief_complaint=item.chief_complaint,
             caregiver=item.caregiver,
+            patient_name=item.patient_name,
             completed_at=item.completed_at,
         )
         results.append(

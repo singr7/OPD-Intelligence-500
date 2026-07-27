@@ -66,6 +66,36 @@ export const T = {
     mr: "दुसऱ्या कुणासाठी",
     te: "మరొకరి కోసం",
   } as Str,
+  patientNameTitle: {
+    hi: "मरीज़ का नाम क्या है?",
+    en: "What is the patient's name?",
+    mr: "रुग्णाचे नाव काय आहे?",
+    te: "రోగి పేరు ఏమిటి?",
+  } as Str,
+  yourNameTitle: {
+    hi: "आपका नाम क्या है?",
+    en: "What is your name?",
+    mr: "तुमचे नाव काय आहे?",
+    te: "మీ పేరు ఏమిటి?",
+  } as Str,
+  nameHint: {
+    hi: "जैसा नाम लिखा जाता है, वैसा बोलिए या टाइप कीजिए।",
+    en: "Say or type the name exactly as it is written.",
+    mr: "नाव जसे लिहिले जाते तसे बोला किंवा टाइप करा.",
+    te: "పేరు ఎలా వ్రాస్తారో అలాగే చెప్పండి లేదా టైప్ చేయండి.",
+  } as Str,
+  nameInput: {
+    hi: "मरीज़ का नाम",
+    en: "Patient name",
+    mr: "रुग्णाचे नाव",
+    te: "రోగి పేరు",
+  } as Str,
+  clear: {
+    hi: "मिटाएँ",
+    en: "Clear",
+    mr: "पुसा",
+    te: "తొలగించండి",
+  } as Str,
   ccTitle: {
     hi: "आज आप क्यों आए हैं?",
     en: "What brings you in today?",

@@ -16,9 +16,11 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.org import Hospital
+from app.models.patient import Patient
 from tests import factories as f
 
 pytestmark = pytest.mark.asyncio
@@ -95,6 +97,7 @@ async def test_full_kiosk_intake_start_to_token(client: AsyncClient, session: As
             "chief_complaint": "seene mein dard",
             "dept_key": "MEDONC",
             "caregiver": True,
+            "patient_name": "सीमा देवी",
         },
     )
     assert start.status_code == 200, start.text
@@ -103,6 +106,8 @@ async def test_full_kiosk_intake_start_to_token(client: AsyncClient, session: As
     assert started["department"]["key"] == "MEDONC"
     assert started["tier"] == "prerecorded"  # kiosk is a V3 client
     assert started["tree_key"].startswith("med_onc")
+    patient = await session.scalar(select(Patient).where(Patient.name == "सीमा देवी"))
+    assert patient is not None
     session_id = started["session_id"]
     first = started["node"]
     assert first is not None
@@ -124,6 +129,36 @@ async def test_full_kiosk_intake_start_to_token(client: AsyncClient, session: As
     assert isinstance(conf["token_no"], int)
     assert conf["token_no"] >= 1
     assert conf["department"]["key"] == "MEDONC"
+
+
+async def test_old_kiosk_without_name_uses_rollout_fallback(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    await _seed_departments(session)
+    response = await client.post(
+        "/kiosk/start",
+        json={"lang": "en", "chief_complaint": "pain", "dept_key": "MEDONC"},
+    )
+    assert response.status_code == 200, response.text
+    patient = await session.scalar(select(Patient).where(Patient.name == "Walk-in patient"))
+    assert patient is not None
+
+
+@pytest.mark.parametrize("patient_name", ["   ", "Ravi\nSingh", "x" * 201])
+async def test_invalid_patient_name_is_rejected(
+    client: AsyncClient, session: AsyncSession, patient_name: str
+) -> None:
+    await _seed_departments(session)
+    response = await client.post(
+        "/kiosk/start",
+        json={
+            "lang": "en",
+            "chief_complaint": "pain",
+            "dept_key": "MEDONC",
+            "patient_name": patient_name,
+        },
+    )
+    assert response.status_code == 422
 
 
 async def test_answer_rejects_a_value_that_does_not_fit(

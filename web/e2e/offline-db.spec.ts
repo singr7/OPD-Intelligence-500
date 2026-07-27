@@ -22,6 +22,7 @@ import {
   _setDb,
   blockFor,
   enqueue,
+  getDb,
   markSynced,
   pending,
   pendingCount,
@@ -59,6 +60,7 @@ function queued(clientId: string, tokenNo: number): QueuedIntake {
     redFlags: [],
     chiefComplaint: null,
     caregiver: false,
+    patientName: "सीमा देवी",
     completedAt: new Date().toISOString(),
     status: "pending",
     attempts: 0,
@@ -142,11 +144,12 @@ test.describe("offline queue", () => {
     expect(await pendingCount()).toBe(2);
   });
 
-  test("marking synced removes an intake from the pending set", async () => {
+  test("marking synced purges the identifying intake payload", async () => {
     freshDb();
     await enqueue(queued("c-1", 500));
     expect(await pendingCount()).toBe(1);
     await markSynced("c-1");
     expect(await pendingCount()).toBe(0);
+    expect(await getDb().queue.get("c-1")).toBeUndefined();
   });
 });

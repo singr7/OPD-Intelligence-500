@@ -245,6 +245,7 @@ async def test_an_offline_intake_syncs_into_the_same_rows_an_online_one_makes(
         token_no=block.start_no,
         answers=_answers_for(tree_key),
         chief_complaint="pet mein dard",
+        patient_name="सीमा देवी",
         completed_at=datetime(2026, 7, 17, 9, 30, tzinfo=UTC),
     )
 
@@ -258,13 +259,35 @@ async def test_an_offline_intake_syncs_into_the_same_rows_an_online_one_makes(
     assert intake.confirmed_by_patient
     # The patient's clock, not the moment the network returned.
     assert intake.completed_at == datetime(2026, 7, 17, 9, 30, tzinfo=UTC)
-
     visit = await session.get(Visit, intake.visit_id)
+    patient = await session.get(Patient, visit.patient_id)
+    assert patient.name == "सीमा देवी"
     assert visit.token_no == block.start_no
     assert visit.channel is Channel.KIOSK
     # A downtime intake is a first-class record, not an annotation.
-    patient = await session.get(Patient, visit.patient_id)
     assert patient is not None
+
+
+async def test_offline_sync_rejects_an_unsafe_patient_name(session: AsyncSession) -> None:
+    await _seed_departments(session)
+    blocks = await offline_svc.lease_blocks(session, kiosk_id="kiosk-a")
+    block = next(b for b in blocks if b.department_key == "MEDONC")
+    tree_key = _tree_key()
+
+    result = await offline_svc.sync_intake(
+        session,
+        kiosk_id="kiosk-a",
+        client_id="c-unsafe-patient-name",
+        department_key="MEDONC",
+        tree_key=tree_key,
+        lang=Lang.HI,
+        token_no=block.start_no,
+        answers=_answers_for(tree_key),
+        patient_name="सीमा\nदेवी",
+    )
+
+    assert result.status == "rejected"
+    assert "control characters" in (result.error or "")
 
 
 async def test_syncing_the_same_intake_twice_does_not_make_a_second_patient(

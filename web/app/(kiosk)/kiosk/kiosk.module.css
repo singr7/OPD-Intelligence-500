@@ -381,6 +381,12 @@
   border: 2px solid var(--line);
   font-family: inherit;
 }
+.nameField {
+  min-height: 76px;
+  font-size: var(--fs-lead);
+  font-weight: 650;
+  background: var(--surface);
+}
 
 /* --- progress dots -------------------------------------------------------- */
 .progress {

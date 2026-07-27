@@ -41,6 +41,7 @@ from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
+from app.patient_names import PatientNameError, normalize_patient_name
 from app.routing import DepartmentGuess, DepartmentOption, classify_department
 from app.trees import bank, store
 from app.trees.schema import Tree
@@ -149,18 +150,21 @@ async def create_walk_in(
     lang: Lang,
     tree: Tree,
     caregiver: bool = False,
+    patient_name: str | None = None,
 ) -> WalkIn:
-    """Create the anonymous walk-in patient, visit and intake for a kiosk session.
+    """Create the named walk-in patient, visit and intake for a kiosk session.
 
-    A kiosk walk-in has no identity yet (the S6 flow collects none — that is the
-    registration desk's job); the row exists so the answers and cost have a home
-    and the doctor screen (S9) can attach a name later. `mrn` is a generated
-    walk-in key, not a real MRN.
+    ``patient_name=None`` retains the rollout-safe fallback for an older kiosk.
+    ``mrn`` remains a generated walk-in key, not a registered hospital MRN.
     """
+    try:
+        name = normalize_patient_name(patient_name)
+    except PatientNameError as exc:
+        raise KioskError(str(exc)) from exc
     patient = Patient(
         hospital_id=department.hospital_id,
         mrn=f"WALKIN-{uuid.uuid4().hex[:10].upper()}",
-        name="Walk-in patient",
+        name=name,
         phone="",
         lang=lang,
         # Kept alongside `Intake.caregiver_answered` (the real flag since S16):

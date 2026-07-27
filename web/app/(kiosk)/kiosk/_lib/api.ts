@@ -119,6 +119,7 @@ export type SyncBody = {
     answers: unknown;
     chief_complaint: string | null;
     caregiver: boolean;
+    patient_name: string;
     completed_at: string;
   }[];
 };
@@ -141,6 +142,7 @@ export const kioskApi = {
     lang: string;
     chief_complaint: string;
     caregiver: boolean;
+    patient_name: string;
     dept_key?: string;
   }) {
     return post<StartResult>("/kiosk/start", input);
