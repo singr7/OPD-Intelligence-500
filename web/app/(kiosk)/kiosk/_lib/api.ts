@@ -51,6 +51,7 @@ export type AnswerResult = {
   // needs one. `adaptive_exhausted` = voice gave up; the patient should tap.
   clarify?: string | null;
   adaptive_exhausted?: boolean;
+  accepted_value?: unknown;
 };
 
 export type FinishResult = {

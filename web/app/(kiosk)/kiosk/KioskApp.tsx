@@ -42,6 +42,20 @@ type Screen =
   | "readback"
   | "token";
 
+type SummaryAnswer = {
+  nodeId: string;
+  role: NonNullable<KioskNode["summary_role"]>;
+  question: string;
+  answer: string;
+};
+
+type IntakeSummary = {
+  patientName: string;
+  complaint: string;
+  department: Dept | null;
+  answers: SummaryAnswer[];
+};
+
 // Idle protects patient privacy on a shared terminal (doc 04 law 12 / doc 03 §1a).
 const IDLE_PROMPT_MS = 60_000;
 const IDLE_BLUR_MS = 90_000;
@@ -52,6 +66,7 @@ export function KioskApp() {
   const [caregiver, setCaregiver] = useState(false);
   const [patientName, setPatientName] = useState("");
   const [complaint, setComplaint] = useState("");
+  const [summaryAnswers, setSummaryAnswers] = useState<SummaryAnswer[]>([]);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [node, setNode] = useState<KioskNode | null>(null);
@@ -117,6 +132,7 @@ export function KioskApp() {
     setCaregiver(false);
     setPatientName("");
     setComplaint("");
+    setSummaryAnswers([]);
     setSessionId(null);
     setNode(null);
     setDepartment(null);
@@ -161,6 +177,28 @@ export function KioskApp() {
     }
   };
 
+  const summary: IntakeSummary = {
+    patientName: patientName.trim(),
+    complaint,
+    department,
+    answers: summaryAnswers,
+  };
+
+  const captureSummary = (current: KioskNode, acceptedValue: unknown, rawText?: string) => {
+    if (!current.summary_role) return;
+    const answer = describeDisplayedAnswer(current, acceptedValue, rawText);
+    if (!answer) return;
+    setSummaryAnswers((previous) => [
+      ...previous.filter((item) => item.nodeId !== current.id),
+      {
+        nodeId: current.id,
+        role: current.summary_role!,
+        question: current.text,
+        answer,
+      },
+    ]);
+  };
+
   const start = (dept?: Dept) =>
     withBusy(async () => {
       try {
@@ -201,6 +239,7 @@ export function KioskApp() {
         setError(t("sttFailed", lang));
         return;
       }
+      captureSummary(node, res.accepted_value ?? value, rawText);
       // Flags are recomputed by the walker on every save (STATE.md invariant:
       // never accumulated) — take the server's current set, don't merge.
       setRedFlags(res.red_flags);
@@ -227,6 +266,7 @@ export function KioskApp() {
         attempt: voiceAttempt,
       });
       if (res.ok) {
+        captureSummary(node, res.accepted_value, rawText);
         setRedFlags(res.red_flags);
         setClarify(null);
         if (res.complete || !res.node) {
@@ -309,6 +349,7 @@ export function KioskApp() {
           onReplay={() => say(t("caregiverTitle", lang))}
           autoSpeak={t("caregiverTitle", lang)}
           say={say}
+          summary={summary}
         >
           <p className={s.lead}>{t("caregiverHelp", lang)}</p>
           <div className={s.bigChoices}>
@@ -349,6 +390,7 @@ export function KioskApp() {
           onReplay={() => say(t(caregiver ? "patientNameTitle" : "yourNameTitle", lang))}
           autoSpeak={t(caregiver ? "patientNameTitle" : "yourNameTitle", lang)}
           say={say}
+          summary={summary}
         >
           <VoiceCapture
             lang={lang}
@@ -389,6 +431,7 @@ export function KioskApp() {
           onReplay={() => say(t("ccTitle", lang))}
           autoSpeak={t("ccTitle", lang)}
           say={say}
+          summary={summary}
         >
           <VoiceCapture
             lang={lang}
@@ -422,6 +465,7 @@ export function KioskApp() {
           onReplay={() => say(t("chooseDept", lang))}
           autoSpeak={t("chooseDept", lang)}
           say={say}
+          summary={summary}
         >
           <div className={s.deptGrid}>
             {depts.map((d) => (
@@ -449,6 +493,7 @@ export function KioskApp() {
           onVoiceAnswer={submitVoiceAnswer}
           clarify={clarify}
           redFlags={redFlags}
+          summary={summary}
         />
       )}
 
@@ -482,6 +527,106 @@ export function KioskApp() {
         </div>
       )}
     </main>
+  );
+}
+
+function describeDisplayedAnswer(
+  node: KioskNode,
+  value: unknown,
+  rawText?: string
+): string {
+  const optionLabel = (id: string) =>
+    node.options.find((option) => option.id === id)?.text ?? id;
+  if (Array.isArray(value)) {
+    return value.map((item) => optionLabel(String(item))).join(", ");
+  }
+  if (typeof value === "string" && node.options.length > 0) {
+    return optionLabel(value);
+  }
+  if (node.type === "free_voice") return (rawText ?? String(value ?? "")).trim();
+  if (typeof value === "number") {
+    return `${value}${node.unit ? ` ${node.unit}` : ""}`;
+  }
+  return value == null ? "" : String(value);
+}
+
+function SummaryRail({
+  lang,
+  summary,
+  speaking,
+  status,
+}: {
+  lang: KioskLang;
+  summary: IntakeSummary;
+  speaking: boolean;
+  status?: string;
+}) {
+  const primary = [...summary.answers]
+    .reverse()
+    .find((answer) => answer.role === "primary_symptom");
+  const duration = [...summary.answers]
+    .reverse()
+    .find((answer) => answer.role === "duration");
+  const symptomRows = summary.answers.filter(
+    (answer) => answer.role !== "primary_symptom" && answer.role !== "duration"
+  );
+  const shownSymptoms = symptomRows.slice(0, 3);
+  const hiddenCount = symptomRows.length - shownSymptoms.length;
+  const empty = t("notAnswered", lang);
+
+  return (
+    <aside className={s.summaryRail} aria-label={t("liveSummary", lang)}>
+      <details className={s.summaryDetails}>
+        <summary className={s.summaryToggle}>
+          <span>{t("liveSummary", lang)}</span>
+          <strong>{summary.patientName || empty}</strong>
+        </summary>
+        <div className={s.summaryBody}>
+          <AssistantAvatar speaking={speaking} status={status} />
+          <h2 className={s.summaryTitle}>{t("liveSummary", lang)}</h2>
+          <dl className={s.summaryFacts}>
+            <div>
+              <dt>{t("summaryPatient", lang)}</dt>
+              <dd data-testid="summary-patient">{summary.patientName || empty}</dd>
+            </div>
+            <div>
+              <dt>{t("summaryConcern", lang)}</dt>
+              <dd data-testid="summary-concern">
+                {primary?.answer || summary.complaint.trim() || empty}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("summaryDepartment", lang)}</dt>
+              <dd data-testid="summary-department">{summary.department?.name || empty}</dd>
+            </div>
+            <div>
+              <dt>{t("summaryDuration", lang)}</dt>
+              <dd data-testid="summary-duration">{duration?.answer || empty}</dd>
+            </div>
+          </dl>
+          <div className={s.summarySymptoms}>
+            <h3>{t("summarySymptoms", lang)}</h3>
+            {shownSymptoms.length ? (
+              <ul>
+                {shownSymptoms.map((answer) => (
+                  <li key={answer.nodeId}>
+                    <span>{answer.question}</span>
+                    <strong>{answer.answer}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{empty}</p>
+            )}
+            {hiddenCount > 0 ? (
+              <p className={s.summaryMore}>
+                {t("moreAnswers", lang).replace("{n}", String(hiddenCount))}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </details>
+    </aside>
   );
 }
 
@@ -573,6 +718,7 @@ function Stage({
   autoSpeak,
   say,
   progress,
+  summary,
   children,
 }: {
   lang: KioskLang;
@@ -583,6 +729,7 @@ function Stage({
   autoSpeak: string;
   say: (t: string) => void;
   progress?: React.ReactNode;
+  summary?: IntakeSummary;
   children: React.ReactNode;
 }) {
   useEffect(() => {
@@ -592,7 +739,11 @@ function Stage({
 
   return (
     <div className={s.stage}>
-      <AssistantAvatar speaking={speaking} status={status} />
+      {summary ? (
+        <SummaryRail lang={lang} summary={summary} speaking={speaking} status={status} />
+      ) : (
+        <AssistantAvatar speaking={speaking} status={status} />
+      )}
       <div className={s.panel}>
         {progress}
         <AudioBar playing={speaking} label={t("replay", lang)} onReplay={onReplay} />
@@ -744,6 +895,7 @@ function QuestionScreen({
   onVoiceAnswer,
   clarify,
   redFlags,
+  summary,
 }: {
   lang: KioskLang;
   node: KioskNode;
@@ -755,6 +907,7 @@ function QuestionScreen({
   onVoiceAnswer: (rawText: string) => void;
   clarify: string | null;
   redFlags: { id: string; severity: string }[];
+  summary: IntakeSummary;
 }) {
   const [multi, setMulti] = useState<string[]>([]);
   const [scale, setScale] = useState<number | null>(null);
@@ -801,7 +954,7 @@ function QuestionScreen({
 
   return (
     <div className={s.stage}>
-      <AssistantAvatar speaking={speaking} />
+      <SummaryRail lang={lang} summary={summary} speaking={speaking} />
       <div className={s.panel}>
         <ProgressDots current={step} total={8} ofLabel={t("ofCount", lang)} />
         {redFlags.length > 0 ? <UrgentBanner lang={lang} /> : null}
@@ -825,9 +978,8 @@ function QuestionScreen({
 
         {node.type === "single" && (
           <div
-            className={`${s.options} ${
-              node.options.length <= 3 ? s.optionsFew : ""
-            }`}
+            className={s.options}
+            data-count={node.options.length}
           >
             {node.options.map((o) => (
               <OptionCard
@@ -841,7 +993,7 @@ function QuestionScreen({
         )}
 
         {node.type === "multi" && (
-          <div className={s.options}>
+          <div className={s.options} data-count={node.options.length}>
             {node.options.map((o) => (
               <OptionCard
                 key={o.id}

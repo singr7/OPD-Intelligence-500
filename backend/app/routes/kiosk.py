@@ -161,6 +161,10 @@ class AnswerOut(BaseModel):
     #: True when adaptive voice gave up on this node and the patient should tap
     #: (flag off, no interpreter, second vague answer, or a rejected value).
     adaptive_exhausted: bool = False
+    #: The value the deterministic walker actually accepted. This lets the
+    #: kiosk render the corresponding displayed label even when voice
+    #: interpretation mapped the patient's words to an option id.
+    accepted_value: Any = None
 
 
 class FinishOut(BaseModel):
@@ -340,6 +344,7 @@ async def answer_impl(
         ok=True,
         node_id=payload.node_id,
         complete=saved["complete"],
+        accepted_value=saved.get("value"),
         red_flags=saved.get("red_flags", []),
         node=_node_out(nxt),
     )

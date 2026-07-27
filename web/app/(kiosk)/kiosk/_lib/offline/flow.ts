@@ -185,6 +185,7 @@ function localAnswer(
       error: "invalid answer",
       red_flags: [],
       node: currentWireNode(session),
+      accepted_value: null,
     };
   }
 
@@ -196,6 +197,7 @@ function localAnswer(
     error: null,
     red_flags: session.walk.redFlags().map((h) => ({ id: h.id, severity: h.severity })),
     node,
+    accepted_value: input.value,
   };
 }
 
