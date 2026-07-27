@@ -309,6 +309,40 @@ off kiosk intakes). Migration `cb011d62f829`. 1071→**1082 backend tests** +
 `web/e2e/admin.spec.ts` (project `admin`, `npm run e2e:admin`, 4 tests — the session AC among
 them) + `web/screenshots/s18l/`.
 
+**Built (S-GL.1):** The **switchboard** (doc 12 §1/§4) — an honest "off". A **channel document**
+(`channel_configs`, `app/channels/store.py`) is the third instance of the versioned
+draft→publish→resolve pattern, with `config/tiers.yaml` as the floor, carrying per-channel
+`enabled` / `ladder` / `max_concurrent` plus the campaign mix. Two facts are kept apart
+(`app/channels/state.py`): the **switch** is the operator's decision and lives in the document;
+**readiness** — whether Meta or Exotel is actually provisioned — is computed from settings and
+cannot be asserted from a console, so a hospital that forgets to close WhatsApp still has a closed
+WhatsApp. Gates sit at each channel's entry point on **start** and never mid-flow (kiosk + app 503
+with the line in her own language, the Meta webhook still 200s and runs no bot logic, both voice-gw
+applets answer/speak/hang up without taking consent). **Runtime vendor credentials**
+(`app/providers/{secrets,runtime,probe}.py`, `provider_secrets`) are Fernet-encrypted, write-only
+over the wire, restricted to their own vendor's fields, with `.env` as the floor and a
+`POST /admin/providers/{name}/test` that reports the vendor's own error. `AdmissionController`
+gained per-channel GPU seat shares. Admin **Channels** tab. Migration `2c978d44c900`; new
+dependency **`cryptography`**. 1082→**1156 backend tests**, voice-gw 22→25.
+
+**Built (S-GL.2):** **Staff onboarding + the roster** (doc 03 §2/§10) — the console's last two
+unbuilt panels, and the end of "hiring a doctor is a deploy". `app/people.py`: create a user or a
+doctor (a `User` login identity and a `Doctor` clinical profile in one transaction), an **invite**
+that mints nothing (the OTP login already *is* the credential, so it is an SMS saying the number
+works — no token to leak or expire), `normalise_phone` (the login looks up `users.phone` by exact
+match, so any other shape is an account that silently cannot sign in), and **two-step
+deactivation** — `deactivation_impact` lists the booked patients by name and `deactivate` refuses
+without an acknowledgement, then blocks the empty future slots and leaves the booked ones standing.
+`app/roster.py`: the weekly clinic grid, a **CSV/XLSX roster import** that is all-or-nothing and
+dry-run-first (every row's errors at once, reported against the line number in the administrator's
+own spreadsheet), and `_reconcile` — the one piece of real engineering here, because
+`generate_slots` dedupes on `(doctor, instant)` **regardless of `blocked`**, so blocking a moved
+template's slots and regenerating would empty the clinic forever. `scheduling._instants` became
+public `instants_on` so generation and reconciliation cannot drift. Admin **People & roster** tab
+(the week as a timetable; an ungenerated clinic drawn hollow). **No migration.** 1156→**1212
+backend tests** + `web/e2e/people.spec.ts` (project `people`, `npm run e2e:people`, 5 tests — the
+session AC among them) + `web/screenshots/sgl2/`.
+
 **Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
 fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
 Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
@@ -402,19 +436,26 @@ has no voice-gw handler yet, see Stubs). The protocol bank is `seeds/protocols.j
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
 
-Admin console (S18E + S18-late): served at `/admin` (staff, phone-OTP; **admin** role only —
-seeded Priya Sharma `+915550000001`). Six tabs: cost & tokens, operations, trees (the visual
-editor), price book, templates & voice, protocols & slots. Needs a live api with S18-late code:
+Admin console (S18E → S-GL.2): served at `/admin` (staff, phone-OTP; **admin** role only —
+seeded Priya Sharma `+915550000001`). **Eight** tabs, in the order an operator needs them:
+channels (S-GL.1 — "can a patient reach us at all"), people & roster (S-GL.2), cost & tokens,
+operations, trees (the visual editor), price book, templates & voice, protocols & slots. Needs a
+live api with S-GL.2 code:
 ```
 cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
   OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 \
   JWT_SECRET=local-dev-secret-padded-to-32-chars-plus .venv/bin/python -m uvicorn app.main:app --port 8123
 cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
 cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
-  npm run e2e:admin       # the S18 AC + screenshots -> web/screenshots/s18l/
+  npm run e2e:admin       # the S18 AC    + screenshots -> web/screenshots/s18l/
+  npm run e2e:channels    # the S-GL.1 AC + screenshots -> web/screenshots/sgl1/
+  npm run e2e:people      # the S-GL.2 AC + screenshots -> web/screenshots/sgl2/
 ```
-⚠️ `e2e:admin` really publishes a new version of `general_medicine_routing` on whatever database
-it points at. Dev boxes only.
+⚠️ All three of these really write. `e2e:admin` publishes a new version of
+`general_medicine_routing`; `e2e:channels` publishes channel documents (a failed run mid-suite can
+leave channels shut); `e2e:people` creates a doctor and a clinic (timestamp-suffixed, so re-runs
+do not collide, and the rows stay — deactivation is not deletion). Dev boxes only; **never point
+any of them at the pilot.**
 
 Doctor console (S9) + consult note (S10): served at `/doctor` (staff, phone-OTP). Needs a
 live api with S9/S10 code and a seeded demo morning. **Re-seed before every e2e run** —
@@ -553,6 +594,25 @@ the only gate right now.**
 - **The engine downgrades, never denies** — a provider outage or a cost-guard breach lowers
   the tier (V1→V2→V3); a completed V3 intake needs no vendor for its summary. Nothing in the
   engine may block or fail an intake for cost or an outage (that is a human's paper decision).
+- **A template edit reconciles inventory; it never blocks-and-regenerates** (S-GL.2,
+  `app.roster._reconcile`) — `generate_slots` dedupes on `(doctor, instant)` **regardless of
+  `blocked`**, so blocking a moved template's future slots and regenerating leaves them blocked
+  forever and the clinic silently empties out. Only the instants the new shape no longer runs are
+  blocked; the ones it still runs are updated in place. Both sides read
+  `app.scheduling.instants_on` — which is public for this reason — because two implementations of
+  "what times does this clinic run" would disagree exactly when a template was edited, which is
+  the only case that matters. Anything new that edits a template goes through
+  `roster.save_clinic`.
+- **A booked slot is a promise, and no roster or staffing edit breaks one** (S-GL.2) — retiring a
+  clinic, editing one, or deactivating a doctor blocks the **empty** future slots and leaves every
+  slot with a patient in it exactly as it was, returning those patients by name. Both flows refuse
+  outright without an explicit acknowledgement, so an admin sees the five people affected before
+  rather than discovering them after. Same soft-delete stance as `app.scheduling`: nothing here
+  ever deletes.
+- **A staff phone is stored in exactly one shape** (S-GL.2, `app.people.normalise_phone`) — the
+  OTP flow looks up `users.phone` by exact string match, so a number written any other way is an
+  account that was created successfully, audited, and cannot sign in. Every console write goes
+  through the normaliser.
 - **The queue never renumbers a token** (`app.queue`) — it wraps `allocate_token`, it does
   not re-issue. A token is a promise to a patient holding a slip; priority reorders the
   *queue*, never the number. The online/offline partition (S7) stays the no-collision guarantee.
@@ -653,11 +713,26 @@ the only gate right now.**
   is code-defined (`app/whatsapp/templates.py`); the voice-pack panel is a coverage checklist
   (every clip `recorded: false` → TTS) because the pack storage format is S7's. Upload/re-record
   and a DB-backed editable template registry are S18-late/S7/S15.
-- **The slot-template editor is a deferred placeholder** (S18E) — `GET /admin/slot-templates`
-  returns a `{deferred, arrives_in}` marker and the console renders an honest "arrives with"
-  card; `SlotTemplate` exists (S15) and is edited by `seeds/slot_templates.json` + `make seed`.
-  `GET /admin/protocol-templates` stopped being a marker in **S17** and became editable in
-  **S18-late** (it now returns the *live* bank — the published row, or the seed file).
+- **No admin route is a deferral marker any more** (S-GL.2) — `GET /admin/slot-templates` was the
+  last one and now returns the live clinic grid. `GET /admin/protocol-templates` stopped being a
+  marker in **S17** and became editable in **S18-late**. `seeds/{doctors,slot_templates}.json` +
+  `make seed` are still the floor for a fresh box; the console is now the way to change either
+  afterwards.
+- **The staff invite SMS is free text, not a DLT template** (S-GL.2) — staff-facing rather than
+  patient-facing, and `send_invite` records a vendor refusal rather than raising, so a rejected
+  invite is visible and not fatal. On a real Indian gateway it may still be rejected in a way
+  `FakeSMSProvider` never shows; **no staff invite has ever been sent for real**.
+- **The roster import resolves doctors, it does not create them** (S-GL.2) — a row naming somebody
+  unknown is refused by line number rather than quietly onboarding them. Creating a clinical
+  identity from a spreadsheet row is not a thing to do without a person looking; a two-stage
+  "these six names are new, create them?" flow is backlog.
+- **A reactivated doctor's clinics do not come back with her** (S-GL.2) — deactivation retires the
+  templates and blocks their empty future slots, and `activate` restores only the login. "She is
+  back" and "she is back on Tuesdays at ten" are different facts; the console says so, but it means
+  her clinics must be re-authored or re-imported.
+- **Leave is a clinic-level act, not a slot-level one** (S-GL.2) — there is no way to block a
+  single Tuesday from the console without retiring the whole weekly clinic. `AppointmentSlot.
+  blocked` exists for exactly this (S15) and nothing exposes it per slot. Backlog.
 - **The campaign has never dialled a real number** (S15) — `CAMPAIGN_ENABLED=false` everywhere,
   and the whole ladder is proven against `FakeTelephonyProvider`. Turning it on needs a live
   Exotel number, `EXOTEL_APPLET_URL`, `EXOTEL_STATUS_CALLBACK_URL` and `EXOTEL_WEBHOOK_TOKEN`
