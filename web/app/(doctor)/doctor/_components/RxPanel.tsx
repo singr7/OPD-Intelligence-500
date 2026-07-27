@@ -12,11 +12,17 @@
 // the doctor sees here is what the patient is handed. A preview that quietly
 // prettified an unclear schedule would be worse than no preview.
 
-import { AlertTriangle, MessageCircle, Printer, Smartphone } from "lucide-react";
+import { AlertTriangle, Download, Eye, MessageCircle, Printer, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
 import type { Prescription, RxMed } from "../_lib/prescription";
-import { deliverPrescription, openPrintCopy, readPrescription } from "../_lib/prescription";
+import {
+  deliverPrescription,
+  downloadPdfCopy,
+  openPreviewCopy,
+  openPrintCopy,
+  readPrescription,
+} from "../_lib/prescription";
 
 type Props = {
   token: string;
@@ -46,6 +52,7 @@ export function RxPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [documentCopy, setDocumentCopy] = useState<"patient" | "clinical">("patient");
   const panelRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
@@ -137,21 +144,46 @@ export function RxPanel({
       )}
 
       <div className="rx-actions">
+        <div className="rx-copy-choice" role="group" aria-label="Prescription copy">
+          <button
+            type="button"
+            aria-pressed={documentCopy === "patient"}
+            onClick={() => setDocumentCopy("patient")}
+          >
+            Patient copy
+          </button>
+          <button
+            type="button"
+            aria-pressed={documentCopy === "clinical"}
+            onClick={() => setDocumentCopy("clinical")}
+          >
+            Clinical copy
+          </button>
+        </div>
         <button
           className="rx-print"
-          onClick={() => run("clinical", () => openPrintCopy(token, rx.id, "clinical"))}
+          onClick={() => run("preview", () => openPreviewCopy(token, rx.id, documentCopy))}
           disabled={!!busy}
         >
-          <Printer aria-hidden="true" />
-          {busy === "clinical" ? "Opening…" : "Print clinical copy"}
+          <Eye aria-hidden="true" />
+          {busy === "preview" ? "Opening…" : "Preview"}
+        </button>
+        <button
+          className="rx-print"
+          onClick={() => run("download", () => downloadPdfCopy(token, rx.id, documentCopy))}
+          disabled={!!busy}
+        >
+          <Download aria-hidden="true" />
+          {busy === "download" ? "Downloading…" : "Download PDF"}
         </button>
         <button
           className="rx-print is-patient"
-          onClick={() => run("patient", () => openPrintCopy(token, rx.id, "patient"))}
+          onClick={() => run("print", () => openPrintCopy(token, rx.id, documentCopy))}
           disabled={!!busy}
+          data-testid="print-patient"
         >
           <Printer aria-hidden="true" />
-          {busy === "patient" ? "Opening…" : "Print patient copy"}
+          {busy === "print" ? "Opening…" : "Print"}
         </button>
       </div>
 

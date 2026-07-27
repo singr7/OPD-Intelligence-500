@@ -8,6 +8,7 @@ there is no `POST /prescriptions`, and there must never be one.
     GET  /prescriptions/visits/{visit_id}      the visit's prescription
     GET  /prescriptions/patients/{patient_id}  Rx history on the patient file
     GET  /prescriptions/{id}/print             print-ready HTML (clinical|patient)
+    GET  /prescriptions/{id}/pdf               downloadable PDF (clinical|patient)
     POST /prescriptions/{id}/deliver           WhatsApp / SMS, via the providers
 
 `/print` returns **HTML the browser prints**, the same stance as S8's downtime
@@ -22,9 +23,10 @@ from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app import dictation as dictation_svc
 from app import doctor as doctor_svc
@@ -273,6 +275,7 @@ async def print_sheet(
     lang: Lang | None = Query(None),
     principal: Principal = Depends(require_doctor),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     """Print-ready HTML for one copy (doc 03 §8).
 
@@ -282,40 +285,80 @@ async def print_sheet(
     doctor = await _doctor(session, principal)
     prescription = await _load(session, prescription_id, doctor)
     ctx = await _context(session, prescription, doctor)
-    lines = rx_svc.lines_of(prescription)
-
-    if copy == "patient":
-        html = rx_sheets.render_patient_copy(
-            lines=lines,
-            lang=lang or ctx.patient.lang,
-            hospital=ctx.hospital.name,
-            department=ctx.department.name,
-            patient_name=ctx.patient.name,
-            visit_date=ctx.visit.date,
-            token_no=ctx.visit.token_no,
-            advice=tuple(ctx.extras.get("advice") or ()),
-            follow_up=ctx.extras.get("follow_up"),
-        )
-    else:
-        html = rx_sheets.render_clinical_copy(
-            lines=lines,
-            hospital=ctx.hospital.name,
-            department=ctx.department.name,
-            doctor_name=ctx.signer.name,
-            doctor_reg_no=ctx.signer.reg_no,
-            doctor_qualification=ctx.signer.qualification,
-            patient_name=ctx.patient.name,
-            patient_mrn=ctx.patient.mrn,
-            patient_age=ctx.patient.age,
-            patient_sex=str(ctx.patient.sex) if ctx.patient.sex else None,
-            visit_date=ctx.visit.date,
-            token_no=ctx.visit.token_no,
-            diagnosis=ctx.extras.get("diagnosis"),
-            advice=tuple(ctx.extras.get("advice") or ()),
-            follow_up=ctx.extras.get("follow_up"),
-        )
+    html, _resolved_lang = _render_sheet(
+        prescription, ctx, copy=copy, lang=lang, settings=settings
+    )
     rx_svc.record_delivery(prescription, channel="print", status="rendered", detail=copy)
     return HTMLResponse(content=html)
+
+
+@router.get("/{prescription_id}/pdf")
+async def pdf_sheet(
+    prescription_id: uuid.UUID,
+    copy: Literal["clinical", "patient"] = Query("clinical"),
+    lang: Lang | None = Query(None),
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Authenticated PDF generated from the exact same HTML as preview/print."""
+    doctor = await _doctor(session, principal)
+    prescription = await _load(session, prescription_id, doctor)
+    ctx = await _context(session, prescription, doctor)
+    html, resolved_lang = _render_sheet(
+        prescription, ctx, copy=copy, lang=lang, settings=settings
+    )
+    pdf = await run_in_threadpool(rx_sheets.render_pdf, html)
+    filename = f"prescription-{prescription.id}-{copy}-{resolved_lang}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _render_sheet(
+    prescription: Prescription,
+    ctx: _Context,
+    *,
+    copy: Literal["clinical", "patient"],
+    lang: Lang | None,
+    settings: Settings,
+) -> tuple[str, str]:
+    """One data/layout source for browser preview, printing and PDF."""
+    lines = rx_svc.lines_of(prescription)
+    resolved_lang = lang or ctx.patient.lang
+    letterhead = rx_sheets.Letterhead(
+        hospital=ctx.hospital.name,
+        city=ctx.hospital.city,
+        district=ctx.hospital.district,
+        department=ctx.department.name,
+        doctor_name=ctx.signer.name,
+        doctor_reg_no=ctx.signer.reg_no,
+        doctor_qualification=ctx.signer.qualification,
+        document_id=f"Prescription {prescription.id}",
+        document_date=ctx.visit.date,
+        logo=settings.rx_letterhead_logo or None,
+    )
+    common = {
+        "lines": lines,
+        "letterhead": letterhead,
+        "patient_name": ctx.patient.name,
+        "patient_mrn": ctx.patient.mrn,
+        "patient_age": ctx.patient.age,
+        "patient_sex": str(ctx.patient.sex) if ctx.patient.sex else None,
+        "visit_date": ctx.visit.date,
+        "token_no": ctx.visit.token_no,
+        "diagnosis": ctx.extras.get("diagnosis"),
+        "advice": tuple(ctx.extras.get("advice") or ()),
+        "follow_up": ctx.extras.get("follow_up"),
+    }
+    if copy == "patient":
+        return (
+            rx_sheets.render_patient_copy(lang=resolved_lang, **common),
+            str(resolved_lang),
+        )
+    return rx_sheets.render_clinical_copy(**common), str(resolved_lang)
 
 
 @router.post("/{prescription_id}/deliver", response_model=PrescriptionOut)

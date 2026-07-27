@@ -98,22 +98,75 @@ export function deliverPrescription(
  * access log between here and the box. Same shape as the S8 print tab: fetch
  * with auth, open the HTML as a blob, let the browser make the PDF.
  */
-export async function openPrintCopy(
+async function protectedDocument(
+  token: string,
+  id: string,
+  copy: "clinical" | "patient",
+  format: "print" | "pdf",
+  lang?: string,
+): Promise<Response> {
+  const params = new URLSearchParams({ copy });
+  if (lang) params.set("lang", lang);
+  const res = await fetch(`${API_BASE}/prescriptions/${id}/${format}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401 || res.status === 403) throw new AuthError();
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res;
+}
+
+async function openHtmlCopy(
+  token: string,
+  id: string,
+  copy: "clinical" | "patient",
+  autoPrint: boolean,
+  lang?: string,
+): Promise<void> {
+  const res = await protectedDocument(token, id, copy, "print", lang);
+  const html = await res.text();
+  const printScript = autoPrint
+    ? "<script>window.addEventListener('load',()=>window.print())</script>"
+    : "";
+  const url = URL.createObjectURL(new Blob([html + printScript], { type: "text/html" }));
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export function openPreviewCopy(
   token: string,
   id: string,
   copy: "clinical" | "patient",
   lang?: string,
 ): Promise<void> {
-  const params = new URLSearchParams({ copy });
-  if (lang) params.set("lang", lang);
-  const res = await fetch(`${API_BASE}/prescriptions/${id}/print?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401 || res.status === 403) throw new AuthError();
-  if (!res.ok) throw new Error(`${res.status}`);
-  const html = await res.text();
-  const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-  window.open(url, "_blank", "noopener");
-  // Revoke once the new tab has had time to load.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return openHtmlCopy(token, id, copy, false, lang);
+}
+
+export function openPrintCopy(
+  token: string,
+  id: string,
+  copy: "clinical" | "patient",
+  lang?: string,
+): Promise<void> {
+  return openHtmlCopy(token, id, copy, true, lang);
+}
+
+export async function downloadPdfCopy(
+  token: string,
+  id: string,
+  copy: "clinical" | "patient",
+  lang?: string,
+): Promise<void> {
+  const res = await protectedDocument(token, id, copy, "pdf", lang);
+  const blob = await res.blob();
+  if (blob.type !== "application/pdf") throw new Error("server did not return a PDF");
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `prescription-${copy}.pdf`;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }

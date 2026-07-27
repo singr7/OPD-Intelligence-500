@@ -179,6 +179,11 @@ class Settings(BaseSettings):
     # patient picks the department and any of them may be needed).
     kiosk_offline_block_size: int = 50
 
+    # --- Prescription document (SESSION-UX2) -------------------------------
+    # Optional approved logo URI/path. Blank keeps the polished text letterhead;
+    # no address, phone or accreditation is invented from this setting.
+    rx_letterhead_logo: str = ""
+
     # --- Adaptive intake (S-ADAPT.1, doc 11) ---------------------------------
     # Off by default and branch-only until proven on the live box (doc 11 header).
     # On, and with a real (non-fake) LLM provider, a kiosk answer that arrives as

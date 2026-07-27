@@ -394,12 +394,21 @@ export const DICTATION_CSS = `
   padding: 12px 20px; border-top: 1px solid #f0caca; background: #fff7f7;
   color: var(--danger); font-size: 13px; font-weight: 650; line-height: 1.5; }
 .rx-actions { display: flex; gap: 10px; flex-wrap: wrap; padding: 18px 20px 0; }
+.rx-copy-choice { flex-basis: 100%; display: inline-flex; gap: 0; }
+.rx-copy-choice button { min-height: 36px; border: 1px solid var(--line-strong);
+  background: #fff; color: var(--text-muted); padding: 0 13px; font: inherit;
+  font-size: 12px; font-weight: 800; cursor: pointer; }
+.rx-copy-choice button:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); }
+.rx-copy-choice button:last-child { margin-left: -1px;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+.rx-copy-choice button[aria-pressed="true"] { position: relative; border-color: var(--brand);
+  background: var(--brand-soft); color: var(--brand-hover); }
 .rx-print, .rx-send button { min-height: 40px; display: inline-flex; align-items: center;
   justify-content: center; gap: 8px; border-radius: var(--radius-control); cursor: pointer; }
 .rx-print { border: 1px solid var(--brand); background: #fff; color: var(--brand-hover);
   font: inherit; font-size: 14px; font-weight: 800; padding: 0 17px; }
 .rx-print svg, .rx-send button svg { width: 17px; height: 17px; }
-.rx-print.is-patient { order: -1; background: var(--brand); border-color: var(--brand); color: #fff; }
+.rx-print.is-patient { background: var(--brand); border-color: var(--brand); color: #fff; }
 .rx-print:disabled { border-color: var(--line); background: var(--line); color: var(--text-muted);
   cursor: default; }
 .rx-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px 20px; }

@@ -12,14 +12,9 @@ Two audiences, two sheets, same `Prescription.meds` snapshot:
   paper cousin: this sheet is for someone who may not read at all, so the icons
   carry the instruction and the words support them, never the reverse.
 
-## Why HTML rather than a server-rendered PDF
-
-Same decision as `app.print_sheets` (S8), for the same reason: these sheets must
-render Devanagari, and embedding Indic fonts with correct shaping inside a
-hand-rolled PDF is fragile, while a real HTML→PDF engine (WeasyPrint/pango) needs
-native libraries the image does not ship. So this returns print-optimised HTML
-that the browser turns into a PDF. A server-side PDF is a deploy-dependency
-decision, and it is the same one for both sheet families (backlog, S19/S21).
+The print HTML and downloadable PDF deliberately share this one renderer.
+WeasyPrint turns the finished HTML into PDF through Pango/HarfBuzz, so Indic
+shaping and medication semantics cannot drift between preview and download.
 
 ## The pictogram rule
 
@@ -33,8 +28,11 @@ inventing one is inventing a dose.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from html import escape
+
+from weasyprint import HTML
 
 from app.models.enums import Lang
 from app.prescription import RxLine, Schedule
@@ -57,6 +55,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ask": "Ask the pharmacist if anything here is unclear.",
         "flagged": "Confirm this one with the doctor",
         "patient_copy": "Patient copy",
+        "patient": "Patient",
+        "mrn": "MRN",
+        "age_sex": "Age / Sex",
+        "diagnosis": "Diagnosis",
     },
     "hi": {
         "title": "आपकी दवाइयाँ",
@@ -71,6 +73,46 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ask": "कुछ समझ न आए तो फार्मासिस्ट से पूछें।",
         "flagged": "यह दवा डॉक्टर से एक बार पूछ लें",
         "patient_copy": "मरीज़ की प्रति",
+        "patient": "मरीज़",
+        "mrn": "एमआरएन",
+        "age_sex": "उम्र / लिंग",
+        "diagnosis": "निदान",
+    },
+    "mr": {
+        "title": "तुमची औषधे",
+        "morning": "सकाळ",
+        "afternoon": "दुपार",
+        "night": "रात्र",
+        "per_day": "वेळा रोज",
+        "as_told": "डॉक्टरांनी सांगितल्याप्रमाणे",
+        "duration": "{d} साठी",
+        "advice": "हेही लक्षात ठेवा",
+        "follow_up": "पुन्हा या दिवशी या",
+        "ask": "काही समजले नाही तर फार्मासिस्टला विचारा.",
+        "flagged": "हे औषध डॉक्टरांकडून पुन्हा तपासा",
+        "patient_copy": "रुग्णाची प्रत",
+        "patient": "रुग्ण",
+        "mrn": "एमआरएन",
+        "age_sex": "वय / लिंग",
+        "diagnosis": "निदान",
+    },
+    "te": {
+        "title": "మీ మందులు",
+        "morning": "ఉదయం",
+        "afternoon": "మధ్యాహ్నం",
+        "night": "రాత్రి",
+        "per_day": "సార్లు రోజుకు",
+        "as_told": "డాక్టర్ చెప్పినట్లుగా",
+        "duration": "{d} పాటు",
+        "advice": "ఇవి కూడా గుర్తుంచుకోండి",
+        "follow_up": "మళ్లీ రావలసిన తేదీ",
+        "ask": "ఏదైనా అర్థం కాకపోతే ఫార్మసిస్ట్‌ను అడగండి.",
+        "flagged": "ఈ మందును డాక్టర్‌తో మళ్లీ నిర్ధారించండి",
+        "patient_copy": "రోగి ప్రతీ",
+        "patient": "రోగి",
+        "mrn": "ఎంఆర్ఎన్",
+        "age_sex": "వయస్సు / లింగం",
+        "diagnosis": "నిర్ధారణ",
     },
 }
 
@@ -95,7 +137,7 @@ _STYLE = """
 }
 * { box-sizing: border-box; }
 body {
-  font-family: "Noto Sans", "Noto Sans Devanagari", system-ui, sans-serif;
+  font-family: "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu", sans-serif;
   color: var(--ink); margin: 0; font-size: 12pt; line-height: 1.5;
 }
 @page { size: A4; margin: 14mm; }
@@ -105,8 +147,18 @@ body {
   display: flex; justify-content: space-between; align-items: flex-end;
   border-bottom: 3px solid var(--primary); padding-bottom: 8px; margin-bottom: 12px;
 }
+.letterhead-main { display: flex; gap: 10px; align-items: center; }
+.letterhead-logo { width: 46px; height: 46px; object-fit: contain; }
 .masthead h1 { font-size: 18pt; margin: 0; color: var(--primary-d); }
 .masthead .dept { font-size: 12pt; color: var(--ink-soft); }
+.masthead .place { font-size: 9.5pt; color: var(--ink-soft); }
+.document-meta { text-align: right; font-size: 8.5pt; color: var(--ink-soft); }
+.document-meta strong { display: block; color: var(--ink); font-size: 9.5pt; }
+.prescriber {
+  display: flex; justify-content: space-between; gap: 10px; margin: -4px 0 12px;
+  padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 9.5pt;
+}
+.prescriber strong { color: var(--ink); }
 .banner {
   background: var(--primary); color: #fff; font-weight: 700; letter-spacing: .04em;
   padding: 6px 12px; border-radius: 6px; font-size: 10pt; text-transform: uppercase;
@@ -128,6 +180,8 @@ table.rx th {
 }
 table.rx td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top;
   break-inside: avoid; }
+table.rx thead { display: table-header-group; }
+table.rx tr { break-inside: avoid; page-break-inside: avoid; }
 table.rx .name { font-weight: 700; font-size: 12.5pt; }
 table.rx .spoken { color: var(--ink-soft); font-size: 9pt; font-style: italic; }
 tr.flagged td { background: #FDF3F3; }
@@ -142,7 +196,8 @@ tr.flagged .name { color: var(--danger); }
 .block h3 { font-size: 10pt; text-transform: uppercase; letter-spacing: .04em;
   color: var(--ink-soft); margin: 0 0 4px; }
 .block ul { margin: 0; padding-left: 18px; }
-.sign { margin-top: 26px; display: flex; justify-content: flex-end; }
+.sign { margin-top: 26px; display: flex; justify-content: flex-end;
+  break-inside: avoid; page-break-inside: avoid; }
 .sign .line { width: 240px; border-top: 1.5px solid var(--ink); padding-top: 6px;
   text-align: center; font-size: 10pt; }
 .sign .name { font-weight: 700; font-size: 11pt; }
@@ -182,12 +237,31 @@ tr.flagged .name { color: var(--danger); }
 """
 
 
+@dataclass(frozen=True, slots=True)
+class Letterhead:
+    hospital: str
+    department: str
+    doctor_name: str
+    doctor_reg_no: str
+    doctor_qualification: str | None
+    document_id: str
+    document_date: date
+    city: str | None = None
+    district: str | None = None
+    logo: str | None = None
+
+
 def _doc(title: str, body: str, lang: Lang | str = Lang.EN) -> str:
     return (
         f"<!doctype html><html lang='{escape(str(lang))}'><head><meta charset='utf-8'>"
         f"<title>{escape(title)}</title><style>{_STYLE}</style></head>"
         f"<body>{body}</body></html>"
     )
+
+
+def render_pdf(html: str, *, base_url: str | None = None) -> bytes:
+    """Render the exact preview HTML through Pango/HarfBuzz-backed WeasyPrint."""
+    return HTML(string=html, base_url=base_url).write_pdf()
 
 
 def _field(label: str, value: str) -> str:
@@ -203,11 +277,7 @@ def _field(label: str, value: str) -> str:
 def render_clinical_copy(
     *,
     lines: tuple[RxLine, ...],
-    hospital: str,
-    department: str,
-    doctor_name: str,
-    doctor_reg_no: str,
-    doctor_qualification: str | None,
+    letterhead: Letterhead,
     patient_name: str,
     patient_mrn: str,
     patient_age: int | None,
@@ -222,7 +292,8 @@ def render_clinical_copy(
     rows = "".join(_clinical_row(line) for line in lines)
     body = [
         "<div class='sheet'>",
-        _masthead(hospital, department, "Prescription"),
+        _masthead(letterhead, "Prescription"),
+        _prescriber(letterhead),
         "<div class='who'>",
         _field("Patient", patient_name),
         _field("MRN", patient_mrn),
@@ -247,11 +318,13 @@ def render_clinical_copy(
         body.append(f"<div class='block'><h3>Advice</h3><ul>{items}</ul></div>")
     if follow_up:
         body.append(f"<div class='block'><h3>Follow-up</h3><div>{escape(follow_up)}</div></div>")
-    qualification = f" · {doctor_qualification}" if doctor_qualification else ""
+    qualification = (
+        f" · {letterhead.doctor_qualification}" if letterhead.doctor_qualification else ""
+    )
     body.append(
         "<div class='sign'><div class='line'>"
-        f"<div class='name'>{escape(doctor_name)}</div>"
-        f"<div>Reg. {escape(doctor_reg_no)}{escape(qualification)}</div>"
+        f"<div class='name'>{escape(letterhead.doctor_name)}</div>"
+        f"<div>Reg. {escape(letterhead.doctor_reg_no)}{escape(qualification)}</div>"
         "</div></div>"
     )
     body.append(
@@ -290,11 +363,14 @@ def render_patient_copy(
     *,
     lines: tuple[RxLine, ...],
     lang: Lang | str,
-    hospital: str,
-    department: str,
+    letterhead: Letterhead,
     patient_name: str,
+    patient_mrn: str,
+    patient_age: int | None,
+    patient_sex: str | None,
     visit_date: date,
     token_no: int | None,
+    diagnosis: str | None = None,
     advice: tuple[str, ...] = (),
     follow_up: str | None = None,
 ) -> str:
@@ -307,14 +383,22 @@ def render_patient_copy(
     bands = "".join(_patient_band(line, lang) for line in lines)
     body = [
         "<div class='sheet'>",
-        _masthead(hospital, department, _s(lang, "patient_copy")),
+        _masthead(letterhead, _s(lang, "patient_copy")),
+        _prescriber(letterhead),
         f"<div class='p-title'>{escape(_s(lang, 'title'))}</div>",
-        "<div class='who p-who'>",
-        f"<div class='value'>{escape(patient_name)}</div>",
-        f"<div class='value'>{escape(_date_token(visit_date, token_no))}</div>",
+        "<div class='who'>",
+        _field(_s(lang, "patient"), patient_name),
+        _field(_s(lang, "mrn"), patient_mrn),
+        _field(_s(lang, "age_sex"), _age_sex(patient_age, patient_sex)),
+        _field("", _date_token(visit_date, token_no)),
         "</div>",
-        bands or "",
     ]
+    if diagnosis:
+        body.append(
+            f"<div class='dx'><div class='label'>{escape(_s(lang, 'diagnosis'))}</div>"
+            f"<div class='value'>{escape(diagnosis)}</div></div>"
+        )
+    body.append(bands or "")
     if advice:
         items = "".join(f"<li>{escape(item)}</li>" for item in advice)
         body.append(
@@ -407,12 +491,39 @@ def _slot(icon: str, caption: str, on: bool, extra: str) -> str:
 # -- shared -------------------------------------------------------------------
 
 
-def _masthead(hospital: str, dept: str, sub: str) -> str:
+def _masthead(letterhead: Letterhead, sub: str) -> str:
+    location = ", ".join(
+        dict.fromkeys(
+            item.strip() for item in (letterhead.city, letterhead.district) if item and item.strip()
+        )
+    )
+    logo = (
+        f"<img class='letterhead-logo' src='{escape(letterhead.logo, quote=True)}' alt=''>"
+        if letterhead.logo
+        else ""
+    )
     return (
-        "<div class='masthead'><div>"
-        f"<h1>{escape(hospital)}</h1>"
-        f"<div class='dept'>{escape(dept)}</div></div>"
-        f"<div class='banner'>{escape(sub)}</div></div>"
+        "<div class='masthead'><div class='letterhead-main'>"
+        f"{logo}<div><h1>{escape(letterhead.hospital)}</h1>"
+        f"<div class='place'>{escape(location)}</div>"
+        f"<div class='dept'>{escape(letterhead.department)}</div></div></div>"
+        "<div><div class='banner'>"
+        f"{escape(sub)}</div><div class='document-meta'>"
+        f"<strong>{escape(letterhead.document_id)}</strong>"
+        f"{escape(letterhead.document_date.strftime('%d %b %Y'))}</div></div></div>"
+    )
+
+
+def _prescriber(letterhead: Letterhead) -> str:
+    credentials = " · ".join(
+        item
+        for item in (letterhead.doctor_qualification, f"Reg. {letterhead.doctor_reg_no}")
+        if item
+    )
+    return (
+        "<div class='prescriber'><span>Prescriber</span><span>"
+        f"<strong>{escape(letterhead.doctor_name)}</strong>"
+        f" · {escape(credentials)}</span></div>"
     )
 
 

@@ -22,6 +22,10 @@ dependencies = [
     "faker>=33.1",
     "pyyaml>=6.0",
     "redis>=5.2",
+    # Shared HTML -> PDF renderer for authenticated prescriptions. Pango and
+    # HarfBuzz provide Indic shaping; keep this exact version in sync with
+    # requirements.txt and the backend image.
+    "weasyprint==68.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +33,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
+    "pypdf>=6.0",
 ]
 
 [build-system]

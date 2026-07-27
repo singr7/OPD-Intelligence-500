@@ -34,3 +34,8 @@ redis>=5.2
 # python-multipart); `docker run <api-image> python -c "import app.main"` is the
 # check that catches it, and it is in the omen runbook for that reason.
 cryptography>=44.0
+
+# --- Prescription documents (SESSION-UX2) ---
+# Exact pin: PDF bytes/layout are a clinical document contract, not a floating
+# browser feature. The image installs Pango/HarfBuzz + Noto Indic fonts.
+weasyprint==68.0

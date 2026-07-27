@@ -7,8 +7,15 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# System deps kept minimal; add build-essential only if a wheel needs compiling.
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# WeasyPrint uses Pango/HarfBuzz for correct Devanagari and Telugu shaping.
+# These are the Debian >=11 wheel-runtime packages from WeasyPrint's install
+# guide; Noto Core supplies Noto Sans Devanagari and Noto Sans Telugu.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl \
+      fonts-noto-core \
+      libharfbuzz-subset0 \
+      libpango-1.0-0 \
+      libpangoft2-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
