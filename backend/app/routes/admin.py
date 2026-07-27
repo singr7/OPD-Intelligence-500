@@ -11,29 +11,32 @@ content and exposes whole-hospital cost. Two shapes worth knowing:
   over `app.admin`.** This file parses query params, guards the role, and shapes
   the response — no business logic, so the services stay unit-testable.
 
-The remaining deferred panel (slot templates → S15) answers 200 with
-`{"deferred": true, "arrives_in": "S15"}` rather than 404, so the console renders
-an explicit "arrives with S15" placeholder instead of a broken link.
+S-GL.2 added the last two panels doc 03 §10 asked for and nothing had built —
+**people** (staff onboarding) and the **roster** (slot templates, and importing
+them from a spreadsheet). With those, no route on this router is a deferral
+marker any more.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import admin as admin_svc
-from app import analytics
+from app import analytics, people, roster
 from app import channels as channel_svc
 from app.auth.rbac import Principal, require_admin
 from app.checkins import store as checkin_store
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, UsagePurpose
+from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, Role, SlotType, UsagePurpose
+from app.models.org import Department
 from app.providers import runtime
 from app.providers.costguard import CostGuard, get_guard
 from app.whatsapp import templates as wa_templates
@@ -1062,11 +1065,580 @@ async def test_provider(
     return result
 
 
-@router.get("/slot-templates")
-async def slot_templates() -> dict:
-    """Deferred to S15 (slot inventory). Marker, not 404."""
-    return {
-        "deferred": True,
-        "arrives_in": "S15",
-        "reason": "slot templates need the appointment slot inventory (telephony part 2)",
-    }
+# -- people: staff onboarding (S-GL.2) ----------------------------------------
+#
+# Not versioned, unlike every other editor on this router: see the note at the top
+# of `app.people`. Hiring somebody is not authored content with a review cycle,
+# and a draft→publish flow would only add a way to leave it half-done.
+#
+# Every write commits explicitly, for the reason the channel routes discovered in
+# S-GL.1: a `yield` dependency's cleanup runs *after* the response is sent, and
+# this console's flow is a write immediately followed by a read of what it wrote
+# (create a doctor → import their roster → generate their slots).
+
+
+class PersonOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
+    phone: str
+    role: str
+    lang: str
+    active: bool
+    last_login_at: datetime | None
+    doctor_id: uuid.UUID | None
+    reg_no: str | None
+    qualification: str | None
+    department_code: str | None
+    department_name: str | None
+    clinics: int
+    upcoming_appointments: int
+
+
+def _person_out(person: people.Person) -> PersonOut:
+    return PersonOut(
+        user_id=person.user_id,
+        name=person.name,
+        phone=person.phone,
+        role=str(person.role),
+        lang=str(person.lang),
+        active=person.active,
+        last_login_at=person.last_login_at,
+        doctor_id=person.doctor_id,
+        reg_no=person.reg_no,
+        qualification=person.qualification,
+        department_code=person.department_code,
+        department_name=person.department_name,
+        clinics=person.clinics,
+        upcoming_appointments=person.upcoming_appointments,
+    )
+
+
+class BookedOut(BaseModel):
+    appointment_id: uuid.UUID
+    patient_name: str
+    patient_phone: str
+    at: datetime
+    slot_type: str | None
+
+
+def _booked_out(row: people.BookedAppointment) -> BookedOut:
+    return BookedOut(
+        appointment_id=row.appointment_id,
+        patient_name=row.patient_name,
+        patient_phone=row.patient_phone,
+        at=row.at,
+        slot_type=row.slot_type,
+    )
+
+
+class DepartmentOut(BaseModel):
+    code: str
+    name: str
+
+
+@router.get("/people", response_model=list[PersonOut])
+async def list_people(session: AsyncSession = Depends(get_session)) -> list[PersonOut]:
+    return [_person_out(p) for p in await people.list_people(session)]
+
+
+@router.get("/departments", response_model=list[DepartmentOut])
+async def list_departments(session: AsyncSession = Depends(get_session)) -> list[DepartmentOut]:
+    """The department list the create-a-doctor form picks from — so a console can
+    never invent a department code that routing would then fail to resolve."""
+    rows = (
+        await session.execute(
+            select(Department)
+            .where(Department.deleted_at.is_(None), Department.active.is_(True))
+            .order_by(Department.name)
+        )
+    ).scalars()
+    return [DepartmentOut(code=d.code, name=d.name) for d in rows]
+
+
+class CreateUserIn(BaseModel):
+    name: str
+    phone: str
+    role: Role
+    lang: Lang = Lang.HI
+
+
+@router.post("/people", response_model=PersonOut, status_code=201)
+async def create_user(
+    body: CreateUserIn, session: AsyncSession = Depends(get_session)
+) -> PersonOut:
+    try:
+        user = await people.create_user(
+            session, name=body.name, phone=body.phone, role=body.role, lang=body.lang
+        )
+    except people.PeopleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _person_out(await _person(session, user.id))
+
+
+class CreateDoctorIn(BaseModel):
+    name: str
+    phone: str
+    department_code: str
+    reg_no: str
+    qualification: str | None = None
+    lang: Lang = Lang.HI
+
+
+@router.post("/people/doctors", response_model=PersonOut, status_code=201)
+async def create_doctor(
+    body: CreateDoctorIn, session: AsyncSession = Depends(get_session)
+) -> PersonOut:
+    """A login and a clinical profile, in one transaction. Bookable the moment a
+    clinic and its slots exist — which is the roster half below."""
+    try:
+        doctor = await people.create_doctor(
+            session,
+            name=body.name,
+            phone=body.phone,
+            department_code=body.department_code,
+            reg_no=body.reg_no,
+            qualification=body.qualification,
+            lang=body.lang,
+        )
+    except people.PeopleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _person_out(await _person(session, doctor.user_id))
+
+
+class InviteOut(BaseModel):
+    sent: bool
+    to: str
+    detail: str
+
+
+@router.post("/people/{user_id}/invite", response_model=InviteOut)
+async def invite(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> InviteOut:
+    """"This number can now sign in" — an SMS, and nothing minted. The OTP login
+    is the credential, so there is no invite token here to expire or leak."""
+    try:
+        result = await people.send_invite(session, user_id=user_id, settings=settings)
+    except people.PeopleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return InviteOut(sent=result.sent, to=result.to, detail=result.detail)
+
+
+class DeactivationImpactOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
+    role: str
+    is_doctor: bool
+    active_clinics: int
+    open_future_slots: int
+    booked: list[BookedOut]
+    needs_a_decision: bool
+
+
+@router.get("/people/{user_id}/deactivation-impact", response_model=DeactivationImpactOut)
+async def deactivation_impact(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> DeactivationImpactOut:
+    """Step one of two. What deactivating this person would leave behind —
+    including, by name, the patients already booked with them."""
+    try:
+        impact = await people.deactivation_impact(session, user_id=user_id)
+    except people.PeopleError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return DeactivationImpactOut(
+        user_id=impact.user_id,
+        name=impact.name,
+        role=str(impact.role),
+        is_doctor=impact.is_doctor,
+        active_clinics=impact.active_clinics,
+        open_future_slots=impact.open_future_slots,
+        booked=[_booked_out(b) for b in impact.booked],
+        needs_a_decision=impact.needs_a_decision,
+    )
+
+
+class DeactivateIn(BaseModel):
+    #: The admin saying "yes, I have seen those patients and we will ring them".
+    #: Without it the route refuses while anybody is booked.
+    acknowledge: bool = False
+
+
+class DeactivateOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
+    clinics_retired: int
+    slots_blocked: int
+    appointments_left: list[BookedOut]
+
+
+@router.post("/people/{user_id}/deactivate", response_model=DeactivateOut)
+async def deactivate(
+    user_id: uuid.UUID,
+    body: DeactivateIn,
+    session: AsyncSession = Depends(get_session),
+) -> DeactivateOut:
+    try:
+        result = await people.deactivate(
+            session, user_id=user_id, acknowledge=body.acknowledge
+        )
+    except people.PeopleError as exc:
+        # 409, not 422: the request is well-formed and the state is the problem,
+        # and the console distinguishes "fix your input" from "confirm this".
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await session.commit()
+    return DeactivateOut(
+        user_id=result.user_id,
+        name=result.name,
+        clinics_retired=result.clinics_retired,
+        slots_blocked=result.slots_blocked,
+        appointments_left=[_booked_out(b) for b in result.appointments_left],
+    )
+
+
+@router.post("/people/{user_id}/activate", response_model=PersonOut)
+async def activate(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> PersonOut:
+    """Let somebody back in. Their clinic does not come back with them — see
+    `app.people.activate`."""
+    try:
+        person = await people.activate(session, user_id=user_id)
+    except people.PeopleError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await session.commit()
+    return _person_out(person)
+
+
+async def _person(session: AsyncSession, user_id: uuid.UUID) -> people.Person:
+    found = next((p for p in await people.list_people(session) if p.user_id == user_id), None)
+    if found is None:  # pragma: no cover - the row was just written
+        raise HTTPException(status_code=404, detail="no such person")
+    return found
+
+
+# -- the roster: slot templates + import (S-GL.2) ------------------------------
+#
+# This replaces S18E's `{"deferred": true, "arrives_in": "S15"}` marker, which was
+# the console's last honest placeholder.
+
+
+class ClinicOut(BaseModel):
+    template_id: uuid.UUID
+    doctor_id: uuid.UUID
+    doctor_name: str
+    reg_no: str
+    department_code: str
+    weekday: int
+    weekday_name: str
+    start: str
+    end: str
+    slot_minutes: int
+    capacity: int
+    slot_type: str
+    active: bool
+    slots_per_week: int
+    future_slots: int
+    future_booked: int
+    #: The next three dates this clinic actually runs — a weekday name is not a
+    #: date, and an admin checking their work wants the date.
+    next_dates: list[date]
+
+
+def _clinic_out(clinic: roster.Clinic) -> ClinicOut:
+    return ClinicOut(
+        template_id=clinic.template_id,
+        doctor_id=clinic.doctor_id,
+        doctor_name=clinic.doctor_name,
+        reg_no=clinic.reg_no,
+        department_code=clinic.department_code,
+        weekday=clinic.weekday,
+        weekday_name=clinic.weekday_name,
+        start=clinic.start_time.strftime("%H:%M"),
+        end=clinic.end_time.strftime("%H:%M"),
+        slot_minutes=clinic.slot_minutes,
+        capacity=clinic.capacity,
+        slot_type=str(clinic.slot_type),
+        active=clinic.active,
+        slots_per_week=clinic.slots_per_week,
+        future_slots=clinic.future_slots,
+        future_booked=clinic.future_booked,
+        next_dates=roster.upcoming_dates(clinic.weekday),
+    )
+
+
+@router.get("/slot-templates", response_model=list[ClinicOut])
+async def slot_templates(
+    include_retired: bool = Query(default=False),
+    session: AsyncSession = Depends(get_session),
+) -> list[ClinicOut]:
+    """The weekly clinic grid (doc 03 §10). Built in S-GL.2; before that this
+    route answered with a deferral marker."""
+    clinics = await roster.list_clinics(session, include_retired=include_retired)
+    return [_clinic_out(c) for c in clinics]
+
+
+class ClinicIn(BaseModel):
+    doctor_id: uuid.UUID
+    weekday: int = Field(ge=0, le=6)
+    start: str
+    end: str
+    slot_type: SlotType = SlotType.FOLLOW_UP
+    capacity: int = Field(default=1, ge=1)
+    slot_minutes: int = Field(default=15, ge=1)
+    acknowledge: bool = False
+
+    def to_write(self) -> roster.ClinicWrite:
+        return roster.ClinicWrite(
+            doctor_id=self.doctor_id,
+            weekday=self.weekday,
+            start_time=_hhmm(self.start),
+            end_time=_hhmm(self.end),
+            slot_type=self.slot_type,
+            capacity=self.capacity,
+            slot_minutes=self.slot_minutes,
+        )
+
+
+def _hhmm(value: str) -> time:
+    try:
+        return datetime.strptime(value.strip(), "%H:%M").time()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"{value!r} is not a time (HH:MM)") from exc
+
+
+class ChangeImpactOut(BaseModel):
+    template_id: uuid.UUID
+    label: str
+    empty_future_slots: int
+    booked: list[BookedOut]
+    needs_a_decision: bool
+
+
+def _impact_out(impact: roster.ChangeImpact) -> ChangeImpactOut:
+    return ChangeImpactOut(
+        template_id=impact.template_id,
+        label=impact.label,
+        empty_future_slots=impact.empty_future_slots,
+        booked=[_booked_out(b) for b in impact.booked],
+        needs_a_decision=impact.needs_a_decision,
+    )
+
+
+@router.get("/slot-templates/{template_id}/impact", response_model=ChangeImpactOut)
+async def clinic_impact(
+    template_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> ChangeImpactOut:
+    """Who is booked into this clinic's future slots — asked before an edit or a
+    retirement, so the console shows the patients rather than a warning."""
+    try:
+        return _impact_out(await roster.change_impact(session, template_id=template_id))
+    except roster.RosterError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/slot-templates", response_model=ClinicOut, status_code=201)
+async def create_clinic(
+    body: ClinicIn, session: AsyncSession = Depends(get_session)
+) -> ClinicOut:
+    try:
+        template, _ = await roster.save_clinic(session, write=body.to_write())
+    except roster.RosterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return await _clinic(session, template.id)
+
+
+@router.put("/slot-templates/{template_id}", response_model=ClinicOut)
+async def update_clinic(
+    template_id: uuid.UUID, body: ClinicIn, session: AsyncSession = Depends(get_session)
+) -> ClinicOut:
+    """Edit a clinic, reconciling the inventory it already made (`app.roster`)."""
+    try:
+        template, _ = await roster.save_clinic(
+            session,
+            write=body.to_write(),
+            template_id=template_id,
+            acknowledge=body.acknowledge,
+        )
+    except roster.RosterError as exc:
+        status = 409 if "booked into" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    await session.commit()
+    return await _clinic(session, template.id)
+
+
+@router.delete("/slot-templates/{template_id}", response_model=ChangeImpactOut)
+async def retire_clinic(
+    template_id: uuid.UUID,
+    acknowledge: bool = Query(default=False),
+    session: AsyncSession = Depends(get_session),
+) -> ChangeImpactOut:
+    """Stop a clinic. Soft — the template deactivates and its empty future slots
+    block; the booked ones stand and come back in the response."""
+    try:
+        impact = await roster.retire_clinic(
+            session, template_id=template_id, acknowledge=acknowledge
+        )
+    except roster.RosterError as exc:
+        status = 409 if "booked into" in str(exc) else 404
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    await session.commit()
+    return _impact_out(impact)
+
+
+async def _clinic(session: AsyncSession, template_id: uuid.UUID) -> ClinicOut:
+    found = next(
+        (
+            c
+            for c in await roster.list_clinics(session, include_retired=True)
+            if c.template_id == template_id
+        ),
+        None,
+    )
+    if found is None:  # pragma: no cover - just written
+        raise HTTPException(status_code=404, detail="no such clinic")
+    return _clinic_out(found)
+
+
+class PlannedClinicOut(BaseModel):
+    line: int
+    doctor_label: str
+    doctor_name: str | None
+    department_code: str | None
+    weekday_name: str
+    start: str
+    end: str
+    slot_type: str
+    capacity: int
+    slot_minutes: int
+    slots_per_week: int
+    action: str
+    error: str | None
+
+
+class RosterPlanOut(BaseModel):
+    """The dry run. `ok` is false if **any** row failed, because the import is
+    all-or-nothing — a half-applied roster cannot be re-uploaded safely."""
+
+    ok: bool
+    counts: dict[str, int]
+    rows: list[PlannedClinicOut]
+
+
+class ImportResultOut(BaseModel):
+    created: int
+    updated: int
+    unchanged: int
+    slots_generated: int
+    disturbed: list[BookedOut]
+
+
+def _plan_out(plan: roster.RosterPlan) -> RosterPlanOut:
+    return RosterPlanOut(
+        ok=plan.ok,
+        counts=plan.counts(),
+        rows=[
+            PlannedClinicOut(
+                line=row.line,
+                doctor_label=row.doctor_label,
+                doctor_name=row.doctor_name,
+                department_code=row.department_code,
+                weekday_name=row.weekday_name,
+                start=row.start,
+                end=row.end,
+                slot_type=row.slot_type,
+                capacity=row.capacity,
+                slot_minutes=row.slot_minutes,
+                slots_per_week=row.slots_per_week,
+                action=row.action,
+                error=row.error,
+            )
+            for row in plan.rows
+        ],
+    )
+
+
+@router.post("/roster/import")
+async def import_roster(
+    file: UploadFile = File(...),
+    dry_run: bool = Query(default=True),
+    generate: bool = Query(default=True),
+    acknowledge: bool = Query(default=False),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Upload a roster. **Dry run by default** — nothing is written unless the
+    caller asks, and never if any row failed.
+
+    Returns the plan either way, so the console shows the same table before and
+    after and an admin can see that what was previewed is what happened.
+    """
+    content = await file.read()
+    try:
+        rows = roster.read_rows(content, file.filename or "")
+    except roster.RosterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    plan = await roster.plan_roster(session, rows)
+    out: dict = {"plan": _plan_out(plan).model_dump(), "applied": None}
+    if dry_run:
+        return out
+
+    try:
+        result = await roster.apply_roster(
+            session, plan, generate=generate, acknowledge=acknowledge
+        )
+    except roster.RosterError as exc:
+        status = 409 if "booked into" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    await session.commit()
+    out["applied"] = ImportResultOut(
+        created=result.created,
+        updated=result.updated,
+        unchanged=result.unchanged,
+        slots_generated=result.slots_generated,
+        disturbed=[_booked_out(b) for b in result.disturbed],
+    ).model_dump()
+    return out
+
+
+@router.get("/roster/sample.csv")
+async def roster_sample() -> Response:
+    """A working example to start from, rather than a column list in a paragraph."""
+    return Response(
+        content=roster.sample_csv(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="roster-sample.csv"'},
+    )
+
+
+class GenerateIn(BaseModel):
+    doctor_id: uuid.UUID | None = None
+    start: date | None = None
+    days: int = Field(default=60, ge=1, le=366)
+
+
+class GenerateOut(BaseModel):
+    created: int
+    start: date
+    days: int
+
+
+@router.post("/slots/generate", response_model=GenerateOut)
+async def generate_slots(
+    body: GenerateIn, session: AsyncSession = Depends(get_session)
+) -> GenerateOut:
+    """Materialise bookable slots from the templates. Idempotent — pressing it
+    twice creates nothing the second time and never resets a booking."""
+    try:
+        result = await roster.generate(
+            session, doctor_id=body.doctor_id, start=body.start, days=body.days
+        )
+    except roster.RosterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return GenerateOut(created=result.created, start=result.start, days=result.days)

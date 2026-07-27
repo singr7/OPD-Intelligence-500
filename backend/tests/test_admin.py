@@ -255,8 +255,11 @@ async def test_admin_can_list_trees_and_deferred_panels(client: AsyncClient, ses
     # Every set the console shows can actually escalate something.
     assert all(qset["grading"] for qset in protocol["question_sets"])
 
+    # S-GL.2 built the last deferred panel: this answers with the clinic grid
+    # (empty on a fresh transaction), not with a marker. `test_roster.py` walks
+    # the panel itself.
     slots = await client.get("/admin/slot-templates", headers=headers)
-    assert slots.json()["deferred"] is True and slots.json()["arrives_in"] == "S15"
+    assert slots.status_code == 200 and isinstance(slots.json(), list)
 
 
 # -- protocol bank: publish → live on the check-in path ------------------------

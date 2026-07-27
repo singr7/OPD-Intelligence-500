@@ -112,8 +112,14 @@ async def active_templates(
     return list((await session.execute(stmt.order_by(SlotTemplate.start_time))).scalars().all())
 
 
-def _instants(template: SlotTemplate, day: date, tz: ZoneInfo) -> list[tuple[datetime, datetime]]:
-    """Every (start, end) the template produces on `day`, in UTC."""
+def instants_on(template: SlotTemplate, day: date, tz: ZoneInfo) -> list[tuple[datetime, datetime]]:
+    """Every (start, end) the template produces on `day`, in UTC.
+
+    Public because `app.roster` reconciles an *edited* template's existing
+    inventory against it (S-GL.2). Two implementations of "what times does this
+    clinic run" — one that generates and one that reconciles — would disagree
+    exactly when a template was edited, which is the case that matters.
+    """
     if day.weekday() != template.weekday:
         return []
     step = timedelta(minutes=template.slot_minutes)
@@ -147,7 +153,7 @@ async def generate_slots(
     wanted: dict[tuple[uuid.UUID, datetime], tuple[SlotTemplate, datetime]] = {}
     for template in templates:
         for offset in range(days):
-            for starts_at, ends_at in _instants(template, start + timedelta(days=offset), tz):
+            for starts_at, ends_at in instants_on(template, start + timedelta(days=offset), tz):
                 # First template wins a contested instant — two clinics for one
                 # doctor at one moment is an authoring error, and silently merging
                 # them is friendlier than refusing to generate the whole month.
