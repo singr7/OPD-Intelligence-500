@@ -12,7 +12,8 @@
 // the doctor sees here is what the patient is handed. A preview that quietly
 // prettified an unclear schedule would be worse than no preview.
 
-import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, MessageCircle, Printer, Smartphone } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
 import type { Prescription, RxMed } from "../_lib/prescription";
 import { deliverPrescription, openPrintCopy, readPrescription } from "../_lib/prescription";
@@ -22,14 +23,30 @@ type Props = {
   visitId: string;
   /** Bumped by the parent when the note is signed, so this refetches. */
   signedAt?: string | null;
+  patientName: string;
+  patientMrn: string;
+  visitDate: string;
+  doctorName: string;
+  departmentName: string;
   onAuthError: () => void;
 };
 
-export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
+export function RxPanel({
+  token,
+  visitId,
+  signedAt,
+  patientName,
+  patientMrn,
+  visitDate,
+  doctorName,
+  departmentName,
+  onAuthError,
+}: Props) {
   const [rx, setRx] = useState<Prescription | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +61,13 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
   useEffect(() => {
     void load();
   }, [load, signedAt]);
+
+  useEffect(() => {
+    if (signedAt && loaded && rx) {
+      panelRef.current?.focus({ preventScroll: true });
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [signedAt, loaded, rx]);
 
   async function run(label: string, fn: () => Promise<void>) {
     setBusy(label);
@@ -66,14 +90,37 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
   const flagged = rx.meds.filter((m) => m.flagged);
 
   return (
-    <section className="rx" aria-label="Prescription">
+    <section
+      ref={panelRef}
+      className="rx"
+      aria-label="Prescription issued"
+      tabIndex={-1}
+      data-testid="prescription-issued"
+    >
       <header className="rx-head">
-        <h3>Prescription</h3>
-        <span className="rx-count">
-          {rx.meds.length} {rx.meds.length === 1 ? "medicine" : "medicines"}
-        </span>
+        <div>
+          <span className="rx-kicker">Prescription issued</span>
+          <h3>{patientName}</h3>
+          <p>
+            {patientMrn} · {visitDate} · {departmentName}
+          </p>
+        </div>
+        <div className="rx-prescriber">
+          <span>Prescriber</span>
+          <strong>{doctorName}</strong>
+          <small>
+            {rx.meds.length} {rx.meds.length === 1 ? "medicine" : "medicines"}
+          </small>
+        </div>
       </header>
 
+      <div className="rx-columns" aria-hidden="true">
+        <span>Medicine</span>
+        <span>Dose and route</span>
+        <span>Schedule</span>
+        <span>Duration</span>
+        <span>Safety</span>
+      </div>
       <ol className="rx-list">
         {rx.meds.map((med, i) => (
           <RxRow key={`${med.name}-${i}`} med={med} />
@@ -82,6 +129,7 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
 
       {flagged.length > 0 && (
         <p className="rx-flagnote">
+          <AlertTriangle aria-hidden="true" />
           {flagged.length === 1 ? "One line prints" : `${flagged.length} lines print`} with a
           confirm-with-the-doctor mark. You acknowledged {flagged.length === 1 ? "it" : "them"} to
           sign; the pharmacist has not.
@@ -94,6 +142,7 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
           onClick={() => run("clinical", () => openPrintCopy(token, rx.id, "clinical"))}
           disabled={!!busy}
         >
+          <Printer aria-hidden="true" />
           {busy === "clinical" ? "Opening…" : "Print clinical copy"}
         </button>
         <button
@@ -101,6 +150,7 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
           onClick={() => run("patient", () => openPrintCopy(token, rx.id, "patient"))}
           disabled={!!busy}
         >
+          <Printer aria-hidden="true" />
           {busy === "patient" ? "Opening…" : "Print patient copy"}
         </button>
       </div>
@@ -112,12 +162,14 @@ export function RxPanel({ token, visitId, signedAt, onAuthError }: Props) {
           }
           disabled={!!busy}
         >
+          <MessageCircle aria-hidden="true" />
           {busy === "whatsapp" ? "Sending…" : "WhatsApp"}
         </button>
         <button
           onClick={() => run("sms", async () => setRx(await deliverPrescription(token, rx.id, "sms")))}
           disabled={!!busy}
         >
+          <Smartphone aria-hidden="true" />
           {busy === "sms" ? "Sending…" : "SMS"}
         </button>
         {Object.entries(rx.delivered_via)
@@ -145,10 +197,15 @@ function RxRow({ med }: { med: RxMed }) {
   return (
     <li className={`rx-row${med.flagged ? " is-flagged" : ""}`}>
       <div className="rx-name">
+        <span className="rx-mobile-label">Medicine</span>
         {med.name}
-        {med.dose && <span className="rx-dose"> {med.dose}</span>}
+      </div>
+      <div className="rx-dose">
+        <span className="rx-mobile-label">Dose and route</span>
+        {[med.dose, med.route].filter(Boolean).join(" · ") || "—"}
       </div>
       <div className="rx-when">
+        <span className="rx-mobile-label">Schedule</span>
         {s && s.slots_known ? (
           <span className="rx-slots" aria-label={slotsLabel(s.morning, s.afternoon, s.night)}>
             <i className={s.morning ? "on" : ""}>☀</i>
@@ -162,9 +219,21 @@ function RxRow({ med }: { med: RxMed }) {
           // Unreadable as a schedule — the doctor's own words go on the sheet.
           <span className="rx-words">{med.freq ?? "—"}</span>
         )}
-        {med.duration && <span className="rx-dur">{med.duration}</span>}
       </div>
-      {med.flagged && <div className="rx-why">{med.flag_reason}</div>}
+      <div className="rx-dur">
+        <span className="rx-mobile-label">Duration</span>
+        {med.duration || "—"}
+      </div>
+      <div className={`rx-safety ${med.flagged ? "is-flagged" : ""}`}>
+        <span className="rx-mobile-label">Safety</span>
+        {med.flagged ? "Confirm with prescriber" : med.known ? "Verified name" : "Review"}
+      </div>
+      {med.flagged && (
+        <div className="rx-why">
+          <AlertTriangle aria-hidden="true" />
+          {med.flag_reason}
+        </div>
+      )}
     </li>
   );
 }

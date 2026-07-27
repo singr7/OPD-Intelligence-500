@@ -15,6 +15,7 @@ import { expect, test } from "@playwright/test";
 const API = process.env.API_BASE ?? "http://127.0.0.1:8123";
 const SHOTS = "screenshots/s18l";
 const ADMIN_PHONE = "+915550000001"; // seeded Priya Sharma (admin)
+let cachedAccessToken: string | null = null;
 
 // The general-medicine walk-in tree: five plain options, one of which is the
 // breathlessness red flag — so it exercises both halves of the editor.
@@ -26,12 +27,14 @@ const EDITED = `Weakness or tiredness (edited ${Date.now()})`;
 test.describe.configure({ mode: "serial" });
 
 async function loginToken(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
   const req = await request.post(`${API}/auth/otp/request`, { data: { phone: ADMIN_PHONE } });
   const code = (await req.json()).debug_code as string;
   const ver = await request.post(`${API}/auth/otp/verify`, {
     data: { phone: ADMIN_PHONE, code },
   });
-  return (await ver.json()).access_token as string;
+  cachedAccessToken = (await ver.json()).access_token as string;
+  return cachedAccessToken;
 }
 
 /** Open the editor on the newest version of the tree. `list_trees` orders
@@ -123,7 +126,9 @@ test("the try-it panel walks the edited tree and raises its red flag", async ({
 test("the protocol bank panel shows the live check-in bank", async ({ page, request }) => {
   await signedIn(page, await loginToken(request));
   await page.click("nav button:has-text('Protocols')");
-  await expect(page.locator("h2").first()).toContainText("Check-in protocol bank");
+  await expect(
+    page.getByRole("heading", { name: "Check-in protocol bank" }),
+  ).toBeVisible();
   await expect(page.locator("table").first()).toContainText("Platinum");
   await page.screenshot({ path: `${SHOTS}/06-protocols.png`, fullPage: true });
 });

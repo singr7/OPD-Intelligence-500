@@ -1,14 +1,12 @@
 # STATE
 
-**Current build priority (2026-07-27):** `S-UX.1`, the first session of the
-enterprise UI/UX overhaul specified in `docs/14-ENTERPRISE-UIUX-REVAMP.md`.
-It establishes the shared staff visual foundation, replaces the developer landing
-directory, rebuilds the doctor consultation hierarchy, and makes the signed
-prescription prominent and readable. The full sequence is S-UX.1 doctor/gateway,
-S-UX.2 coordinator/board, S-UX.3 admin, S-UX.4 kiosk, and S-UX.5 hardening.
-These are presentation-first sessions: existing backend routes, clinical rules,
-offline behavior, queue transitions, dictation validation, signature, and
-prescription generation remain unchanged.
+**Current build priority (2026-07-27):** validate branch
+`uiux-enterprise-revamp` locally and on Omen, then merge only after physical pathway
+acceptance. The branch implements doc 14's enterprise gateway, shared staff login and
+tokens, doctor/prescription hierarchy, coordinator dashboard, privacy-safe board,
+grouped admin navigation, and kiosk polish without changing backend or clinical
+contracts. S-UX.5 still owns CSS-module migration, full visual-regression coverage,
+and real-device hardening.
 
 **Built (S1):** Monorepo skeleton — `backend/` (FastAPI api + Celery worker/beat), `voice-gw/`
 (FastAPI), `web/` (Next.js 14, 5 route groups, design tokens), `infra/` (Terraform pilot,
@@ -1004,9 +1002,8 @@ the only gate right now.**
 - `otp_codes` rows are never pruned — still unscheduled after S17 (S19/S20).
 - Migrations applied by hand (`make migrate`); no auto-migrate on container start.
 - worker/beat: placeholder `opd.ping` Celery task only.
-- Web workflows are implemented, but the root remains a developer directory and
-  staff presentation is fragmented across large injected CSS strings. The signed
-  prescription is visually buried below the consult note. The approved corrective
-  sequence is doc 14's S-UX track; `/mocks` is design reference only and must not
-  supply production data.
+- The production root is now an enterprise role gateway and the signed prescription
+  is a prominent document surface. Staff tokens and login are shared; doctor,
+  coordinator, and admin still retain established large scoped CSS strings pending
+  S-UX.5 extraction. `/mocks` remains design reference only.
 - Loki/Grafana/uptime-kuma: default config, unprovisioned.

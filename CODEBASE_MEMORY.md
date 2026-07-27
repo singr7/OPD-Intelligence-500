@@ -79,10 +79,10 @@ tree, real Omen acceptance, real printer output, and downtime/recovery drills.
 Queue state transitions, token board, WebSocket updates, downtime sheets, and
 coordinator controls exist. The public board is intentionally minimal.
 
-The coordinator view needs an operational dashboard: total waiting, urgent count,
-longest wait, throughput, idle rooms, stale calls, appointment arrivals, offline
-sync debt, bottlenecks, and a recommended next action. Public screens should not
-expose clinical red-flag reasons.
+The coordinator now has truthful live metrics for waiting, urgent, called,
+in-consultation, and active departments. Metrics that require unavailable data
+(throughput, idle rooms, appointment arrivals, offline debt, bottlenecks) remain
+future backend work. Public screens do not expose clinical red-flag reasons.
 
 ### Doctor And Prescription
 
@@ -91,9 +91,9 @@ medication validation, signature boundary, prescription snapshot/PDF, and audit
 trail are implemented. Safety-critical behavior is strong.
 
 The worklist is queue-only, scheduled appointments do not yet become queue visits,
-access-token refresh is not used by the web clients, and the console needs a denser
-shift-oriented layout with state-aware actions, room context, tasks, labs/vitals,
-and document status.
+and access-token refresh is not used by web clients. The console now has a denser
+split worklist, state-aware actions, visible document status, and a prominent signed
+prescription. Room context, tasks, and labs/vitals require real backend data.
 
 ### Admin And Clinical Content
 
@@ -155,8 +155,8 @@ network acceptance remain. The check-in protocol bank requires oncologist review
 
 ## Current Priority Order
 
-1. Execute doc 14's S-UX sequence, beginning with the enterprise gateway and
-   doctor/prescription workspace in S-UX.1, without changing clinical contracts.
+1. Validate `uiux-enterprise-revamp` on the local stack and physical Omen pathways;
+   finish S-UX.5 hardening before merging to `main`.
 2. Approve clinical content and complete S-GL.3 on the real Omen/kiosk hardware.
 3. Add a safe pilot environment profile, network exposure controls, real readiness,
    migration gating, worker/beat checks, and backup/restore automation.
@@ -181,5 +181,6 @@ network acceptance remain. The check-in protocol bank requires oncologist review
 - The API service currently lacks the `./config:/config:ro` Compose mount required
   by `app.tiers` in the backend image. A fresh Omen kiosk start can therefore fail
   with `tiers config not found at /config/tiers.yaml` despite a green `/health`.
-- The present UI relies heavily on component-local CSS strings and duplicated login
-  styling, which makes coherent pixel-perfect refinement unnecessarily expensive.
+- Staff login and semantic tokens are shared. Large component-local CSS strings
+  remain in doctor/coordinator/admin and should move to scoped modules during
+  S-UX.5 without changing behavior.

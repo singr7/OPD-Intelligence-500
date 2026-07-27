@@ -4,32 +4,45 @@
 // audio-first kiosk, so it trades whitespace for information density.
 
 export const ADMIN_CSS = `
-.admin { min-height: 100vh; background: var(--bg); color: var(--ink);
+.admin { min-height: 100vh; background: var(--canvas); color: var(--text);
   font-size: 14px; }
-.admin header { display: flex; align-items: center; gap: 16px; padding: 16px 24px;
-  background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-.admin header .badge { font-size: 12px; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--accent); background: var(--accent-soft);
-  border-radius: 999px; padding: 5px 12px; }
-.admin header h1 { font-size: 18px; margin: 0; }
-.admin header .spacer { flex: 1; }
-.admin header button { background: none; border: 1px solid var(--line); border-radius: 10px;
-  padding: 8px 14px; color: var(--ink-soft); cursor: pointer; font-size: 13px; }
+.admin-topbar { display: flex; align-items: center; gap: 16px; padding: 16px 24px;
+  min-height: 64px; background: var(--shell); color: #fff; border-bottom: 1px solid var(--shell-raised);
+  position: sticky; top: 0; z-index: 8; }
+.admin-mark { width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 7px; background: var(--brand); }
+.admin-mark svg { width: 18px; height: 18px; }
+.admin-title { display: grid; gap: 0; }
+.admin-topbar h1 { font-size: 16px; margin: 0; color: #fff; }
+.admin-title small { color: #aebdb8; font-size: 11px; }
+.admin-topbar .spacer { flex: 1; }
+.admin-topbar button { min-height: 36px; background: none; border: 1px solid #465752;
+  border-radius: var(--radius-control); padding: 0 13px; color: #c6d1cd; cursor: pointer; font-size: 13px; }
 
-.admin nav { display: flex; gap: 4px; padding: 0 24px; background: var(--surface);
-  border-bottom: 1px solid var(--line); overflow-x: auto; }
-.admin nav button { background: none; border: none; border-bottom: 2px solid transparent;
-  padding: 12px 14px; color: var(--ink-soft); cursor: pointer; font-size: 14px; font-weight: 600;
-  white-space: nowrap; }
-.admin nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+.admin-body { max-width: 1600px; min-height: calc(100vh - 64px); margin: 0 auto;
+  display: grid; grid-template-columns: 238px minmax(0, 1fr); }
+.admin-nav { position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
+  padding: 18px 12px; background: var(--surface); border-right: 1px solid var(--line); }
+.admin-nav section { margin: 0 0 20px; }
+.admin-nav section h2 { margin: 0 10px 7px; color: var(--text-faint); font-size: 10px;
+  font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.admin-nav button { width: 100%; min-height: 40px; display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 15px; align-items: center; gap: 9px;
+  border: none; border-radius: 6px; padding: 0 10px; background: none; color: var(--text-muted);
+  cursor: pointer; font-size: 13px; font-weight: 650; text-align: left; }
+.admin-nav button svg { width: 17px; height: 17px; }
+.admin-nav button .chevron { width: 14px; height: 14px; opacity: 0; }
+.admin-nav button:hover { background: var(--surface-subtle); color: var(--text); }
+.admin-nav button.active { background: var(--brand-soft); color: var(--brand-hover); }
+.admin-nav button.active .chevron { opacity: 1; }
 
-.admin main { padding: 24px; max-width: 1180px; margin: 0 auto; }
-.admin h2 { font-size: 16px; margin: 0 0 12px; }
+.admin main { width: 100%; max-width: 1260px; padding: 28px 32px 64px; margin: 0 auto; min-width: 0; }
+.admin main h2 { font-size: 20px; margin: 0 0 12px; }
 .admin section { margin-bottom: 28px; }
 .admin .muted { color: var(--ink-soft); }
 
 .admin .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.admin .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+.admin .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel);
   padding: 16px; }
 .admin .card .label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase;
   letter-spacing: .04em; margin-bottom: 6px; }
@@ -37,7 +50,7 @@ export const ADMIN_CSS = `
 .admin .card .sub { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
 
 .admin table { width: 100%; border-collapse: collapse; background: var(--surface);
-  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  border: 1px solid var(--line); border-radius: var(--radius-panel); overflow: hidden; }
 .admin th, .admin td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line);
   font-variant-numeric: tabular-nums; }
 .admin th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft);
@@ -59,13 +72,15 @@ export const ADMIN_CSS = `
 .admin .pill.published { background: var(--primary-soft); color: var(--primary-d); }
 
 .admin .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-.admin select, .admin input { font-size: 13px; padding: 8px 10px; border: 1px solid var(--line);
-  border-radius: 10px; background: var(--surface); color: var(--ink); }
-.admin button.action { background: var(--primary); color: #fff; border: none; border-radius: 10px;
+.admin select, .admin input { min-height: 38px; font-size: 13px; padding: 7px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-control);
+  background: var(--surface); color: var(--ink); }
+.admin button.action { min-height: 38px; background: var(--primary); color: #fff; border: none;
+  border-radius: var(--radius-control);
   padding: 8px 14px; font-weight: 600; cursor: pointer; font-size: 13px; }
 .admin button.action:disabled { opacity: .5; cursor: default; }
-.admin button.ghost { background: none; border: 1px solid var(--line); color: var(--ink);
-  border-radius: 10px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+.admin button.ghost { min-height: 38px; background: none; border: 1px solid var(--line); color: var(--ink);
+  border-radius: var(--radius-control); padding: 7px 12px; cursor: pointer; font-size: 13px; }
 .admin .error { color: var(--danger); font-size: 13px; margin: 8px 0; }
 .admin .notice { background: var(--accent-soft); border: 1px solid #f0d49a; border-radius: 12px;
   padding: 14px 16px; color: #7a4e0c; }
@@ -211,4 +226,24 @@ export const ADMIN_CSS = `
 .admin tr.inactive td { opacity: .55; }
 .admin tr.bad-row td { background: var(--danger-soft); }
 .admin .notice.bad-notice { background: var(--danger-soft); border-color: #f1c9c2; }
+
+@media (max-width: 900px) {
+  .admin-body { grid-template-columns: 1fr; }
+  .admin-nav { position: sticky; top: 64px; z-index: 6; width: 100%; height: auto;
+    display: flex; gap: 6px; overflow-x: auto; padding: 8px 12px; border-right: 0;
+    border-bottom: 1px solid var(--line); }
+  .admin-nav section { display: contents; }
+  .admin-nav section h2 { display: none; }
+  .admin-nav button { width: auto; min-width: max-content; grid-template-columns: 17px auto;
+    padding: 0 11px; }
+  .admin-nav button .chevron { display: none; }
+  .admin main { padding: 22px 18px 54px; }
+}
+
+@media (max-width: 560px) {
+  .admin-topbar { padding: 10px 14px; }
+  .admin main { padding: 18px 12px 48px; }
+  .admin .cards { grid-template-columns: 1fr; }
+  .admin table { display: block; overflow-x: auto; }
+}
 `;

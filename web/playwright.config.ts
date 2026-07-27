@@ -26,6 +26,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      name: "accessibility",
+      testMatch: /accessibility\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // The S7 offline demo (doc 01 §5): needs a live stack, so it is separate
       // from the pure-logic conformance project and run explicitly.
       name: "offline-demo",

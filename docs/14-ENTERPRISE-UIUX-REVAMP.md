@@ -617,6 +617,13 @@ Automated visual assertions should include:
 The revamp is a dedicated `S-UX` track. Do not attempt all surfaces in one context.
 Each session ends with the standard closing ritual.
 
+**Implementation status (2026-07-27):** branch `uiux-enterprise-revamp` implements
+the user-facing scope of S-UX.1 through S-UX.4 in one coordinated pass. Production
+build, repository gates, language QA, public-surface axe checks, live queue/admin
+flows, and the signed-prescription flow pass. S-UX.5 remains open for physical Omen
+acceptance, full responsive visual-regression coverage, and migration of the
+remaining established injected style blocks to scoped modules.
+
 ### S-UX.1 - Foundation, gateway, and doctor prescription
 
 This is the immediate next build session. It may close as S-UX.1A / S-UX.1B if the
@@ -835,4 +842,3 @@ The revamp track is complete only when:
 - every required state is designed, not only the happy path;
 - automated behavior, accessibility, build, language, and visual gates pass;
 - no backend contract or clinical invariant was weakened to accommodate the design.
-

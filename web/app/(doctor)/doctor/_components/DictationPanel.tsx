@@ -38,6 +38,10 @@ type Props = {
   token: string;
   visitId: string;
   patientName: string;
+  patientMrn: string;
+  visitDate: string;
+  doctorName: string;
+  departmentName: string;
   onClose: () => void;
   onSigned?: () => void;
 };
@@ -63,7 +67,17 @@ function speechCtor(): SpeechCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function DictationPanel({ token, visitId, patientName, onClose, onSigned }: Props) {
+export function DictationPanel({
+  token,
+  visitId,
+  patientName,
+  patientMrn,
+  visitDate,
+  doctorName,
+  departmentName,
+  onClose,
+  onSigned,
+}: Props) {
   const [dictation, setDictation] = useState<Dictation | null>(null);
   const [transcript, setTranscript] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -268,6 +282,11 @@ export function DictationPanel({ token, visitId, patientName, onClose, onSigned 
           token={token}
           visitId={visitId}
           signedAt={dictation?.signed_at ?? null}
+          patientName={patientName}
+          patientMrn={patientMrn}
+          visitDate={visitDate}
+          doctorName={doctorName}
+          departmentName={departmentName}
           onAuthError={onClose}
         />
       )}

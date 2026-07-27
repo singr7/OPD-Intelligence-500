@@ -2,6 +2,36 @@
    These are the single source of truth for the whole web surface; the S6
    component library builds on top of them. Do not fork these values. */
 :root {
+  /* Enterprise staff system (doc 14). Patient surfaces retain the compatibility
+     aliases below until S-UX.4 completes their dedicated polish pass. */
+  --shell: #17211f;
+  --shell-raised: #22302d;
+  --canvas: #f4f6f5;
+  --surface-subtle: #f8faf9;
+  --line-strong: #b9c6c1;
+  --text: #17211f;
+  --text-muted: #5e6d68;
+  --text-faint: #687772;
+  --brand: #087f68;
+  --brand-hover: #066754;
+  --brand-strong: #065c4c;
+  --brand-soft: #e1f1ec;
+  --attention: #d88a18;
+  --attention-soft: #fff1d6;
+  --info: #316a8a;
+  --info-soft: #e9f2f7;
+  --success: #267257;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --radius-dialog: 8px;
+  --radius-md: 6px;
+  --border: #d8e0dd;
+  --border-strong: #aebcb7;
+  --text-subtle: #63726d;
+  --focus: rgba(8, 127, 104, 0.18);
+  --shadow-popover: 0 12px 28px rgba(23, 33, 31, 0.14);
+  --shadow-focus: 0 0 0 3px rgba(8, 127, 104, 0.2);
+
   --primary: #0e7c66;
   --primary-d: #0a5a4a;
   --primary-soft: #e1f0eb;
@@ -69,6 +99,23 @@ body {
     "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu", system-ui,
     -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 a {

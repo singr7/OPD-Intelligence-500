@@ -10,6 +10,7 @@
 // (2) the next-three tokens, (3) the wait range. Everything else stays quiet.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Activity, AlertTriangle } from "lucide-react";
 import { Board, BoardDept, fetchBoard } from "@/app/_lib/queue";
 import { QueueEvent, useQueueSocket } from "@/app/_lib/useQueueSocket";
 
@@ -68,7 +69,7 @@ export default function BoardPage() {
       )}
       <header className="topbar">
         <div className="brand">
-          <span className="mark">◐</span> OPD Queue
+          <span className="mark"><Activity aria-hidden="true" /></span> Dhara OPD Queue
         </div>
         <div className="meta">
           <span className={`live ${connected ? "on" : "off"}`}>
@@ -108,7 +109,9 @@ function RoomCard({ dept }: { dept: BoardDept }) {
         {dept.now_serving ?? "—"}
       </div>
       {dept.now_serving_reason && (
-        <div className="urgent-chip">⚠ Urgent · {dept.now_serving_reason}</div>
+        <div className="urgent-chip">
+          <AlertTriangle aria-hidden="true" /> Priority assistance
+        </div>
       )}
 
       <div className="next-row">
@@ -119,10 +122,10 @@ function RoomCard({ dept }: { dept: BoardDept }) {
             <span
               key={e.token_no}
               className={`chip ${e.priority === "urgent" ? "chip-urgent" : ""}`}
-              title={e.priority_reason ?? undefined}
+              aria-label={`Token ${e.token_no}${e.priority === "urgent" ? ", priority assistance" : ""}`}
             >
               {e.token_no}
-              {e.red_flag && <span className="flag">⚠</span>}
+              {e.red_flag && <AlertTriangle className="flag" aria-hidden="true" />}
             </span>
           ))}
         </div>
@@ -219,9 +222,7 @@ function nowString(): string {
 const BOARD_CSS = `
 .board {
   min-height: 100vh;
-  background:
-    radial-gradient(120% 80% at 50% -10%, #0e7c6633 0%, transparent 60%),
-    var(--primary-d);
+  background: #092f29;
   color: #fff;
   padding: clamp(16px, 2.4vw, 40px);
   font-feature-settings: "tnum" 1;
@@ -245,7 +246,9 @@ const BOARD_CSS = `
 }
 .brand { font-size: clamp(18px, 2vw, 30px); font-weight: 800; letter-spacing: .01em;
   display: flex; align-items: center; gap: 12px; color: #dff3ec; }
-.brand .mark { color: var(--accent); }
+.brand .mark { width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 7px; background: rgba(255,255,255,.09); color: #71d8ba; }
+.brand .mark svg { width: 20px; height: 20px; }
 .meta { display: flex; align-items: center; gap: clamp(14px, 2vw, 30px); }
 .live { display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
   letter-spacing: .12em; font-size: clamp(12px, 1.1vw, 15px); }
@@ -285,10 +288,11 @@ const BOARD_CSS = `
   100% { transform: none; opacity: 1; filter: none; }
 }
 .urgent-chip {
-  align-self: flex-start; margin-top: 6px;
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; margin-top: 6px;
   background: var(--accent); color: #3a2606; font-weight: 800;
-  padding: 6px 14px; border-radius: 999px; font-size: clamp(12px, 1vw, 16px);
+  padding: 6px 12px; border-radius: 6px; font-size: clamp(12px, 1vw, 16px);
 }
+.urgent-chip svg { width: 1em; height: 1em; }
 .next-row { display: flex; align-items: center; gap: 14px; margin-top: auto; padding-top: 18px; }
 .next-label { color: #8fb6ab; letter-spacing: .2em; font-size: clamp(11px,.9vw,13px); font-weight: 700; }
 .next-tokens { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -299,7 +303,7 @@ const BOARD_CSS = `
   font-size: clamp(20px, 1.9vw, 30px); font-variant-numeric: tabular-nums;
 }
 .chip-urgent { background: var(--accent); color: #3a2606; }
-.chip .flag { font-size: .7em; }
+.chip .flag { width: .7em; height: .7em; }
 .next-empty { color: #6f9389; font-size: 24px; }
 .wait { margin-top: 14px; color: #bfe0d6; font-weight: 700;
   font-size: clamp(14px, 1.2vw, 20px); font-variant-numeric: tabular-nums; }

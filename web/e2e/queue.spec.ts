@@ -1,7 +1,7 @@
 // S8 queue board + coordinator console (doc 03 §6), driven against a live stack.
 // Proves the two AC behaviours a unit test can't: the board and console stay in
-// sync over the WebSocket, and an urgent red-flag token shows its reason chip on
-// both surfaces. Also captures the screenshots for the doc 04 §5 self-critique.
+// sync over the WebSocket. Clinical urgency detail remains staff-only while the
+// public board shows a neutral assistance label. Also captures screenshots.
 //
 //   API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
 //     npx playwright test --project=queue
@@ -11,10 +11,12 @@ import { expect, test } from "@playwright/test";
 const API = process.env.API_BASE ?? "http://127.0.0.1:8123";
 const SHOTS = "screenshots/s8";
 const COORDINATOR_PHONE = "+915550000002"; // seeded coordinator
+let cachedAccessToken: string | null = null;
 
 test.describe.configure({ mode: "serial" });
 
 async function loginToken(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
   const req = await request.post(`${API}/auth/otp/request`, {
     data: { phone: COORDINATOR_PHONE },
   });
@@ -22,14 +24,16 @@ async function loginToken(request: import("@playwright/test").APIRequestContext)
   const ver = await request.post(`${API}/auth/otp/verify`, {
     data: { phone: COORDINATOR_PHONE, code },
   });
-  return (await ver.json()).access_token as string;
+  cachedAccessToken = (await ver.json()).access_token as string;
+  return cachedAccessToken;
 }
 
-test("board shows the urgent token jumped to now-serving with its reason", async ({ page }) => {
+test("board shows priority without exposing its clinical reason", async ({ page }) => {
   await page.goto("/board");
   await expect(page.locator(".serving-num").first()).toBeVisible();
   // The demo seeds a red-flag walk-in in the first room; it jumped and was called.
-  await expect(page.locator(".urgent-chip").first()).toContainText("Fever after chemo");
+  await expect(page.locator(".urgent-chip").first()).toContainText("Priority assistance");
+  await expect(page.locator("body")).not.toContainText("Fever after chemo");
   await page.waitForTimeout(700); // let the numeral flip settle for a crisp shot
   await page.screenshot({ path: `${SHOTS}/board.png`, fullPage: true });
 });
@@ -47,6 +51,7 @@ test("coordinator logs in and sees the queue with the urgent chip", async ({ pag
 
   await expect(page.locator(".appbar strong")).toHaveText("Coordinator");
   await expect(page.locator(".chip-urgent").first()).toContainText("Fever after chemo");
+  cachedAccessToken = await page.evaluate(() => localStorage.getItem("opd_staff_token"));
   await page.screenshot({ path: `${SHOTS}/coordinator-queue.png`, fullPage: true });
 });
 

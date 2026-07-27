@@ -5,6 +5,19 @@
 // last one, and it carried the console's only remaining deferral marker.
 
 import { useState } from "react";
+import {
+  Activity,
+  AudioLines,
+  BookOpenCheck,
+  Cable,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  Network,
+  Settings2,
+  Users,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AuthError } from "@/app/_lib/queue";
 import { ADMIN_CSS } from "./adminStyles";
 import { ChannelsTab } from "./ChannelsTab";
@@ -30,15 +43,33 @@ type TabId =
 // all", which outranks every question the others answer. People is second
 // (S-GL.2) for the same reason one rung down — a hospital with no doctor on the
 // roster has an open channel and nobody to send anyone to.
-const TABS: { id: TabId; label: string }[] = [
-  { id: "channels", label: "Channels" },
-  { id: "people", label: "People & roster" },
-  { id: "cost", label: "Cost & tokens" },
-  { id: "ops", label: "Operations" },
-  { id: "trees", label: "Trees" },
-  { id: "prices", label: "Price book" },
-  { id: "registry", label: "Templates & voice" },
-  { id: "protocols", label: "Protocols & slots" },
+const GROUPS: { label: string; items: { id: TabId; label: string; icon: LucideIcon }[] }[] = [
+  {
+    label: "Operations",
+    items: [
+      { id: "channels", label: "Channels", icon: Cable },
+      { id: "ops", label: "System operations", icon: Activity },
+    ],
+  },
+  {
+    label: "Workforce",
+    items: [{ id: "people", label: "People and roster", icon: Users }],
+  },
+  {
+    label: "Clinical content",
+    items: [
+      { id: "trees", label: "Intake trees", icon: Network },
+      { id: "protocols", label: "Protocols and slots", icon: BookOpenCheck },
+      { id: "registry", label: "Templates and voice", icon: AudioLines },
+    ],
+  },
+  {
+    label: "Finance and control",
+    items: [
+      { id: "cost", label: "Cost and tokens", icon: CircleDollarSign },
+      { id: "prices", label: "Price book", icon: ClipboardList },
+    ],
+  },
 ];
 
 export function Console({ token, onSignOut }: { token: string; onSignOut: () => void }) {
@@ -52,33 +83,45 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
   return (
     <div className="admin">
       <style dangerouslySetInnerHTML={{ __html: ADMIN_CSS }} />
-      <header>
-        <span className="badge">Admin</span>
-        <h1>OPD control room</h1>
+      <header className="admin-topbar">
+        <span className="admin-mark"><Settings2 aria-hidden="true" /></span>
+        <span className="admin-title">
+          <h1>OPD control room</h1>
+          <small>Administration</small>
+        </span>
         <span className="spacer" />
         <button onClick={onSignOut}>Sign out</button>
       </header>
-      <nav>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={t.id === tab ? "active" : ""}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-      <main>
-        {tab === "channels" && <ChannelsTab token={token} onError={onError} />}
-        {tab === "people" && <PeopleTab token={token} onError={onError} />}
-        {tab === "cost" && <CostTab token={token} onError={onError} />}
-        {tab === "ops" && <OpsTab token={token} onError={onError} />}
-        {tab === "trees" && <TreesTab token={token} onError={onError} />}
-        {tab === "prices" && <PriceBookTab token={token} onError={onError} />}
-        {tab === "registry" && <RegistryTab token={token} onError={onError} />}
-        {tab === "protocols" && <ProtocolsTab token={token} onError={onError} />}
-      </main>
+      <div className="admin-body">
+        <nav className="admin-nav" aria-label="Administration sections">
+          {GROUPS.map((group) => (
+            <section key={group.label}>
+              <h2>{group.label}</h2>
+              {group.items.map(({ icon: Icon, ...item }) => (
+                <button
+                  key={item.id}
+                  className={item.id === tab ? "active" : ""}
+                  onClick={() => setTab(item.id)}
+                >
+                  <Icon aria-hidden="true" />
+                  <span>{item.label}</span>
+                  <ChevronRight className="chevron" aria-hidden="true" />
+                </button>
+              ))}
+            </section>
+          ))}
+        </nav>
+        <main>
+          {tab === "channels" && <ChannelsTab token={token} onError={onError} />}
+          {tab === "people" && <PeopleTab token={token} onError={onError} />}
+          {tab === "cost" && <CostTab token={token} onError={onError} />}
+          {tab === "ops" && <OpsTab token={token} onError={onError} />}
+          {tab === "trees" && <TreesTab token={token} onError={onError} />}
+          {tab === "prices" && <PriceBookTab token={token} onError={onError} />}
+          {tab === "registry" && <RegistryTab token={token} onError={onError} />}
+          {tab === "protocols" && <ProtocolsTab token={token} onError={onError} />}
+        </main>
+      </div>
     </div>
   );
 }

@@ -238,6 +238,10 @@ export function Console() {
               token={token}
               visitId={card.visit_id}
               patientName={card.name}
+              patientMrn={card.mrn}
+              visitDate={card.visit_date}
+              doctorName={day?.doctor_name ?? "Doctor"}
+              departmentName={card.department_name}
               onClose={() => setDictating(false)}
             />
           ) : card ? (

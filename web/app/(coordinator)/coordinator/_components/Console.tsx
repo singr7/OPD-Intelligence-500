@@ -8,6 +8,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
+  AlertTriangle,
+  Building2,
+  CloudOff,
+  PhoneCall,
+  Stethoscope,
+  Users,
+} from "lucide-react";
+import {
   AuthError,
   callNext,
   Console as ConsoleData,
@@ -76,8 +85,11 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
 
       <header className="appbar">
         <div className="appbar-l">
-          <span className="logo">◐</span>
-          <strong>Coordinator</strong>
+          <span className="logo"><Activity aria-hidden="true" /></span>
+          <span className="app-title">
+            <strong>Queue operations</strong>
+            <small>Coordinator</small>
+          </span>
           <nav className="tabs">
             {(["queue", "reconciliation", "paper", "print"] as Tab[]).map((t) => (
               <button
@@ -95,6 +107,7 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
             className={`downtime-toggle ${downtime ? "active" : ""}`}
             onClick={() => guard(() => setDowntime(token, !downtime))}
           >
+            <CloudOff aria-hidden="true" />
             {downtime ? "Exit downtime" : "Enter downtime"}
           </button>
           <button className="signout" onClick={onSignOut}>
@@ -150,14 +163,66 @@ function QueueTab({
 }) {
   if (!data) return <p className="loading">Loading queue…</p>;
   const active = data.departments.filter((d) => d.entries.length > 0);
+  const entries = data.departments.flatMap((d) => d.entries);
+  const metrics = [
+    {
+      label: "Waiting now",
+      value: entries.filter((e) => e.state === "waiting").length,
+      icon: Users,
+      tone: "neutral",
+    },
+    {
+      label: "Urgent waiting",
+      value: entries.filter((e) => e.state === "waiting" && e.priority === "urgent").length,
+      icon: AlertTriangle,
+      tone: "danger",
+    },
+    {
+      label: "Called",
+      value: entries.filter((e) => e.state === "called").length,
+      icon: PhoneCall,
+      tone: "info",
+    },
+    {
+      label: "In consultation",
+      value: entries.filter((e) => e.state === "in_consult").length,
+      icon: Stethoscope,
+      tone: "success",
+    },
+    {
+      label: "Active departments",
+      value: active.length,
+      icon: Building2,
+      tone: "neutral",
+    },
+  ];
   if (active.length === 0) {
     return <div className="empty-state">No one is in the queue right now.</div>;
   }
   return (
-    <div className="queue-grid">
-      {active.map((dept) => (
-        <DeptQueue key={dept.department_key} dept={dept} token={token} onAction={onAction} />
-      ))}
+    <div className="queue-page">
+      <section className="metric-strip" aria-label="Current queue pressure">
+        {metrics.map(({ icon: Icon, ...metric }) => (
+          <article className={`metric tone-${metric.tone}`} key={metric.label}>
+            <Icon aria-hidden="true" />
+            <span>
+              <small>{metric.label}</small>
+              <strong>{metric.value}</strong>
+            </span>
+          </article>
+        ))}
+      </section>
+      <header className="queue-heading">
+        <div>
+          <h1>Department queues</h1>
+          <p>Live state from the queue service. Priority ordering remains enforced.</p>
+        </div>
+      </header>
+      <div className="queue-grid">
+        {active.map((dept) => (
+          <DeptQueue key={dept.department_key} dept={dept} token={token} onAction={onAction} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -217,9 +282,7 @@ function DeptQueue({
             onDrop={() => drop(entry.id)}
           >
             <div className="tok-col">
-              <span className="drag" aria-hidden>
-                ⠿
-              </span>
+              <span className="drag" aria-hidden>⋮⋮</span>
               <span className="tok">{entry.token_no}</span>
             </div>
 
@@ -228,7 +291,8 @@ function DeptQueue({
                 <StateBadge state={entry.state} />
                 {entry.priority === "urgent" && (
                   <span className="chip-urgent">
-                    ⚠ Urgent{entry.priority_reason ? ` · ${entry.priority_reason}` : ""}
+                    <AlertTriangle aria-hidden="true" /> Urgent
+                    {entry.priority_reason ? ` · ${entry.priority_reason}` : ""}
                   </span>
                 )}
                 {entry.red_flag_count > 0 && (

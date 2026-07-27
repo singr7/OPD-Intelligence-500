@@ -15,16 +15,19 @@ import { expect, test } from "@playwright/test";
 const API = process.env.API_BASE ?? "http://127.0.0.1:8123";
 const SHOTS = "screenshots/s9";
 const DOCTOR_PHONE = "+915550001001"; // seeded Dr. Anil Gupta (MEDONC)
+let cachedAccessToken: string | null = null;
 
 test.describe.configure({ mode: "serial" });
 
 async function loginToken(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
   const req = await request.post(`${API}/auth/otp/request`, { data: { phone: DOCTOR_PHONE } });
   const code = (await req.json()).debug_code as string;
   const ver = await request.post(`${API}/auth/otp/verify`, {
     data: { phone: DOCTOR_PHONE, code },
   });
-  return (await ver.json()).access_token as string;
+  cachedAccessToken = (await ver.json()).access_token as string;
+  return cachedAccessToken;
 }
 
 async function signedIn(page: import("@playwright/test").Page, token: string) {
@@ -46,6 +49,7 @@ test("the doctor signs in with a phone OTP", async ({ page }) => {
 
   await expect(page.locator(".appbar strong")).toHaveText("Dr. Anil Gupta");
   await expect(page.locator(".appbar .room")).toHaveText("Medical Oncology");
+  cachedAccessToken = await page.evaluate(() => localStorage.getItem("opd_staff_token"));
 });
 
 test("the day rail lists the morning, urgent first, and opens the patient in the room", async ({

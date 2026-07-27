@@ -19,6 +19,7 @@ import { expect, test } from "@playwright/test";
 const API = process.env.API_BASE ?? "http://127.0.0.1:8123";
 const SHOTS = "screenshots/s10";
 const DOCTOR_PHONE = "+915550001001"; // seeded Dr. Anil Gupta (MEDONC)
+let cachedAccessToken: string | null = null;
 
 // The note a doctor would actually speak at the end of this consult.
 const NOTE =
@@ -35,10 +36,12 @@ test.describe.configure({ mode: "serial" });
 const ROW = { opens: 0, maps: 1, flags: 2, acknowledges: 3, signs: 4 };
 
 async function loginToken(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
   const req = await request.post(`${API}/auth/otp/request`, { data: { phone: DOCTOR_PHONE } });
   const code = (await req.json()).debug_code as string;
   const ver = await request.post(`${API}/auth/otp/verify`, { data: { phone: DOCTOR_PHONE, code } });
-  return (await ver.json()).access_token as string;
+  cachedAccessToken = (await ver.json()).access_token as string;
+  return cachedAccessToken;
 }
 
 async function openConsole(
@@ -165,6 +168,7 @@ test("signing locks the note", async ({ page, request }) => {
   await expect(page.locator(".dict-sign")).toHaveCount(0);
   await expect(page.locator(".dict-capture")).toHaveCount(0); // no re-dictating
   await expect(page.locator(".med-name").first()).toBeDisabled(); // no tap-to-fix
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `${SHOTS}/05-signed.png`, fullPage: true });
 
   // Reopening shows the signed note, still locked — the lock is the record's,
