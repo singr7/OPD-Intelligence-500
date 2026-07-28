@@ -394,7 +394,7 @@ class OpenAIProvider(LLMProvider):
     """
 
     name: ClassVar[str] = "openai"
-    model: ClassVar[str] = "gpt-4o-mini"
+    model: ClassVar[str] = "gpt-5.6-luna"
 
     BASE_URL: ClassVar[str] = "https://api.openai.com/v1"
 
@@ -452,7 +452,7 @@ class OpenAIProvider(LLMProvider):
         except httpx.HTTPError as exc:
             raise ProviderUnavailable(f"{self.name} transport error: {exc}") from exc
 
-        if response.status_code == 400:
+        if response.status_code in (400, 401, 403, 404, 422):
             raise ProviderBadRequest(f"{self.name} rejected the request: {response.text[:200]}")
         if response.status_code >= 300:
             raise ProviderUnavailable(
@@ -477,14 +477,17 @@ class OpenAIProvider(LLMProvider):
             raise ProviderUnavailable(f"openai returned no choice: {str(body)[:200]}")
         message = choices[0].get("message") or {}
 
-        tool_calls = tuple(
-            ToolCall(
-                name=tc["function"]["name"],
-                arguments=json.loads(tc["function"].get("arguments") or "{}"),
-                call_id=tc.get("id"),
+        try:
+            tool_calls = tuple(
+                ToolCall(
+                    name=tc["function"]["name"],
+                    arguments=json.loads(tc["function"].get("arguments") or "{}"),
+                    call_id=tc.get("id"),
+                )
+                for tc in (message.get("tool_calls") or [])
             )
-            for tc in (message.get("tool_calls") or [])
-        )
+        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise ProviderBadRequest(f"{self.name} returned malformed tool arguments") from exc
 
         return LLMResult(
             text=message.get("content") or "",
@@ -496,3 +499,14 @@ class OpenAIProvider(LLMProvider):
             finish_reason=choices[0].get("finish_reason"),
             usage_reported=bool(usage),
         )
+
+
+class SarvamLLMProvider(OpenAIProvider):
+    """Sarvam's OpenAI-compatible chat completions endpoint."""
+
+    name: ClassVar[str] = "sarvam"
+    model: ClassVar[str] = "sarvam-30b"
+    BASE_URL: ClassVar[str] = "https://api.sarvam.ai/v1"
+
+    def _auth_headers(self) -> dict[str, str]:
+        return {"api-subscription-key": self._api_key}

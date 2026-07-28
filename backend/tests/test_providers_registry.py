@@ -14,18 +14,21 @@ from __future__ import annotations
 import pytest
 
 from app.config import PROVIDER_SETTINGS, Settings
-from app.providers.llm import GeminiFlashProvider, OpenAIProvider
+from app.providers.llm import GeminiFlashProvider, OpenAIProvider, SarvamLLMProvider
 from app.providers.registry import (
     UnknownProvider,
     all_providers,
     get_llm_provider,
     get_sms_provider,
+    get_stt_provider,
+    get_tts_provider,
     llm_chain,
     reset_providers,
     stt_chain,
 )
 from app.providers.sms import ExotelSMSProvider, FakeSMSProvider, Msg91SMSProvider
-from app.providers.stt import GoogleSTTProvider, SarvamSTTProvider
+from app.providers.stt import GoogleSTTProvider, OpenAISTTProvider, SarvamSTTProvider
+from app.providers.tts import OpenAITTSProvider, SarvamTTSProvider
 
 pytestmark = pytest.mark.usefixtures("providers")
 
@@ -56,9 +59,24 @@ def test_swapping_the_sms_vendor_is_config_only():
 
 
 def test_swapping_the_llm_vendor_is_config_only():
-    for name, expected in [("gemini", GeminiFlashProvider), ("openai", OpenAIProvider)]:
+    for name, expected in [
+        ("gemini", GeminiFlashProvider),
+        ("openai", OpenAIProvider),
+        ("sarvam", SarvamLLMProvider),
+    ]:
         reset_providers()
         assert isinstance(get_llm_provider(_settings(llm_provider=name)), expected)
+
+
+def test_openai_and_sarvam_voice_components_are_config_only():
+    for name, stt_type, tts_type in [
+        ("openai", OpenAISTTProvider, OpenAITTSProvider),
+        ("sarvam", SarvamSTTProvider, SarvamTTSProvider),
+    ]:
+        reset_providers()
+        settings = _settings(stt_provider=name, tts_provider=name)
+        assert isinstance(get_stt_provider(settings), stt_type)
+        assert isinstance(get_tts_provider(settings), tts_type)
 
 
 def test_unknown_provider_name_raises_instead_of_falling_back_to_the_fake():

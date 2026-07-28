@@ -35,6 +35,8 @@ from app.providers.llm import (
     LLMProvider,
     LLMRequest,
     LLMResult,
+    OpenAIProvider,
+    SarvamLLMProvider,
     ToolCall,
 )
 from app.providers.local_oss import (
@@ -89,7 +91,13 @@ from app.providers.sms import (
     SmsResult,
     SmsSendError,
 )
-from app.providers.stt import FakeSTTProvider, STTProvider, Transcript
+from app.providers.stt import (
+    FakeSTTProvider,
+    OpenAISTTProvider,
+    SarvamSTTProvider,
+    STTProvider,
+    Transcript,
+)
 from app.providers.telephony import (
     CallHandle,
     CallRequest,
@@ -97,7 +105,13 @@ from app.providers.telephony import (
     FakeTelephonyProvider,
     TelephonyProvider,
 )
-from app.providers.tts import FakeTTSProvider, Speech, TTSProvider
+from app.providers.tts import (
+    FakeTTSProvider,
+    OpenAITTSProvider,
+    SarvamTTSProvider,
+    Speech,
+    TTSProvider,
+)
 
 __all__ = [
     "AdmissionController",
@@ -125,6 +139,9 @@ __all__ = [
     "LocalTTSProvider",
     "MessagingProvider",
     "Msg91SMSProvider",
+    "OpenAIProvider",
+    "OpenAISTTProvider",
+    "OpenAITTSProvider",
     "OutboundMessage",
     "PriceBookCache",
     "Provider",
@@ -138,6 +155,9 @@ __all__ = [
     "RealtimeVoiceProvider",
     "RetryPolicy",
     "SMSProvider",
+    "SarvamLLMProvider",
+    "SarvamSTTProvider",
+    "SarvamTTSProvider",
     "SmsMessage",
     "SmsResult",
     "SmsSendError",

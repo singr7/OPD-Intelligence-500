@@ -53,6 +53,70 @@
       "notes": "~$0.60/1M output tokens"
     },
     {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "unit": "token_in",
+      "price_inr": "0.084",
+      "effective_from": "2026-07-28",
+      "notes": "$1.00/1M input tokens at INR 84/USD; standard processing, sub-272K prompts"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "unit": "token_out",
+      "price_inr": "0.504",
+      "effective_from": "2026-07-28",
+      "notes": "$6.00/1M output tokens at INR 84/USD; standard processing, sub-272K prompts"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-transcribe",
+      "unit": "audio_sec",
+      "price_inr": "0.0042",
+      "effective_from": "2026-07-28",
+      "notes": "Estimated $0.003/audio-minute at INR 84/USD"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-tts",
+      "unit": "char",
+      "price_inr": "1.40",
+      "effective_from": "2026-07-28",
+      "notes": "Conservative blended estimate per 1000 input characters; replace from invoice because OpenAI bills TTS audio output tokens"
+    },
+    {
+      "provider": "sarvam",
+      "model": "saaras:v3",
+      "unit": "audio_sec",
+      "price_inr": "0.008333",
+      "effective_from": "2026-07-28",
+      "notes": "STT at INR 30/audio-hour"
+    },
+    {
+      "provider": "sarvam",
+      "model": "sarvam-30b",
+      "unit": "token_in",
+      "price_inr": "0.0025",
+      "effective_from": "2026-07-28",
+      "notes": "INR 2.50/1M input tokens; cached-input discount intentionally not modeled"
+    },
+    {
+      "provider": "sarvam",
+      "model": "sarvam-30b",
+      "unit": "token_out",
+      "price_inr": "0.010",
+      "effective_from": "2026-07-28",
+      "notes": "INR 10/1M output tokens"
+    },
+    {
+      "provider": "sarvam",
+      "model": "bulbul:v2",
+      "unit": "char",
+      "price_inr": "1.50",
+      "effective_from": "2026-07-28",
+      "notes": "TTS at INR 15/10,000 characters; legacy v2 rate retained for the selected profile"
+    },
+    {
       "provider": "sarvam",
       "model": "saarika:v2.5",
       "unit": "audio_sec",

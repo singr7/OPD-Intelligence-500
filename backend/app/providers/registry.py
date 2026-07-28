@@ -23,7 +23,13 @@ from fastapi import Depends
 
 from app.config import Settings, get_settings
 from app.providers.base import Provider
-from app.providers.llm import FakeLLMProvider, GeminiFlashProvider, LLMProvider, OpenAIProvider
+from app.providers.llm import (
+    FakeLLMProvider,
+    GeminiFlashProvider,
+    LLMProvider,
+    OpenAIProvider,
+    SarvamLLMProvider,
+)
 from app.providers.local_oss import (
     LocalLLMProvider,
     LocalSTTProvider,
@@ -42,13 +48,25 @@ from app.providers.sms import (
     Msg91SMSProvider,
     SMSProvider,
 )
-from app.providers.stt import FakeSTTProvider, GoogleSTTProvider, SarvamSTTProvider, STTProvider
+from app.providers.stt import (
+    FakeSTTProvider,
+    GoogleSTTProvider,
+    OpenAISTTProvider,
+    SarvamSTTProvider,
+    STTProvider,
+)
 from app.providers.telephony import (
     ExotelTelephonyProvider,
     FakeTelephonyProvider,
     TelephonyProvider,
 )
-from app.providers.tts import FakeTTSProvider, GoogleTTSProvider, SarvamTTSProvider, TTSProvider
+from app.providers.tts import (
+    FakeTTSProvider,
+    GoogleTTSProvider,
+    OpenAITTSProvider,
+    SarvamTTSProvider,
+    TTSProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,13 +109,19 @@ def _build_llm(name: str, settings: Settings) -> LLMProvider:
             return GeminiFlashProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
         case "openai":
             return OpenAIProvider(api_key=settings.openai_api_key, model=settings.openai_model)
+        case "sarvam":
+            return SarvamLLMProvider(
+                api_key=settings.sarvam_api_key, model=settings.sarvam_llm_model
+            )
         case "local_vllm":
             return LocalLLMProvider(
                 base_url=settings.local_vllm_base_url,
                 model=settings.local_vllm_model,
                 api_key=settings.local_vllm_api_key,
             )
-    raise UnknownProvider(f"LLM_PROVIDER={name!r}; expected fake|gemini|openai|local_vllm")
+    raise UnknownProvider(
+        f"LLM_PROVIDER={name!r}; expected fake|gemini|openai|sarvam|local_vllm"
+    )
 
 
 def _build_stt(name: str, settings: Settings) -> STTProvider:
@@ -108,11 +132,17 @@ def _build_stt(name: str, settings: Settings) -> STTProvider:
             return SarvamSTTProvider(
                 api_key=settings.sarvam_api_key, model=settings.sarvam_stt_model
             )
+        case "openai":
+            return OpenAISTTProvider(
+                api_key=settings.openai_api_key, model=settings.openai_stt_model
+            )
         case "google":
             return GoogleSTTProvider(api_key=settings.google_api_key)
         case "local_whisper":
             return LocalSTTProvider(base_url=settings.local_stt_url, model=settings.local_stt_model)
-    raise UnknownProvider(f"STT_PROVIDER={name!r}; expected fake|sarvam|google|local_whisper")
+    raise UnknownProvider(
+        f"STT_PROVIDER={name!r}; expected fake|openai|sarvam|google|local_whisper"
+    )
 
 
 def _build_tts(name: str, settings: Settings) -> TTSProvider:
@@ -124,6 +154,12 @@ def _build_tts(name: str, settings: Settings) -> TTSProvider:
                 api_key=settings.sarvam_api_key,
                 model=settings.sarvam_tts_model,
                 voice=settings.sarvam_tts_voice,
+            )
+        case "openai":
+            return OpenAITTSProvider(
+                api_key=settings.openai_api_key,
+                model=settings.openai_tts_model,
+                voice=settings.openai_tts_voice,
             )
         case "google":
             return GoogleTTSProvider(
@@ -139,7 +175,9 @@ def _build_tts(name: str, settings: Settings) -> TTSProvider:
             return VoiceboxTTSProvider(
                 base_url=settings.voicebox_url, voice=settings.voicebox_voice or None
             )
-    raise UnknownProvider(f"TTS_PROVIDER={name!r}; expected fake|sarvam|google|local_tts|voicebox")
+    raise UnknownProvider(
+        f"TTS_PROVIDER={name!r}; expected fake|openai|sarvam|google|local_tts|voicebox"
+    )
 
 
 def _build_realtime(name: str, settings: Settings) -> RealtimeVoiceProvider:

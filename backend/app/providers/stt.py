@@ -61,6 +61,8 @@ class STTProvider(Provider):
     async def transcribe(
         self, clip: AudioClip, lang: str, *, purpose: UsagePurpose = UsagePurpose.INTAKE_TURN
     ) -> Transcript:
+        if not clip.data:
+            raise ProviderBadRequest("refusing to transcribe missing audio")
         return await self._invoke(
             purpose, lambda call: self._transcribe(clip, lang, call), model=self.model
         )
@@ -104,7 +106,7 @@ class FakeSTTProvider(STTProvider):
 
 
 class SarvamSTTProvider(STTProvider):
-    """Sarvam Saarika — the primary (doc 02 §2: telephony-tuned, cheap, Indic).
+    """Sarvam Saaras v3 — Indic STT with returned language metadata.
 
     Wire notes: multipart upload, `api-subscription-key` header, and the response
     is `{"transcript": ..., "language_code": ...}` with **no confidence field** —
@@ -114,7 +116,7 @@ class SarvamSTTProvider(STTProvider):
     """
 
     name: ClassVar[str] = "sarvam"
-    model: ClassVar[str] = "saarika:v2.5"
+    model: ClassVar[str] = "saaras:v3"
 
     BASE_URL: ClassVar[str] = "https://api.sarvam.ai"
 
@@ -140,7 +142,11 @@ class SarvamSTTProvider(STTProvider):
                 "/speech-to-text",
                 headers={"api-subscription-key": self._api_key},
                 files={"file": ("audio.wav", clip.data, "audio/wav")},
-                data={"model": self.model, "language_code": bcp47(lang)},
+                data={
+                    "model": self.model,
+                    "language_code": bcp47(lang),
+                    "mode": "transcribe",
+                },
             )
         except httpx.HTTPError as exc:
             raise ProviderUnavailable(f"sarvam stt transport error: {exc}") from exc
@@ -161,6 +167,59 @@ class SarvamSTTProvider(STTProvider):
             lang=body.get("language_code", lang),
             provider=self.name,
             confidence=None,  # not reported by this API — do not invent one
+        )
+
+
+class OpenAISTTProvider(STTProvider):
+    """OpenAI transcription endpoint using a multipart WAV upload."""
+
+    name: ClassVar[str] = "openai"
+    model: ClassVar[str] = "gpt-4o-mini-transcribe"
+    BASE_URL: ClassVar[str] = "https://api.openai.com/v1"
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str | None = None,
+        client: httpx.AsyncClient | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(configured=bool(api_key), **kwargs)
+        self._api_key = api_key
+        if model:
+            self.model = model
+        self._client = client or httpx.AsyncClient(
+            base_url=self.BASE_URL, timeout=self.timeout_seconds
+        )
+
+    async def _transcribe(self, clip: AudioClip, lang: str, call: MeterCall) -> Transcript:
+        call.usage = UsageDelta(audio_seconds=clip.duration())
+        try:
+            response = await self._client.post(
+                "/audio/transcriptions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                files={"file": ("audio.wav", clip.data, "audio/wav")},
+                data={"model": self.model, "language": str(lang), "response_format": "json"},
+            )
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(f"openai stt transport error: {exc}") from exc
+
+        if response.status_code in (400, 401, 403, 404, 422):
+            raise ProviderBadRequest(f"openai stt rejected the clip: {response.text[:200]}")
+        if response.status_code >= 300:
+            raise ProviderUnavailable(
+                f"openai stt http {response.status_code}: {response.text[:200]}"
+            )
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise ProviderUnavailable("openai stt returned malformed JSON") from exc
+        return Transcript(
+            text=str(body.get("text") or ""),
+            lang=str(body.get("language") or lang),
+            provider=self.name,
+            confidence=None,
         )
 
 

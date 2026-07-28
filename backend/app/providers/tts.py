@@ -145,7 +145,7 @@ class SarvamTTSProvider(TTSProvider):
     ) -> Speech:
         call.usage = UsageDelta(characters=len(text))
         payload = {
-            "inputs": [text],
+            "text": text,
             "target_language_code": bcp47(lang),
             "speaker": voice or self._voice,
             "model": self.model,
@@ -175,6 +175,66 @@ class SarvamTTSProvider(TTSProvider):
             audio=AudioClip.from_b64(audios[0], mime="audio/wav", sample_rate=sample_rate),
             provider=self.name,
             voice=voice or self._voice,
+        )
+
+
+class OpenAITTSProvider(TTSProvider):
+    """OpenAI speech endpoint, returning WAV bytes for browser/telephony reuse."""
+
+    name: ClassVar[str] = "openai"
+    model: ClassVar[str] = "gpt-4o-mini-tts"
+    BASE_URL: ClassVar[str] = "https://api.openai.com/v1"
+    DEFAULT_VOICE: ClassVar[str] = "alloy"
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str | None = None,
+        voice: str | None = None,
+        client: httpx.AsyncClient | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(configured=bool(api_key), **kwargs)
+        self._api_key = api_key
+        if model:
+            self.model = model
+        self._voice = voice or self.DEFAULT_VOICE
+        self._client = client or httpx.AsyncClient(
+            base_url=self.BASE_URL, timeout=self.timeout_seconds
+        )
+
+    async def _synthesize(
+        self, text: str, lang: str, voice: str | None, sample_rate: int, call: MeterCall
+    ) -> Speech:
+        call.usage = UsageDelta(characters=len(text))
+        chosen_voice = voice or self._voice
+        try:
+            response = await self._client.post(
+                "/audio/speech",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={
+                    "model": self.model,
+                    "input": text,
+                    "voice": chosen_voice,
+                    "response_format": "wav",
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(f"openai tts transport error: {exc}") from exc
+
+        if response.status_code in (400, 401, 403, 404, 422):
+            raise ProviderBadRequest(f"openai tts rejected the request: {response.text[:200]}")
+        if response.status_code >= 300:
+            raise ProviderUnavailable(
+                f"openai tts http {response.status_code}: {response.text[:200]}"
+            )
+        if not response.content:
+            raise ProviderUnavailable("openai tts returned no audio")
+        return Speech(
+            audio=AudioClip(data=response.content, mime="audio/wav", sample_rate=sample_rate),
+            provider=self.name,
+            voice=chosen_voice,
         )
 
 

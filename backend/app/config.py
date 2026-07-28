@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.6-luna"
     openai_stt_model: str = "gpt-4o-mini-transcribe"
     openai_tts_model: str = "gpt-4o-mini-tts"
+    openai_tts_voice: str = "alloy"
     sarvam_api_key: str = ""
     sarvam_stt_model: str = "saaras:v3"
     sarvam_llm_model: str = "sarvam-30b"
