@@ -1,0 +1,19 @@
+{
+  "source_environment": "https://omen.opd.radpretation.ai",
+  "target_environment": "https://aws.opd.radpretation.ai",
+  "stable_alias": "https://opd.radpretation.ai",
+  "source_commit": "",
+  "target_commit": "",
+  "known_intake_id": "",
+  "backup_id": "",
+  "quiesced_at": "",
+  "backup_cutoff_at": "",
+  "restore_completed_at": "",
+  "promoted_at": "",
+  "public_health_passed_at": "",
+  "failback_completed_at": "",
+  "post_cutoff_intake_id": "",
+  "post_cutoff_intake_absent_on_target": false,
+  "source_and_target_never_concurrent_writers": false,
+  "notes": ""
+}

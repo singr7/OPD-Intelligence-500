@@ -1,0 +1,9 @@
+[Unit]
+Description=Upload an encrypted Omen PostgreSQL backup for controlled standby recovery
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/opd/projects/opd/deploy/omen/cloud-backup.sh
+StandardOutput=append:/var/log/opd-cloud-backup.log
+StandardError=append:/var/log/opd-cloud-backup.log
