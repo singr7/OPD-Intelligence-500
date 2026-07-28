@@ -19,11 +19,12 @@ if [[ "${ECR_REGISTRY:-}" != "opd-local" ]]; then
   echo "refusing local build: ECR_REGISTRY must be the local image namespace opd-local" >&2
   exit 2
 fi
-if [[ "$(git -C "$OPD_ROOT" rev-parse HEAD)" != "$IMAGE_TAG" ]]; then
+if [[ "$(git -c safe.directory="$OPD_ROOT" -C "$OPD_ROOT" rev-parse HEAD)" != "$IMAGE_TAG" ]]; then
   echo "refusing: requested SHA is not the checked-out commit" >&2
   exit 2
 fi
-if [[ -n "$(git -C "$OPD_ROOT" status --porcelain --untracked-files=normal)" ]]; then
+if [[ -n "$(git -c safe.directory="$OPD_ROOT" -C "$OPD_ROOT" \
+  status --porcelain --untracked-files=normal)" ]]; then
   echo "refusing: release images must be built from a clean worktree" >&2
   exit 3
 fi
@@ -67,4 +68,3 @@ chown root:root "$MANIFEST"
 chmod 0640 "$MANIFEST"
 
 echo "built local full-SHA images; manifest: $MANIFEST"
-
