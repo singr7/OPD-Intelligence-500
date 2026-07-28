@@ -32,6 +32,13 @@ for script in "$SCRIPT_DIR"/*.sh "$REPO_ROOT/infra/user_data.sh"; do
   bash -n "$script"
 done
 
+grep -q 'linux/amd64,linux/arm64' "$SCRIPT_DIR/build-release.sh"
+grep -q 'git status --porcelain' "$SCRIPT_DIR/build-release.sh"
+if grep -qE '(^|:)latest([[:space:]]|$)' "$SCRIPT_DIR/compose.yml"; then
+  echo "mutable latest tag leaked into AWS Compose" >&2
+  exit 1
+fi
+
 grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-tls.conf"
 if grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-http.conf"; then
   echo "HSTS must not be enabled before TLS verification" >&2

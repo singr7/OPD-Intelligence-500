@@ -32,6 +32,8 @@ infra/.terraform.lock.hcl
 *.tfstate.*
 *.tfplan
 infra/*.auto.tfvars
+releases/aws/*.json
+!deploy/aws/release-manifest.example.json
 
 # Env / secrets
 .env
