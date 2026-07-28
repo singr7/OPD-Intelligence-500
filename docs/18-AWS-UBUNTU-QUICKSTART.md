@@ -134,6 +134,7 @@ sudo /opt/opd/current/deploy/aws/deploy.sh "$RELEASE_SHA"
 sudo docker compose \
   --env-file /opt/opd/runtime/application.env \
   --env-file /opt/opd/runtime/writer.env \
+  --env-file /opt/opd/runtime/release.env \
   -f /opt/opd/current/deploy/aws/compose.yml ps
 
 curl -fsS http://127.0.0.1:18080/health
@@ -169,6 +170,7 @@ HSTS is enabled only after HTTPS health and a Certbot renewal dry run pass.
 sudo docker compose \
   --env-file /opt/opd/runtime/application.env \
   --env-file /opt/opd/runtime/writer.env \
+  --env-file /opt/opd/runtime/release.env \
   -f /opt/opd/current/deploy/aws/compose.yml config |
   grep -Eqi 'nvidia|cuda|vllm|whisper|local[_-]?tts' && exit 1 || true
 

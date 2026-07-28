@@ -39,6 +39,7 @@ grep -q 'status --porcelain' "$SCRIPT_DIR/build-local-release.sh"
 grep -q 'opd-local' "$SCRIPT_DIR/build-local-release.sh"
 grep -q 'prepare_release_images' "$SCRIPT_DIR/deploy.sh"
 grep -q 'write_release_env' "$SCRIPT_DIR/rollback.sh"
+grep -q 'IMAGE_TAG=%s' "$SCRIPT_DIR/lib.sh"
 if grep -qE '(^|:)latest([[:space:]]|$)' "$SCRIPT_DIR/compose.yml"; then
   echo "mutable latest tag leaked into AWS Compose" >&2
   exit 1

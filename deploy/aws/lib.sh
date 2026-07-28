@@ -10,7 +10,8 @@ WRITER_ENV="${WRITER_ENV:-$OPD_RUNTIME/writer.env}"
 RELEASES_DIR="${RELEASES_DIR:-$OPD_RUNTIME/releases}"
 
 compose() {
-  docker compose --env-file "$APPLICATION_ENV" --env-file "$WRITER_ENV" -f "$COMPOSE_FILE" "$@"
+  docker compose --env-file "$APPLICATION_ENV" --env-file "$WRITER_ENV" \
+    --env-file "$OPD_RUNTIME/release.env" -f "$COMPOSE_FILE" "$@"
 }
 
 require_root() {
@@ -37,6 +38,10 @@ load_env() {
   source "$APPLICATION_ENV"
   # shellcheck disable=SC1090
   source "$WRITER_ENV"
+  if [[ -r "$OPD_RUNTIME/release.env" ]]; then
+    # shellcheck disable=SC1090,SC1091
+    source "$OPD_RUNTIME/release.env"
+  fi
   set +a
   if [[ ! "${POSTGRES_USER:-opd}" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] ||
     [[ ! "${POSTGRES_DB:-opd}" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then
@@ -49,6 +54,11 @@ load_env() {
     exit 2
   fi
   export OPD_IMAGE_SOURCE
+  IMAGE_TAG="${IMAGE_TAG:-${RELEASE_SHA:-}}"
+  if [[ -n "$IMAGE_TAG" ]]; then
+    require_sha "$IMAGE_TAG"
+    export IMAGE_TAG
+  fi
 }
 
 prepare_release_images() {
@@ -97,7 +107,10 @@ write_release_env() {
   local sha="$1"
   require_sha "$sha"
   umask 077
-  printf 'RELEASE_SHA=%s\n' "$sha" >"$OPD_RUNTIME/release.env.tmp"
+  {
+    printf 'IMAGE_TAG=%s\n' "$sha"
+    printf 'RELEASE_SHA=%s\n' "$sha"
+  } >"$OPD_RUNTIME/release.env.tmp"
   chown root:root "$OPD_RUNTIME/release.env.tmp"
   chmod 0600 "$OPD_RUNTIME/release.env.tmp"
   mv "$OPD_RUNTIME/release.env.tmp" "$OPD_RUNTIME/release.env"
