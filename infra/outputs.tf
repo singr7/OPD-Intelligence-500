@@ -15,3 +15,12 @@ output "media_bucket" {
 output "backups_bucket" {
   value = aws_s3_bucket.backups.bucket
 }
+
+output "ecr_repository_urls" {
+  description = "Commit-addressed service image destinations."
+  value       = { for service, repository in aws_ecr_repository.service : service => repository.repository_url }
+}
+
+output "application_url" {
+  value = var.domain_name == "" ? null : "https://${var.domain_name}"
+}

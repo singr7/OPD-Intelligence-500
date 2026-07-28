@@ -22,6 +22,23 @@ variable "ami_id" {
   default     = "ami-0000000000000000"
 }
 
+variable "runtime_secret_arn" {
+  description = "ARN of the one Secrets Manager secret read by the instance. Values are created outside Terraform."
+  type        = string
+  default     = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:opd-pilot-runtime-placeholder"
+
+  validation {
+    condition     = can(regex("^arn:aws:secretsmanager:", var.runtime_secret_arn))
+    error_message = "runtime_secret_arn must be a Secrets Manager ARN."
+  }
+}
+
+variable "health_check_host" {
+  description = "Public hostname checked by the CloudWatch Synthetics-compatible health publisher."
+  type        = string
+  default     = "aws.opd.example.invalid"
+}
+
 variable "root_volume_gb" {
   type    = number
   default = 30
@@ -33,7 +50,7 @@ variable "data_volume_gb" {
 }
 
 variable "domain_name" {
-  description = "Route53 hosted-zone domain; empty disables DNS records."
+  description = "Exact Route53 record/hosted-zone name; empty disables DNS records."
   type        = string
   default     = ""
 }

@@ -41,6 +41,13 @@ resource "aws_s3_bucket" "backups" {
   tags   = { Name = "opd-${var.env}-backups" }
 }
 
+resource "aws_s3_bucket_versioning" "backups" {
+  bucket = aws_s3_bucket.backups.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "backups" {
   bucket                  = aws_s3_bucket.backups.id
   block_public_acls       = true
@@ -60,12 +67,18 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "backups" {
 
 resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   bucket = aws_s3_bucket.backups.id
+  depends_on = [
+    aws_s3_bucket_versioning.backups,
+  ]
   rule {
     id     = "expire-backups-35d"
     status = "Enabled"
     filter {}
     expiration {
       days = 35
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 35
     }
   }
 }

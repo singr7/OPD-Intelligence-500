@@ -98,22 +98,63 @@ resource "aws_iam_role_policy_attachment" "cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
-data "aws_iam_policy_document" "s3_access" {
+data "aws_iam_policy_document" "instance_access" {
   statement {
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+    sid       = "BackupBucketList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.backups.arn]
+  }
+
+  statement {
+    sid     = "BackupObjects"
+    actions = ["s3:GetObject", "s3:PutObject"]
     resources = [
-      aws_s3_bucket.media.arn,
-      "${aws_s3_bucket.media.arn}/*",
-      aws_s3_bucket.backups.arn,
       "${aws_s3_bucket.backups.arn}/*",
     ]
   }
+
+  statement {
+    sid       = "RuntimeSecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [var.runtime_secret_arn]
+  }
+
+  statement {
+    sid = "EcrAuthorization"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EcrPull"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+    resources = values(aws_ecr_repository.service)[*].arn
+  }
+
+  statement {
+    sid = "PublishOperationalMetrics"
+    actions = [
+      "cloudwatch:PutMetricData",
+    ]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["OPD/Standby"]
+    }
+  }
 }
 
-resource "aws_iam_role_policy" "s3" {
-  name   = "opd-${var.env}-s3"
+resource "aws_iam_role_policy" "instance_access" {
+  name   = "opd-${var.env}-runtime"
   role   = aws_iam_role.instance.id
-  policy = data.aws_iam_policy_document.s3_access.json
+  policy = data.aws_iam_policy_document.instance_access.json
 }
 
 resource "aws_iam_instance_profile" "instance" {
@@ -132,9 +173,15 @@ resource "aws_instance" "app" {
   root_block_device {
     volume_size = var.root_volume_gb
     volume_type = "gp3"
+    encrypted   = true
   }
 
   user_data = file("${path.module}/user_data.sh")
+
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
 
   tags = { Name = "opd-${var.env}-app" }
 }
@@ -144,6 +191,7 @@ resource "aws_ebs_volume" "data" {
   size              = var.data_volume_gb
   type              = "gp3"
   iops              = 3000
+  encrypted         = true
   tags              = { Name = "opd-${var.env}-data" }
 }
 
