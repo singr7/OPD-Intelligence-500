@@ -62,6 +62,34 @@ cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'JSON'
       },
       "mem": {"measurement": ["mem_used_percent"], "metrics_collection_interval": 60}
     }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/nginx/access.log",
+            "log_group_name": "/opd/OPD_ENVIRONMENT/nginx-access",
+            "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/var/log/nginx/error.log",
+            "log_group_name": "/opd/OPD_ENVIRONMENT/nginx-error",
+            "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/var/lib/docker/containers/*/*.log",
+            "log_group_name": "/opd/OPD_ENVIRONMENT/application",
+            "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/var/log/opd/backup.log",
+            "log_group_name": "/opd/OPD_ENVIRONMENT/backup",
+            "log_stream_name": "{instance_id}"
+          }
+        ]
+      }
+    }
   }
 }
 JSON

@@ -1,0 +1,7 @@
+[Unit]
+Description=Publish OPD public health and backup age metrics
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/opd/current/deploy/aws/publish-health-metrics.sh

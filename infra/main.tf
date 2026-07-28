@@ -176,7 +176,7 @@ resource "aws_instance" "app" {
     encrypted   = true
   }
 
-  user_data = file("${path.module}/user_data.sh")
+  user_data = replace(file("${path.module}/user_data.sh"), "OPD_ENVIRONMENT", var.env)
 
   metadata_options {
     http_endpoint = "enabled"

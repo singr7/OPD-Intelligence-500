@@ -1,0 +1,9 @@
+[Unit]
+Description=Verify latest OPD backup in an isolated database
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/opd/current/deploy/aws/verify-restore.sh
+StandardOutput=append:/var/log/opd/backup.log
+StandardError=append:/var/log/opd/backup.log

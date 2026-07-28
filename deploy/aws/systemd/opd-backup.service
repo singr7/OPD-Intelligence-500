@@ -1,0 +1,9 @@
+[Unit]
+Description=OPD encrypted PostgreSQL backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/opd/current/deploy/aws/backup.sh
+StandardOutput=append:/var/log/opd/backup.log
+StandardError=append:/var/log/opd/backup.log

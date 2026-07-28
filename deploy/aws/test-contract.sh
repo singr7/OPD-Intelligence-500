@@ -44,4 +44,7 @@ if grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-http.conf"; then
   echo "HSTS must not be enabled before TLS verification" >&2
   exit 1
 fi
+grep -q 'OnCalendar=\*:0/15' "$SCRIPT_DIR/systemd/opd-backup.timer"
+grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.timer"
+python3 "$SCRIPT_DIR/test_secret_to_env.py"
 echo "AWS deployment contract: ok"
