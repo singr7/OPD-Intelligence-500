@@ -36,7 +36,8 @@ compose exec -T redis redis-cli FLUSHALL >/dev/null
 compose --profile migration run --rm migrate
 set_database_read_only on
 write_writer_env 0
-compose up -d --wait postgres redis api web
+compose up -d --wait postgres redis
+compose up -d --wait --force-recreate api web
 rm -f "$MARKER"
 
 [[ "$(writer_setting)" == "on" ]]

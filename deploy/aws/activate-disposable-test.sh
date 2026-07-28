@@ -44,7 +44,8 @@ rollback_on_error() {
   compose stop api voice-gw worker beat web >/dev/null 2>&1 || true
   set_database_read_only on >/dev/null 2>&1 || true
   write_writer_env 0 || true
-  compose up -d --wait postgres redis api web >/dev/null 2>&1 || true
+  compose up -d --wait postgres redis >/dev/null 2>&1 || true
+  compose up -d --wait --force-recreate api web >/dev/null 2>&1 || true
   rm -f "$RELEASES_DIR/disposable-test-active"
   exit "$status"
 }
@@ -60,7 +61,8 @@ write_writer_env 1
   printf 'SMS_PROVIDER=fake\n'
 } >>"$WRITER_ENV"
 chmod 0600 "$WRITER_ENV"
-compose up -d --wait postgres redis api voice-gw worker beat web
+compose up -d --wait postgres redis
+compose up -d --wait --force-recreate api voice-gw worker beat web
 curl -fsS http://127.0.0.1:18080/health >/dev/null
 curl -fsS "https://${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}/api/health" >/dev/null
 compose exec -T api python -m app.seed
