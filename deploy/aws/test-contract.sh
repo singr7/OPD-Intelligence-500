@@ -70,6 +70,11 @@ if grep -q 'proxy_read_timeout' "$SCRIPT_DIR/nginx/opd-proxy.conf"; then
   echo "shared proxy config must not duplicate per-location read timeouts" >&2
   exit 1
 fi
+grep -q -- '--confirm-no-phi' "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q 'restored-backup' "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q -- '--confirm-delete-test-data' "$SCRIPT_DIR/end-disposable-test.sh"
+grep -q 'disposable-test-active' "$SCRIPT_DIR/end-disposable-test.sh"
+grep -q 'FLUSHALL' "$SCRIPT_DIR/end-disposable-test.sh"
 grep -q 'OnCalendar=\*:0/15' "$SCRIPT_DIR/systemd/opd-backup.timer"
 grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.timer"
 python3 "$SCRIPT_DIR/test_secret_to_env.py"

@@ -255,6 +255,29 @@ restore an Omen backup, run isolated verification, and complete the single-write
 drill in `docs/17-AWS-STANDBY-RUNBOOK.md`. Promotion is separate and deliberate;
 DNS health alone never enables writes.
 
+## Disposable no-PHI regression test
+
+Before a production-like promotion, the isolated AWS database may be made writable
+for synthetic regression testing. This mode must not receive PHI, must not use the
+stable production alias, and refuses to start over a verified restored database:
+
+```bash
+sudo /opt/opd/current/deploy/aws/activate-disposable-test.sh \
+  <full-release-sha> --confirm-no-phi
+```
+
+After testing, erase the disposable PostgreSQL database and Redis state, recreate
+the schema, and return AWS to read-only standby:
+
+```bash
+sudo /opt/opd/current/deploy/aws/end-disposable-test.sh \
+  <full-release-sha> --confirm-delete-test-data
+```
+
+The cleanup command is deliberately destructive and runs only when its disposable
+marker exists. Complete it before restoring an Omen backup or starting the formal
+promotion procedure.
+
 ## References
 
 - [Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
