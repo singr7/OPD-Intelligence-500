@@ -109,4 +109,16 @@
     <string name="cancel">रद्द करें</string>
     <string name="offline_banner">नेटवर्क नहीं है। इस फ़ोन में सहेजा हुआ दिख रहा है।</string>
     <string name="error_generic">कुछ ठीक नहीं चला। फिर से कोशिश करते हैं।</string>
+    <string name="environment_open">अस्पताल सर्वर सेटिंग</string>
+    <string name="environment_title">अस्पताल सर्वर चुनें</string>
+    <string name="environment_help">अस्पताल कर्मचारी के लिए। बदलने से पहले सर्वर जाँचें।</string>
+    <string name="environment_current">अभी जुड़ा हुआ</string>
+    <string name="environment_test">यह सर्वर जाँचें</string>
+    <string name="environment_testing">सुरक्षित जाँच हो रही है…</string>
+    <string name="environment_ready">पहचान, संस्करण और समय सही हैं</string>
+    <string name="environment_switch">सर्वर बदलें</string>
+    <string name="environment_failed">इस सर्वर की जाँच नहीं हुई। कुछ नहीं बदला।</string>
+    <string name="environment_confirm_title">अस्पताल सर्वर बदलें?</string>
+    <string name="environment_confirm_body">%1$s पर जाने से मरीज साइन आउट होगा और सर्वर कैश साफ होगा। बिना भेजा ऑफ़लाइन काम उसी सर्वर का रहेगा जहाँ वह बना था।</string>
+    <string name="environment_confirm">पुष्टि करें और साइन आउट करें</string>
 </resources>

@@ -58,6 +58,7 @@ fun HomeScreen(
     onFamily: () -> Unit,
     onAppointments: () -> Unit,
     onQueue: () -> Unit,
+    onEnvironment: () -> Unit,
 ) {
     val name by container.tokens.name.collectAsState(initial = null)
     val via by container.tokens.via.collectAsState(initial = "self")
@@ -175,6 +176,12 @@ fun HomeScreen(
         QuietButton(
             text = stringResource(R.string.home_signout),
             onClick = { scope.launch { container.auth.signOut() } },
+        )
+        Spacer(Modifier.height(12.dp))
+        QuietButton(
+            text = stringResource(R.string.environment_open),
+            onClick = onEnvironment,
+            modifier = Modifier.testTag("environment_open_signed_in"),
         )
         Spacer(Modifier.height(24.dp))
     }

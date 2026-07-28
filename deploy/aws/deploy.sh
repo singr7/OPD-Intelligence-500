@@ -9,6 +9,10 @@ require_sha "${1:-}"
 IMAGE_TAG="$1"
 load_env
 export IMAGE_TAG
+umask 077
+printf 'RELEASE_SHA=%s\n' "$IMAGE_TAG" >"$OPD_RUNTIME/release.env"
+chown root:root "$OPD_RUNTIME/release.env"
+chmod 0600 "$OPD_RUNTIME/release.env"
 
 if [[ "$IMAGE_TAG" == "latest" ]]; then
   echo "mutable latest tags are forbidden" >&2

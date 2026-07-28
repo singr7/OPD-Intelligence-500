@@ -4,8 +4,12 @@ import ai.radpretation.opd.data.ApiClient
 import ai.radpretation.opd.data.AuthRepository
 import ai.radpretation.opd.data.PatientRepository
 import ai.radpretation.opd.data.TokenStore
+import ai.radpretation.opd.data.EnvironmentAllowList
+import ai.radpretation.opd.data.EnvironmentPairing
+import ai.radpretation.opd.data.EnvironmentStore
 import ai.radpretation.opd.data.local.OpdDatabase
 import ai.radpretation.opd.intake.IntakeRepository
+import ai.radpretation.opd.intake.OwnedOfflineIntakes
 import android.app.Application
 import android.content.Context
 import androidx.room.Room
@@ -19,27 +23,48 @@ import androidx.room.Room
  * lets the tests build a container against MockWebServer and an in-memory Room
  * without a test framework of its own.
  */
-class AppContainer(context: Context, baseUrl: String = BuildConfig.API_BASE_URL) {
+class AppContainer(
+    context: Context,
+    baseUrl: String? = null,
+    allowList: EnvironmentAllowList = EnvironmentAllowList.fromBuildConfig(),
+) {
     private val appContext = context.applicationContext
 
     val tokens: TokenStore by lazy { TokenStore(appContext) }
 
-    val api: ApiClient by lazy { ApiClient(baseUrl, tokens) }
+    val environments: EnvironmentStore by lazy {
+        EnvironmentStore(
+            appContext,
+            baseUrl?.let { EnvironmentAllowList.parse(it, it, allowDebug = true) } ?: allowList,
+        )
+    }
+
+    val api: ApiClient by lazy { ApiClient({ environments.current().apiBase }, tokens) }
 
     val db: OpdDatabase by lazy {
         Room.databaseBuilder(appContext, OpdDatabase::class.java, "opd.db")
-            // The care file is a cache of server rows and the dose queue drains
-            // within hours, so a schema change may throw the local copy away and
-            // re-sync rather than carry a migration the pilot will never run.
-            .fallbackToDestructiveMigration()
+            .addMigrations(OpdDatabase.MIGRATION_1_2)
             .build()
     }
 
-    val patients: PatientRepository by lazy { PatientRepository(api, db, tokens) }
+    val patients: PatientRepository by lazy {
+        PatientRepository(api, db, tokens) { environments.current().id }
+    }
 
     val auth: AuthRepository by lazy { AuthRepository(api, tokens) }
 
     val intake: IntakeRepository by lazy { IntakeRepository(api) }
+
+    val offlineIntakes: OwnedOfflineIntakes by lazy {
+        OwnedOfflineIntakes(db.pendingIntakes()) { environments.current().id }
+    }
+
+    val pairing: EnvironmentPairing by lazy {
+        EnvironmentPairing(environments, tokens, api) {
+            db.files().clear()
+            db.kv().clear()
+        }
+    }
 }
 
 class OpdApp : Application() {

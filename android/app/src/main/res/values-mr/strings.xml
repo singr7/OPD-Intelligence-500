@@ -110,4 +110,16 @@
     <string name="cancel">रद्द करा</string>
     <string name="offline_banner">नेटवर्क नाही. या फोनमध्ये साठवलेले दिसत आहे.</string>
     <string name="error_generic">काहीतरी नीट चालले नाही. पुन्हा प्रयत्न करू.</string>
+    <string name="environment_open">रुग्णालय सर्वर सेटिंग</string>
+    <string name="environment_title">रुग्णालय सर्वर निवडा</string>
+    <string name="environment_help">रुग्णालय कर्मचाऱ्यांसाठी. बदलण्यापूर्वी सर्वर तपासा.</string>
+    <string name="environment_current">सध्या जोडलेले</string>
+    <string name="environment_test">हा सर्वर तपासा</string>
+    <string name="environment_testing">सुरक्षित तपासणी सुरू आहे…</string>
+    <string name="environment_ready">ओळख, आवृत्ती आणि वेळ तपासले</string>
+    <string name="environment_switch">सर्वर बदला</string>
+    <string name="environment_failed">हा सर्वर तपासता आला नाही. काहीही बदलले नाही.</string>
+    <string name="environment_confirm_title">रुग्णालय सर्वर बदलायचा?</string>
+    <string name="environment_confirm_body">%1$s वर गेल्यावर रुग्ण साइन आउट होईल आणि सर्वर कॅश साफ होईल. न पाठवलेले ऑफलाइन काम ज्या सर्वरवर तयार झाले त्याच्याशी जोडलेले राहील.</string>
+    <string name="environment_confirm">पुष्टी करा आणि साइन आउट करा</string>
 </resources>

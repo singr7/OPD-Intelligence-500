@@ -110,4 +110,16 @@
     <string name="cancel">రద్దు చేయండి</string>
     <string name="offline_banner">నెట్‌వర్క్ లేదు. ఈ ఫోన్‌లో దాచినది కనిపిస్తోంది.</string>
     <string name="error_generic">ఏదో సరిగా జరగలేదు. మళ్లీ ప్రయత్నిద్దాం.</string>
+    <string name="environment_open">ఆసుపత్రి సర్వర్ సెట్టింగ్‌లు</string>
+    <string name="environment_title">ఆసుపత్రి సర్వర్‌ను ఎంచుకోండి</string>
+    <string name="environment_help">ఆసుపత్రి సిబ్బందికి. మార్చే ముందు సర్వర్‌ను పరీక్షించండి.</string>
+    <string name="environment_current">ఇప్పుడు అనుసంధానమైనది</string>
+    <string name="environment_test">ఈ సర్వర్‌ను పరీక్షించండి</string>
+    <string name="environment_testing">సురక్షితంగా పరీక్షిస్తోంది…</string>
+    <string name="environment_ready">గుర్తింపు, వెర్షన్ మరియు సమయం ధృవీకరించబడ్డాయి</string>
+    <string name="environment_switch">సర్వర్‌ను మార్చండి</string>
+    <string name="environment_failed">ఈ సర్వర్‌ను ధృవీకరించలేకపోయాం. ఏదీ మారలేదు.</string>
+    <string name="environment_confirm_title">ఆసుపత్రి సర్వర్‌ను మార్చాలా?</string>
+    <string name="environment_confirm_body">%1$s కు మారితే రోగి సైన్ అవుట్ అవుతారు మరియు సర్వర్ క్యాష్ తొలగుతుంది. పంపని ఆఫ్‌లైన్ పని అది సృష్టించిన సర్వర్‌కే చెందుతుంది.</string>
+    <string name="environment_confirm">ధృవీకరించి సైన్ అవుట్ చేయండి</string>
 </resources>

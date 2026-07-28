@@ -33,6 +33,20 @@
     <string name="signin_failed">That code did not work. Let\'s try once more.</string>
     <string name="signin_trust">Your file is seen only by you and your doctor.</string>
 
+    <!-- operator environment pairing -->
+    <string name="environment_open">Hospital server settings</string>
+    <string name="environment_title">Choose the hospital server</string>
+    <string name="environment_help">For hospital staff. Test the server before changing it.</string>
+    <string name="environment_current">Connected now</string>
+    <string name="environment_test">Test this server</string>
+    <string name="environment_testing">Testing safely…</string>
+    <string name="environment_ready">Identity, version and clock verified</string>
+    <string name="environment_switch">Change server</string>
+    <string name="environment_failed">This server could not be verified. Nothing was changed.</string>
+    <string name="environment_confirm_title">Change hospital server?</string>
+    <string name="environment_confirm_body">Changing to %1$s signs out this patient and clears the server cache. Unsent offline work stays with the server where it was created.</string>
+    <string name="environment_confirm">Confirm and sign out</string>
+
     <!-- navigation -->
     <string name="tab_home">Home</string>
     <string name="tab_file">My File</string>

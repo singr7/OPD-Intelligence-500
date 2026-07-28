@@ -4,6 +4,7 @@ x-app: &app
   env_file:
     - ${OPD_RUNTIME:-/opt/opd/runtime}/application.env
     - ${OPD_RUNTIME:-/opt/opd/runtime}/writer.env
+    - ${OPD_RUNTIME:-/opt/opd/runtime}/release.env
   restart: unless-stopped
   stop_grace_period: 45s
   logging:

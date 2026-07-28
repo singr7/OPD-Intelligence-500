@@ -35,6 +35,7 @@ class PatientRepository(
     private val api: ApiClient,
     private val db: OpdDatabase,
     private val tokens: TokenStore,
+    private val environmentId: suspend () -> String = { "test" },
 ) {
     private val files: FileDao get() = db.files()
     private val kv: KvDao get() = db.kv()
@@ -147,6 +148,7 @@ class PatientRepository(
                 scheduledFor = scheduledForIso,
                 status = status,
                 reportedAt = System.currentTimeMillis(),
+                environmentId = environmentId(),
             ),
         )
         runCatching { drainDoses() }
@@ -155,7 +157,7 @@ class PatientRepository(
     /** Push every queued dose report. Returns how many landed. */
     suspend fun drainDoses(): Int {
         var sent = 0
-        for (row in doses.pending()) {
+        for (row in doses.pending(environmentId())) {
             val body = buildJsonObject {
                 put("prescription_id", JsonPrimitive(row.prescriptionId))
                 put("med_index", JsonPrimitive(row.medIndex))

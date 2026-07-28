@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
+
+val omenApiBase = providers.environmentVariable("OPD_OMEN_API_BASE")
+    .orElse(providers.gradleProperty("opdOmenApiBase"))
+val awsApiBase = providers.environmentVariable("OPD_AWS_API_BASE")
+    .orElse(providers.gradleProperty("opdAwsApiBase"))
 
 android {
     namespace = "ai.radpretation.opd"
@@ -16,19 +23,10 @@ android {
         // Alwar market sold five years ago, not this year's.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-s16"
+        versionCode = 2
+        versionName = "1.0.0-android1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // The API base is a build input, not a hardcoded string: the emulator
-        // reaches the dev box at 10.0.2.2, a real phone reaches the pilot at
-        // opd.radpretation.ai, and a test reaches MockWebServer on localhost.
-        buildConfigField(
-            "String",
-            "API_BASE_URL",
-            "\"${project.findProperty("opdApiBase") ?: "https://opd.radpretation.ai"}\"",
-        )
 
         // One language pack per pilot tongue, and no others shipped (doc 03 §1).
         resourceConfigurations += setOf("en", "hi", "mr", "te")
@@ -41,11 +39,16 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Unsigned is fine — nothing here publishes. The size gate in CI
-            // measures this artifact.
+            buildConfigField("String", "OMEN_API_BASE", "\"${omenApiBase.orNull.orEmpty()}\"")
+            buildConfigField("String", "AWS_API_BASE", "\"${awsApiBase.orNull.orEmpty()}\"")
+            buildConfigField("boolean", "ALLOW_DEBUG_ENDPOINTS", "false")
         }
         debug {
             applicationIdSuffix = ".debug"
+            val localBase = project.findProperty("opdApiBase")?.toString() ?: "http://10.0.2.2:8000"
+            buildConfigField("String", "OMEN_API_BASE", "\"$localBase\"")
+            buildConfigField("String", "AWS_API_BASE", "\"$localBase\"")
+            buildConfigField("boolean", "ALLOW_DEBUG_ENDPOINTS", "true")
         }
     }
 
@@ -85,6 +88,33 @@ android {
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
+}
+
+val validateReleaseEnvironments by tasks.registering {
+    group = "verification"
+    doLast {
+        val approved = mapOf(
+            "OPD_OMEN_API_BASE" to omenApiBase.orNull,
+            "OPD_AWS_API_BASE" to awsApiBase.orNull,
+        )
+        approved.forEach { (name, value) ->
+            require(!value.isNullOrBlank()) { "$name is required for a release build" }
+            val uri = URI(value)
+            require(uri.scheme == "https") { "$name must use HTTPS" }
+            require(uri.host in setOf("omen.opd.radpretation.ai", "aws.opd.radpretation.ai")) {
+                "$name is not an approved production host"
+            }
+            require(uri.path.trimEnd('/') == "/api") { "$name must end in /api" }
+            require(uri.userInfo == null && uri.port == -1 && uri.query == null && uri.fragment == null) {
+                "$name may not contain credentials, a port, query, or fragment"
+            }
+        }
+        require(approved.values.toSet().size == 2) { "Omen and AWS must be distinct endpoints" }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validateReleaseEnvironments)
 }
 
 dependencies {

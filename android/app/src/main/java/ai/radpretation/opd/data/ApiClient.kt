@@ -32,13 +32,22 @@ class OfflineException(cause: Throwable) : IOException("offline", cause)
  * 3. **It never throws on an empty file.** A 304 is an answer, not an error.
  */
 class ApiClient(
-    private val baseUrl: String,
+    private val baseUrl: suspend () -> String,
     private val tokens: TokenStore,
     private val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build(),
 ) {
+    constructor(
+        baseUrl: String,
+        tokens: TokenStore,
+        http: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build(),
+    ) : this({ baseUrl }, tokens, http)
+
     val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -53,6 +62,10 @@ class ApiClient(
     }
 
     data class Response(val code: Int, val body: String, val etag: String?)
+
+    fun cancelInFlight() {
+        http.dispatcher.cancelAll()
+    }
 
     suspend fun get(path: String, etag: String? = null, authenticated: Boolean = true): Response =
         send("GET", path, null, etag, authenticated)
@@ -71,7 +84,7 @@ class ApiClient(
         authenticated: Boolean,
         isRetry: Boolean = false,
     ): Response = withContext(Dispatchers.IO) {
-        val builder = Request.Builder().url(baseUrl.trimEnd('/') + path)
+        val builder = Request.Builder().url(baseUrl().trimEnd('/') + path)
         when (method) {
             "GET" -> builder.get()
             "DELETE" -> builder.delete()
@@ -120,7 +133,7 @@ class ApiClient(
             ),
         )
         val request = Request.Builder()
-            .url(baseUrl.trimEnd('/') + "/auth/refresh")
+            .url(baseUrl().trimEnd('/') + "/auth/refresh")
             .post(body.toRequestBody(JSON_MEDIA))
             .build()
         val response = try {

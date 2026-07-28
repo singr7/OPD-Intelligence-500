@@ -25,6 +25,8 @@ class SecretToEnvTests(unittest.TestCase):
             "ECR_REGISTRY": "000000000000.dkr.ecr.ap-south-1.amazonaws.com",
             "BACKUP_BUCKET": "opd-test-backups",
             "PUBLIC_HOSTNAME": "aws.opd.example.invalid",
+            "ENVIRONMENT_ID": "aws",
+            "ENVIRONMENT_NAME": "AWS standby",
         }
 
     def convert(self, payload: dict[str, str]) -> tuple[int, str, int]:

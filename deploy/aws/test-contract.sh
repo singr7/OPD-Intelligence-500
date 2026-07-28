@@ -7,6 +7,7 @@ trap 'rm -rf "$TEST_RUNTIME"' EXIT
 
 printf 'POSTGRES_PASSWORD=test-only\n' >"$TEST_RUNTIME/application.env"
 printf 'OPD_WRITER_ENABLED=0\n' >"$TEST_RUNTIME/writer.env"
+printf 'RELEASE_SHA=0123456789abcdef0123456789abcdef01234567\n' >"$TEST_RUNTIME/release.env"
 
 CONFIG="$TEST_RUNTIME/compose.rendered.yml"
 OPD_RUNTIME="$TEST_RUNTIME" \

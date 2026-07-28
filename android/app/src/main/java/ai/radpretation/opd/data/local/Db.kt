@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -49,6 +51,16 @@ data class PendingDoseRow(
     @ColumnInfo(name = "scheduled_for") val scheduledFor: String,
     val status: String,
     @ColumnInfo(name = "reported_at") val reportedAt: Long,
+    @ColumnInfo(name = "environment_id") val environmentId: String,
+)
+
+@Entity(tableName = "pending_intakes")
+data class PendingIntakeRow(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "environment_id") val environmentId: String,
+    /** Patient answers encrypted by Android's app sandbox; never logged. */
+    val payload: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
 @Dao
@@ -89,6 +101,9 @@ interface KvDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(row: KvRow)
+
+    @Query("DELETE FROM kv")
+    suspend fun clear()
 }
 
 @Dao
@@ -96,8 +111,8 @@ interface DoseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun enqueue(row: PendingDoseRow): Long
 
-    @Query("SELECT * FROM pending_doses ORDER BY reported_at")
-    suspend fun pending(): List<PendingDoseRow>
+    @Query("SELECT * FROM pending_doses WHERE environment_id = :environmentId ORDER BY reported_at")
+    suspend fun pending(environmentId: String): List<PendingDoseRow>
 
     @Query("DELETE FROM pending_doses WHERE id = :id")
     suspend fun done(id: Long)
@@ -106,17 +121,53 @@ interface DoseDao {
     suspend fun count(): Int
 }
 
+@Dao
+interface PendingIntakeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(row: PendingIntakeRow)
+
+    @Query("SELECT * FROM pending_intakes WHERE environment_id = :environmentId ORDER BY created_at")
+    suspend fun ownedBy(environmentId: String): List<PendingIntakeRow>
+
+    @Query("SELECT * FROM pending_intakes WHERE id = :id")
+    suspend fun find(id: String): PendingIntakeRow?
+
+    @Query("DELETE FROM pending_intakes WHERE id = :id")
+    suspend fun done(id: String)
+}
+
 @Database(
-    entities = [FileEntryRow::class, KvRow::class, PendingDoseRow::class],
-    version = 1,
+    entities = [FileEntryRow::class, KvRow::class, PendingDoseRow::class, PendingIntakeRow::class],
+    version = 2,
     exportSchema = true,
 )
 abstract class OpdDatabase : RoomDatabase() {
     abstract fun files(): FileDao
     abstract fun kv(): KvDao
     abstract fun doses(): DoseDao
+    abstract fun pendingIntakes(): PendingIntakeDao
 
     companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // The single S16 server was the Omen. Existing unsent dose
+                // reports retain that ownership during the first upgrade.
+                db.execSQL(
+                    "ALTER TABLE pending_doses ADD COLUMN environment_id TEXT NOT NULL DEFAULT 'omen'",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pending_intakes (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        environment_id TEXT NOT NULL,
+                        payload TEXT NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         const val KEY_FILE_ETAG = "file_etag"
         const val KEY_FILE_PATIENT = "file_patient"
         const val KEY_REMINDER_PLAN = "reminder_plan"

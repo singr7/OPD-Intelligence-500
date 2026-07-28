@@ -5,6 +5,7 @@ import ai.radpretation.opd.ui.screens.AppointmentsScreen
 import ai.radpretation.opd.ui.screens.CalendarScreen
 import ai.radpretation.opd.ui.screens.FamilyScreen
 import ai.radpretation.opd.ui.screens.FileScreen
+import ai.radpretation.opd.ui.screens.EnvironmentScreen
 import ai.radpretation.opd.ui.screens.HomeScreen
 import ai.radpretation.opd.ui.screens.IntakeScreen
 import ai.radpretation.opd.ui.screens.OnboardingScreen
@@ -91,19 +92,21 @@ fun OpdRoot() {
     val container = remember { OpdApp.containerOf(context) }
     val signedIn by container.tokens.signedIn.collectAsState(initial = null)
     var onboarded by remember { mutableStateOf(false) }
+    var pairingOpen by remember { mutableStateOf(false) }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when {
+            pairingOpen -> EnvironmentScreen(container, onClose = { pairingOpen = false })
             signedIn == null -> Unit // first composition, before DataStore answers
-            signedIn == true -> SignedIn(container)
+            signedIn == true -> SignedIn(container, onEnvironment = { pairingOpen = true })
             !onboarded -> OnboardingScreen(onDone = { onboarded = true })
-            else -> SignInScreen(container)
+            else -> SignInScreen(container, onEnvironment = { pairingOpen = true })
         }
     }
 }
 
 @Composable
-private fun SignedIn(container: AppContainer) {
+private fun SignedIn(container: AppContainer, onEnvironment: () -> Unit) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val current = entry?.destination?.route
@@ -134,13 +137,17 @@ private fun SignedIn(container: AppContainer) {
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            OpdNavHost(nav, container)
+            OpdNavHost(nav, container, onEnvironment)
         }
     }
 }
 
 @Composable
-private fun OpdNavHost(nav: NavHostController, container: AppContainer) {
+private fun OpdNavHost(
+    nav: NavHostController,
+    container: AppContainer,
+    onEnvironment: () -> Unit,
+) {
     NavHost(navController = nav, startDestination = Tab.Home.route) {
         composable(Tab.Home.route) {
             HomeScreen(
@@ -150,6 +157,7 @@ private fun OpdNavHost(nav: NavHostController, container: AppContainer) {
                 onFamily = { nav.navigate("family") },
                 onAppointments = { nav.navigate("appointments") },
                 onQueue = { nav.navigate(Tab.Queue.route) },
+                onEnvironment = onEnvironment,
             )
         }
         composable(Tab.File.route) { FileScreen(container) }

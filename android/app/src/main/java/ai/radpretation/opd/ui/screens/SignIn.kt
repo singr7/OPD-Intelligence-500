@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
  * The trust line (doc 04 law 10) is on screen before she types anything.
  */
 @Composable
-fun SignInScreen(container: AppContainer) {
+fun SignInScreen(container: AppContainer, onEnvironment: () -> Unit = {}) {
     var phone by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var codeSent by remember { mutableStateOf(false) }
@@ -152,5 +152,11 @@ fun SignInScreen(container: AppContainer) {
 
         Spacer(Modifier.height(28.dp))
         Muted(stringResource(R.string.signin_trust))
+        Spacer(Modifier.height(12.dp))
+        QuietButton(
+            text = stringResource(R.string.environment_open),
+            onClick = onEnvironment,
+            modifier = Modifier.testTag("environment_open"),
+        )
     }
 }

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     env: str = "local"
     log_level: str = "info"
+    environment_id: str = "local"
+    environment_name: str = "Local development"
+    api_contract_version: str = "2026-07-28"
+    release_sha: str = "development"
 
     database_url: str = "postgresql+asyncpg://opd:opd_local_dev@postgres:5432/opd"
     redis_url: str = "redis://redis:6379/0"
@@ -251,6 +255,10 @@ class Settings(BaseSettings):
         if self.is_local:
             return
         problems = []
+        if self.environment_id not in {"omen", "aws"}:
+            problems.append("ENVIRONMENT_ID must be 'omen' or 'aws'")
+        if len(self.release_sha) != 40 or any(c not in "0123456789abcdef" for c in self.release_sha):
+            problems.append("RELEASE_SHA must be the deployed full Git SHA")
         if self.jwt_secret == Settings.model_fields["jwt_secret"].default:
             problems.append("JWT_SECRET is still the dev default")
         # RFC 7518 §3.2: an HMAC key shorter than the hash output weakens HS256.
