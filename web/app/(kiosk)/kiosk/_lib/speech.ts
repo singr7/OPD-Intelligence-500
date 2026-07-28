@@ -77,7 +77,8 @@ export async function recordToServer(
     onText: (text: string) => void;
     onError?: (err: string) => void;
     onDone?: () => void;
-  }
+  },
+  sessionId?: string | null
 ): Promise<(() => void) | null> {
   if (!recorderSupported()) return null;
   let stream: MediaStream;
@@ -103,6 +104,7 @@ export async function recordToServer(
       fd.append("file", blob, "clip.webm");
       fd.append("lang", lang);
       fd.append("duration_seconds", seconds);
+      if (sessionId) fd.append("session_id", sessionId);
       const res = await fetch(`${API_BASE}/kiosk/stt`, { method: "POST", body: fd });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as { text?: string };
@@ -126,22 +128,32 @@ let _serverAudio: HTMLAudioElement | null = null;
  * handled before we get here, but network/decode errors are not) falls back to
  * the browser voice so a TTS outage never leaves the kiosk silent (doc 04 law 1).
  */
-export function speak(text: string, lang: string): Promise<void> {
+export function speak(
+  text: string,
+  lang: string,
+  sessionId?: string | null
+): Promise<void> {
   if (!text) return Promise.resolve();
   cancelSpeech();
   if (serverTtsEnabled()) {
-    return speakServer(text, lang).catch(() => speakBrowser(text, lang));
+    return speakServer(text, lang, sessionId).catch(() =>
+      speakBrowser(text, lang)
+    );
   }
   return speakBrowser(text, lang);
 }
 
 /** POST the text to `/kiosk/tts`, play the returned Dhara clip. Rejects on any
  * failure so the caller can fall back to the browser voice. */
-async function speakServer(text: string, lang: string): Promise<void> {
+async function speakServer(
+  text: string,
+  lang: string,
+  sessionId?: string | null
+): Promise<void> {
   const res = await fetch(`${API_BASE}/kiosk/tts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, lang }),
+    body: JSON.stringify({ text, lang, session_id: sessionId ?? null }),
   });
   if (!res.ok) throw new Error(String(res.status));
   const body = (await res.json()) as { audio?: string; mime?: string };

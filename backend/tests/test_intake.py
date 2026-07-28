@@ -30,7 +30,7 @@ from app.providers import AudioClip, FakeLLMProvider, FakeSTTProvider, FakeTTSPr
 from app.providers.costguard import InMemoryTierOverrideStore
 from app.providers.llm import FakeLLMScript
 from app.providers.metering import usage_scope
-from app.providers.profiles import VoiceProfileError, snapshot_profile
+from app.providers.profiles import VoiceProfileError, resolve_profile, snapshot_profile
 from app.providers.realtime import FakeRealtimeProvider, FakeRealtimeScript
 from app.providers.resilience import ProviderUnavailable
 from app.trees import bank
@@ -217,6 +217,61 @@ async def test_profile_snapshot_isolated_from_a_later_selection(tree, store):
     assert first.voice_profile.name == "local_oss"
     assert (await store.get(first.session_id)).voice_profile.name == "local_oss"
     assert second.voice_profile.name == "openai_cloud"
+
+
+@pytest.mark.parametrize(
+    ("name", "providers"),
+    [
+        ("local_oss", ("local-whisper", "local-vllm", "local-tts")),
+        ("openai_cloud", ("openai", "openai", "openai")),
+        ("sarvam_cloud", ("sarvam", "sarvam", "sarvam")),
+    ],
+)
+async def test_one_resolver_builds_the_exact_same_profile_trio(name, providers):
+    resolved = resolve_profile(snapshot_profile(name, Settings()), Settings())
+
+    assert tuple(provider.name for provider in (*resolved.stt, *resolved.llm, *resolved.tts)) == (
+        *providers,
+    )
+    assert len(resolved.stt) == len(resolved.llm) == len(resolved.tts) == 1
+
+
+async def test_profile_resolver_never_appends_a_cross_vendor_fallback():
+    settings = Settings(
+        llm_fallback_provider="sarvam",
+        stt_fallback_provider="sarvam",
+        tts_fallback_provider="sarvam",
+    )
+    resolved = resolve_profile(snapshot_profile("openai_cloud", settings), settings)
+
+    assert [provider.name for provider in resolved.stt] == ["openai"]
+    assert [provider.name for provider in resolved.llm] == ["openai"]
+    assert [provider.name for provider in resolved.tts] == ["openai"]
+
+
+async def test_resolver_keeps_the_snapshotted_model_after_config_changes():
+    original = snapshot_profile(
+        "openai_cloud",
+        Settings(
+            openai_stt_model="stt-before",
+            openai_model="llm-before",
+            openai_tts_model="tts-before",
+        ),
+    )
+    resolved = resolve_profile(
+        original,
+        Settings(
+            openai_stt_model="stt-after",
+            openai_model="llm-after",
+            openai_tts_model="tts-after",
+        ),
+    )
+
+    assert (resolved.stt[0].model, resolved.llm[0].model, resolved.tts[0].model) == (
+        "stt-before",
+        "llm-before",
+        "tts-before",
+    )
 
 
 # -- the dispatcher (the four tools over a Walk) -------------------------------

@@ -289,7 +289,10 @@ class _ScriptedInterpreter:
     async def interpret(self, node: Any, utterance: str, lang: Any, *, others: Any = ()) -> Any:
         self.calls.append((node.id, utterance))
         self.last_others = [n.id for n in others]
-        return self.queue.pop(0)
+        result = self.queue.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 @pytest_asyncio.fixture
@@ -416,6 +419,30 @@ async def test_second_vague_answer_falls_back_to_taps(
     body = resp.json()
     assert body["ok"] is False
     assert body["clarify"] is None
+    assert body["adaptive_exhausted"] is True
+    assert body["node"]["id"] == node["id"]
+
+
+async def test_profile_provider_exhaustion_keeps_the_unanswered_tap_node(
+    adaptive: tuple[AsyncClient, _ScriptedInterpreter], session: AsyncSession
+) -> None:
+    """A cloud interpreter outage does not transfer vendors or lose the answer
+    position: it returns the same deterministic node with its taps."""
+    from app.providers.resilience import ProviderUnavailable
+
+    client, interp = adaptive
+    started = await _start_med_onc(client, session)
+    node = started["node"]
+    sid = started["session_id"]
+    interp.push(ProviderUnavailable("profile component exhausted"))
+
+    response = await client.post(
+        f"/kiosk/{sid}/answer",
+        json={"node_id": node["id"], "value": None, "raw_text": "haan", "attempt": 0},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
     assert body["adaptive_exhausted"] is True
     assert body["node"]["id"] == node["id"]
 

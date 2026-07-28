@@ -45,7 +45,7 @@ from app.models.enums import Channel, Lang, UsagePurpose
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import get_meter, usage_scope
-from app.providers.profiles import snapshot_profile
+from app.providers.profiles import resolve_profile, snapshot_profile
 from app.providers.registry import stt_chain, tts_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
@@ -316,10 +316,22 @@ async def answer_impl(
     dispatcher = engine.dispatcher(state)
 
     value = payload.value
-    interpreter = engine.answer_interpreter()
+    interpreter = engine.answer_interpreter(state)
     is_voice_answer = value is None and bool(payload.raw_text)
     if is_voice_answer and interpreter is not None:
-        outcome = await _interpret_voice_answer(interpreter, engine, dispatcher, state, payload)
+        try:
+            outcome = await _interpret_voice_answer(interpreter, engine, dispatcher, state, payload)
+        except ProviderError as exc:
+            # Provider exhaustion is an operational downgrade, not a patient
+            # error. Keep the same unanswered node and return its deterministic
+            # taps; log only profile/session identifiers, never the utterance.
+            logger.warning(
+                "kiosk voice profile=%s session=%s component=llm outcome=taps error=%s",
+                state.voice_profile.name if state.voice_profile else "legacy",
+                state.session_id,
+                type(exc).__name__,
+            )
+            return await _exhausted(payload.node_id, dispatcher)
         if outcome.reply is not None:
             # A clarify or an exhausted-budget fallback — return without advancing;
             # the kiosk re-asks or shows taps on the *same* node.
@@ -413,6 +425,7 @@ async def _interpret_voice_answer(
         visit_id=state.visit_id,
         channel=Channel.KIOSK,
         tier=state.active_tier,
+        voice_profile=state.voice_profile.name.value if state.voice_profile else None,
     ):
         interpretation = await interpreter.interpret(
             node, payload.raw_text or "", state.lang, others=others
@@ -609,6 +622,9 @@ async def stt(
     file: UploadFile = File(...),
     lang: Lang = Form(Lang.HI),
     duration_seconds: str | None = Form(default=None),
+    session_id: str | None = Form(default=None),
+    engine: IntakeEngine = Depends(get_engine),
+    session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> SttOut:
     """Server-side speech-to-text for the kiosk chief complaint (doc 03 §1a).
@@ -638,10 +654,28 @@ async def stt(
             duration = None
 
     clip = AudioClip(data=data, mime=file.content_type or "audio/webm", duration_seconds=duration)
+    state = await _load_state(engine, session_id) if session_id else None
+    metered_profile: str | None = None
+    if state is not None and state.voice_profile is not None:
+        providers = list(resolve_profile(state.voice_profile, settings).stt)
+        metered_profile = state.voice_profile.name.value
+    elif settings.stt_provider == "fake":
+        providers = stt_chain(settings)
+    else:
+        channel_config = await resolve_config(session)
+        selected = snapshot_profile(channel_config.kiosk_voice_profile, settings)
+        providers = list(resolve_profile(selected, settings).stt)
+        metered_profile = selected.name.value
     try:
-        with usage_scope(channel=Channel.KIOSK):
+        with usage_scope(
+            session_id=state.session_id if state else None,
+            intake_id=state.intake_id if state else None,
+            visit_id=state.visit_id if state else None,
+            channel=Channel.KIOSK,
+            voice_profile=metered_profile,
+        ):
             transcript = await with_fallback(
-                stt_chain(settings),
+                providers,
                 lambda p: p.transcribe(clip, str(lang), purpose=UsagePurpose.INTAKE_TURN),
             )
     except ProviderBadRequest as exc:
@@ -666,6 +700,7 @@ async def stt(
 class TtsIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     lang: Lang = Lang.HI
+    session_id: str | None = None
 
 
 class TtsOut(BaseModel):
@@ -688,6 +723,8 @@ _KIOSK_TTS_SAMPLE_RATE = 24000
 @router.post("/tts", response_model=TtsOut)
 async def tts(
     payload: TtsIn,
+    engine: IntakeEngine = Depends(get_engine),
+    session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> TtsOut:
     """Server-side text-to-speech for the kiosk read-aloud (doc 03 §1a, doc 10 §6).
@@ -701,10 +738,28 @@ async def tts(
     no credential, and the text is a clinical prompt, not a stored record. The
     kiosk keeps the browser voice behind this (flag off / offline / on error).
     """
+    state = await _load_state(engine, payload.session_id) if payload.session_id else None
+    metered_profile: str | None = None
+    if state is not None and state.voice_profile is not None:
+        providers = list(resolve_profile(state.voice_profile, settings).tts)
+        metered_profile = state.voice_profile.name.value
+    elif settings.tts_provider == "fake":
+        providers = tts_chain(settings)
+    else:
+        channel_config = await resolve_config(session)
+        selected = snapshot_profile(channel_config.kiosk_voice_profile, settings)
+        providers = list(resolve_profile(selected, settings).tts)
+        metered_profile = selected.name.value
     try:
-        with usage_scope(channel=Channel.KIOSK):
+        with usage_scope(
+            session_id=state.session_id if state else None,
+            intake_id=state.intake_id if state else None,
+            visit_id=state.visit_id if state else None,
+            channel=Channel.KIOSK,
+            voice_profile=metered_profile,
+        ):
             speech = await with_fallback(
-                tts_chain(settings),
+                providers,
                 lambda p: p.synthesize(
                     payload.text,
                     str(payload.lang),

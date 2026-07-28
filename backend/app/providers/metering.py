@@ -86,6 +86,7 @@ class UsageContext:
     visit_id: uuid.UUID | None = None
     channel: Channel | None = None
     tier: IntakeTier | None = None
+    voice_profile: str | None = None
 
 
 _context: ContextVar[UsageContext] = ContextVar("usage_context", default=UsageContext())
@@ -103,6 +104,7 @@ def usage_scope(
     visit_id: uuid.UUID | None = None,
     channel: Channel | None = None,
     tier: IntakeTier | None = None,
+    voice_profile: str | None = None,
 ):
     """Attribute every provider call in this block to an intake/session.
 
@@ -118,6 +120,7 @@ def usage_scope(
         visit_id=visit_id if visit_id is not None else base.visit_id,
         channel=channel if channel is not None else base.channel,
         tier=tier if tier is not None else base.tier,
+        voice_profile=voice_profile if voice_profile is not None else base.voice_profile,
     )
     token = _context.set(merged)
     try:
@@ -258,6 +261,7 @@ class UsageMeter:
             visit_id=draft.context.visit_id,
             channel=draft.context.channel,
             tier=draft.context.tier,
+            voice_profile=draft.context.voice_profile,
             provider=draft.provider,
             model=draft.model,
             purpose=draft.purpose,

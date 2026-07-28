@@ -216,6 +216,7 @@ async def test_usage_scope_attributes_calls_to_an_intake(session, meter):
         session_id="sess-1",
         channel=Channel.PHONE,
         tier=IntakeTier.RULE_BASED,
+        voice_profile="openai_cloud",
     ):
         await llm.complete(LLMRequest(prompt="x"), purpose=UsagePurpose.INTAKE_TURN)
 
@@ -226,6 +227,7 @@ async def test_usage_scope_attributes_calls_to_an_intake(session, meter):
     assert event.session_id == "sess-1"
     assert event.channel is Channel.PHONE
     assert event.tier is IntakeTier.RULE_BASED
+    assert event.voice_profile == "openai_cloud"
     assert event.purpose is UsagePurpose.INTAKE_TURN
 
 

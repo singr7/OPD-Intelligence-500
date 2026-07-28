@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import Depends
 
@@ -70,6 +71,9 @@ from app.providers.tts import (
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from app.providers.profiles import VoiceComponent
+
 
 class UnknownProvider(ValueError):
     """Config names a provider that does not exist. Raised at build time."""
@@ -119,9 +123,7 @@ def _build_llm(name: str, settings: Settings) -> LLMProvider:
                 model=settings.local_vllm_model,
                 api_key=settings.local_vllm_api_key,
             )
-    raise UnknownProvider(
-        f"LLM_PROVIDER={name!r}; expected fake|gemini|openai|sarvam|local_vllm"
-    )
+    raise UnknownProvider(f"LLM_PROVIDER={name!r}; expected fake|gemini|openai|sarvam|local_vllm")
 
 
 def _build_stt(name: str, settings: Settings) -> STTProvider:
@@ -262,6 +264,12 @@ _fingerprints: dict[tuple[str, str], str] = {}
 #: a test that handed us a specific fake must keep getting that fake.
 _pinned: set[tuple[str, str]] = set()
 
+# Profile-bound providers are keyed by the exact snapshotted model as well as
+# interface and vendor. A later config publish may change the model for new
+# sessions; an intake already in flight must keep the instance built for its
+# snapshot.
+_profile_instances: dict[tuple[str, str, str, str], Provider] = {}
+
 
 def _fingerprint(kind: str, name: str, settings: Settings) -> str:
     """A short digest of the credential fields this provider is built from.
@@ -310,6 +318,46 @@ def _chain(kind: str, settings: Settings | None = None) -> list[Provider]:
 
 
 # -- public accessors ----------------------------------------------------------
+
+_PROFILE_MODEL_FIELDS: dict[tuple[str, str], str] = {
+    ("llm", "local_vllm"): "local_vllm_model",
+    ("llm", "openai"): "openai_model",
+    ("llm", "sarvam"): "sarvam_llm_model",
+    ("stt", "local_whisper"): "local_stt_model",
+    ("stt", "openai"): "openai_stt_model",
+    ("stt", "sarvam"): "sarvam_stt_model",
+    ("tts", "local_tts"): "local_tts_model",
+    ("tts", "voicebox"): "voicebox_voice",
+    ("tts", "openai"): "openai_tts_model",
+    ("tts", "sarvam"): "sarvam_tts_model",
+}
+
+
+def get_profile_component(
+    kind: str, component: VoiceComponent, settings: Settings | None = None
+) -> Provider:
+    """Build one component from an immutable profile snapshot.
+
+    This is deliberately separate from the process-wide primary/fallback chain:
+    those settings may change after an intake starts. The exact model participates
+    in the cache key, and no generic cross-vendor fallback is appended.
+    """
+    settings = settings or get_settings()
+    field = _PROFILE_MODEL_FIELDS.get((kind, component.provider))
+    if field is None:
+        raise UnknownProvider(
+            f"voice profile {kind} component {component.provider!r} is not approved"
+        )
+    if not component.model:
+        raise UnknownProvider(f"voice profile {kind} model must not be empty")
+
+    exact = settings.model_copy(update={field: component.model})
+    fingerprint = _fingerprint(kind, component.provider, exact)
+    key = (kind, component.provider, component.model, fingerprint)
+    if key not in _profile_instances:
+        build, _ = _BUILDERS[kind]
+        _profile_instances[key] = build(component.provider, exact)
+    return _profile_instances[key]
 
 
 def get_sms_provider(settings: Settings | None = None) -> SMSProvider:
@@ -412,6 +460,7 @@ def reset_providers() -> None:
     _instances.clear()
     _fingerprints.clear()
     _pinned.clear()
+    _profile_instances.clear()
 
 
 def install(kind: str, provider: Provider, *, name: str | None = None) -> None:

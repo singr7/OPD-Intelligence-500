@@ -96,9 +96,9 @@ export function KioskApp() {
       cancelSpeech();
       if (!text) return;
       setSpeaking(true);
-      void speak(text, lang).then(() => setSpeaking(false));
+      void speak(text, lang, sessionId).then(() => setSpeaking(false));
     },
-    [lang]
+    [lang, sessionId]
   );
 
   // --- idle watchdog -------------------------------------------------------
@@ -481,10 +481,11 @@ export function KioskApp() {
         </Stage>
       )}
 
-      {screen === "question" && node && (
+      {screen === "question" && node && sessionId && (
         <QuestionScreen
           key={node.id}
           lang={lang}
+          sessionId={sessionId}
           node={node}
           step={step}
           speaking={speaking}
@@ -900,6 +901,7 @@ function VoiceCapture({
 
 function QuestionScreen({
   lang,
+  sessionId,
   node,
   step,
   speaking,
@@ -912,6 +914,7 @@ function QuestionScreen({
   summary,
 }: {
   lang: KioskLang;
+  sessionId: string;
   node: KioskNode;
   step: number;
   speaking: boolean;
@@ -984,6 +987,7 @@ function QuestionScreen({
         {adaptiveVoice && (
           <AdaptiveVoiceAnswer
             lang={lang}
+            sessionId={sessionId}
             clarify={clarify}
             busy={busy}
             onAnswer={onVoiceAnswer}
@@ -1073,11 +1077,13 @@ function QuestionScreen({
  *  just leaves the patient tapping. */
 function AdaptiveVoiceAnswer({
   lang,
+  sessionId,
   clarify,
   busy,
   onAnswer,
 }: {
   lang: KioskLang;
+  sessionId: string;
   clarify: string | null;
   busy: boolean;
   onAnswer: (rawText: string) => void;
@@ -1093,13 +1099,17 @@ function AdaptiveVoiceAnswer({
       setTranscribing(true);
       return;
     }
-    void recordToServer(lang, {
-      onText: (txt) => {
-        if (txt.trim()) onAnswer(txt);
+    void recordToServer(
+      lang,
+      {
+        onText: (txt) => {
+          if (txt.trim()) onAnswer(txt);
+        },
+        onError: () => setTranscribing(false),
+        onDone: () => setTranscribing(false),
       },
-      onError: () => setTranscribing(false),
-      onDone: () => setTranscribing(false),
-    }).then((stop) => {
+      sessionId
+    ).then((stop) => {
       if (!stop) return; // mic denied → taps below carry the patient
       stopRef.current = stop;
       setListening(true);

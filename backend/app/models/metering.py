@@ -68,6 +68,7 @@ class UsageEvent(Base, UUIDPrimaryKey):
 
     channel: Mapped[Channel | None] = mapped_column(enum_type(Channel, "channel"))
     tier: Mapped[IntakeTier | None] = mapped_column(enum_type(IntakeTier, "intake_tier"))
+    voice_profile: Mapped[str | None] = mapped_column(String(32), index=True)
     provider: Mapped[str] = mapped_column(String(64), index=True)
     model: Mapped[str | None] = mapped_column(String(120))
     purpose: Mapped[UsagePurpose] = mapped_column(

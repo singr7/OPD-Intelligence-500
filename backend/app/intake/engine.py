@@ -72,7 +72,7 @@ from app.providers import (
     with_fallback,
 )
 from app.providers.costguard import LADDER, CostGuard, downgrade, get_guard
-from app.providers.profiles import VoiceProfileSnapshot
+from app.providers.profiles import VoiceProfileSnapshot, resolve_profile
 from app.providers.realtime import RealtimeConfig, RealtimeSession, RealtimeVoiceProvider
 from app.trees import bank
 from app.trees.schema import Tree
@@ -192,10 +192,14 @@ class IntakeEngine:
     def _realtime_provider(self) -> RealtimeVoiceProvider:
         return self._realtime or get_realtime_provider()
 
-    def _llm_chain(self) -> list[LLMProvider]:
-        return self._llm if self._llm is not None else llm_chain()
+    def _llm_chain(self, state: SessionState | None = None) -> list[LLMProvider]:
+        if self._llm is not None:
+            return self._llm
+        if state is not None and state.voice_profile is not None:
+            return list(resolve_profile(state.voice_profile).llm)
+        return llm_chain()
 
-    def answer_interpreter(self) -> Interpreter | None:
+    def answer_interpreter(self, state: SessionState | None = None) -> Interpreter | None:
         """The adaptive answer interpreter, or None when adaptive intake is off.
 
         A `None` here is what makes doc 04 law 8 true by construction: the kiosk
@@ -207,13 +211,21 @@ class IntakeEngine:
             return self._interpreter
         if not self._adaptive:
             return None
-        return LLMInterpreter(self._llm_chain())
+        return LLMInterpreter(self._llm_chain(state))
 
-    def _stt_chain(self) -> list[STTProvider]:
-        return self._stt if self._stt is not None else stt_chain()
+    def _stt_chain(self, state: SessionState | None = None) -> list[STTProvider]:
+        if self._stt is not None:
+            return self._stt
+        if state is not None and state.voice_profile is not None:
+            return list(resolve_profile(state.voice_profile).stt)
+        return stt_chain()
 
-    def _tts_one(self) -> TTSProvider:
-        return self._tts if self._tts is not None else tts_chain()[0]
+    def _tts_one(self, state: SessionState | None = None) -> TTSProvider:
+        if self._tts is not None:
+            return self._tts
+        if state is not None and state.voice_profile is not None:
+            return resolve_profile(state.voice_profile).tts[0]
+        return tts_chain()[0]
 
     def _cost_guard(self) -> CostGuard | None:
         return self._guard or get_guard()
@@ -275,7 +287,7 @@ class IntakeEngine:
         template = TemplateSummarizer()
         if state.active_tier is V3:
             return template
-        return _ResilientSummarizer(LLMSummarizer(self._llm_chain()), template)
+        return _ResilientSummarizer(LLMSummarizer(self._llm_chain(state)), template)
 
     # -- the run loop ---------------------------------------------------------
 
@@ -307,6 +319,7 @@ class IntakeEngine:
             intake_id=state.intake_id,
             visit_id=state.visit_id,
             channel=state.channel,
+            voice_profile=state.voice_profile.name.value if state.voice_profile else None,
         ):
             if state.active_tier is V1:
                 try:
@@ -382,7 +395,7 @@ class IntakeEngine:
         # Play the question (pre-recorded if we have it, TTS otherwise). A TTS
         # outage here is not fatal — V3 keeps working when the AI is down.
         speech = await voicepack_mod.resolve(
-            node, state.lang, voicepack=self._voicepack, tts=self._maybe_tts()
+            node, state.lang, voicepack=self._voicepack, tts=self._maybe_tts(state)
         )
         state.record_turn("assistant", node.ask(state.lang), lang=state.lang)
         if speech is not None and on_audio is not None:
@@ -395,9 +408,9 @@ class IntakeEngine:
             # only valid options); log and move on rather than wedge the intake.
             logger.warning("V3 answer rejected for %s: %s", node.id, result.get("error"))
 
-    def _maybe_tts(self) -> TTSProvider | None:
+    def _maybe_tts(self, state: SessionState | None = None) -> TTSProvider | None:
         try:
-            return self._tts_one()
+            return self._tts_one(state)
         except Exception:  # pragma: no cover - no tts configured at all
             return None
 
@@ -445,7 +458,7 @@ class IntakeEngine:
         if turn.audio is None:
             return turn.text or ""
         transcript = await with_fallback(
-            self._stt_chain(),
+            self._stt_chain(state),
             lambda p: p.transcribe(turn.audio, str(state.lang), purpose=UsagePurpose.INTAKE_TURN),
         )
         return transcript.text
@@ -472,13 +485,13 @@ class IntakeEngine:
             history=_history_for_llm(state),
         )
         return await with_fallback(
-            self._llm_chain(),
+            self._llm_chain(state),
             lambda p: p.complete(request, purpose=UsagePurpose.INTAKE_TURN),
         )
 
     async def _speak(self, text: str, state: SessionState, on_audio: AudioSink | None) -> None:
         try:
-            speech = await self._tts_one().synthesize(text, str(state.lang))
+            speech = await self._tts_one(state).synthesize(text, str(state.lang))
         except ProviderError:
             # TTS is not on the critical path for recording the answer; a failed
             # synthesis should not fail the turn. The channel can re-render text.

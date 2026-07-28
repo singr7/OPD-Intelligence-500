@@ -9,9 +9,14 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.config import Settings
+from app.config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from app.providers.llm import LLMProvider
+    from app.providers.stt import STTProvider
+    from app.providers.tts import TTSProvider
 
 
 class VoiceProfileName(StrEnum):
@@ -53,6 +58,16 @@ class VoiceProfileSnapshot:
             raise VoiceProfileError("invalid snapshotted kiosk voice profile") from exc
 
 
+@dataclass(frozen=True, slots=True)
+class VoiceProviderTrio:
+    """The only provider assembly feature code receives for a kiosk profile."""
+
+    profile: VoiceProfileSnapshot
+    stt: tuple[STTProvider, ...]
+    llm: tuple[LLMProvider, ...]
+    tts: tuple[TTSProvider, ...]
+
+
 def profile_name(value: str | VoiceProfileName) -> VoiceProfileName:
     try:
         return VoiceProfileName(value)
@@ -63,17 +78,13 @@ def profile_name(value: str | VoiceProfileName) -> VoiceProfileName:
         ) from exc
 
 
-def snapshot_profile(
-    value: str | VoiceProfileName, settings: Settings
-) -> VoiceProfileSnapshot:
+def snapshot_profile(value: str | VoiceProfileName, settings: Settings) -> VoiceProfileSnapshot:
     """Resolve a selected name to exact providers/models once, at intake start."""
     selected = profile_name(value)
     if selected is VoiceProfileName.LOCAL_OSS:
         tts_provider = settings.kiosk_local_tts_provider
         if tts_provider not in {"local_tts", "voicebox"}:
-            raise VoiceProfileError(
-                "KIOSK_LOCAL_TTS_PROVIDER must be local_tts or voicebox"
-            )
+            raise VoiceProfileError("KIOSK_LOCAL_TTS_PROVIDER must be local_tts or voicebox")
         tts_model = (
             settings.local_tts_model or settings.local_tts_voice
             if tts_provider == "local_tts"
@@ -97,4 +108,25 @@ def snapshot_profile(
         stt=VoiceComponent("sarvam", settings.sarvam_stt_model),
         llm=VoiceComponent("sarvam", settings.sarvam_llm_model),
         tts=VoiceComponent("sarvam", settings.sarvam_tts_model),
+    )
+
+
+def resolve_profile(
+    snapshot: VoiceProfileSnapshot, settings: Settings | None = None
+) -> VoiceProviderTrio:
+    """Resolve one immutable snapshot to its approved same-profile trio.
+
+    Each tuple is a fallback chain. Today each approved profile has one exact
+    provider per interface, so exhaustion returns to deterministic taps. Adding a
+    fallback later requires adding it here to the same profile explicitly; the
+    registry's generic OpenAI/Sarvam/Google fallbacks are never consulted.
+    """
+    from app.providers.registry import get_profile_component
+
+    settings = settings or get_settings()
+    return VoiceProviderTrio(
+        profile=snapshot,
+        stt=(get_profile_component("stt", snapshot.stt, settings),),  # type: ignore[arg-type]
+        llm=(get_profile_component("llm", snapshot.llm, settings),),  # type: ignore[arg-type]
+        tts=(get_profile_component("tts", snapshot.tts, settings),),  # type: ignore[arg-type]
     )
