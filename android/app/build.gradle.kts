@@ -116,14 +116,15 @@ val validateReleaseEnvironments by tasks.registering {
     group = "verification"
     doLast {
         val approved = mapOf(
-            "OPD_OMEN_API_BASE" to omenApiBase.orNull,
-            "OPD_AWS_API_BASE" to awsApiBase.orNull,
+            "OPD_OMEN_API_BASE" to (omenApiBase.orNull to "omen.opd.radpretation.ai"),
+            "OPD_AWS_API_BASE" to (awsApiBase.orNull to "opd-cloud.radpretation.ai"),
         )
-        approved.forEach { (name, value) ->
+        approved.forEach { (name, endpoint) ->
+            val (value, requiredHost) = endpoint
             require(!value.isNullOrBlank()) { "$name is required for a release build" }
             val uri = URI(value)
             require(uri.scheme == "https") { "$name must use HTTPS" }
-            require(uri.host in setOf("omen.opd.radpretation.ai", "aws.opd.radpretation.ai")) {
+            require(uri.host == requiredHost) {
                 "$name is not an approved production host"
             }
             require(uri.path.trimEnd('/') == "/api") { "$name must end in /api" }
@@ -131,7 +132,9 @@ val validateReleaseEnvironments by tasks.registering {
                 "$name may not contain credentials, a port, query, or fragment"
             }
         }
-        require(approved.values.toSet().size == 2) { "Omen and AWS must be distinct endpoints" }
+        require(approved.values.map { it.first }.toSet().size == 2) {
+            "Omen and AWS must be distinct endpoints"
+        }
     }
 }
 

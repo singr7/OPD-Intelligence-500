@@ -52,4 +52,9 @@ python3 "$SCRIPT_DIR/test_drill_report.py"
 grep -q 'OnCalendar=\*:0/15' "$REPO_ROOT/deploy/omen/opd-cloud-backup.timer"
 grep -q 'application/vnd.android.package-archive' "$SCRIPT_DIR/nginx/opd-tls.conf"
 grep -q 'max-age=31536000, immutable' "$SCRIPT_DIR/nginx/opd-tls.conf"
+grep -q 'opd-cloud.radpretation.ai' "$REPO_ROOT/docs/18-AWS-UBUNTU-QUICKSTART.md"
+if grep -Eqi 'nvidia|cuda|vllm|whisper|local[_-]?tts' "$SCRIPT_DIR/compose.yml"; then
+  echo "GPU or local-model reference leaked into AWS Compose" >&2
+  exit 1
+fi
 echo "AWS deployment contract: ok"

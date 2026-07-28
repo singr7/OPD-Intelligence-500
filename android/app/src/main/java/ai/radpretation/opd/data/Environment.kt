@@ -40,7 +40,12 @@ class EnvironmentAllowList private constructor(val profiles: List<EnvironmentPro
                 require(uri.scheme == "https" || allowDebug && uri.scheme == "http" && debugHost)
                 require(uri.userInfo == null && uri.query == null && uri.fragment == null)
                 if (!allowDebug) {
-                    require(uri.host == "${profile.id}.opd.radpretation.ai")
+                    val approvedHost = when (profile.id) {
+                        "omen" -> "omen.opd.radpretation.ai"
+                        "aws" -> "opd-cloud.radpretation.ai"
+                        else -> throw IllegalArgumentException("unapproved environment")
+                    }
+                    require(uri.host == approvedHost)
                     require(uri.port == -1 && uri.path.trimEnd('/') == "/api")
                 }
             }
