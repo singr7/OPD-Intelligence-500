@@ -1,10 +1,22 @@
 # STATE
 
-**Current release priority (2026-07-28):** selectable kiosk voice profiles are built
-on `kiosk-voice-profiles` and all local automated/live-stack gates are green. Before
-starting CLOUD1, supply real OpenAI/Sarvam keys, pass all six component tests plus
-Hindi/English turns, and record the targeted Omen deploy/profile-switch/failure/rollback
-matrix with its committed SHA. Neither key nor Omen access was available in-session.
+**Current release priority (2026-07-28):** CLOUD1's GPU-free AWS standby controls are
+built on `aws-gpu-free-standby` and focused local infrastructure gates are green.
+Nothing was provisioned: real AWS/DNS/Omen access is still required for ECR push,
+TLS, backup/restore, cloud-voice, failover/failback, and measured RPO/RTO evidence.
+The user authorized proceeding to ANDROID1 while these external gates stay explicit.
+
+**Built (SESSION-CLOUD1):** Terraform defines one encrypted gp3 EC2/Compose box with
+only 80/443 inbound, SSM rather than SSH, immutable scan-on-push ECR repos, a
+versioned/encrypted backup bucket, least-privilege runtime access, log groups, and
+instance/disk/public-health/backup-age/provider/cost alarms. The standalone AWS
+Compose file is CPU-only and private behind host nginx. Full-SHA multi-architecture
+image publishing records ECR digests and retains the previous manifest. Runtime
+scripts fetch one allow-listed Secrets Manager object into a root-only `0600` file,
+issue/test TLS before HSTS, deploy/migrate/rollback without `latest`, back up every
+15 minutes, verify an isolated restore daily, and enforce single-writer promotion
+with PostgreSQL `default_transaction_read_only`. A disposable PostgreSQL test proved
+demotion rejects writes and promotion restores them; live AWS/Omen proof remains open.
 
 **Built (SESSION-VOICE1):** Kiosk voice has exactly three operator-selectable profiles:
 `local_oss`, `openai_cloud`, and `sarvam_cloud`. An intake snapshots exact STT/LLM/TTS
@@ -687,6 +699,12 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **The AWS standby is repository-complete but not provisioned** (CLOUD1) — no
+  AWS account, DNS authority, Omen access, or real provider keys were available.
+  Terraform apply, ECR digests, TLS/renewal, public proxy paths, S3 backup/restore,
+  cloud-voice intake, controlled failover/failback, post-cutoff exclusion, and
+  measured RPO/RTO remain external release evidence. Local contract tests and the
+  disposable database writer-lock proof are not substitutes for that drill.
 - **The check-in protocol bank is clinically unreviewed** (S17) — six regimen families, seven
   question sets, 41 grading rules in `seeds/protocols.json`, model-drafted like the tree bank
   and pending S21. It is the first content in this system that **rings a phone at a threshold

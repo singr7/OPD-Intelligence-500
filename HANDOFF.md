@@ -1,68 +1,63 @@
-# HANDOFF — after SESSION-VOICE1
+# HANDOFF — after SESSION-CLOUD1
 
-**Repo state:** branch `kiosk-voice-profiles`; final close commit is the branch tip.
-`make test`, language QA, production web build, migration, container preflight,
-kiosk E2E, and Channels E2E are green. The pre-existing local
-`web/tsconfig.tsbuildinfo` modification remains intentionally uncommitted.
+**Repo state:** branch `aws-gpu-free-standby`; final close commit is the branch tip.
+Focused Terraform, Compose, secret/drill, ShellCheck, writer-lock, and secret-scan
+gates are green. The pre-existing `web/tsconfig.tsbuildinfo` modification remains
+intentionally uncommitted. The full application suite was not repeated at the
+user's direction; VOICE1 had just closed it green.
 
-Selectable kiosk voice profiles are implemented and safety-gated. Each intake
-snapshots exactly one local/OpenAI/Sarvam STT+LLM+TTS trio; no profile crosses cloud
-vendors, and provider exhaustion preserves the deterministic walk and returns taps.
-Cloud credentials are encrypted/write-only, shared once per vendor, independently
-tested per component, visible only as status/model metadata, and required before an
-enabled cloud profile can publish.
+CLOUD1's repository build is complete: encrypted/no-SSH one-box Terraform,
+immutable multi-arch ECR releases, CPU-only Compose behind host nginx, root-only
+Secrets Manager runtime material, 15-minute encrypted backups, daily isolated
+restore verification, alarms, explicit read-only demotion/promotion, and manual
+failover/failback evidence tooling.
 
-## Immediate release gate
+## External CLOUD1 release gate
 
-Do not start `SESSION-CLOUD1` until these external acceptance items are recorded:
+Nothing was provisioned from this environment. Before calling the standby live:
 
-1. Supply real OpenAI and Sarvam keys outside Git (console or secret environment).
-2. In Channels, test STT, LLM, and TTS for each vendor.
-3. Run short Hindi and English kiosk turns on both cloud profiles; record date,
-   region, latency, reported model, and exact legacy/deprecation responses.
-4. Deploy the committed branch to the Omen with targeted Compose replacement only.
-5. Demonstrate local → OpenAI → Sarvam → local new-intake switching.
-6. Demonstrate a broken cloud component returning the same unanswered node to taps.
-7. Execute and record Omen rollback with deployed commit SHA.
+1. Supply an AWS account/credentials, approved AMI, runtime secret ARN, DNS, and
+   alarm email outside Git; review and apply the real Terraform plan.
+2. Build/push the branch's exact full SHA and retain the returned digest manifest.
+3. Boot through SSM, fetch secrets, deploy, issue TLS after DNS, and install timers.
+4. Pass public nginx/API/WebSocket/download and cloud-voice kiosk checks.
+5. Install/test the Omen backup timer with one disposable restore.
+6. Run Omen→AWS→Omen with no concurrent writer; finalize the non-PHI drill record.
+7. Record actual RPO/RTO and prove a post-cutoff intake was not claimed as copied.
 
-Neither cloud key was configured locally on 2026-07-28, and this session had no Omen
-access, so none of that evidence was fabricated.
+## Next session — SESSION-ANDROID1
 
-## Next session
-
-Once the release gate above is accepted, execute
-`sessions/SESSION-CLOUD1-PLAN.md` on branch `aws-gpu-free-standby` created from the
-accepted `kiosk-voice-profiles` commit.
+The user authorized proceeding despite recorded external gates. Create
+`android-pairing-release` from this exact close commit and execute
+`sessions/SESSION-ANDROID1-PLAN.md`. Preserve the distinction between locally
+built distribution controls and unavailable live Omen/AWS/tablet evidence.
 
 Start with:
 
 ```bash
 git status --short
 git log -1 --oneline
-make dev && make test
+sed -n '1,260p' sessions/SESSION-ANDROID1-PLAN.md
 ```
-
-Then follow `docs/07-SESSION-PROTOCOL.md` and the CLOUD1 plan exactly.
 
 ## Watch out for
 
-- `gpt-4o-mini-tts` is deprecated and `bulbul:v2` is legacy. Keep the requested
-  configured names unless an operator explicitly approves replacements.
-- Publishing an enabled cloud profile intentionally fails until all three latest
-  component tests pass. Rotating its key clears that evidence.
-- Stored cloud credentials are `vendor:openai` / `vendor:sarvam`, not three copies.
-- The profile snapshot freezes models, not secrets; a credential rotation rebuilds
-  the same snapshotted components with the new key.
-- `usage_events.voice_profile` requires migration `a4d5e6f7b801`.
+- `OPD_WRITER_ENABLED` is an operator mirror; PostgreSQL
+  `default_transaction_read_only` is the enforced writer boundary.
+- `deploy.sh` deliberately stops app services while temporarily making migrations
+  writable, then restores the prior writer mode before replacement.
+- `enable-tls.sh` activates HSTS only after HTTPS health passes.
+- AWS application images are full-SHA tags; digest manifests retain current and
+  previous. Never introduce `latest`.
+- Secret example values are blank by design; real values belong only in the one
+  Secrets Manager object.
 
 ## Decisions needed from the human
 
-- Provide/authorize the real keys and Omen access for the remaining VOICE1 release
-  gate, then explicitly accept the branch as CLOUD1's predecessor.
+- Provide/authorize AWS, DNS, Omen, and tablet access when live release evidence
+  is desired. No architecture decision is open.
 
 ## Backlog additions
 
-- Reconcile OpenAI audio and local amortized price-book estimates against invoices
-  and measured Omen utilization.
-- If either requested legacy TTS model is rejected, record the exact response and
-  approve a configured replacement; do not silently substitute one.
+- Consider KMS CMKs for backup/ECR encryption if the pilot's compliance review
+  requires customer-managed keys instead of AWS-managed AES-256.
