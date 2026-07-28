@@ -1,10 +1,24 @@
 # STATE
 
-**Current release priority (2026-07-27):** the corrective build is complete on
-`uiux-kiosk-rx-hardening`, but do not merge it yet. Execute doc 15's physical gate on
-the Omen kiosk, target Android tablet, and real printer; capture photographs and record
-operator acceptance. Automated tests, language QA, production web build, live kiosk and
-offline browser flows, PDF render inspection, and container preflight are green.
+**Current release priority (2026-07-28):** selectable kiosk voice profiles are built
+on `kiosk-voice-profiles` and all local automated/live-stack gates are green. Before
+starting CLOUD1, supply real OpenAI/Sarvam keys, pass all six component tests plus
+Hindi/English turns, and record the targeted Omen deploy/profile-switch/failure/rollback
+matrix with its committed SHA. Neither key nor Omen access was available in-session.
+
+**Built (SESSION-VOICE1):** Kiosk voice has exactly three operator-selectable profiles:
+`local_oss`, `openai_cloud`, and `sarvam_cloud`. An intake snapshots exact STT/LLM/TTS
+providers and models; every later voice turn resolves from that snapshot. OpenAI uses
+`gpt-4o-mini-transcribe` + `gpt-5.6-luna` + `gpt-4o-mini-tts`; Sarvam uses `saaras:v3`
++ `sarvam-30b` + `bulbul:v2`; local uses Whisper + vLLM + configured local TTS.
+No snapshotted profile appends a cross-vendor fallback, and exhaustion returns the
+unchanged deterministic node to taps. `usage_events.voice_profile` records non-PHI
+attribution. Encrypted write-only `vendor:openai` / `vendor:sarvam` rows share one key
+across their components; the Channels console exposes configured/source/test/health/model
+metadata, per-component tests, a new-intake-only selector, and a publish gate requiring
+all three cloud components to have passed after the latest credential change. Local
+gates: backend 1,261, voice-gw 25, conformance 48, Android, language QA, production build,
+migration, preflight, kiosk E2E 3, Channels E2E 4.
 
 **Built (SESSION-UX2):** Kiosk intake now captures a normalized Unicode patient name
 online and offline, retains rolling-client fallback behavior, and purges successfully
