@@ -1,0 +1,108 @@
+.shell {
+  min-height: 100vh;
+  padding: 32px 18px;
+  display: grid;
+  place-items: center;
+  background: #f1f5f3;
+  color: #16302b;
+}
+
+.card {
+  width: min(720px, 100%);
+  padding: clamp(24px, 6vw, 52px);
+  background: #fff;
+  border: 1px solid #d9e4df;
+  border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(16, 48, 42, 0.08);
+}
+
+.mark {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #e2901f;
+  background: #0a5a4a;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.eyebrow {
+  margin: 28px 0 8px;
+  color: #0e7c66;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+
+.card h1 {
+  margin: 0;
+  max-width: 16ch;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  line-height: 1.04;
+}
+
+.lead {
+  margin: 20px 0 28px;
+  color: #5c6e69;
+  font-size: 1.08rem;
+  line-height: 1.65;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #d9e4df;
+  border-radius: 18px;
+  background: #d9e4df;
+}
+
+.facts div {
+  padding: 16px;
+  background: #fff;
+}
+
+.facts dt { color: #5c6e69; font-size: 0.8rem; }
+.facts dd { margin: 4px 0 0; font-weight: 800; }
+
+.download {
+  margin-top: 20px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: #e2901f;
+  color: #16302b;
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.steps {
+  margin: 30px 0;
+  padding-left: 24px;
+  line-height: 1.65;
+}
+
+.steps li { padding: 6px 0 6px 8px; }
+
+.proof {
+  padding: 18px;
+  border-radius: 18px;
+  background: #e1f0eb;
+}
+
+.proof summary { cursor: pointer; font-weight: 800; }
+.proof p { margin: 16px 0 4px; color: #5c6e69; }
+.proof code { overflow-wrap: anywhere; font-size: 0.78rem; }
+.caution { margin: 24px 0 0; color: #5c6e69; font-size: 0.88rem; }
+.notice { padding: 18px; border-radius: 18px; background: #fbebcf; font-weight: 700; }
+
+@media (max-width: 520px) {
+  .facts { grid-template-columns: 1fr; }
+}

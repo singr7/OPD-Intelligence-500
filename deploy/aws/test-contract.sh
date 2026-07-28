@@ -50,4 +50,6 @@ grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.t
 python3 "$SCRIPT_DIR/test_secret_to_env.py"
 python3 "$SCRIPT_DIR/test_drill_report.py"
 grep -q 'OnCalendar=\*:0/15' "$REPO_ROOT/deploy/omen/opd-cloud-backup.timer"
+grep -q 'application/vnd.android.package-archive' "$SCRIPT_DIR/nginx/opd-tls.conf"
+grep -q 'max-age=31536000, immutable' "$SCRIPT_DIR/nginx/opd-tls.conf"
 echo "AWS deployment contract: ok"
