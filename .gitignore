@@ -60,3 +60,4 @@ web/playwright-report/
 # Android build outputs the wrapper leaves behind
 android/.kotlin/
 android/app/release/
+android/release/

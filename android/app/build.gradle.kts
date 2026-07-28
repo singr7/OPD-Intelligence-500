@@ -12,6 +12,14 @@ val omenApiBase = providers.environmentVariable("OPD_OMEN_API_BASE")
     .orElse(providers.gradleProperty("opdOmenApiBase"))
 val awsApiBase = providers.environmentVariable("OPD_AWS_API_BASE")
     .orElse(providers.gradleProperty("opdAwsApiBase"))
+val signingKeystore = providers.environmentVariable("OPD_SIGNING_KEYSTORE")
+    .orElse(providers.gradleProperty("opdSigningKeystore"))
+val signingStorePassword = providers.environmentVariable("OPD_SIGNING_STORE_PASSWORD")
+    .orElse(providers.gradleProperty("opdSigningStorePassword"))
+val signingKeyAlias = providers.environmentVariable("OPD_SIGNING_KEY_ALIAS")
+    .orElse(providers.gradleProperty("opdSigningKeyAlias"))
+val signingKeyPassword = providers.environmentVariable("OPD_SIGNING_KEY_PASSWORD")
+    .orElse(providers.gradleProperty("opdSigningKeyPassword"))
 
 android {
     namespace = "ai.radpretation.opd"
@@ -32,6 +40,19 @@ android {
         resourceConfigurations += setOf("en", "hi", "mr", "te")
     }
 
+    signingConfigs {
+        create("production") {
+            storeFile = file(signingKeystore.orNull ?: "missing-release-keystore")
+            storePassword = signingStorePassword.orNull.orEmpty()
+            keyAlias = signingKeyAlias.orNull.orEmpty()
+            keyPassword = signingKeyPassword.orNull.orEmpty()
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
+        }
+    }
+
     buildTypes {
         release {
             // Both on: R8 plus resource shrinking is most of what keeps the APK
@@ -42,6 +63,7 @@ android {
             buildConfigField("String", "OMEN_API_BASE", "\"${omenApiBase.orNull.orEmpty()}\"")
             buildConfigField("String", "AWS_API_BASE", "\"${awsApiBase.orNull.orEmpty()}\"")
             buildConfigField("boolean", "ALLOW_DEBUG_ENDPOINTS", "false")
+            signingConfig = signingConfigs.getByName("production")
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -113,8 +135,27 @@ val validateReleaseEnvironments by tasks.registering {
     }
 }
 
+val validateReleaseSigning by tasks.registering {
+    group = "verification"
+    doLast {
+        val fields = mapOf(
+            "OPD_SIGNING_KEYSTORE" to signingKeystore.orNull,
+            "OPD_SIGNING_STORE_PASSWORD" to signingStorePassword.orNull,
+            "OPD_SIGNING_KEY_ALIAS" to signingKeyAlias.orNull,
+            "OPD_SIGNING_KEY_PASSWORD" to signingKeyPassword.orNull,
+        )
+        val missing = fields.filterValues { it.isNullOrBlank() }.keys
+        require(missing.isEmpty()) {
+            "release signing inputs are missing: ${missing.sorted().joinToString()}"
+        }
+        require(file(signingKeystore.get()).isFile) {
+            "OPD_SIGNING_KEYSTORE does not name a readable file"
+        }
+    }
+}
+
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
-    dependsOn(validateReleaseEnvironments)
+    dependsOn(validateReleaseEnvironments, validateReleaseSigning)
 }
 
 dependencies {
