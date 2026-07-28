@@ -5,6 +5,12 @@
 > kiosk/tablet/printer matrix. Do not merge to `main` until photographs and operator
 > acceptance are recorded.
 
+> **Approved work after that gate:** execute doc 16 in order:
+> `SESSION-VOICE1` (three selectable voice profiles), `SESSION-CLOUD1` (GPU-free
+> AWS standby), then `SESSION-ANDROID1` (one signed APK paired to Omen or AWS).
+> The execution plans are in `sessions/SESSION-VOICE1-PLAN.md`,
+> `sessions/SESSION-CLOUD1-PLAN.md`, and `sessions/SESSION-ANDROID1-PLAN.md`.
+
 ## Current state
 
 - Branch: `uiux-kiosk-rx-hardening`, based on `uiux-enterprise-revamp`.

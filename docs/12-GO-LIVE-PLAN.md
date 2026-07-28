@@ -130,15 +130,15 @@ This is the best-shaped of the six, because **most of it already exists**:
 - **The engine already downgrades rather than denies** — a provider outage lowers the tier and
   never blocks an intake.
 
-What is missing is that this has **never been assembled as a cloud deployment**. Specifically:
-a GPU-free AWS profile that boots with every AI provider off and every ladder ending at `v3`;
-a `assert_production_safe`-style check that refuses to boot such a profile with a cloud AI key
-accidentally set; DNS/traffic switching between box and cloud; and a documented, *rehearsed*
-failover with a restore. Also, LLM-dependent features (dictation mapping, check-in
-personalisation, the receptionist, adaptive intake) must degrade to manual entry **visibly** —
-a doctor needs to see "dictation mapping is offline, type it" rather than a spinner.
+What is missing is that this has **never been assembled as a cloud deployment**.
+The original plan below proposed an every-AI-off V3 deployment. The operator's
+2026-07-27 decision supersedes that detail: AWS remains GPU-free but may select the
+`openai_cloud` or `sarvam_cloud` voice profile, with deterministic V3/manual entry as
+the visible outage floor. DNS/traffic switching, backup/restore, controlled promotion,
+and failback still have to be rehearsed.
 
-Built in **S-GL.6**, which replaces doc 06's S19 for this purpose.
+Build this through **SESSION-CLOUD1 in doc 16**, which replaces both the original
+S-GL.6 detail and doc 06's S19 for this purpose.
 
 ## 6. Doctor onboarding and roster import
 
@@ -262,21 +262,11 @@ box runs `ENV=local` and would otherwise have shown a false green.
   code change; a realtime minute appears priced in `usage_events` and moves the tier-mix panel.
 
 ### S-GL.6 — The GPU-free cloud fallback, and a rehearsed failover
-- **Load:** doc 05, doc 09 §9, this document §5.
-- **Build:** an AWS profile that boots with **every AI provider off** and every ladder ending
-  at `v3`, refusing to start if a cloud AI key is set (the inverse of `assert_production_safe`);
-  the kiosk's offline speech path as the *primary* path in that profile, not the fallback;
-  `TemplateSummarizer` as the only summariser; **visible degradation** in every LLM-dependent
-  surface — dictation mapping, check-in personalisation, the receptionist, adaptive intake all
-  say "offline, enter this by hand" rather than spinning; database replication box→cloud and
-  the switchover runbook; CloudWatch alarms and the Grafana dashboards doc 06 S19 asks for.
-- **AC:** with the box powered off, a full OPD day runs in the cloud profile — walk-in intake,
-  token, queue, board, doctor console, manual consult note, printed prescription — with no LLM
-  anywhere and no error state visible to a patient; a restore from last night's backup is
-  performed and documented; failing back to the box loses nothing.
-- **Note:** this supersedes doc 06's S19 for the pilot. Doc 06 S19 assumes AWS is the primary
-  deployment; here it is the disaster-recovery profile, which changes the acceptance criteria
-  but not the Terraform.
+- **Superseded:** execute `sessions/SESSION-CLOUD1-PLAN.md` under doc 16. AWS remains
+  the GPU-free disaster-recovery environment, but it may use an approved OpenAI or
+  Sarvam cloud profile. The deterministic walker, rules, and manual/tap path remain
+  the outage floor. CLOUD1 adds immutable ECR deployment, nginx/TLS, Secrets Manager,
+  backup/restore, controlled single-writer promotion, failback, and measured RPO/RTO.
 
 ### S-GL.7 — Pilot dress rehearsal (doc 06 S22, brought forward and narrowed)
 - Full-day simulation on the box with the channels you are actually opening, the failover

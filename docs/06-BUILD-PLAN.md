@@ -210,9 +210,11 @@ calls, not the day the adapter compiles.
   smart-turn replacing the energy-threshold endpointer, 6-minute timebox.
 - **S-GL.5** — OpenAI Realtime as a second adapter against the same interface and prompt;
   vendor choice becomes config-only and per-channel; price-book rows for realtime minutes.
-- **S-GL.6** — the GPU-free AWS profile: boots with every AI provider off, ladders end at
-  `v3`, LLM-dependent surfaces degrade *visibly* to manual entry, replication + a rehearsed
-  failover and restore. **Supersedes S19 for the pilot** (AWS is DR here, not primary).
+- **S-GL.6** — superseded by `SESSION-CLOUD1` in doc 16. The GPU-free AWS profile now
+  uses an explicitly selected OpenAI or Sarvam cloud voice profile while retaining
+  deterministic V3/manual fallback; it includes backup/restore, controlled promotion,
+  failback, and measured RPO/RTO. **Supersedes S19 for the pilot** (AWS is DR here,
+  not the default primary).
 - **S-GL.7** — dress rehearsal on the box with the failover drill mid-day (narrows S22).
 
 **Phase 4 — second platform.** iOS, moved here from the Phase 2 backlog: **S-P4.1** (SwiftUI
@@ -255,3 +257,24 @@ session explicitly accepts a small additive backend read contract with tests.
 FHIR export; urban/multi-site tenanting; analytics warehouse. Numbered below Phase 3 but
 sequenced after it — these are "someone asks for this" items, whereas Phase 3 finishes what
 the pilot started.
+
+---
+
+### Voice/cloud/Android release track (operator, 2026-07-27)
+
+The authoritative specification is
+**[doc 16](16-VOICE-CLOUD-ANDROID-EXECUTION-PLAN.md)**. Run these sessions sequentially
+after doc 15's physical Omen acceptance:
+
+1. **SESSION-VOICE1** — named `local_oss`, `openai_cloud`, and `sarvam_cloud`
+   kiosk profiles; new OpenAI STT/TTS and Sarvam LLM adapters; profile snapshot per
+   intake; encrypted credential/readiness controls; deterministic tree and rules remain
+   authoritative. Execute `sessions/SESSION-VOICE1-PLAN.md`.
+2. **SESSION-CLOUD1** — GPU-free AWS environment with immutable ECR images, host
+   nginx/TLS, CPU-only Compose, Secrets Manager, SSM, monitoring, encrypted backups,
+   and a rehearsed manual promote/failback procedure. Execute
+   `sessions/SESSION-CLOUD1-PLAN.md`.
+3. **SESSION-ANDROID1** — one signed, checksum-verifiable APK served by Omen and
+   AWS, with an HTTPS API environment selector and strict offline-intake ownership.
+   The APK never connects directly to either database. Execute
+   `sessions/SESSION-ANDROID1-PLAN.md`.
