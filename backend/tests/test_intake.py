@@ -21,6 +21,7 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 
+from app.config import Settings
 from app.intake import InMemorySessionStore, IntakeEngine, PatientTurn, SessionState, SessionStatus
 from app.intake.interpret import FakeInterpreter, LLMInterpreter
 from app.intake.summary import IntakeSummary, LLMSummarizer, SummaryError, TemplateSummarizer
@@ -29,6 +30,7 @@ from app.providers import AudioClip, FakeLLMProvider, FakeSTTProvider, FakeTTSPr
 from app.providers.costguard import InMemoryTierOverrideStore
 from app.providers.llm import FakeLLMScript
 from app.providers.metering import usage_scope
+from app.providers.profiles import VoiceProfileError, snapshot_profile
 from app.providers.realtime import FakeRealtimeProvider, FakeRealtimeScript
 from app.providers.resilience import ProviderUnavailable
 from app.trees import bank
@@ -147,6 +149,7 @@ async def test_session_state_roundtrips_through_json(tree, store):
         active_tier=V2,
         intake_id=uuid.uuid4(),
         cost_inr=Decimal("1.2345"),
+        voice_profile=snapshot_profile("openai_cloud", Settings()),
     )
     state.record_turn("patient", "haan", lang="hi")
     restored = SessionState.from_json(json.loads(json.dumps(state.to_json())))
@@ -157,6 +160,7 @@ async def test_session_state_roundtrips_through_json(tree, store):
     assert restored.intake_id == state.intake_id
     assert restored.cost_inr == Decimal("1.2345")
     assert restored.transcript[0]["text"] == "haan"
+    assert restored.voice_profile == state.voice_profile
 
 
 async def test_in_memory_store_hands_back_copies(store, tree):
@@ -173,6 +177,46 @@ async def test_in_memory_store_hands_back_copies(store, tree):
     fetched = await store.get("s1")
     fetched.status = SessionStatus.COMPLETE  # mutating the copy must not leak
     assert (await store.get("s1")).status is SessionStatus.ACTIVE
+
+
+@pytest.mark.parametrize(
+    ("name", "providers"),
+    [
+        ("local_oss", ("local_whisper", "local_vllm", "local_tts")),
+        ("openai_cloud", ("openai", "openai", "openai")),
+        ("sarvam_cloud", ("sarvam", "sarvam", "sarvam")),
+    ],
+)
+async def test_kiosk_voice_profile_has_the_exact_component_mapping(name, providers):
+    profile = snapshot_profile(name, Settings())
+    assert (profile.stt.provider, profile.llm.provider, profile.tts.provider) == providers
+
+
+async def test_unknown_kiosk_voice_profile_is_rejected():
+    with pytest.raises(VoiceProfileError, match="unknown kiosk voice profile"):
+        snapshot_profile("other_cloud", Settings())
+
+
+async def test_profile_snapshot_isolated_from_a_later_selection(tree, store):
+    engine = IntakeEngine(store)
+    first = await engine.start_session(
+        tree=tree,
+        channel=Channel.KIOSK,
+        lang="en",
+        configured_tier=V3,
+        voice_profile=snapshot_profile("local_oss", Settings()),
+    )
+    second = await engine.start_session(
+        tree=tree,
+        channel=Channel.KIOSK,
+        lang="en",
+        configured_tier=V3,
+        voice_profile=snapshot_profile("openai_cloud", Settings()),
+    )
+
+    assert first.voice_profile.name == "local_oss"
+    assert (await store.get(first.session_id)).voice_profile.name == "local_oss"
+    assert second.voice_profile.name == "openai_cloud"
 
 
 # -- the dispatcher (the four tools over a Walk) -------------------------------

@@ -31,6 +31,8 @@
 # GPU box or its WireGuard tunnel is unhealthy, or admission is full, a channel
 # falls to the next label in its ladder automatically.
 
+kiosk_voice_profile: local_oss
+
 channels:
   # `max_concurrent` is a channel's private share of the GPU seats below. Phone is
   # the only channel given one, and the reason is a room: twelve calls can take

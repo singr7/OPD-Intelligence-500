@@ -48,6 +48,7 @@ import yaml
 
 from app.models.enums import Channel
 from app.providers.local_oss.admission import AdmissionController
+from app.providers.profiles import VoiceProfileError, VoiceProfileName, profile_name
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ class TierConfig:
         policies: dict[Channel, ChannelPolicy],
         max_oss_sessions: int,
         campaign_mix: dict[Channel, int] | None = None,
+        kiosk_voice_profile: VoiceProfileName = VoiceProfileName.LOCAL_OSS,
     ) -> None:
         self._policies = policies
         self.max_oss_sessions = max_oss_sessions
@@ -106,6 +108,7 @@ class TierConfig:
         #: means "no mix configured" and the campaign keeps its pre-S-GL.1
         #: behaviour (call everybody it has a number for).
         self.campaign_mix = campaign_mix or {}
+        self.kiosk_voice_profile = kiosk_voice_profile
 
     def policy_for(self, channel: Channel) -> ChannelPolicy:
         """A channel's policy, with the safe default for one the document omits:
@@ -152,6 +155,7 @@ class TierConfig:
         draft, where `parse_tier_config` checks it exactly as it checked the file.
         """
         doc: dict[str, Any] = {
+            "kiosk_voice_profile": self.kiosk_voice_profile.value,
             "channels": {
                 channel.value: {
                     "ladder": list(policy.ladder),
@@ -223,7 +227,17 @@ def parse_tier_config(data: dict[str, Any]) -> TierConfig:
                     f"seats but the box has {max_oss}"
                 )
 
-    return TierConfig(policies, max_oss, _parse_mix(data.get("campaign")))
+    try:
+        kiosk_profile = profile_name(data.get("kiosk_voice_profile", "local_oss"))
+    except VoiceProfileError as exc:
+        raise TierConfigError(str(exc)) from exc
+
+    return TierConfig(
+        policies,
+        max_oss,
+        _parse_mix(data.get("campaign")),
+        kiosk_voice_profile=kiosk_profile,
+    )
 
 
 def _channel(name: Any) -> Channel:

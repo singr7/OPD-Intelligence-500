@@ -45,6 +45,7 @@ from app.models.enums import Channel, Lang, UsagePurpose
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import get_meter, usage_scope
+from app.providers.profiles import snapshot_profile
 from app.providers.registry import stt_chain, tts_chain
 from app.queue_hub import QueueHub
 from app.trees import bank
@@ -200,7 +201,8 @@ async def start(
     admin closes the channel finishes it. Closing a channel means "take no new
     ones", not "abandon whoever is mid-sentence".
     """
-    require_open(await resolve_config(session), Channel.KIOSK, lang=payload.lang)
+    channel_config = await resolve_config(session)
+    require_open(channel_config, Channel.KIOSK, lang=payload.lang)
     try:
         routed = await kiosk_svc.route_complaint(
             session,
@@ -240,6 +242,7 @@ async def start(
         intake_id=walk_in.intake.id,
         visit_id=walk_in.visit.id,
         chief_complaint=payload.chief_complaint,
+        voice_profile=snapshot_profile(channel_config.kiosk_voice_profile, get_settings()),
     )
 
     dispatcher = engine.dispatcher(state, routed.tree)

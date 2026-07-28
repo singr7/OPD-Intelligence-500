@@ -72,6 +72,7 @@ from app.providers import (
     with_fallback,
 )
 from app.providers.costguard import LADDER, CostGuard, downgrade, get_guard
+from app.providers.profiles import VoiceProfileSnapshot
 from app.providers.realtime import RealtimeConfig, RealtimeSession, RealtimeVoiceProvider
 from app.trees import bank
 from app.trees.schema import Tree
@@ -231,6 +232,7 @@ class IntakeEngine:
         visit_id: uuid.UUID | None = None,
         chief_complaint: str | None = None,
         chief_complaint_en: str | None = None,
+        voice_profile: VoiceProfileSnapshot | None = None,
     ) -> SessionState:
         """Open an intake and persist it. Active tier respects the cost guard from
         the first turn — a channel already over budget starts on the cheaper tier
@@ -253,6 +255,7 @@ class IntakeEngine:
             active_tier=active,
             chief_complaint=chief_complaint,
             chief_complaint_en=chief_complaint_en,
+            voice_profile=voice_profile,
         )
         await self._store.save(state)
         return state

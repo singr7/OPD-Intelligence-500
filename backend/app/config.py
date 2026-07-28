@@ -74,14 +74,22 @@ class Settings(BaseSettings):
     stt_fallback_provider: str = ""  # google
     tts_fallback_provider: str = ""  # google
 
+    # Kiosk voice is selected as one versioned profile, then snapshotted when an
+    # intake starts. A published channel document overlays this file/env floor.
+    kiosk_voice_profile: str = "local_oss"
+    kiosk_local_tts_provider: str = "local_tts"  # local_tts | voicebox
+
     # --- Provider credentials (S3) -------------------------------------------
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     gemini_live_model: str = "gemini-live-2.5-flash-preview"
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5.6-luna"
+    openai_stt_model: str = "gpt-4o-mini-transcribe"
+    openai_tts_model: str = "gpt-4o-mini-tts"
     sarvam_api_key: str = ""
-    sarvam_stt_model: str = "saarika:v2.5"
+    sarvam_stt_model: str = "saaras:v3"
+    sarvam_llm_model: str = "sarvam-30b"
     sarvam_tts_model: str = "bulbul:v2"
     sarvam_tts_voice: str = "anushka"
     google_api_key: str = ""

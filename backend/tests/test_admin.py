@@ -389,6 +389,7 @@ async def test_an_unparseable_published_bank_falls_through_to_the_file(session) 
 def _channel_doc(**enabled: bool) -> dict:
     on = {"kiosk": True, "phone": True, "whatsapp": True, "app": True, **enabled}
     return {
+        "kiosk_voice_profile": "local_oss",
         "channels": {
             name: {"ladder": ["v2", "v3"], "enabled": value} for name, value in on.items()
         },
@@ -417,6 +418,29 @@ async def test_an_invalid_channel_document_is_refused_at_draft(session) -> None:
         await admin_svc.save_channel_config_draft(
             session, config={"channels": {"kiosk": {"ladder": ["v9"]}}}
         )
+
+
+async def test_unknown_kiosk_voice_profile_is_refused_at_draft(session) -> None:
+    document = _channel_doc()
+    document["kiosk_voice_profile"] = "mystery_cloud"
+    with pytest.raises(admin_svc.AdminError, match="unknown kiosk voice profile"):
+        await admin_svc.save_channel_config_draft(session, config=document)
+
+
+async def test_published_kiosk_profile_changes_new_config_only(session) -> None:
+    from app import channels as channel_svc
+
+    before = await channel_svc.resolve_config(session)
+    assert before.kiosk_voice_profile.value == "local_oss"
+
+    document = _channel_doc()
+    document["kiosk_voice_profile"] = "openai_cloud"
+    version = await admin_svc.save_channel_config_draft(session, config=document)
+    await admin_svc.publish_channel_config(session, version=version.version)
+
+    after = await channel_svc.resolve_config(session)
+    assert after.kiosk_voice_profile.value == "openai_cloud"
+    assert before.kiosk_voice_profile.value == "local_oss"
 
 
 async def test_publishing_a_channel_document_names_what_it_closed(session) -> None:

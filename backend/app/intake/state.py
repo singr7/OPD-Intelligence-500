@@ -36,6 +36,7 @@ from typing import Any, Protocol
 
 from app.models.enums import Channel, IntakeTier, Lang
 from app.prompts.tools import TOOL_CONTRACT_VERSION
+from app.providers.profiles import VoiceProfileSnapshot
 
 
 class SessionStatus(StrEnum):
@@ -75,6 +76,9 @@ class SessionState:
     #: even if the process is redeployed with a newer one mid-intake
     #: (`app.prompts.tools`: a redefined `save_answer` mid-intake is data corruption).
     contract_version: str = TOOL_CONTRACT_VERSION
+    #: Exact provider/model tuple pinned when the intake starts. None for older
+    #: sessions and non-kiosk channels created before VOICE1.
+    voice_profile: VoiceProfileSnapshot | None = None
 
     chief_complaint: str | None = None
     chief_complaint_en: str | None = None
@@ -146,6 +150,7 @@ class SessionState:
             "intake_id": str(self.intake_id) if self.intake_id else None,
             "visit_id": str(self.visit_id) if self.visit_id else None,
             "contract_version": self.contract_version,
+            "voice_profile": self.voice_profile.to_json() if self.voice_profile else None,
             "chief_complaint": self.chief_complaint,
             "chief_complaint_en": self.chief_complaint_en,
             "answers": self.answers,
@@ -179,6 +184,11 @@ class SessionState:
             intake_id=as_uuid(data.get("intake_id")),
             visit_id=as_uuid(data.get("visit_id")),
             contract_version=data.get("contract_version", TOOL_CONTRACT_VERSION),
+            voice_profile=(
+                VoiceProfileSnapshot.from_json(data["voice_profile"])
+                if data.get("voice_profile")
+                else None
+            ),
             chief_complaint=data.get("chief_complaint"),
             chief_complaint_en=data.get("chief_complaint_en"),
             answers=data.get("answers") or {},
