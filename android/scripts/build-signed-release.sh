@@ -19,13 +19,14 @@ fi
 RELEASE_SHA="$(git rev-parse HEAD)"
 [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
 export RELEASE_SHA
-"$ANDROID_ROOT/gradlew" -p "$ANDROID_ROOT" clean testReleaseUnitTest assembleRelease checkApkSize
+"$ANDROID_ROOT/gradlew" -p "$ANDROID_ROOT" --no-daemon --no-parallel \
+  clean testReleaseUnitTest assembleRelease checkApkSize
 
 APK="$ANDROID_ROOT/app/build/outputs/apk/release/app-release.apk"
 [[ -f "$APK" ]]
 SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 : "${SDK_ROOT:?set ANDROID_SDK_ROOT or ANDROID_HOME}"
-BUILD_TOOLS="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+BUILD_TOOLS="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
 APKSIGNER="$BUILD_TOOLS/apksigner"
 [[ -x "$APKSIGNER" ]]
 
