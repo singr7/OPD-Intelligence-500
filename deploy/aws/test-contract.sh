@@ -54,10 +54,16 @@ docker compose -f "$SCRIPT_DIR/compose.yml" config >"$LOCAL_CONFIG"
 grep -q 'opd-local/opd-api:0123456789abcdef0123456789abcdef01234567' "$LOCAL_CONFIG"
 
 grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-tls.conf"
+grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-cloudflare-tls.conf"
 if grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-http.conf"; then
   echo "HSTS must not be enabled before TLS verification" >&2
   exit 1
 fi
+grep -q 'x509.*-checkhost' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+grep -q 'Full (strict)' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+grep -q 'CF-Connecting-IP' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
+grep -q 'www.cloudflare.com/ips-v4' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
+grep -q 'curl -kfsS' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
 grep -q 'OnCalendar=\*:0/15' "$SCRIPT_DIR/systemd/opd-backup.timer"
 grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.timer"
 python3 "$SCRIPT_DIR/test_secret_to_env.py"

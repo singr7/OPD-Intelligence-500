@@ -24,7 +24,8 @@ Confirm:
 - no public PostgreSQL, Redis, API, or web ports;
 - a Git credential/deploy key if the repository is private;
 - an `A` record for `opd-cloud.radpretation.ai` pointing to the Elastic IP before
-  the TLS step.
+  the TLS step. It may be DNS-only for Certbot or Cloudflare-proxied when using a
+  supplied origin certificate.
 
 The Compose stack contains no CUDA, NVIDIA runtime, vLLM, Whisper, or local TTS
 container. Cloud voice must be configured and tested through the Channels console;
@@ -149,7 +150,11 @@ full SHA. Verify PostgreSQL remains read-only:
 sudo /opt/opd/current/deploy/aws/quiesce.sh
 ```
 
-## 6. Issue TLS after DNS points to the host
+## 6. Enable TLS after DNS points to the host
+
+Choose exactly one of the following paths.
+
+### Direct DNS with Let's Encrypt
 
 ```bash
 getent ahostsv4 opd-cloud.radpretation.ai
@@ -163,6 +168,41 @@ curl -fsSI https://opd-cloud.radpretation.ai/
 ```
 
 HSTS is enabled only after HTTPS health and a Certbot renewal dry run pass.
+
+### Cloudflare proxy with a supplied origin certificate
+
+In Cloudflare:
+
+1. Point the proxied (orange-cloud) `A` record at the Elastic IP.
+2. Set **SSL/TLS encryption mode** to **Full (strict)**, never Flexible.
+
+Place a hostname-matching, unexpired certificate and its matching private key on
+the host. A Cloudflare Origin CA certificate is valid for this path, although it
+will not be trusted by browsers connecting directly to the origin. For a public
+CA certificate, the PEM must contain the complete served certificate chain.
+
+Inspect the certificate without displaying the key:
+
+```bash
+sudo openssl x509 -in /etc/ssl/opd.pem \
+  -noout -subject -issuer -dates -ext subjectAltName
+
+sudo /opt/opd/current/deploy/aws/enable-cloudflare-tls.sh \
+  opd-cloud.radpretation.ai /etc/ssl/opd.pem /etc/ssl/opd.key
+
+curl -fsS https://opd-cloud.radpretation.ai/api/health
+curl -fsSI https://opd-cloud.radpretation.ai/
+```
+
+The helper checks expiry, hostname coverage, and certificate/key matching. It
+downloads Cloudflare's current published proxy networks and configures nginx to
+honor `CF-Connecting-IP` only from those trusted networks. It verifies origin
+HTTPS locally, then verifies public HTTPS through Cloudflare before enabling
+HSTS. Supplied certificates are not renewed by Certbot; monitor their expiry.
+
+After verification, restrict origin security-group ingress on 80/443 to
+Cloudflare's current published IPv4 and IPv6 ranges if the origin is intended to
+be proxy-only. Keep those allowlists synchronized when Cloudflare changes them.
 
 ## 7. Verify the no-GPU and private-port boundaries
 
