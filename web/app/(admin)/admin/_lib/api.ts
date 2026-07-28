@@ -499,10 +499,28 @@ export type ChannelState = {
 };
 export type Channels = {
   channels: ChannelState[];
+  kiosk_voice_profile: string;
+  voice_profiles: VoiceProfile[];
   max_oss_sessions: number;
   campaign_mix: Record<string, number>;
   from_file: boolean;
   version: number | null;
+};
+export type VoiceComponent = {
+  component: string;
+  provider: string;
+  model: string;
+  configured: boolean;
+  tested: boolean;
+  healthy: boolean;
+  detail: string;
+};
+export type VoiceProfile = {
+  name: string;
+  active: boolean;
+  ready: boolean;
+  reason: string;
+  components: VoiceComponent[];
 };
 export type ChannelVersion = {
   id: string;
@@ -541,8 +559,12 @@ export type ProviderTest = { ok: boolean; at: string; detail: string };
 
 export const fetchProviderCredentials = (t: string) =>
   get<ProviderCredential[]>(t, "/admin/providers/credentials");
-export const testProvider = (t: string, name: string) =>
-  post<ProviderTest>(t, `/admin/providers/${name}/test`, {});
+export const testProvider = (t: string, name: string, component?: string) =>
+  post<ProviderTest>(
+    t,
+    `/admin/providers/${name}/test${component ? `?component=${component}` : ""}`,
+    {},
+  );
 
 // PUT and DELETE, which the two helpers above do not cover: a credential is
 // replaced or removed, never appended to.

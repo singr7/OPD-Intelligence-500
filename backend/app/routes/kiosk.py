@@ -47,6 +47,7 @@ from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import get_meter, usage_scope
 from app.providers.profiles import resolve_profile, snapshot_profile
 from app.providers.registry import stt_chain, tts_chain
+from app.providers.runtime import effective_settings
 from app.queue_hub import QueueHub
 from app.trees import bank
 from app.trees.schema import Node
@@ -202,6 +203,7 @@ async def start(
     ones", not "abandon whoever is mid-sentence".
     """
     channel_config = await resolve_config(session)
+    settings = await effective_settings(session, get_settings())
     require_open(channel_config, Channel.KIOSK, lang=payload.lang)
     try:
         routed = await kiosk_svc.route_complaint(
@@ -242,7 +244,7 @@ async def start(
         intake_id=walk_in.intake.id,
         visit_id=walk_in.visit.id,
         chief_complaint=payload.chief_complaint,
-        voice_profile=snapshot_profile(channel_config.kiosk_voice_profile, get_settings()),
+        voice_profile=snapshot_profile(channel_config.kiosk_voice_profile, settings),
     )
 
     dispatcher = engine.dispatcher(state, routed.tree)
@@ -654,6 +656,7 @@ async def stt(
             duration = None
 
     clip = AudioClip(data=data, mime=file.content_type or "audio/webm", duration_seconds=duration)
+    settings = await effective_settings(session, settings)
     state = await _load_state(engine, session_id) if session_id else None
     metered_profile: str | None = None
     if state is not None and state.voice_profile is not None:
@@ -738,6 +741,7 @@ async def tts(
     no credential, and the text is a clinical prompt, not a stored record. The
     kiosk keeps the browser voice behind this (flag off / offline / on error).
     """
+    settings = await effective_settings(session, settings)
     state = await _load_state(engine, payload.session_id) if payload.session_id else None
     metered_profile: str | None = None
     if state is not None and state.voice_profile is not None:

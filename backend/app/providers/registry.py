@@ -279,7 +279,7 @@ def _fingerprint(kind: str, name: str, settings: Settings) -> str:
     """
     from app.providers.runtime import CREDENTIAL_FIELDS
 
-    fields = CREDENTIAL_FIELDS.get(f"{kind}:{name}")
+    fields = CREDENTIAL_FIELDS.get(f"{kind}:{name}") or CREDENTIAL_FIELDS.get(f"vendor:{name}")
     if not fields:
         return ""
     joined = "\x00".join(str(getattr(settings, field, "")) for field in fields)

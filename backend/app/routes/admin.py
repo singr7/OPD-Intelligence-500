@@ -838,6 +838,8 @@ class ChannelStateOut(BaseModel):
 
 class ChannelsOut(BaseModel):
     channels: list[ChannelStateOut]
+    kiosk_voice_profile: str
+    voice_profiles: list[VoiceProfileOut]
     max_oss_sessions: int
     campaign_mix: dict[str, int]
     #: True when what is in force comes from `config/tiers.yaml` because nothing
@@ -845,6 +847,24 @@ class ChannelsOut(BaseModel):
     #: they are looking at a file or at a decision somebody made.
     from_file: bool
     version: int | None
+
+
+class VoiceComponentOut(BaseModel):
+    component: str
+    provider: str
+    model: str
+    configured: bool
+    tested: bool
+    healthy: bool
+    detail: str
+
+
+class VoiceProfileOut(BaseModel):
+    name: str
+    active: bool
+    ready: bool
+    reason: str
+    components: list[VoiceComponentOut]
 
 
 class ChannelVersionOut(BaseModel):
@@ -886,6 +906,9 @@ async def channels(
     published = await channel_svc.published_config(session)
     versions = await admin_svc.list_channel_configs(session)
     live = next((v for v in versions if v.status == "published"), None)
+    profiles = await admin_svc.voice_profile_statuses(
+        session, active=config.kiosk_voice_profile, settings=settings
+    )
 
     return ChannelsOut(
         channels=[
@@ -900,6 +923,28 @@ async def channels(
                 note=state.note,
             )
             for state in channel_svc.channel_states(config, effective)
+        ],
+        kiosk_voice_profile=config.kiosk_voice_profile.value,
+        voice_profiles=[
+            VoiceProfileOut(
+                name=profile.name,
+                active=profile.active,
+                ready=profile.ready,
+                reason=profile.reason,
+                components=[
+                    VoiceComponentOut(
+                        component=component.component,
+                        provider=component.provider,
+                        model=component.model,
+                        configured=component.configured,
+                        tested=component.tested,
+                        healthy=component.healthy,
+                        detail=component.detail,
+                    )
+                    for component in profile.components
+                ],
+            )
+            for profile in profiles
         ],
         max_oss_sessions=config.max_oss_sessions,
         campaign_mix={c.value: pct for c, pct in config.campaign_mix.items()},
@@ -946,13 +991,17 @@ async def save_channel_draft(
 
 @router.post("/channels/{version}/publish", response_model=ChannelVersionOut)
 async def publish_channels(
-    version: int, session: AsyncSession = Depends(get_session)
+    version: int,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> ChannelVersionOut:
     """Open or close channels. Live on the next intake, with no deploy."""
     try:
-        published = await admin_svc.publish_channel_config(session, version=version)
+        published = await admin_svc.publish_channel_config(
+            session, version=version, settings=settings
+        )
     except admin_svc.AdminError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     # See `save_channel_draft`: the caller's next request is usually "is it open
     # now?", and it must not be answered from before this publish.
     await session.commit()
@@ -1046,6 +1095,7 @@ async def clear_provider_credentials(
 @router.post("/providers/{name}/test")
 async def test_provider(
     name: str,
+    component: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> dict:
@@ -1057,7 +1107,7 @@ async def test_provider(
     """
     try:
         result = await admin_svc.test_provider_credentials(
-            session, provider=name, settings=settings
+            session, provider=name, component=component, settings=settings
         )
     except runtime.UnknownProviderSecret as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

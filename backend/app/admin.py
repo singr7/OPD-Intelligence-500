@@ -43,12 +43,13 @@ from app.models.content import (
     ProviderSecret,
     QuestionTree,
 )
-from app.models.enums import AuditAction, ContentStatus, Lang, PriceUnit, TreeStatus
+from app.models.enums import AuditAction, Channel, ContentStatus, Lang, PriceUnit, TreeStatus
 from app.models.metering import PriceBook
 from app.models.org import Department
 from app.providers import runtime
 from app.providers.pricing import get_price_book
-from app.providers.probe import probe
+from app.providers.probe import probe, probe_voice_component
+from app.providers.profiles import VoiceProfileName, snapshot_profile
 from app.providers.secrets import SecretUnreadable, decrypt, encrypt, using_a_derived_key
 from app.tiers import SWITCHABLE, TierConfigError, get_tier_config, parse_tier_config
 from app.trees import bank
@@ -438,7 +439,9 @@ async def save_channel_config_draft(
     return _channel_version(row)
 
 
-async def publish_channel_config(session: AsyncSession, *, version: int) -> ChannelConfigVersionOut:
+async def publish_channel_config(
+    session: AsyncSession, *, version: int, settings: Settings | None = None
+) -> ChannelConfigVersionOut:
     """Make one version the live one — the act that opens or closes a channel.
 
     Exactly one published version, like the trees and the banks, so `resolve_config`
@@ -457,6 +460,19 @@ async def publish_channel_config(session: AsyncSession, *, version: int) -> Chan
     except TierConfigError as exc:  # pragma: no cover - the draft save gates this
         raise AdminError(f"refusing to publish an invalid channel document: {exc}") from exc
 
+    settings = settings or get_settings()
+    profile_status = next(
+        status
+        for status in await voice_profile_statuses(
+            session, active=config.kiosk_voice_profile, settings=settings
+        )
+        if status.name == config.kiosk_voice_profile.value
+    )
+    if config.is_enabled(Channel.KIOSK) and not profile_status.ready:
+        raise AdminError(
+            f"refusing to activate kiosk profile {profile_status.name}: {profile_status.reason}"
+        )
+
     siblings = (
         (
             await session.execute(
@@ -466,6 +482,15 @@ async def publish_channel_config(session: AsyncSession, *, version: int) -> Chan
         .scalars()
         .all()
     )
+    previous_profile: str | None = None
+    for sibling in siblings:
+        if sibling.status == ContentStatus.PUBLISHED:
+            try:
+                previous_profile = parse_tier_config(sibling.config).kiosk_voice_profile.value
+            except TierConfigError:
+                previous_profile = None
+            break
+
     for sibling in siblings:
         sibling.status = ContentStatus.DRAFT
         sibling.published_at = None
@@ -483,9 +508,121 @@ async def publish_channel_config(session: AsyncSession, *, version: int) -> Chan
             "status": "published",
             "open": sorted(c.value for c in SWITCHABLE if config.is_enabled(c)),
             "closed": sorted(c.value for c in SWITCHABLE if not config.is_enabled(c)),
+            "kiosk_voice_profile": config.kiosk_voice_profile.value,
+            "previous_kiosk_voice_profile": previous_profile,
         },
     )
     return _channel_version(row)
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceComponentStatus:
+    component: str
+    provider: str
+    model: str
+    configured: bool
+    tested: bool
+    healthy: bool
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceProfileStatus:
+    name: str
+    active: bool
+    ready: bool
+    reason: str
+    components: tuple[VoiceComponentStatus, ...]
+
+
+async def voice_profile_statuses(
+    session: AsyncSession,
+    *,
+    active: VoiceProfileName,
+    settings: Settings | None = None,
+) -> list[VoiceProfileStatus]:
+    """Readiness for every selectable profile, without returning any secret."""
+    settings = settings or get_settings()
+    credential_status = {row.provider: row for row in await provider_credentials(session, settings)}
+    rows = {
+        row.provider: row
+        for row in (
+            (
+                await session.execute(
+                    select(ProviderSecret).where(ProviderSecret.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    }
+    statuses: list[VoiceProfileStatus] = []
+    for name in VoiceProfileName:
+        snapshot = snapshot_profile(name, settings)
+        if name is VoiceProfileName.LOCAL_OSS:
+            components = tuple(
+                VoiceComponentStatus(
+                    component=component,
+                    provider=value.provider,
+                    model=value.model,
+                    configured=True,
+                    tested=False,
+                    healthy=True,
+                    detail="local profile; runtime health is reported by provider health",
+                )
+                for component, value in (
+                    ("stt", snapshot.stt),
+                    ("llm", snapshot.llm),
+                    ("tts", snapshot.tts),
+                )
+            )
+            ready, reason = True, "local components configured"
+        else:
+            vendor = snapshot.stt.provider
+            credential_name = f"vendor:{vendor}"
+            credential = credential_status[credential_name]
+            tests = dict(rows.get(credential_name).last_test if rows.get(credential_name) else {})
+            tested_components = dict(tests.get("components") or {})
+            component_rows: list[VoiceComponentStatus] = []
+            for component, value in (
+                ("stt", snapshot.stt),
+                ("llm", snapshot.llm),
+                ("tts", snapshot.tts),
+            ):
+                result = dict(tested_components.get(component) or {})
+                component_rows.append(
+                    VoiceComponentStatus(
+                        component=component,
+                        provider=value.provider,
+                        model=value.model,
+                        configured=credential.configured,
+                        tested=bool(result),
+                        healthy=bool(result.get("ok")),
+                        detail=str(result.get("detail") or "not tested"),
+                    )
+                )
+            components = tuple(component_rows)
+            failed = [
+                row.component
+                for row in components
+                if not row.configured or not row.tested or not row.healthy
+            ]
+            ready = not failed
+            reason = (
+                "all components passed their latest test"
+                if ready
+                else "components not ready: " + ", ".join(failed)
+            )
+        statuses.append(
+            VoiceProfileStatus(
+                name=name.value,
+                active=name is active,
+                ready=ready,
+                reason=reason,
+                components=components,
+            )
+        )
+    return statuses
 
 
 async def _latest_channel_row(session: AsyncSession) -> ChannelConfigVersion | None:
@@ -719,7 +856,11 @@ async def clear_provider_credentials(
 
 
 async def test_provider_credentials(
-    session: AsyncSession, *, provider: str, settings: Settings | None = None
+    session: AsyncSession,
+    *,
+    provider: str,
+    component: str | None = None,
+    settings: Settings | None = None,
 ) -> dict[str, Any]:
     """One real round-trip against the vendor, recorded on the row.
 
@@ -747,20 +888,40 @@ async def test_provider_credentials(
                 else "credentials are unreadable under the current key; enter them again"
             ),
         }
-        await _record_test(session, provider, result)
+        await _record_test(session, provider, result, component=component, settings=settings)
         return result
 
     kind, vendor = provider.split(":", 1)
     try:
-        checked = await probe(kind, vendor, effective)
-        result = {"ok": True, "at": datetime.now(UTC).isoformat(), "detail": checked}
+        if kind == "vendor":
+            if component not in {"stt", "llm", "tts"}:
+                raise AdminError("voice vendor tests require component=stt|llm|tts")
+            checked = await probe_voice_component(component, vendor, effective)
+        else:
+            checked = await probe(kind, vendor, effective)
+        result = {
+            "ok": True,
+            "at": datetime.now(UTC).isoformat(),
+            "detail": runtime.redact_credentials(checked, effective),
+        }
     except Exception as exc:  # noqa: BLE001 — a vendor's own failure, whatever shape
-        result = {"ok": False, "at": datetime.now(UTC).isoformat(), "detail": str(exc)}
-    await _record_test(session, provider, result)
+        result = {
+            "ok": False,
+            "at": datetime.now(UTC).isoformat(),
+            "detail": runtime.redact_credentials(str(exc), effective),
+        }
+    await _record_test(session, provider, result, component=component, settings=settings)
     return result
 
 
-async def _record_test(session: AsyncSession, provider: str, result: dict[str, Any]) -> None:
+async def _record_test(
+    session: AsyncSession,
+    provider: str,
+    result: dict[str, Any],
+    *,
+    component: str | None = None,
+    settings: Settings,
+) -> None:
     row = (
         await session.execute(
             select(ProviderSecret).where(
@@ -769,8 +930,19 @@ async def _record_test(session: AsyncSession, provider: str, result: dict[str, A
         )
     ).scalar_one_or_none()
     if row is None:
-        return  # credentials live in `.env`; there is no row to annotate
-    row.last_test = result
+        # Keep test evidence even when the credential floor is `.env`. The row
+        # contains an encrypted empty object—not a duplicate credential—and the
+        # runtime overlay therefore continues to read the key from `.env`.
+        ciphertext, kid = encrypt({}, settings)
+        row = ProviderSecret(provider=provider, secret=ciphertext, key_id=kid)
+        session.add(row)
+    if component is None:
+        row.last_test = result
+    else:
+        previous = dict(row.last_test)
+        components = dict(previous.get("components") or {})
+        components[component] = result
+        row.last_test = {"components": components}
     await session.flush()
 
 

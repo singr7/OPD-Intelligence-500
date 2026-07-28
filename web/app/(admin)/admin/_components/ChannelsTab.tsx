@@ -31,8 +31,16 @@ const CHANNEL_LABEL: Record<string, string> = {
 };
 
 const VENDOR_LABEL: Record<string, string> = {
+  "vendor:openai": "Kiosk voice — OpenAI",
+  "vendor:sarvam": "Kiosk voice — Sarvam",
   "messaging:meta": "WhatsApp — Meta Cloud API",
   "telephony:exotel": "Phone — Exotel",
+};
+
+const PROFILE_LABEL: Record<string, string> = {
+  local_oss: "Local OSS",
+  openai_cloud: "OpenAI cloud",
+  sarvam_cloud: "Sarvam cloud",
 };
 
 export function ChannelsTab({ token, onError }: TabProps) {
@@ -130,6 +138,15 @@ export function ChannelsTab({ token, onError }: TabProps) {
           </p>
         )}
       </section>
+
+      {channels.data && (
+        <VoiceProfileControl
+          token={token}
+          channels={channels.data}
+          onChanged={reload}
+          onError={onError}
+        />
+      )}
 
       <section>
         <h2>Vendor credentials</h2>
@@ -233,22 +250,26 @@ function CredentialCard({
   onError: (e: unknown) => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<"save" | "test" | "clear" | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<api.ProviderTest | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  const voiceVendor = credential.provider.startsWith("vendor:");
   const last =
-    result ?? (credential.last_test.at ? (credential.last_test as api.ProviderTest) : null);
+    result ??
+    (!voiceVendor && credential.last_test.at
+      ? (credential.last_test as api.ProviderTest)
+      : null);
 
-  async function run(kind: "save" | "test" | "clear") {
-    setBusy(kind);
+  async function run(kind: "save" | "test" | "clear", component?: string) {
+    setBusy(component ? `${kind}-${component}` : kind);
     setRefusal(null);
     try {
       if (kind === "save") {
         await api.setProviderCredentials(token, credential.provider, values);
         setValues({});
       } else if (kind === "test") {
-        setResult(await api.testProvider(token, credential.provider));
+        setResult(await api.testProvider(token, credential.provider, component));
       } else {
         await api.clearProviderCredentials(token, credential.provider);
         setResult(null);
@@ -311,9 +332,22 @@ function CredentialCard({
         >
           {busy === "save" ? "Saving…" : "Save credentials"}
         </button>
-        <button className="ghost" disabled={busy !== null} onClick={() => run("test")}>
-          {busy === "test" ? "Testing…" : "Test connection"}
-        </button>
+        {voiceVendor ? (
+          ["stt", "llm", "tts"].map((component) => (
+            <button
+              key={component}
+              className="ghost"
+              disabled={busy !== null || !credential.configured}
+              onClick={() => run("test", component)}
+            >
+              {busy === `test-${component}` ? "Testing…" : `Test ${component.toUpperCase()}`}
+            </button>
+          ))
+        ) : (
+          <button className="ghost" disabled={busy !== null} onClick={() => run("test")}>
+            {busy === "test" ? "Testing…" : "Test connection"}
+          </button>
+        )}
         {credential.source === "console" && (
           <button className="ghost" disabled={busy !== null} onClick={() => run("clear")}>
             {busy === "clear" ? "Removing…" : "Remove (fall back to .env)"}
@@ -322,6 +356,122 @@ function CredentialCard({
       </div>
       {refusal && <p className="error">Refused: {refusal}</p>}
     </div>
+  );
+}
+
+function VoiceProfileControl({
+  token,
+  channels,
+  onChanged,
+  onError,
+}: {
+  token: string;
+  channels: api.Channels;
+  onChanged: () => void;
+  onError: (e: unknown) => void;
+}) {
+  const [selected, setSelected] = useState(channels.kiosk_voice_profile);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const candidate = channels.voice_profiles.find((profile) => profile.name === selected);
+
+  async function activate() {
+    if (
+      !window.confirm(
+        `Activate ${PROFILE_LABEL[selected] ?? selected}? This affects new kiosk intakes only; active intakes keep their current voice profile.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setRefusal(null);
+    try {
+      const document = await api.fetchChannelDocument<Record<string, unknown>>(token);
+      const draft = await api.saveChannelDraft(
+        token,
+        { ...document, kiosk_voice_profile: selected },
+        `Kiosk voice profile: ${channels.kiosk_voice_profile} → ${selected}`,
+      );
+      await api.publishChannels(token, draft.version);
+      onChanged();
+    } catch (error) {
+      setRefusal(error instanceof Error ? error.message : String(error));
+      onError(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2>Kiosk voice profile</h2>
+      <p className="muted">
+        The active profile is snapshotted when an intake starts. Changing it affects new intakes
+        only; a patient already answering questions keeps the same STT, interpretation model, and
+        voice.
+      </p>
+      <div className="row">
+        <label className="field">
+          <span>Profile for new intakes</span>
+          <select value={selected} onChange={(event) => setSelected(event.target.value)}>
+            {channels.voice_profiles.map((profile) => (
+              <option key={profile.name} value={profile.name} disabled={!profile.ready}>
+                {PROFILE_LABEL[profile.name] ?? profile.name}
+                {profile.ready ? "" : " — not ready"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="action"
+          disabled={busy || selected === channels.kiosk_voice_profile || !candidate?.ready}
+          onClick={activate}
+        >
+          {busy ? "Activating…" : "Activate for new intakes"}
+        </button>
+      </div>
+      {refusal && <p className="error">Refused: {refusal}</p>}
+      <table>
+        <thead>
+          <tr>
+            <th>Profile</th>
+            <th>State</th>
+            <th>STT</th>
+            <th>LLM</th>
+            <th>TTS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {channels.voice_profiles.map((profile) => (
+            <tr key={profile.name}>
+              <td>
+                <b>{PROFILE_LABEL[profile.name] ?? profile.name}</b>
+              </td>
+              <td>
+                <span className={`pill ${profile.ready ? "published" : "bad"}`}>
+                  {profile.active ? "active" : profile.ready ? "ready" : "blocked"}
+                </span>
+                <div className="muted">{profile.reason}</div>
+              </td>
+              {profile.components.map((component) => (
+                <td key={component.component} className="muted">
+                  <b>{component.provider}</b>
+                  <br />
+                  <code>{component.model}</code>
+                  <br />
+                  {component.healthy
+                    ? component.tested
+                      ? "tested"
+                      : "local"
+                    : component.tested
+                      ? "failed"
+                      : "not tested"}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 

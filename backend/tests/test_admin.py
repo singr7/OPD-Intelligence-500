@@ -433,7 +433,9 @@ async def test_published_kiosk_profile_changes_new_config_only(session) -> None:
     before = await channel_svc.resolve_config(session)
     assert before.kiosk_voice_profile.value == "local_oss"
 
-    document = _channel_doc()
+    # This test isolates versioning from readiness; the enabled-profile gate has
+    # its own coverage below.
+    document = _channel_doc(kiosk=False)
     document["kiosk_voice_profile"] = "openai_cloud"
     version = await admin_svc.save_channel_config_draft(session, config=document)
     await admin_svc.publish_channel_config(session, version=version.version)
@@ -441,6 +443,48 @@ async def test_published_kiosk_profile_changes_new_config_only(session) -> None:
     after = await channel_svc.resolve_config(session)
     assert after.kiosk_voice_profile.value == "openai_cloud"
     assert before.kiosk_voice_profile.value == "local_oss"
+
+
+async def test_enabled_cloud_profile_cannot_publish_without_complete_readiness(
+    session, settings
+) -> None:
+    document = _channel_doc()
+    document["kiosk_voice_profile"] = "openai_cloud"
+    version = await admin_svc.save_channel_config_draft(session, config=document)
+
+    with pytest.raises(admin_svc.AdminError, match="components not ready: stt, llm, tts"):
+        await admin_svc.publish_channel_config(session, version=version.version, settings=settings)
+
+
+async def test_enabled_cloud_profile_publishes_after_all_component_tests_pass(
+    session, settings
+) -> None:
+    from app.models.content import ProviderSecret
+    from app.providers.secrets import encrypt
+
+    ciphertext, kid = encrypt({"openai_api_key": "write-only"}, settings)
+    passed = {
+        component: {"ok": True, "at": "2026-07-28T12:00:00Z", "detail": "accepted"}
+        for component in ("stt", "llm", "tts")
+    }
+    session.add(
+        ProviderSecret(
+            provider="vendor:openai",
+            secret=ciphertext,
+            key_id=kid,
+            last_test={"components": passed},
+        )
+    )
+    await session.flush()
+    document = _channel_doc()
+    document["kiosk_voice_profile"] = "openai_cloud"
+    version = await admin_svc.save_channel_config_draft(session, config=document)
+
+    published = await admin_svc.publish_channel_config(
+        session, version=version.version, settings=settings
+    )
+
+    assert published.status == "published"
 
 
 async def test_publishing_a_channel_document_names_what_it_closed(session) -> None:
@@ -460,6 +504,8 @@ async def test_publishing_a_channel_document_names_what_it_closed(session) -> No
     assert len(published) == 1
     assert published[0].meta["closed"] == ["phone", "whatsapp"]
     assert published[0].meta["open"] == ["app", "kiosk"]
+    assert published[0].meta["kiosk_voice_profile"] == "local_oss"
+    assert "previous_kiosk_voice_profile" in published[0].meta
 
 
 async def test_rolling_back_to_an_earlier_channel_document(session) -> None:

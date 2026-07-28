@@ -123,7 +123,10 @@ def resolve_profile(
     """
     from app.providers.registry import get_profile_component
 
-    settings = settings or get_settings()
+    if settings is None:
+        from app.providers.runtime import cached_effective_settings
+
+        settings = cached_effective_settings(get_settings())
     return VoiceProviderTrio(
         profile=snapshot,
         stt=(get_profile_component("stt", snapshot.stt, settings),),  # type: ignore[arg-type]

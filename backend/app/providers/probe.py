@@ -20,9 +20,15 @@ operator what is actually configured.
 
 from __future__ import annotations
 
+import io
+import wave
+
 import httpx
 
 from app.config import Settings
+from app.providers.audio import AudioClip
+from app.providers.llm import LLMRequest
+from app.providers.profiles import resolve_profile, snapshot_profile
 
 #: Same ceiling as an ordinary vendor call. A probe that hangs is a console that
 #: hangs, and the answer "the vendor did not respond in ten seconds" is itself
@@ -47,6 +53,47 @@ async def probe(kind: str, vendor: str, settings: Settings) -> str:
             return await _probe_exotel(settings)
     raise ProbeUnsupported(
         f"no connectivity test for {kind}:{vendor} — this vendor cannot be verified from here"
+    )
+
+
+async def probe_voice_component(component: str, vendor: str, settings: Settings) -> str:
+    """Exercise one exact cloud profile component with non-patient fixture data."""
+    if vendor not in {"openai", "sarvam"} or component not in {"stt", "llm", "tts"}:
+        raise ProbeUnsupported(f"no voice-component test for {vendor}:{component}")
+    profile = snapshot_profile(f"{vendor}_cloud", settings)
+    trio = resolve_profile(profile, settings)
+    provider = getattr(trio, component)[0]
+
+    if component == "stt":
+        transcript = await provider.transcribe(
+            _silent_wav(),
+            "en",  # type: ignore[union-attr]
+        )
+        detail = f"silence accepted ({len(transcript.text)} transcript characters)"
+    elif component == "llm":
+        result = await provider.complete(  # type: ignore[union-attr]
+            LLMRequest(prompt="Reply with the single word OK.", max_tokens=8)
+        )
+        detail = f"completion accepted ({len(result.text)} response characters)"
+    else:
+        speech = await provider.synthesize("Voice profile test.", "en")  # type: ignore[union-attr]
+        detail = f"speech accepted ({len(speech.audio.data)} audio bytes)"
+    return f"{vendor} {component} model {provider.model}: {detail}"
+
+
+def _silent_wav() -> AudioClip:
+    """A valid 250 ms PCM fixture; no patient audio ever enters a credential test."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16_000)
+        wav.writeframes(b"\x00\x00" * 4_000)
+    return AudioClip(
+        data=buf.getvalue(),
+        mime="audio/wav",
+        sample_rate=16_000,
+        duration_seconds=None,
     )
 
 

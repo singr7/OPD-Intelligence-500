@@ -27,6 +27,7 @@ from app import admin as admin_svc
 from app.config import Settings
 from app.models.content import ProviderSecret
 from app.providers import runtime
+from app.providers.profiles import resolve_profile, snapshot_profile
 from app.providers.registry import get_messaging_provider, reset_providers
 from app.providers.secrets import SecretUnreadable, decrypt, encrypt, key_id
 from tests import factories as f
@@ -35,6 +36,7 @@ pytestmark = pytest.mark.asyncio
 
 META = "messaging:meta"
 EXOTEL = "telephony:exotel"
+OPENAI = "vendor:openai"
 
 META_VALUES = {
     "meta_whatsapp_token": "EAA-a-real-looking-token",
@@ -146,6 +148,27 @@ async def test_a_stored_credential_overlays_the_environment(
     effective = await runtime.effective_settings(session, base)
     assert effective.meta_whatsapp_token == META_VALUES["meta_whatsapp_token"]
     assert effective.meta_phone_number_id == META_VALUES["meta_phone_number_id"]
+
+
+async def test_one_encrypted_openai_key_is_shared_by_all_voice_components(
+    session: AsyncSession, settings: Settings
+):
+    await admin_svc.save_provider_credentials(
+        session,
+        provider=OPENAI,
+        values={"openai_api_key": "one-shared-key"},
+        settings=settings,
+    )
+
+    effective = await runtime.effective_settings(session, settings)
+    rows = (
+        (await session.execute(select(ProviderSecret).where(ProviderSecret.provider == OPENAI)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert effective.openai_api_key == "one-shared-key"
+    assert "one-shared-key" not in rows[0].secret
 
 
 async def test_clearing_a_credential_returns_the_box_to_env(
@@ -368,6 +391,65 @@ async def test_a_successful_test_is_recorded_on_the_row(
     assert "Alwar Cancer Centre" in result["detail"]
 
 
+async def test_each_cloud_voice_component_has_a_separate_test_result(
+    client: AsyncClient,
+    session: AsyncSession,
+    settings: Settings,
+    admin_headers: dict,
+    monkeypatch,
+):
+    async def accepting(component: str, vendor: str, _settings):
+        return f"{vendor} {component} model accepted"
+
+    monkeypatch.setattr(admin_svc, "probe_voice_component", accepting)
+    await admin_svc.save_provider_credentials(
+        session,
+        provider=OPENAI,
+        values={"openai_api_key": "write-only"},
+        settings=settings,
+    )
+
+    for component in ("stt", "llm", "tts"):
+        response = await client.post(
+            f"/admin/providers/{OPENAI}/test?component={component}",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+
+    status = {row.provider: row for row in await admin_svc.provider_credentials(session, settings)}[
+        OPENAI
+    ]
+    assert set(status.last_test["components"]) == {"stt", "llm", "tts"}
+
+
+async def test_vendor_error_cannot_echo_a_cloud_key_through_the_api(
+    client: AsyncClient,
+    session: AsyncSession,
+    settings: Settings,
+    admin_headers: dict,
+    monkeypatch,
+):
+    secret = "must-never-come-back"
+
+    async def rejecting(component: str, vendor: str, _settings):
+        raise RuntimeError(f"{vendor} rejected API key {secret}")
+
+    monkeypatch.setattr(admin_svc, "probe_voice_component", rejecting)
+    await admin_svc.save_provider_credentials(
+        session,
+        provider=OPENAI,
+        values={"openai_api_key": secret},
+        settings=settings,
+    )
+    response = await client.post(
+        f"/admin/providers/{OPENAI}/test?component=llm", headers=admin_headers
+    )
+
+    assert secret not in response.text
+    assert "[redacted]" in response.json()["detail"]
+
+
 # -- no restart ---------------------------------------------------------------
 
 
@@ -396,6 +478,37 @@ async def test_changed_credentials_rebuild_the_provider_rather_than_reusing_it(
     second = get_messaging_provider(effective)
 
     assert second is not first, "the provider still holds the credentials that were replaced"
+
+
+async def test_changed_shared_key_rebuilds_all_profile_components(
+    session: AsyncSession, settings: Settings, providers: None
+):
+    reset_providers()
+    snapshot = snapshot_profile("openai_cloud", settings)
+    await admin_svc.save_provider_credentials(
+        session,
+        provider=OPENAI,
+        values={"openai_api_key": "first"},
+        settings=settings,
+    )
+    first = resolve_profile(snapshot, await runtime.effective_settings(session, settings))
+
+    await admin_svc.save_provider_credentials(
+        session,
+        provider=OPENAI,
+        values={"openai_api_key": "second"},
+        settings=settings,
+    )
+    second = resolve_profile(snapshot, await runtime.effective_settings(session, settings))
+
+    assert all(
+        before is not after
+        for before, after in zip(
+            (*first.stt, *first.llm, *first.tts),
+            (*second.stt, *second.llm, *second.tts),
+            strict=True,
+        )
+    )
 
 
 async def test_the_overlay_cache_is_dropped_when_credentials_are_saved(

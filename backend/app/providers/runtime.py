@@ -53,6 +53,8 @@ OVERLAY_TTL_SECONDS = 10.0
 #: `kind:vendor` so both vendors of a kind can be credentialed before either is
 #: selected (Meta configured while the box still runs the fake, say).
 CREDENTIAL_FIELDS: dict[str, tuple[str, ...]] = {
+    "vendor:openai": ("openai_api_key",),
+    "vendor:sarvam": ("sarvam_api_key",),
     "messaging:meta": (
         "meta_whatsapp_token",
         "meta_phone_number_id",
@@ -75,6 +77,8 @@ CREDENTIAL_FIELDS: dict[str, tuple[str, ...]] = {
 #: missing one of these is incomplete, and the console says so rather than letting
 #: a channel look ready and fail on the first message.
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
+    "vendor:openai": ("openai_api_key",),
+    "vendor:sarvam": ("sarvam_api_key",),
     "messaging:meta": ("meta_whatsapp_token", "meta_phone_number_id"),
     "telephony:exotel": ("exotel_sid", "exotel_api_key", "exotel_token"),
 }
@@ -167,6 +171,29 @@ async def effective_settings(session: AsyncSession, settings: Settings | None = 
     settings = settings or get_settings()
     values = await overlay(session, settings)
     return settings.model_copy(update=values) if values else settings
+
+
+def cached_effective_settings(settings: Settings | None = None) -> Settings:
+    """Apply the latest process-local overlay without a database round trip.
+
+    Session-bound engine calls have no DB dependency. Their entry route warms the
+    overlay before snapshotting a profile, after which this provides the same
+    credential view to every STT/LLM/TTS turn until the TTL refreshes.
+    """
+    settings = settings or get_settings()
+    values = _cache or {}
+    return settings.model_copy(update=values) if values else settings
+
+
+def redact_credentials(text: str, settings: Settings) -> str:
+    """Remove every allow-listed credential value from operator-visible detail."""
+    redacted = text
+    fields = {field for owned in CREDENTIAL_FIELDS.values() for field in owned}
+    for field in fields:
+        value = str(getattr(settings, field, "") or "")
+        if value:
+            redacted = redacted.replace(value, "[redacted]")
+    return redacted
 
 
 async def stored_names(session: AsyncSession) -> set[str]:
