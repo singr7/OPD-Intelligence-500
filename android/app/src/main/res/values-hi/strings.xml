@@ -18,6 +18,7 @@
     <string name="signin_send">कोड भेजें</string>
     <string name="signin_code_title">कोड डालिए</string>
     <string name="signin_code_help">हमने इसे %1$s पर भेजा है।</string>
+    <string name="signin_demo_code">डेमो OTP: %1$s</string>
     <string name="signin_verify">मेरी फ़ाइल खोलें</string>
     <string name="signin_resend">दोबारा भेजें</string>
     <string name="signin_failed">यह कोड नहीं चला। एक बार और कोशिश करते हैं।</string>

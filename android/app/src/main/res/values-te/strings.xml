@@ -19,6 +19,7 @@
     <string name="signin_send">కోడ్ పంపండి</string>
     <string name="signin_code_title">కోడ్ ఇవ్వండి</string>
     <string name="signin_code_help">దాన్ని %1$sకు పంపాము.</string>
+    <string name="signin_demo_code">డెమో OTP: %1$s</string>
     <string name="signin_verify">నా ఫైల్ తెరవండి</string>
     <string name="signin_resend">మళ్లీ పంపండి</string>
     <string name="signin_failed">ఆ కోడ్ పని చేయలేదు. ఇంకోసారి ప్రయత్నిద్దాం.</string>

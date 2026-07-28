@@ -72,6 +72,8 @@ if grep -q 'proxy_read_timeout' "$SCRIPT_DIR/nginx/opd-proxy.conf"; then
 fi
 grep -q -- '--confirm-no-phi' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q 'restored-backup' "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q 'OTP_DEBUG_ECHO=true' "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q 'python -m scripts.seed_app_demo' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q -- '--confirm-delete-test-data' "$SCRIPT_DIR/end-disposable-test.sh"
 grep -q 'disposable-test-active' "$SCRIPT_DIR/end-disposable-test.sh"
 grep -q 'FLUSHALL' "$SCRIPT_DIR/end-disposable-test.sh"

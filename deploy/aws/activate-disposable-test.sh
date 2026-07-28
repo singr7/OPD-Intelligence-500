@@ -53,11 +53,21 @@ trap rollback_on_error ERR
 compose stop api voice-gw worker beat web
 set_database_read_only off
 write_writer_env 1
+{
+  printf 'ENV=test\n'
+  printf 'OTP_DEBUG_ECHO=true\n'
+  printf 'OTP_RESEND_COOLDOWN_SECONDS=0\n'
+  printf 'SMS_PROVIDER=fake\n'
+} >>"$WRITER_ENV"
+chmod 0600 "$WRITER_ENV"
 compose up -d --wait postgres redis api voice-gw worker beat web
 curl -fsS http://127.0.0.1:18080/health >/dev/null
 curl -fsS "https://${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}/api/health" >/dev/null
+compose exec -T api python -m app.seed
+compose exec -T api python -m scripts.seed_app_demo
 
 trap - ERR
 echo "DISPOSABLE AWS TEST MODE ACTIVE"
+echo "Demo patient +915551900001 is ready; the Android app will show its fake OTP."
 echo "Use synthetic data only; do not enter PHI or repoint the stable production alias."
 echo "Run end-disposable-test.sh with the same release SHA to erase test data."

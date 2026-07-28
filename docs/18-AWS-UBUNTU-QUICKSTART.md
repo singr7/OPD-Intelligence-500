@@ -266,6 +266,10 @@ sudo /opt/opd/current/deploy/aws/activate-disposable-test.sh \
   <full-release-sha> --confirm-no-phi
 ```
 
+Activation also selects the fake SMS provider, enables OTP echo only in the test
+container environment, and seeds the synthetic Android demo patient
+`+915551900001`. A demo Android build displays and prefills the returned OTP.
+
 After testing, erase the disposable PostgreSQL database and Redis state, recreate
 the schema, and return AWS to read-only standby:
 
