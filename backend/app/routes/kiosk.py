@@ -99,6 +99,11 @@ class StartIn(BaseModel):
     chief_complaint: str = Field(min_length=1, max_length=2000)
     caregiver: bool = False
     patient_name: str | None = Field(default=None, max_length=200)
+    #: The S-UX.6 registration facts, collected on the kiosk's details screen.
+    #: All optional and normalised server-side — a typo must not refuse an intake.
+    patient_age: int | None = Field(default=None, ge=0, le=200)
+    patient_sex: str | None = Field(default=None, max_length=16)
+    patient_phone: str | None = Field(default=None, max_length=24)
     #: A confirmed department (staff- or patient-picked from the chooser). When
     #: present the classifier is skipped entirely.
     dept_key: str | None = None
@@ -114,6 +119,14 @@ class NodeOut(BaseModel):
     unit: str | None = None
     audio: str | None = None
     summary_role: str | None = None
+    #: How many questions remain on this tree's default path, counting this one
+    #: (S-UX.6). The kiosk uses it for an honest progress bar and to decide where
+    #: the microphone belongs — speaking is offered on the closing questions,
+    #: where the patient has something to add, not on every yes/no tap.
+    remaining: int | None = None
+    #: True when this node invites a spoken answer. Derived, never authored: a
+    #: free-text node always does; a tap node does only in the closing pair.
+    voice_input: bool = False
 
 
 class DeptOut(BaseModel):
@@ -232,6 +245,9 @@ async def start(
             tree=routed.tree,
             caregiver=payload.caregiver,
             patient_name=payload.patient_name,
+            patient_age=payload.patient_age,
+            patient_sex=payload.patient_sex,
+            patient_phone=payload.patient_phone,
         )
     except kiosk_svc.KioskError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -882,6 +898,9 @@ class SyncIntakeIn(BaseModel):
     chief_complaint: str | None = None
     caregiver: bool = False
     patient_name: str | None = Field(default=None, max_length=200)
+    patient_age: int | None = Field(default=None, ge=0, le=200)
+    patient_sex: str | None = Field(default=None, max_length=16)
+    patient_phone: str | None = Field(default=None, max_length=24)
     completed_at: datetime | None = None
 
 
@@ -969,6 +988,9 @@ async def sync(
             chief_complaint=item.chief_complaint,
             caregiver=item.caregiver,
             patient_name=item.patient_name,
+            patient_age=item.patient_age,
+            patient_sex=item.patient_sex,
+            patient_phone=item.patient_phone,
             completed_at=item.completed_at,
         )
         results.append(
@@ -1016,4 +1038,6 @@ def _node_out(result: dict[str, Any]) -> NodeOut | None:
         unit=node.get("unit"),
         audio=node.get("audio"),
         summary_role=node.get("summary_role"),
+        remaining=node.get("remaining"),
+        voice_input=bool(node.get("voice_input", False)),
     )

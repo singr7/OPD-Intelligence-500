@@ -42,13 +42,16 @@ test("the doctor signs in with a phone OTP", async ({ page }) => {
   await expect(page.locator(".login h1")).toHaveText("Sign in");
   await page.screenshot({ path: `${SHOTS}/01-login.png` });
 
+  await page.fill("#phone", DOCTOR_PHONE);
   await page.click("button[type=submit]"); // Send code
-  const hint = await page.locator(".hint").textContent();
+  const hint = await page.getByTestId("otp-hint").textContent();
   await page.fill("#code", (hint ?? "").replace(/\D/g, ""));
   await page.click("button[type=submit]"); // Sign in
 
   await expect(page.locator(".appbar strong")).toHaveText("Dr. Anil Gupta");
-  await expect(page.locator(".appbar .room")).toHaveText("Medical Oncology");
+  // The room line carries the date too since S-UX.6 — a console left open
+  // overnight should not silently show yesterday's list as today's.
+  await expect(page.locator(".appbar .room")).toContainText("Medical Oncology");
   cachedAccessToken = await page.evaluate(() => localStorage.getItem("opd_staff_token"));
 });
 
@@ -115,7 +118,7 @@ test("N calls the next patient, and the rail follows", async ({ page, request })
   await signedIn(page, token);
 
   // Finish the patient in the room so there is a next one to call.
-  await page.click(".act:has-text('Done')");
+  await page.click("[data-testid='complete-consult']");
   await expect(page.locator(".station .stok").first()).not.toHaveText("12");
 
   await page.keyboard.press("n");
@@ -125,10 +128,16 @@ test("N calls the next patient, and the rail follows", async ({ page, request })
   await page.screenshot({ path: `${SHOTS}/05-called-next.png`, fullPage: true });
 });
 
-test("D shows that dictation is still S10 rather than pretending", async ({ page, request }) => {
+test("D opens the consult note for the patient on the stage", async ({ page, request }) => {
+  // S10 shipped the real note, so this no longer asserts the old "not built yet"
+  // toast. What it still guards is the S-UX.6 rule that the note belongs to a
+  // visit: D does nothing until somebody is on the stage, and the panel it opens
+  // names that patient.
   await signedIn(page, await loginToken(request));
   await page.keyboard.press("d");
-  await expect(page.locator(".note-toast")).toContainText("S10");
+  await expect(page.locator(".dict h2")).toHaveText("Consult note");
+  await page.keyboard.press("d");
+  await expect(page.locator(".dict")).toHaveCount(0);
 });
 
 test("a full morning: lab re-queue, no-show, and consults completed", async ({ page, request }) => {
@@ -138,6 +147,11 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
   // Send the patient in the room to the lab: they leave the front and rejoin
   // at the back of their priority (the S8 queue verb, not a console rule).
   const firstName = await page.locator(".station").first().locator(".sname").textContent();
+  // Earlier tests in this file leave whoever they called sitting in `called`.
+  // Lab re-queue is only legal from `in_consult`, so start the consult first —
+  // the encounter bar offers exactly the transition the state machine allows.
+  const start = page.getByTestId("start-consult");
+  if (await start.count()) await start.click();
   await page.click(".act:has-text('Send to lab')");
   await expect(page.locator(".station").first().locator(".sname")).not.toHaveText(firstName!);
 
@@ -151,9 +165,9 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
     if (i === 1) {
       await page.click(".act:has-text('No-show')"); // legal from `called`
     } else {
-      await page.click(".act:has-text('Start consult')");
+      await page.click("[data-testid='start-consult']");
       await expect(page.locator(".station.in_consult")).not.toHaveCount(0);
-      await page.click(".act:has-text('Done')");
+      await page.click("[data-testid='complete-consult']");
     }
     await expect(page.locator(".station.called, .station.in_consult")).toHaveCount(0);
   }
@@ -163,7 +177,7 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
   const atLab = page.locator(".station.lab_requeue");
   while ((await atLab.count()) > 0) {
     await atLab.first().locator("button").click();
-    await page.click(".act:has-text('Done')");
+    await page.click("[data-testid='complete-consult']");
     await page.waitForTimeout(200);
   }
 

@@ -26,6 +26,12 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // S-UX.6 viewport smoke: the kiosk surface on portrait and laptop.
+      name: "ux-smoke",
+      testMatch: /ux-smoke\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       name: "accessibility",
       testMatch: /accessibility\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },

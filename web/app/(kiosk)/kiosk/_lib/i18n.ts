@@ -90,6 +90,142 @@ export const T = {
     mr: "रुग्णाचे नाव",
     te: "రోగి పేరు",
   } as Str,
+  // -- registration details screen (S-UX.6) ----------------------------------
+  // One screen, four facts. They travel to the token slip, the queue, the doctor
+  // console and the prescription, so they are asked once and typed, not spoken:
+  // a misheard name on a prescription is a different patient.
+  detailsTitle: {
+    hi: "मरीज़ का विवरण भरिए",
+    en: "Patient details",
+    mr: "रुग्णाची माहिती भरा",
+    te: "రోగి వివరాలు",
+  } as Str,
+  detailsHint: {
+    hi: "यह विवरण आपकी पर्ची और डॉक्टर की स्क्रीन पर दिखेगा।",
+    en: "These details appear on your slip and on the doctor's screen.",
+    mr: "ही माहिती तुमच्या पावतीवर आणि डॉक्टरांच्या स्क्रीनवर दिसेल.",
+    te: "ఈ వివరాలు మీ స్లిప్‌లో మరియు డాక్టర్ స్క్రీన్‌పై కనిపిస్తాయి.",
+  } as Str,
+  ageInput: {
+    hi: "उम्र (साल)",
+    en: "Age (years)",
+    mr: "वय (वर्षे)",
+    te: "వయస్సు (సంవత్సరాలు)",
+  } as Str,
+  sexInput: {
+    hi: "लिंग",
+    en: "Gender",
+    mr: "लिंग",
+    te: "లింగం",
+  } as Str,
+  sexMale: {
+    hi: "पुरुष",
+    en: "Male",
+    mr: "पुरुष",
+    te: "పురుషుడు",
+  } as Str,
+  sexFemale: {
+    hi: "महिला",
+    en: "Female",
+    mr: "महिला",
+    te: "స్త్రీ",
+  } as Str,
+  sexOther: {
+    hi: "अन्य",
+    en: "Other",
+    mr: "इतर",
+    te: "ఇతర",
+  } as Str,
+  phoneInput: {
+    hi: "मोबाइल नंबर",
+    en: "Mobile number",
+    mr: "मोबाइल नंबर",
+    te: "మొబైల్ నంబర్",
+  } as Str,
+  optionalLabel: {
+    hi: "ज़रूरी नहीं",
+    en: "Optional",
+    mr: "ऐच्छिक",
+    te: "ఐచ్ఛికం",
+  } as Str,
+  requiredLabel: {
+    hi: "ज़रूरी",
+    en: "Required",
+    mr: "आवश्यक",
+    te: "అవసరం",
+  } as Str,
+  phoneHint: {
+    hi: "10 अंक — रिपोर्ट और याद दिलाने के लिए",
+    en: "10 digits — for reports and reminders",
+    mr: "१० अंक — अहवाल आणि आठवणीसाठी",
+    te: "10 అంకెలు — నివేదికలు మరియు రిమైండర్‌ల కోసం",
+  } as Str,
+  summaryAge: {
+    hi: "उम्र / लिंग",
+    en: "Age / gender",
+    mr: "वय / लिंग",
+    te: "వయస్సు / లింగం",
+  } as Str,
+  summaryPhone: {
+    hi: "मोबाइल",
+    en: "Mobile",
+    mr: "मोबाइल",
+    te: "మొబైల్",
+  } as Str,
+  yearsShort: {
+    hi: "साल",
+    en: "y",
+    mr: "वर्षे",
+    te: "సం",
+  } as Str,
+  stepProgress: {
+    hi: "चरण {n} / {total}",
+    en: "Step {n} of {total}",
+    mr: "टप्पा {n} / {total}",
+    te: "దశ {n} / {total}",
+  } as Str,
+  questionProgress: {
+    hi: "सवाल {n} / {total}",
+    en: "Question {n} of {total}",
+    mr: "प्रश्न {n} / {total}",
+    te: "ప్రశ్న {n} / {total}",
+  } as Str,
+  questionsLeft: {
+    hi: "{n} सवाल बाकी",
+    en: "{n} questions left",
+    mr: "{n} प्रश्न बाकी",
+    te: "{n} ప్రశ్నలు మిగిలాయి",
+  } as Str,
+  lastQuestion: {
+    hi: "आख़िरी सवाल",
+    en: "Last question",
+    mr: "शेवटचा प्रश्न",
+    te: "చివరి ప్రశ్న",
+  } as Str,
+  reviewStep: {
+    hi: "जाँच लीजिए",
+    en: "Check your answers",
+    mr: "तपासून घ्या",
+    te: "మీ సమాధానాలు చూడండి",
+  } as Str,
+  chooseOne: {
+    hi: "एक चुनिए",
+    en: "Choose one",
+    mr: "एक निवडा",
+    te: "ఒకటి ఎంచుకోండి",
+  } as Str,
+  chooseAny: {
+    hi: "जो-जो लागू हो, चुनिए",
+    en: "Choose everything that applies",
+    mr: "जे लागू होईल ते निवडा",
+    te: "వర్తించే అన్నింటినీ ఎంచుకోండి",
+  } as Str,
+  answersTitle: {
+    hi: "आपके जवाब",
+    en: "Your answers",
+    mr: "तुमची उत्तरे",
+    te: "మీ సమాధానాలు",
+  } as Str,
   clear: {
     hi: "मिटाएँ",
     en: "Clear",
@@ -211,6 +347,26 @@ export const T = {
     en: "I couldn't hear that properly — let's try once more.",
     mr: "माफ करा, नीट ऐकू आलं नाही — पुन्हा एकदा बोला.",
     te: "క్షమించండి, సరిగ్గా వినిపించలేదు — మరోసారి చెప్పండి.",
+  } as Str,
+  // The kiosk reads the options aloud after the question (S-UX.6): a patient who
+  // cannot read the screen still hears every choice before being asked to tap.
+  optionsSpokenIntro: {
+    hi: "आप चुन सकते हैं:",
+    en: "You can choose:",
+    mr: "तुम्ही निवडू शकता:",
+    te: "మీరు ఎంచుకోవచ్చు:",
+  } as Str,
+  optionsSpokenJoin: {
+    hi: ", या ",
+    en: ", or ",
+    mr: ", किंवा ",
+    te: ", లేదా ",
+  } as Str,
+  scaleSpoken: {
+    hi: "शून्य से दस के बीच चुनिए।",
+    en: "Choose a number between zero and ten.",
+    mr: "शून्य ते दहा दरम्यान निवडा.",
+    te: "సున్నా నుండి పది మధ్య ఎంచుకోండి.",
   } as Str,
   chooseDept: {
     hi: "सही डॉक्टर तक पहुँचाने में हमारी मदद कीजिए",

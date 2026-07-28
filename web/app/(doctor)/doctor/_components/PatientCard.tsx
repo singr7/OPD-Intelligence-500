@@ -20,21 +20,10 @@ import { Sparkline } from "./Sparkline";
 
 const SEX_SHORT: Record<string, string> = { male: "M", female: "F", other: "—" };
 
-export function PatientCard({
-  card,
-  busy,
-  onAction,
-  onDictate,
-}: {
-  card: Card;
-  busy: boolean;
-  onAction: (action: "in_consult" | "done" | "no_show" | "lab_requeue") => void;
-  onDictate: () => void;
-}) {
+export function PatientCard({ card }: { card: Card }) {
   const s = card.summary;
   const urgent = card.red_flags.filter((f) => f.severity === "urgent");
   const other = card.red_flags.filter((f) => f.severity !== "urgent");
-  const state = card.entry_state;
 
   return (
     <article className="card" data-testid="patient-card">
@@ -73,8 +62,10 @@ export function PatientCard({
             <span className="mrn">{card.mrn}</span>
           </p>
         </div>
+        {/* The visit state is not repeated here: the encounter bar directly above
+            says it in words, and two half-answers to "where am I" is what made
+            the old card ambiguous. */}
         <div className="who-r">
-          {state && <span className={`visit-state state-${state}`}>{state.replace("_", " ")}</span>}
           <span className="tok">{card.token_no ?? "—"}</span>
           <span className="tok-label">token</span>
         </div>
@@ -115,40 +106,6 @@ export function PatientCard({
           Unclear — please confirm: {s.unclear.join("; ")}
         </p>
       )}
-
-      {/* the doctor's one-tap actions (S8 queue verbs) */}
-      <div className="actions">
-        {state === "called" && (
-          <button
-            className="act primary"
-            disabled={busy}
-            onClick={() => onAction("in_consult")}
-            title="Mark this patient as being seen"
-          >
-            Start consult
-          </button>
-        )}
-        {(state === "in_consult" || state === "lab_requeue") && (
-          <button className="act primary" disabled={busy} onClick={() => onAction("done")}>
-            Done
-          </button>
-        )}
-        {state === "in_consult" && (
-          <button className="act" disabled={busy} onClick={() => onAction("lab_requeue")}>
-            Send to lab &amp; re-queue
-          </button>
-        )}
-        {(state === "called" || state === "waiting") && (
-          <button className="act danger-quiet" disabled={busy} onClick={() => onAction("no_show")}>
-            No-show
-          </button>
-        )}
-        {/* The note is a separate act from moving the queue, and is reachable
-            without the keyboard — D is a shortcut, not the only door. */}
-        <button className="act note-action" onClick={onDictate} title="Dictate the consult note (D)">
-          Dictate note <kbd className="hint">D</kbd>
-        </button>
-      </div>
 
       {/* 3. everything else, collapsed */}
       {s.since_last_visit.length > 0 && (

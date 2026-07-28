@@ -61,6 +61,9 @@ export async function syncPending(): Promise<SyncSummary> {
         chief_complaint: row.chiefComplaint,
         caregiver: row.caregiver,
         patient_name: row.patientName,
+        patient_age: row.patientAge ?? null,
+        patient_sex: row.patientSex ?? null,
+        patient_phone: row.patientPhone || null,
         completed_at: row.completedAt,
       })),
     });

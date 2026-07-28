@@ -1,6 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+// The kiosk intake (doc 03 §1a, doc 04 §3), rebuilt for S-UX.6.
+//
+// The shape of the screen is one idea: **a rail that remembers, and a stage that
+// asks one thing**. The rail on the left is the patient's own record filling up
+// as they answer — it is on every screen from the first question to the final
+// read-back, because a patient who cannot see what the machine already knows has
+// no way to catch it being wrong, and the moment it disappears (it used to, on
+// the read-back) the intake stops feeling like a conversation and starts feeling
+// like a form. The stage on the right holds exactly one question.
+//
+// Three rules the rebuild enforces that the previous build did not:
+//
+//   1. **Identity is asked once, and typed.** Name, age, sex and phone come from
+//      one details screen before the clinical walk. They ride to the token slip,
+//      the queue, the doctor console and the prescription. A misheard name is a
+//      different patient, so this screen has no microphone.
+//   2. **The microphone appears only where speech is the better answer** — the
+//      chief complaint, and the closing questions the server marks `voice_input`.
+//      A mic on a two-option yes/no screen reads as an instruction to talk.
+//   3. **Everything on the screen is also spoken**, options included. Many
+//      patients here cannot read; a choice they never heard is not a choice.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./kiosk.module.css";
 import { KIOSK_LANGS, KioskLang, t } from "./_lib/i18n";
 import {
@@ -8,6 +30,7 @@ import {
   ConfirmResult,
   Dept,
   KioskNode,
+  PatientDetails,
   StartResult,
 } from "./_lib/api";
 import { useOffline } from "./_lib/offline/useOffline";
@@ -15,7 +38,6 @@ import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offlin
 import { printSlip } from "./_lib/print";
 import {
   cancelSpeech,
-  kioskAdaptiveEnabled,
   listen,
   recordToServer,
   serverSttEnabled,
@@ -29,13 +51,13 @@ import { OptionCard } from "./_components/OptionCard";
 import { FacesScale } from "./_components/FacesScale";
 import { Stepper } from "./_components/Stepper";
 import { BodyMap } from "./_components/BodyMap";
-import { ProgressDots } from "./_components/ProgressDots";
 import { MicButton } from "./_components/MicButton";
+import { DetailsForm, emptyDetails, detailsComplete } from "./_components/DetailsForm";
 
 type Screen =
   | "welcome"
   | "caregiver"
-  | "name"
+  | "details"
   | "complaint"
   | "chooser"
   | "question"
@@ -44,27 +66,43 @@ type Screen =
 
 type SummaryAnswer = {
   nodeId: string;
-  role: NonNullable<KioskNode["summary_role"]>;
+  /** Presentation-only placement from the tree author (STATE.md invariant: it
+   *  never touches traversal or red flags). Null for the many nodes that carry
+   *  no role — those still belong on the rail, just not in a headline slot. */
+  role: KioskNode["summary_role"];
   question: string;
   answer: string;
 };
 
 type IntakeSummary = {
-  patientName: string;
+  details: PatientDetails;
+  caregiver: boolean;
   complaint: string;
   department: Dept | null;
   answers: SummaryAnswer[];
+  /** Where the patient is, for the rail's own progress line. */
+  stage: Screen;
+  questionsLeft: number | null;
 };
 
 // Idle protects patient privacy on a shared terminal (doc 04 law 12 / doc 03 §1a).
 const IDLE_PROMPT_MS = 60_000;
 const IDLE_BLUR_MS = 90_000;
 
+/** The named steps before the clinical questions start, for the rail's progress
+ *  line. The questions themselves count down from the server's `remaining`. */
+const LEAD_STEPS: Screen[] = ["caregiver", "details", "complaint"];
+
+/** How many answers the rail shows before folding the rest into a count. Enough
+ *  to see the shape of the conversation, few enough that the rail never becomes
+ *  the thing the patient is reading instead of the question. */
+const RAIL_ANSWER_ROWS = 5;
+
 export function KioskApp() {
   const [lang, setLang] = useState<KioskLang>("hi");
   const [screen, setScreen] = useState<Screen>("welcome");
   const [caregiver, setCaregiver] = useState(false);
-  const [patientName, setPatientName] = useState("");
+  const [details, setDetails] = useState<PatientDetails>(emptyDetails);
   const [complaint, setComplaint] = useState("");
   const [summaryAnswers, setSummaryAnswers] = useState<SummaryAnswer[]>([]);
 
@@ -72,7 +110,6 @@ export function KioskApp() {
   const [node, setNode] = useState<KioskNode | null>(null);
   const [department, setDepartment] = useState<Dept | null>(null);
   const [depts, setDepts] = useState<Dept[]>([]);
-  const [step, setStep] = useState(1);
   const [redFlags, setRedFlags] = useState<{ id: string; severity: string }[]>([]);
   // Adaptive intake (S-ADAPT.1, doc 11): the current node's spoken clarify (if
   // any) and how many voice attempts it has had — both reset when the node moves.
@@ -130,14 +167,13 @@ export function KioskApp() {
     cancelSpeech();
     setScreen("welcome");
     setCaregiver(false);
-    setPatientName("");
+    setDetails(emptyDetails);
     setComplaint("");
     setSummaryAnswers([]);
     setSessionId(null);
     setNode(null);
     setDepartment(null);
     setDepts([]);
-    setStep(1);
     setRedFlags([]);
     setReadback("");
     setToken(null);
@@ -169,7 +205,6 @@ export function KioskApp() {
     setSessionId(res.session_id);
     setDepartment(res.department);
     setNode(res.node);
-    setStep(1);
     if (res.complete || !res.node) {
       void finish(res.session_id);
     } else {
@@ -178,21 +213,23 @@ export function KioskApp() {
   };
 
   const summary: IntakeSummary = {
-    patientName: patientName.trim(),
+    details,
+    caregiver,
     complaint,
     department,
     answers: summaryAnswers,
+    stage: screen,
+    questionsLeft: node?.remaining ?? null,
   };
 
   const captureSummary = (current: KioskNode, acceptedValue: unknown, rawText?: string) => {
-    if (!current.summary_role) return;
     const answer = describeDisplayedAnswer(current, acceptedValue, rawText);
     if (!answer) return;
     setSummaryAnswers((previous) => [
       ...previous.filter((item) => item.nodeId !== current.id),
       {
         nodeId: current.id,
-        role: current.summary_role!,
+        role: current.summary_role ?? null,
         question: current.text,
         answer,
       },
@@ -206,7 +243,7 @@ export function KioskApp() {
           lang,
           chiefComplaint: complaint || "—",
           caregiver,
-          patientName: patientName.trim(),
+          details,
           deptKey: dept?.key,
           deptName: dept?.name,
         });
@@ -248,7 +285,6 @@ export function KioskApp() {
         await finish(sessionId);
       } else {
         setNode(res.node);
-        setStep((n) => n + 1);
       }
     });
 
@@ -273,7 +309,6 @@ export function KioskApp() {
           await finish(sessionId);
         } else {
           setNode(res.node);
-          setStep((n) => n + 1);
         }
         return;
       }
@@ -326,6 +361,7 @@ export function KioskApp() {
           setLang(l);
           cancelSpeech();
         }}
+        onRestart={screen === "welcome" ? undefined : reset}
       />
 
       {downtime && <DowntimeBanner lang={lang} pending={pending} />}
@@ -345,21 +381,21 @@ export function KioskApp() {
         <Stage
           lang={lang}
           speaking={speaking}
-          status={t("caregiverHelp", lang)}
           promptText={t("caregiverTitle", lang)}
+          hint={t("caregiverHelp", lang)}
           onReplay={() => say(t("caregiverTitle", lang))}
           autoSpeak={t("caregiverTitle", lang)}
           say={say}
           summary={summary}
         >
-          <p className={s.lead}>{t("caregiverHelp", lang)}</p>
           <div className={s.bigChoices}>
             <button
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(false);
-                setScreen("name");
+                setScreen("details");
               }}
+              data-testid="caregiver-self"
             >
               <span className={s.bigChoiceIcon}>
                 <Icon name="body" />
@@ -370,8 +406,9 @@ export function KioskApp() {
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(true);
-                setScreen("name");
+                setScreen("details");
               }}
+              data-testid="caregiver-other"
             >
               <span className={s.bigChoiceIcon}>
                 <Icon name="hands-holding" />
@@ -382,40 +419,37 @@ export function KioskApp() {
         </Stage>
       )}
 
-      {screen === "name" && (
+      {screen === "details" && (
         <Stage
           lang={lang}
           speaking={speaking}
-          status={t("nameHint", lang)}
-          promptText={t(caregiver ? "patientNameTitle" : "yourNameTitle", lang)}
-          onReplay={() => say(t(caregiver ? "patientNameTitle" : "yourNameTitle", lang))}
-          autoSpeak={t(caregiver ? "patientNameTitle" : "yourNameTitle", lang)}
+          promptText={t("detailsTitle", lang)}
+          hint={t("detailsHint", lang)}
+          onReplay={() => say(t("detailsTitle", lang))}
+          autoSpeak={t("detailsTitle", lang)}
           say={say}
           summary={summary}
         >
-          <VoiceCapture
+          <DetailsForm
             lang={lang}
-            value={patientName}
-            onChange={setPatientName}
-            busy={busy}
-            alwaysEditable
-            singleLine
-            inputLabel={t("nameInput", lang)}
+            value={details}
+            onChange={setDetails}
+            disabled={busy}
+            caregiver={caregiver}
           />
           <div className={s.footer}>
             <button
               className={`${s.btn} ${s.btnGhost}`}
-              onClick={() => setPatientName("")}
-              disabled={!patientName}
+              onClick={() => setScreen("caregiver")}
             >
-              {t("clear", lang)}
+              ← {t("back", lang)}
             </button>
             <div className={s.spacer} />
             <button
               className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
-              disabled={busy || patientName.trim().length === 0 || patientName.length > 200}
+              disabled={busy || !detailsComplete(details)}
               onClick={() => setScreen("complaint")}
-              data-testid="name-next"
+              data-testid="details-next"
             >
               {t("next", lang)} →
             </button>
@@ -427,8 +461,8 @@ export function KioskApp() {
         <Stage
           lang={lang}
           speaking={speaking}
-          status={t("ccHint", lang)}
           promptText={t("ccTitle", lang)}
+          hint={t("ccHint", lang)}
           onReplay={() => say(t("ccTitle", lang))}
           autoSpeak={t("ccTitle", lang)}
           say={say}
@@ -441,8 +475,11 @@ export function KioskApp() {
             busy={busy}
           />
           <div className={s.footer}>
-            <button className={`${s.btn} ${s.btnGhost}`} onClick={reset}>
-              {t("back", lang)}
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              onClick={() => setScreen("details")}
+            >
+              ← {t("back", lang)}
             </button>
             <div className={s.spacer} />
             <button
@@ -461,8 +498,8 @@ export function KioskApp() {
         <Stage
           lang={lang}
           speaking={speaking}
-          status=""
           promptText={t("chooseDept", lang)}
+          hint={t("chooseOne", lang)}
           onReplay={() => say(t("chooseDept", lang))}
           autoSpeak={t("chooseDept", lang)}
           say={say}
@@ -487,7 +524,6 @@ export function KioskApp() {
           lang={lang}
           sessionId={sessionId}
           node={node}
-          step={step}
           speaking={speaking}
           busy={busy}
           say={say}
@@ -509,11 +545,18 @@ export function KioskApp() {
           say={say}
           onConfirm={confirm}
           onEdit={reset}
+          summary={summary}
         />
       )}
 
       {screen === "token" && token && (
-        <TokenScreen lang={lang} token={token} onDone={reset} say={say} />
+        <TokenScreen
+          lang={lang}
+          token={token}
+          details={details}
+          onDone={reset}
+          say={say}
+        />
       )}
 
       {idle && (
@@ -552,38 +595,67 @@ function describeDisplayedAnswer(
   return value == null ? "" : String(value);
 }
 
+// -- the live rail ------------------------------------------------------------
+
+/** What the kiosk has understood so far, on every screen that has anything to
+ *  show — including the read-back, which is precisely where a patient is being
+ *  asked to confirm and most needs to see the detail behind the sentence.
+ *
+ *  Truthful by construction: every line is either something the patient typed or
+ *  an answer label the walker accepted. Nothing here is inferred, and a fact that
+ *  has not been given reads as "not answered yet" rather than being hidden. */
 function SummaryRail({
   lang,
   summary,
   speaking,
-  status,
 }: {
   lang: KioskLang;
   summary: IntakeSummary;
   speaking: boolean;
-  status?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const empty = t("notAnswered", lang);
   const primary = [...summary.answers]
     .reverse()
     .find((answer) => answer.role === "primary_symptom");
   const duration = [...summary.answers]
     .reverse()
     .find((answer) => answer.role === "duration");
-  const symptomRows = summary.answers.filter(
+  const detailRows = summary.answers.filter(
     (answer) => answer.role !== "primary_symptom" && answer.role !== "duration"
   );
-  const shownSymptoms = symptomRows.slice(0, 3);
-  const hiddenCount = symptomRows.length - shownSymptoms.length;
-  const empty = t("notAnswered", lang);
+  const shownRows = detailRows.slice(-RAIL_ANSWER_ROWS).reverse();
+  const hiddenRows = detailRows.length - shownRows.length;
 
+  // Open by default only where the rail is its own column. Elsewhere — narrow
+  // screens, and the 1080×1920 portrait kiosk, which is wide but not wide enough
+  // for two columns — it is a strip the patient taps open, so the question is
+  // still the first thing on the screen. The query mirrors the stylesheet's.
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 901px)");
-    const sync = () => setOpen(desktop.matches);
+    const asColumn = window.matchMedia("(min-width: 1024px) and (orientation: landscape)");
+    const sync = () => setOpen(asColumn.matches);
     sync();
-    desktop.addEventListener("change", sync);
-    return () => desktop.removeEventListener("change", sync);
+    asColumn.addEventListener("change", sync);
+    return () => asColumn.removeEventListener("change", sync);
   }, []);
+
+  const age = summary.details.age;
+  const sexLabel = summary.details.sex
+    ? t(
+        summary.details.sex === "male"
+          ? "sexMale"
+          : summary.details.sex === "female"
+            ? "sexFemale"
+            : "sexOther",
+        lang
+      )
+    : "";
+  const ageSex =
+    age == null && !sexLabel
+      ? empty
+      : [age == null ? null : `${age} ${t("yearsShort", lang)}`, sexLabel]
+          .filter(Boolean)
+          .join(" · ");
 
   return (
     <aside className={s.summaryRail} aria-label={t("liveSummary", lang)}>
@@ -593,16 +665,27 @@ function SummaryRail({
         onToggle={(event) => setOpen(event.currentTarget.open)}
       >
         <summary className={s.summaryToggle}>
-          <span>{t("liveSummary", lang)}</span>
-          <strong>{summary.patientName || empty}</strong>
+          <span className={s.summaryToggleLabel}>{t("liveSummary", lang)}</span>
+          <strong>{summary.details.name || empty}</strong>
+          <span className={s.summaryChevron} aria-hidden="true" />
         </summary>
         <div className={s.summaryBody}>
-          <AssistantAvatar speaking={speaking} status={status} />
-          <h2 className={s.summaryTitle}>{t("liveSummary", lang)}</h2>
+          <div className={s.summaryHead}>
+            <AssistantAvatar speaking={speaking} />
+            <div className={s.summaryHeadText}>
+              <h2 className={s.summaryTitle}>{t("liveSummary", lang)}</h2>
+              <p className={s.summaryStage}>{stageLabel(lang, summary)}</p>
+            </div>
+          </div>
+
           <dl className={s.summaryFacts}>
             <div>
               <dt>{t("summaryPatient", lang)}</dt>
-              <dd data-testid="summary-patient">{summary.patientName || empty}</dd>
+              <dd data-testid="summary-patient">{summary.details.name || empty}</dd>
+            </div>
+            <div>
+              <dt>{t("summaryAge", lang)}</dt>
+              <dd data-testid="summary-age">{ageSex}</dd>
             </div>
             <div>
               <dt>{t("summaryConcern", lang)}</dt>
@@ -619,11 +702,12 @@ function SummaryRail({
               <dd data-testid="summary-duration">{duration?.answer || empty}</dd>
             </div>
           </dl>
+
           <div className={s.summarySymptoms}>
-            <h3>{t("summarySymptoms", lang)}</h3>
-            {shownSymptoms.length ? (
+            <h3>{t("answersTitle", lang)}</h3>
+            {shownRows.length ? (
               <ul>
-                {shownSymptoms.map((answer) => (
+                {shownRows.map((answer) => (
                   <li key={answer.nodeId}>
                     <span>{answer.question}</span>
                     <strong>{answer.answer}</strong>
@@ -633,9 +717,9 @@ function SummaryRail({
             ) : (
               <p>{empty}</p>
             )}
-            {hiddenCount > 0 ? (
+            {hiddenRows > 0 ? (
               <p className={s.summaryMore}>
-                {t("moreAnswers", lang).replace("{n}", String(hiddenCount))}
+                {t("moreAnswers", lang).replace("{n}", String(hiddenRows))}
               </p>
             ) : null}
           </div>
@@ -643,6 +727,27 @@ function SummaryRail({
       </details>
     </aside>
   );
+}
+
+/** The rail's one-line "where am I" — a real position, not a decorative bar.
+ *  Before the walk it counts the named lead-in screens; during it, it counts the
+ *  server's own `remaining`, which is derived from the tree rather than from a
+ *  client-side step counter that drifts the moment a branch is taken. */
+function stageLabel(lang: KioskLang, summary: IntakeSummary): string {
+  if (summary.stage === "readback") return t("reviewStep", lang);
+  const lead = LEAD_STEPS.indexOf(summary.stage);
+  if (lead >= 0) {
+    return t("stepProgress", lang)
+      .replace("{n}", String(lead + 1))
+      .replace("{total}", String(LEAD_STEPS.length));
+  }
+  // Deliberately a countdown, not "3 of 8". The tree branches, so a total is a
+  // promise the walk cannot keep — and a progress bar that jumps backwards is
+  // worse than none. `remaining` is the server's own count down the default path.
+  const left = summary.questionsLeft;
+  if (left == null) return "";
+  if (left <= 1) return t("lastQuestion", lang);
+  return t("questionsLeft", lang).replace("{n}", String(left));
 }
 
 // -- downtime banner (S7, doc 01 §5) ------------------------------------------
@@ -670,27 +775,38 @@ function DowntimeBanner({ lang, pending }: { lang: KioskLang; pending: number })
 function TopBar({
   lang,
   onLang,
+  onRestart,
 }: {
   lang: KioskLang;
   onLang: (l: KioskLang) => void;
+  onRestart?: () => void;
 }) {
   return (
     <div className={s.topbar}>
       <div className={s.brand}>
-        <div className={s.brandMark}>ध</div>
+        <div className={s.brandMark} aria-hidden="true">
+          <Icon name="stethoscope" />
+        </div>
         <div className={s.brandName}>{t("hospital", lang)}</div>
       </div>
-      <div className={s.langBar}>
-        {KIOSK_LANGS.map((l) => (
-          <button
-            key={l.code}
-            className={`${s.langChip} ${l.code === lang ? s.langChipActive : ""}`}
-            onClick={() => onLang(l.code)}
-            lang={l.code}
-          >
-            {l.label}
+      <div className={s.topbarRight}>
+        <div className={s.langBar} role="group" aria-label={t("chooseLanguage", lang)}>
+          {KIOSK_LANGS.map((l) => (
+            <button
+              key={l.code}
+              className={`${s.langChip} ${l.code === lang ? s.langChipActive : ""}`}
+              onClick={() => onLang(l.code)}
+              lang={l.code}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+        {onRestart && (
+          <button className={s.restartBtn} onClick={onRestart} data-testid="restart">
+            <Icon name="refresh" /> <span>{t("startOver", lang)}</span>
           </button>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -723,28 +839,30 @@ function Welcome({ onPick }: { onPick: (l: KioskLang) => void }) {
 }
 const T_WELCOME = "नमस्ते · Welcome";
 
-// A stage with the breathing avatar, the audio bar, the question, and children.
+/** The two-column intake surface: the rail that remembers, the stage that asks.
+ *  Everything between the caregiver question and the read-back uses it, which is
+ *  what makes the rail continuous — there is no screen that quietly drops it. */
 function Stage({
   lang,
   speaking,
-  status,
   promptText,
+  hint,
   onReplay,
   autoSpeak,
   say,
-  progress,
+  banner,
   summary,
   children,
 }: {
   lang: KioskLang;
   speaking: boolean;
-  status: string;
   promptText: string;
+  hint?: string;
   onReplay: () => void;
   autoSpeak: string;
   say: (t: string) => void;
-  progress?: React.ReactNode;
-  summary?: IntakeSummary;
+  banner?: React.ReactNode;
+  summary: IntakeSummary;
   children: React.ReactNode;
 }) {
   useEffect(() => {
@@ -754,18 +872,19 @@ function Stage({
 
   return (
     <div className={s.stage}>
-      {summary ? (
-        <SummaryRail lang={lang} summary={summary} speaking={speaking} status={status} />
-      ) : (
-        <AssistantAvatar speaking={speaking} status={status} />
-      )}
+      <SummaryRail lang={lang} summary={summary} speaking={speaking} />
       <div className={s.panel}>
-        {progress}
-        <AudioBar playing={speaking} label={t("replay", lang)} onReplay={onReplay} />
-        <h2 className={s.question} lang={lang}>
-          {promptText}
-        </h2>
-        {children}
+        <div className={s.panelInner}>
+          {banner}
+          <div className={s.promptRow}>
+            <AudioBar playing={speaking} label={t("replay", lang)} onReplay={onReplay} />
+          </div>
+          <h2 className={s.question} lang={lang}>
+            {promptText}
+          </h2>
+          {hint ? <p className={s.lead}>{hint}</p> : null}
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -778,26 +897,18 @@ function VoiceCapture({
   value,
   onChange,
   busy,
-  alwaysEditable = false,
-  singleLine = false,
-  inputLabel,
 }: {
   lang: KioskLang;
   value: string;
   onChange: (v: string) => void;
   busy: boolean;
-  alwaysEditable?: boolean;
-  singleLine?: boolean;
-  inputLabel?: string;
 }) {
   // Server-STT mode records the clip and sends it to local Whisper on the box
   // (V-OSS, fully local); default mode uses the browser's Web Speech.
   const useServer = serverSttEnabled();
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
-  const [showType, setShowType] = useState(
-    alwaysEditable || (!useServer && !sttSupported())
-  );
+  const [showType, setShowType] = useState(!useServer && !sttSupported());
   const stopRef = useRef<(() => void) | null>(null);
 
   const toggleMic = () => {
@@ -855,42 +966,28 @@ function VoiceCapture({
           ? t("transcribing", lang)
           : listening
             ? t("listening", lang)
-            : t("ccHint", lang)}
+            : t("tapToSpeak", lang)}
       </div>
       <div className={`${s.transcript} ${value ? "" : s.transcriptPlaceholder}`}>
-        {value ? `${t("youSaid", lang)} ${value}` : t("tapToSpeak", lang)}
+        {value ? `${t("youSaid", lang)} ${value}` : t("ccHint", lang)}
       </div>
       {showType ? (
-        singleLine ? (
-          <input
-            className={`${s.typeField} ${s.nameField}`}
-            value={value}
-            disabled={busy}
-            maxLength={200}
-            autoComplete="off"
-            placeholder={inputLabel ?? t("typeInstead", lang)}
-            onChange={(e) => onChange(e.target.value)}
-            aria-label={inputLabel ?? t("typeInstead", lang)}
-            data-testid="patient-name"
-          />
-        ) : (
-          <textarea
-            className={s.typeField}
-            rows={2}
-            value={value}
-            disabled={busy}
-            placeholder={t("typeInstead", lang)}
-            onChange={(e) => onChange(e.target.value)}
-            aria-label={t("typeInstead", lang)}
-          />
-        )
+        <textarea
+          className={s.typeField}
+          rows={2}
+          value={value}
+          disabled={busy}
+          placeholder={t("typeInstead", lang)}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={t("typeInstead", lang)}
+        />
       ) : (
         <button
           className={`${s.btn} ${s.btnGhost}`}
           onClick={() => setShowType(true)}
           data-testid="type-toggle"
         >
-          {t("typeInstead", lang)}
+          <Icon name="keyboard" /> {t("typeInstead", lang)}
         </button>
       )}
     </div>
@@ -903,7 +1000,6 @@ function QuestionScreen({
   lang,
   sessionId,
   node,
-  step,
   speaking,
   busy,
   say,
@@ -916,7 +1012,6 @@ function QuestionScreen({
   lang: KioskLang;
   sessionId: string;
   node: KioskNode;
-  step: number;
   speaking: boolean;
   busy: boolean;
   say: (t: string) => void;
@@ -931,15 +1026,16 @@ function QuestionScreen({
   const [num, setNum] = useState<number>(node.min ?? 0);
   const [text, setText] = useState("");
 
-  // Adaptive voice answering (doc 11 §2) is offered only on tap nodes with a fixed
-  // answer set — never free_voice (which is already spoken text, a V3 turn), and
-  // only when the flag + server-STT + recorder are all present. Taps stay on every
-  // screen regardless (doc 04 law 8).
-  const adaptiveVoice =
-    kioskAdaptiveEnabled() && node.type !== "free_voice";
+  // Where the microphone belongs (S-UX.6). The server decides — a free-text node
+  // always, a tap node only in the closing pair — so the kiosk never has to guess
+  // from a step counter, and offline the ported walker computes the same answer.
+  const voiceInvited = node.voice_input ?? node.type === "free_voice";
 
+  // Everything on the screen is also spoken, options included (doc 04 law 12).
+  // A patient who cannot read the choices has not been offered them.
+  const spokenPrompt = useMemo(() => spokenFor(node, lang), [node, lang]);
   useEffect(() => {
-    say(node.text);
+    say(spokenPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
@@ -969,110 +1065,145 @@ function QuestionScreen({
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
+  const hint =
+    node.type === "multi"
+      ? t("chooseAny", lang)
+      : node.type === "single"
+        ? t("chooseOne", lang)
+        : undefined;
+
   return (
     <div className={s.stage}>
       <SummaryRail lang={lang} summary={summary} speaking={speaking} />
       <div className={s.panel}>
-        <ProgressDots current={step} total={8} ofLabel={t("ofCount", lang)} />
-        {redFlags.length > 0 ? <UrgentBanner lang={lang} /> : null}
-        <AudioBar
-          playing={speaking}
-          label={t("replay", lang)}
-          onReplay={() => say(node.text)}
-        />
-        <h2 className={s.question} lang={lang}>
-          {node.text}
-        </h2>
-
-        {adaptiveVoice && (
-          <AdaptiveVoiceAnswer
-            lang={lang}
-            sessionId={sessionId}
-            clarify={clarify}
-            busy={busy}
-            onAnswer={onVoiceAnswer}
-          />
-        )}
-
-        {node.type === "single" && (
-          <div
-            className={s.options}
-            data-count={node.options.length}
-          >
-            {node.options.map((o) => (
-              <OptionCard
-                key={o.id}
-                text={o.text}
-                icon={o.icon}
-                onSelect={() => onSubmit(o.id, o.text)}
-              />
-            ))}
+        <div className={s.panelInner}>
+          {redFlags.length > 0 ? <UrgentBanner lang={lang} /> : null}
+          <div className={s.promptRow}>
+            <AudioBar
+              playing={speaking}
+              label={t("replay", lang)}
+              onReplay={() => say(spokenPrompt)}
+            />
+            <ProgressPill lang={lang} summary={summary} />
           </div>
-        )}
+          <h2 className={s.question} lang={lang}>
+            {node.text}
+          </h2>
+          {hint ? <p className={s.lead}>{hint}</p> : null}
 
-        {node.type === "multi" && (
-          <div className={s.options} data-count={node.options.length}>
-            {node.options.map((o) => (
-              <OptionCard
-                key={o.id}
-                text={o.text}
-                icon={o.icon}
-                selected={multi.includes(o.id)}
-                onSelect={() => toggle(o.id)}
-              />
-            ))}
-          </div>
-        )}
+          {node.type === "single" && (
+            <div className={s.options} data-count={node.options.length}>
+              {node.options.map((o) => (
+                <OptionCard
+                  key={o.id}
+                  text={o.text}
+                  icon={o.icon}
+                  onSelect={() => onSubmit(o.id, o.text)}
+                />
+              ))}
+            </div>
+          )}
 
-        {node.type === "body_map" && (
-          <BodyMap options={node.options} selected={multi} onToggle={toggle} />
-        )}
+          {node.type === "multi" && (
+            <div className={s.options} data-count={node.options.length}>
+              {node.options.map((o) => (
+                <OptionCard
+                  key={o.id}
+                  text={o.text}
+                  icon={o.icon}
+                  selected={multi.includes(o.id)}
+                  onSelect={() => toggle(o.id)}
+                />
+              ))}
+            </div>
+          )}
 
-        {node.type === "scale" && (
-          <FacesScale
-            min={node.min ?? 0}
-            max={node.max ?? 10}
-            value={scale}
-            onSelect={(v) => setScale(v)}
-          />
-        )}
+          {node.type === "body_map" && (
+            <BodyMap options={node.options} selected={multi} onToggle={toggle} />
+          )}
 
-        {node.type === "number" && (
-          <Stepper
-            min={node.min ?? 0}
-            max={node.max ?? 30}
-            unit={node.unit}
-            value={num}
-            onChange={setNum}
-          />
-        )}
+          {node.type === "scale" && (
+            <FacesScale
+              min={node.min ?? 0}
+              max={node.max ?? 10}
+              value={scale}
+              onSelect={(v) => setScale(v)}
+            />
+          )}
 
-        {node.type === "free_voice" && (
-          <VoiceCapture lang={lang} value={text} onChange={setText} busy={busy} />
-        )}
+          {node.type === "number" && (
+            <Stepper
+              min={node.min ?? 0}
+              max={node.max ?? 30}
+              unit={node.unit}
+              value={num}
+              onChange={setNum}
+            />
+          )}
 
-        {needsSubmit && (
-          <div className={s.footer}>
-            <div className={s.spacer} />
-            <button
-              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
-              disabled={busy || !canSubmit}
-              onClick={submit}
-              data-testid="answer-submit"
-            >
-              {t("submit", lang)} →
-            </button>
-          </div>
-        )}
+          {node.type === "free_voice" && (
+            <VoiceCapture lang={lang} value={text} onChange={setText} busy={busy} />
+          )}
+
+          {/* The mic on a *tap* node is the adaptive-intake affordance, and it
+              belongs under the taps, not above them: the taps are the answer,
+              speaking is the shortcut (doc 04 law 8). */}
+          {voiceInvited && node.type !== "free_voice" && (
+            <AdaptiveVoiceAnswer
+              lang={lang}
+              sessionId={sessionId}
+              clarify={clarify}
+              busy={busy}
+              onAnswer={onVoiceAnswer}
+            />
+          )}
+
+          {needsSubmit && (
+            <div className={s.footer}>
+              <div className={s.spacer} />
+              <button
+                className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+                disabled={busy || !canSubmit}
+                onClick={submit}
+                data-testid="answer-submit"
+              >
+                {t("submit", lang)} →
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** The question plus its choices, as one utterance. */
+function spokenFor(node: KioskNode, lang: KioskLang): string {
+  if (node.type === "scale") return `${node.text} ${t("scaleSpoken", lang)}`;
+  if (node.options.length === 0) return node.text;
+  const join = t("optionsSpokenJoin", lang);
+  const labels = node.options.map((option) => option.text);
+  const spokenOptions =
+    labels.length > 1
+      ? `${labels.slice(0, -1).join(", ")}${join}${labels[labels.length - 1]}`
+      : labels[0];
+  return `${node.text} ${t("optionsSpokenIntro", lang)} ${spokenOptions}`;
+}
+
+function ProgressPill({ lang, summary }: { lang: KioskLang; summary: IntakeSummary }) {
+  const label = stageLabel(lang, summary);
+  if (!label) return null;
+  return (
+    <span className={s.progressPill} data-testid="progress-pill">
+      {label}
+    </span>
   );
 }
 
 /** Adaptive intake (S-ADAPT.1, doc 11 §2): "answer by voice" on a tap node. It
  *  records the spoken answer, sends it to the box (local Whisper → the answer
  *  interpreter via `/answer`), and shows the server's clarifying question when the
- *  answer was too vague. The taps below it are always available — this is an
+ *  answer was too vague. The taps above it are always available — this is an
  *  addition, never a replacement (doc 04 law 8). Degrades silently: a denied mic
  *  just leaves the patient tapping. */
 function AdaptiveVoiceAnswer({
@@ -1110,7 +1241,7 @@ function AdaptiveVoiceAnswer({
       },
       sessionId
     ).then((stop) => {
-      if (!stop) return; // mic denied → taps below carry the patient
+      if (!stop) return; // mic denied → taps above carry the patient
       stopRef.current = stop;
       setListening(true);
     });
@@ -1163,6 +1294,7 @@ function ReadbackScreen({
   say,
   onConfirm,
   onEdit,
+  summary,
 }: {
   lang: KioskLang;
   readback: string;
@@ -1172,45 +1304,67 @@ function ReadbackScreen({
   say: (t: string) => void;
   onConfirm: () => void;
   onEdit: () => void;
+  summary: IntakeSummary;
 }) {
   useEffect(() => {
     if (readback) say(readback);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readback]);
 
+  // The server writes the read-back as lines (the questions and answers in the
+  // patient's own language); render them as lines rather than one wall of text,
+  // because the patient is being asked to check them one by one.
+  const lines = readback
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
   return (
     <div className={s.stage}>
-      <AssistantAvatar speaking={speaking} />
+      <SummaryRail lang={lang} summary={summary} speaking={speaking} />
       <div className={s.panel}>
-        {redFlags.length > 0 ? <UrgentBanner lang={lang} /> : null}
-        <AudioBar
-          playing={speaking}
-          label={t("replay", lang)}
-          onReplay={() => say(readback)}
-        />
-        <h2 className={s.question} lang={lang}>
-          {t("confirmTitle", lang)}
-        </h2>
-        <div className={s.readback} lang={lang}>
-          {readback}
-        </div>
-        <div className={s.footer}>
-          <button
-            className={`${s.btn} ${s.btnGhost} ${s.btnBig}`}
-            onClick={onEdit}
-            disabled={busy}
-          >
-            {t("confirmEdit", lang)}
-          </button>
-          <div className={s.spacer} />
-          <button
-            className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
-            onClick={onConfirm}
-            disabled={busy}
-            data-testid="confirm"
-          >
-            {t("confirmYes", lang)} ✓
-          </button>
+        <div className={s.panelInner}>
+          {redFlags.length > 0 ? <UrgentBanner lang={lang} /> : null}
+          <div className={s.promptRow}>
+            <AudioBar
+              playing={speaking}
+              label={t("replay", lang)}
+              onReplay={() => say(readback)}
+            />
+            <span className={s.progressPill}>{t("reviewStep", lang)}</span>
+          </div>
+          <h2 className={s.question} lang={lang}>
+            {t("confirmTitle", lang)}
+          </h2>
+          <div className={s.readback} lang={lang} data-testid="readback">
+            {lines.length > 1 ? (
+              <ul className={s.readbackList}>
+                {lines.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              readback
+            )}
+          </div>
+          <div className={s.footer}>
+            <button
+              className={`${s.btn} ${s.btnGhost} ${s.btnBig}`}
+              onClick={onEdit}
+              disabled={busy}
+            >
+              {t("confirmEdit", lang)}
+            </button>
+            <div className={s.spacer} />
+            <button
+              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+              onClick={onConfirm}
+              disabled={busy}
+              data-testid="confirm"
+            >
+              ✓ {t("confirmYes", lang)}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1222,11 +1376,13 @@ function ReadbackScreen({
 function TokenScreen({
   lang,
   token,
+  details,
   onDone,
   say,
 }: {
   lang: KioskLang;
   token: ConfirmResult;
+  details: PatientDetails;
   onDone: () => void;
   say: (t: string) => void;
 }) {
@@ -1242,6 +1398,11 @@ function TokenScreen({
       <div className={s.tokenNumber} data-testid="token-number">
         {token.token_no ?? "—"}
       </div>
+      {details.name ? (
+        <div className={s.tokenName} data-testid="token-name">
+          {details.name}
+        </div>
+      ) : null}
       {token.department ? (
         <div className={s.tokenDept}>{token.department.name}</div>
       ) : null}
@@ -1253,13 +1414,14 @@ function TokenScreen({
       ) : null}
       <div className={s.tokenActions}>
         <button
-          className={`${s.btn} ${s.btnBig} ${s.btnGhost}`}
+          className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
           data-testid="token-print"
           onClick={() =>
             void printSlip({
               tokenNo: token.token_no,
               departmentName: token.department?.name ?? "",
               hospitalName: t("hospital", lang),
+              patientName: details.name,
               issuedAt: new Date().toISOString(),
               urgent: token.red_flags.length > 0,
               lang,

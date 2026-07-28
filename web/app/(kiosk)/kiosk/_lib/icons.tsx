@@ -364,6 +364,69 @@ const ICONS: Record<string, (p: P) => React.ReactNode> = {
       title
     ),
   dot: ({ title }) => wrap(<circle cx="24" cy="24" r="10" fill={soft} stroke={ink} strokeWidth="2.5" />, title),
+
+  // -- interface glyphs (S-UX.6) ---------------------------------------------
+  // The registration screen and the shell need their own vocabulary. Same two
+  // tones as the clinical set so a form field never looks like it came from a
+  // different product than the question above it.
+  user: ({ title }) =>
+    wrap(
+      <>
+        <circle cx="24" cy="17" r="7" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <path
+          d="M11 39c0-7 6-11 13-11s13 4 13 11"
+          fill={soft}
+          stroke={ink}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </>,
+      title
+    ),
+  calendar: ({ title }) =>
+    wrap(
+      <>
+        <rect x="9" y="12" width="30" height="27" rx="4" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <path d="M9 21h30M17 8v8M31 8v8" stroke={ink} strokeWidth="2.5" strokeLinecap="round" />
+      </>,
+      title
+    ),
+  phone: ({ title }) =>
+    wrap(
+      <>
+        <rect x="15" y="7" width="18" height="34" rx="5" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <path d="M21 12h6" stroke={ink} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="24" cy="35" r="2" fill={ink} />
+      </>,
+      title
+    ),
+  keyboard: ({ title }) =>
+    wrap(
+      <>
+        <rect x="7" y="14" width="34" height="21" rx="4" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <path
+          d="M14 21h1M20 21h1M26 21h1M32 21h1M17 28h14"
+          stroke={ink}
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+      </>,
+      title
+    ),
+  refresh: ({ title }) =>
+    wrap(
+      <>
+        <circle cx="24" cy="24" r="14" fill={soft} />
+        <path
+          d="M35 19a13 13 0 10.5 8"
+          stroke={ink}
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+        <path d="M35 10v9h-9" stroke={ink} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </>,
+      title
+    ),
 };
 
 // Synonym map — many tree keys share one drawn glyph until the full set exists.
@@ -407,6 +470,12 @@ const ALIAS: Record<string, string> = {
   "scale-down": "scale",
   "scale-flat": "scale",
   "scale-up": "scale",
+  name: "user",
+  person: "user",
+  age: "calendar",
+  mobile: "phone",
+  type: "keyboard",
+  restart: "refresh",
 };
 
 export function iconFor(key: string | null | undefined): (p: P) => React.ReactNode {

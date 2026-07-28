@@ -65,7 +65,9 @@ export const CONSOLE_CSS = `
 .dept { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel);
   padding: 16px; }
 .dept-head { display: flex; justify-content: space-between; align-items: center; }
-.dept-head h2 { margin: 0; font-size: 19px; color: var(--ink); }
+.dept-head h2 { margin: 0; font-size: 19px; color: var(--ink); display: flex; align-items: baseline;
+  gap: 10px; flex-wrap: wrap; }
+.dept-doc { font-style: normal; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
 .call-next { min-height: 38px; background: var(--brand); color: #fff; border: none;
   border-radius: var(--radius-control); padding: 0 14px; font-weight: 700; cursor: pointer; font-size: 13px; }
 .call-next:hover { background: var(--primary-d); }
@@ -94,7 +96,9 @@ export const CONSOLE_CSS = `
 .state-badge.s-called { background: var(--primary-soft); color: var(--primary-d); }
 .state-badge.s-in_consult { background: var(--primary); color: #fff; }
 .state-badge.s-lab_requeue { background: #e4ecf6; color: #3b567a; }
-.chief { font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis;
+.pname { font-size: 15px; font-weight: 700; color: var(--ink); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.chief { font-size: 14px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
 .actions { display: flex; align-items: center; gap: 6px; }
 .act { border: none; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 13px;

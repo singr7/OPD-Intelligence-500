@@ -390,11 +390,35 @@ def test_post_op_fever_with_a_clean_wound_is_not_the_same_as_with_a_leaking_one(
     assert clean.priority() is Priority.SEMI
 
 
+def _longest_walk(tree) -> int:
+    """The most questions any one patient can be asked in this tree.
+
+    Depth of the longest root-to-end path, not the node count. Since S-UX.6 a
+    routing tree branches — a woman reporting irregular periods and one reporting
+    discharge are asked different second questions — so the bank holds more nodes
+    than any single patient sees. The thinness law is about what the patient sits
+    through, and counting nodes would punish exactly the branching that keeps the
+    questions relevant. Trees are validated acyclic, so this terminates.
+    """
+    seen: dict[str, int] = {}
+
+    def depth(node_id: str) -> int:
+        if node_id in seen:
+            return seen[node_id]
+        node = tree.nodes[node_id]
+        targets = [target for target in node.next.values() if target is not None]
+        seen[node_id] = 1 + max((depth(target) for target in targets), default=0)
+        return seen[node_id]
+
+    return depth(tree.root)
+
+
 def test_the_routing_trees_stay_thin(bank):
     """doc 03 §3: "thinner trees for routing walk-ins". A walk-in being routed is
     not the moment for a twenty-question intake."""
     for key in ROUTING_TREES:
-        assert len(bank[key].nodes) <= 6, f"{key} is no longer a thin routing tree"
+        walk = _longest_walk(bank[key])
+        assert walk <= 6, f"{key} asks a routed walk-in up to {walk} questions"
 
 
 def test_the_bank_covers_every_department_the_hospital_has(bank):

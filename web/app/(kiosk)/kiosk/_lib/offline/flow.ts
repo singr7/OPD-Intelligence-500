@@ -17,7 +17,13 @@
 // model summary — the same V3 tier the kiosk always runs, minus the two model
 // calls).
 
-import type { AnswerResult, ConfirmResult, FinishResult, StartResult } from "../api";
+import type {
+  AnswerResult,
+  ConfirmResult,
+  FinishResult,
+  PatientDetails,
+  StartResult,
+} from "../api";
 import { ApiError, kioskApi } from "../api";
 import type { NetMonitor } from "./net";
 import {
@@ -46,7 +52,7 @@ export type StartInput = {
   lang: string;
   chiefComplaint: string;
   caregiver: boolean;
-  patientName: string;
+  details: PatientDetails;
   deptKey?: string;
   deptName?: string;
 };
@@ -63,7 +69,10 @@ export function makeFlow({ net }: FlowDeps) {
           lang: input.lang,
           chief_complaint: input.chiefComplaint || "—",
           caregiver: input.caregiver,
-          patient_name: input.patientName,
+          patient_name: input.details.name,
+          patient_age: input.details.age,
+          patient_sex: input.details.sex,
+          patient_phone: input.details.phone || null,
           dept_key: input.deptKey,
         });
         net.observedSuccess();
@@ -88,7 +97,7 @@ export function makeFlow({ net }: FlowDeps) {
       lang: input.lang,
       chiefComplaint: input.chiefComplaint,
       caregiver: input.caregiver,
-      patientName: input.patientName,
+      details: input.details,
       departmentKey: input.deptKey,
       departmentName: input.deptName,
     });

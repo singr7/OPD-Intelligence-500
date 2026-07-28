@@ -1,6 +1,6 @@
 {
   "key": "general_medicine_routing",
-  "version": 1,
+  "version": 2,
   "department": "GENMED",
   "languages": [
     "en",
@@ -80,6 +80,7 @@
         }
       ],
       "next": {
+        "fever": "gm.fever_temp",
         "default": "gm.duration"
       },
       "red_flag": {
@@ -113,7 +114,7 @@
       "max": 3650,
       "unit": "days",
       "next": {
-        "default": "gm.fever_temp"
+        "default": "gm.severity"
       }
     },
     {
@@ -129,7 +130,7 @@
       "max": 43,
       "unit": "C",
       "next": {
-        "default": "gm.severity"
+        "default": "gm.duration"
       },
       "red_flag_if": {
         "node": "gm.fever_temp",
@@ -152,7 +153,8 @@
           "te": "దయచేసి ఈ రోజు మీకు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
         }
       },
-      "adaptive_hints": "0 means not measured, not 0°C."
+      "adaptive_hints": "0 means not measured, not 0°C.",
+      "summary_role": "symptom_detail"
     },
     {
       "id": "gm.severity",
@@ -174,10 +176,10 @@
       "id": "gm.words",
       "type": "free_voice",
       "text": {
-        "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
-        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
-        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहते हैं?",
+        "mr": "डॉक्टरांना सांगायचं आणखी काही आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకుంటున్న మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

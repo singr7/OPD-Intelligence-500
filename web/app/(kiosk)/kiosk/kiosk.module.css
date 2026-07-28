@@ -1,20 +1,36 @@
-/* Kiosk surface (doc 04 §3): landscape, generous white cards on mint, marigold
-   primary bottom-right (thumb zone), breathing Dhara avatar top-left. Built on
-   the doc 04 §1 tokens (globals.css) — this file only arranges them. */
+/* Kiosk surface (doc 04 §3, rebuilt for S-UX.6).
+
+   The layout is one idea repeated on every screen: a **rail that remembers** and
+   a **stage that asks one thing**. The rail is a fixed column on anything wider
+   than a tablet and a collapsible strip below that, so the same markup lands
+   correctly on the 1080×1920 portrait kiosk, on a 1366×768 laptop, and on the
+   staff tablet — no screen-specific components, and no screen where the rail
+   quietly disappears.
+
+   Built on the doc 04 §1 tokens (globals.css); this file only arranges them and
+   adds the three geometry variables the two-column surface needs. */
 
 .shell {
+  --rail-w: clamp(300px, 24vw, 380px);
+  --stage-gap: clamp(var(--sp-3), 3vw, var(--sp-5));
+  --panel-max: 940px;
+
   position: relative;
-  height: 100dvh;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: var(--sp-4) var(--sp-5);
-  background: #edf4f1;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding: clamp(var(--sp-2), 2vh, var(--sp-4)) clamp(var(--sp-2), 3vw, var(--sp-5));
+  background:
+    radial-gradient(120% 80% at 12% 0%, #f4faf7 0%, rgba(244, 250, 247, 0) 60%),
+    linear-gradient(180deg, #eef5f2 0%, #e7f1ed 100%);
+  /* `clip`, not `hidden`: `overflow-x: hidden` silently computes `overflow-y` to
+     `auto`, which turns this element into the scroll container and kills the
+     sticky footer and the sticky rail. Clip contains a stray wide child without
+     taking the page's scrolling away from it. */
+  overflow-x: clip;
 }
 
-/* --- top bar: hospital identity + language, always one tap away ------------ */
+/* --- top bar: hospital identity, language, and a way back to the start ----- */
 .topbar {
   display: flex;
   align-items: center;
@@ -30,78 +46,126 @@
   min-width: 0;
 }
 .brandMark {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--primary);
-  color: #fff;
+  width: 48px;
+  height: 48px;
+  padding: 9px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 2px solid var(--line);
   display: grid;
   place-items: center;
-  font-weight: 800;
-  font-size: 20px;
   flex: none;
+  box-shadow: var(--shadow-press);
 }
 .brandName {
   font-size: var(--fs-caption);
-  font-weight: 600;
-  color: var(--ink-soft);
-  white-space: nowrap;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .langBar {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--sp-1);
-  flex: none;
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
 }
 .langChip {
-  min-height: var(--tap-min);
-  padding: 0 var(--sp-3);
+  min-height: 48px;
+  padding: 0 var(--sp-2);
   border-radius: var(--radius-pill);
-  border: 2px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--fs-body);
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
   font-weight: 700;
   cursor: pointer;
-  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.langChip:hover { transform: translateY(-2px); }
+.langChip:hover { color: var(--ink); }
 .langChipActive {
-  border-color: var(--primary);
-  background: var(--primary-soft);
-  color: var(--primary-d);
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-press);
 }
+.restartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  cursor: pointer;
+}
+.restartBtn svg { width: 22px; height: 22px; }
+.restartBtn:hover { color: var(--ink); border-color: var(--primary); }
 
-/* --- stage: the one decision --------------------------------------------- */
+/* --- stage: the rail that remembers + the panel that asks ----------------- */
 .stage {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(280px, 310px) minmax(0, 1fr);
-  gap: var(--sp-5);
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  gap: var(--stage-gap);
+  /* Stretch, so the panel can centre its question in the height it actually has.
+     The rail pins itself with `align-self: start`. */
   align-items: stretch;
   min-height: 0;
 }
-.assistantCol {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
-  align-self: center;
-}
 .panel {
   min-width: 0;
-  align-self: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.panelInner {
+  width: 100%;
+  max-width: var(--panel-max);
+  display: flex;
+  flex-direction: column;
+}
+.promptRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+.progressPill {
+  padding: 8px var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  white-space: nowrap;
 }
 .question {
   font-size: var(--fs-question);
-  line-height: 1.25;
-  font-weight: 700;
+  line-height: 1.2;
+  font-weight: 800;
   color: var(--ink);
-  margin: 0 0 var(--sp-4);
-  max-width: 22ch;
+  margin: 0 0 var(--sp-2);
+  max-width: 24ch;
+  letter-spacing: -0.01em;
 }
 /* Devanagari (hi, mr) and Telugu (te) both need the taller line (doc 04 §4:
    line-height ≥1.6); Latin (en) keeps the default. */
@@ -109,16 +173,17 @@
 .question[lang="mr"],
 .question[lang="te"] { line-height: var(--line-indic); }
 .lead {
-  font-size: var(--fs-lead);
-  line-height: 1.4;
+  font-size: var(--fs-body);
+  line-height: 1.45;
   color: var(--ink-soft);
-  margin: 0 0 var(--sp-4);
+  margin: 0 0 var(--sp-3);
+  max-width: 46ch;
 }
 .display {
   font-size: var(--fs-display);
   line-height: 1.05;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   margin: 0 0 var(--sp-3);
 }
 
@@ -154,6 +219,7 @@
   font-size: var(--fs-caption);
   color: var(--ink-soft);
   min-height: 1.4em;
+  font-weight: 600;
 }
 @keyframes breathe {
   0%, 100% { transform: scale(1); }
@@ -169,11 +235,11 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 10px var(--sp-2) 10px 10px;
+  padding: 8px var(--sp-2) 8px 8px;
   border-radius: var(--radius-pill);
   background: var(--surface);
-  border: 2px solid var(--line);
-  margin-bottom: var(--sp-4);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-press);
 }
 .replayBtn {
   width: 52px;
@@ -210,7 +276,7 @@
 .audioWaves span:nth-child(3) { animation-delay: 0.3s; }
 .audioWaves span:nth-child(4) { animation-delay: 0.45s; }
 .audioWaves span:nth-child(5) { animation-delay: 0.6s; }
-.audioLabel { font-size: var(--fs-caption); color: var(--ink-soft); font-weight: 600; }
+.audioLabel { font-size: var(--fs-caption); color: var(--ink-soft); font-weight: 700; }
 @keyframes wave {
   0%, 100% { height: 8px; opacity: 0.5; }
   50% { height: 24px; opacity: 1; }
@@ -223,13 +289,15 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .options[data-count="1"] { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+.options[data-count="2"],
+.options[data-count="3"] { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .options[data-count="5"] > :last-child { grid-column: 1 / -1; }
 .optionCard {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  min-height: 92px;
+  min-height: 104px;
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius);
   border: 2px solid var(--line);
@@ -242,18 +310,18 @@
     box-shadow var(--dur) var(--ease);
   min-width: 0;
 }
-.optionCard:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+.optionCard:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--primary); }
 .optionCard:active { transform: translateY(0); box-shadow: var(--shadow-press); }
 .optionCardSelected {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 .optionIcon {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   flex: none;
   padding: 6px;
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--bg);
 }
 .optionCardSelected .optionIcon { background: #fff; }
@@ -261,14 +329,14 @@
   min-width: 0;
   font-size: var(--fs-option);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 .optionCheck {
   margin-left: auto;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   color: var(--primary);
   flex: none;
   opacity: 0;
@@ -280,7 +348,7 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--sp-2);
-  max-width: 720px;
+  max-width: 760px;
 }
 .face {
   aspect-ratio: 1;
@@ -348,12 +416,21 @@
 .bodyRegionSelected { fill: var(--accent); stroke: var(--accent); }
 .bodyList { display: grid; gap: var(--sp-1); }
 
-/* --- mic button (chief complaint) ----------------------------------------- */
-.micWrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+/* --- mic button (chief complaint / closing questions) --------------------- */
+.micWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.6);
+  border: 2px dashed var(--line);
+}
 .micBtn {
   position: relative;
-  width: 180px;
-  height: 180px;
+  width: 168px;
+  height: 168px;
   border-radius: 50%;
   border: none;
   background: var(--accent);
@@ -365,7 +442,7 @@
   transition: transform var(--dur) var(--ease);
 }
 .micBtn:hover { transform: scale(1.04); }
-.micIcon { width: 76px; height: 76px; }
+.micIcon { width: 72px; height: 72px; }
 .micListening { animation: micPulse 1.4s var(--ease) infinite; }
 .micHalo {
   position: absolute;
@@ -381,49 +458,111 @@
 }
 .transcript {
   min-height: 2.4em;
-  max-width: 32ch;
+  max-width: 40ch;
   font-size: var(--fs-lead);
   text-align: center;
   color: var(--ink);
   font-weight: 600;
+  line-height: 1.4;
 }
 .transcriptPlaceholder { color: var(--ink-soft); font-weight: 500; }
 .typeField {
-  width: min(560px, 90%);
+  width: min(620px, 100%);
   min-height: var(--tap-min);
   font-size: var(--fs-body);
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   border: 2px solid var(--line);
+  background: var(--surface);
   font-family: inherit;
 }
-.nameField {
-  min-height: 76px;
-  font-size: var(--fs-lead);
-  font-weight: 650;
-  background: var(--surface);
-}
+.typeField:focus-visible { border-color: var(--primary); }
 
-/* --- progress dots -------------------------------------------------------- */
-.progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+/* --- registration details form (S-UX.6) ---------------------------------- */
+/* Four facts, one screen. Wide fields span the row so a long Indic name is never
+   squeezed into half a column; age and gender pair on one line because they are
+   read together on every downstream surface. */
+.detailsForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2) var(--sp-3);
+  max-width: 780px;
   margin-bottom: var(--sp-3);
 }
-.dots { display: flex; gap: 8px; }
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--line);
-  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
 }
-.dotDone { background: var(--primary); }
-.dotCurrent { background: var(--accent); transform: scale(1.3); }
-.progressLabel { font-size: var(--fs-caption); color: var(--ink-soft); font-weight: 700; }
+.fieldWide { grid-column: 1 / -1; }
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  padding: 0;
+}
+.fieldIcon { width: 28px; height: 28px; flex: none; }
+.fieldOptional,
+.fieldRequired {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+}
+.fieldOptional { background: var(--bg); color: var(--ink-soft); }
+.fieldRequired { background: var(--primary-soft); color: var(--primary-d); }
+.fieldInput {
+  width: 100%;
+  min-height: 76px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-lead);
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+}
+.fieldInput::placeholder { font-weight: 500; color: #97a5a0; font-size: var(--fs-body); }
+.fieldInput:focus-visible { border-color: var(--primary); outline-offset: 0; }
+.chipRow { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.chipBtn {
+  flex: 1 1 0;
+  min-width: 96px;
+  min-height: 76px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.chipBtn:hover { border-color: var(--primary); }
+.chipBtnOn {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-d);
+  box-shadow: var(--shadow-press);
+}
 
 /* --- footer actions: primary bottom-right (thumb zone) -------------------- */
+/* Sticky, because the one thing a kiosk must never do is hide the way forward.
+   At 200% font scale on a short laptop the details form is taller than the
+   viewport; the form scrolls under this strip rather than pushing Next off the
+   bottom, where a patient has no reason to look for it. */
 .footer {
   display: flex;
   align-items: center;
@@ -434,7 +573,7 @@
   bottom: 0;
   z-index: 3;
   padding: var(--sp-2) 0;
-  background: #edf4f1;
+  background: linear-gradient(180deg, rgba(235, 243, 240, 0) 0%, #ebf3f0 28%);
 }
 .btn {
   min-height: var(--tap-min);
@@ -446,9 +585,11 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-1);
   transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
+.btn svg { width: 26px; height: 26px; }
 .btnPrimary {
   background: var(--accent);
   color: #16302b;
@@ -468,38 +609,40 @@
 /* --- department chooser --------------------------------------------------- */
 .deptGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--sp-2);
 }
-.deptGrid > :nth-last-child(1):nth-child(odd) { grid-column: 1 / -1; }
 
 /* --- summary read-back ---------------------------------------------------- */
-.summaryChips { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); max-width: 760px; }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 10px var(--sp-2);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  border: 2px solid var(--line);
-  font-size: var(--fs-body);
-  font-weight: 600;
-}
-.chipIcon { width: 32px; height: 32px; }
 .readback {
   font-size: var(--fs-lead);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--primary-soft);
-  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px solid var(--primary-soft);
+  border-left: 6px solid var(--primary);
+  border-radius: var(--radius-md);
   padding: var(--sp-3);
-  max-width: 760px;
-  margin-bottom: var(--sp-4);
+  max-width: 820px;
 }
 .readback[lang="hi"],
 .readback[lang="mr"],
 .readback[lang="te"] { line-height: var(--line-indic); }
+.readbackList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.readbackList li {
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--line);
+}
+.readbackList li:first-child {
+  font-weight: 750;
+}
+.readbackList li:last-child { border-bottom: 0; padding-bottom: 0; }
 
 /* --- red flag banner ------------------------------------------------------ */
 .redFlag {
@@ -508,26 +651,27 @@
   gap: var(--sp-2);
   background: var(--danger-soft);
   color: #7a1f1f;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
+  border-left: 6px solid var(--danger);
   padding: var(--sp-2) var(--sp-3);
   font-weight: 700;
   font-size: var(--fs-body);
   margin-bottom: var(--sp-3);
-  max-width: 760px;
+  max-width: 820px;
 }
 .redFlagIcon { width: 36px; height: 36px; flex: none; }
 
 /* --- adaptive voice answer (S-ADAPT.1, doc 11) ---------------------------- */
-/* Sits above the taps as a secondary affordance — deliberately smaller than the
- * chief-complaint mic so the taps read as the primary path (doc 04 law 8). */
+/* Sits *below* the taps as a secondary affordance, and only on the closing
+ * questions (S-UX.6): the taps are the answer, speaking is the shortcut. */
 .adaptiveVoice {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-3) 0;
-  margin-bottom: var(--sp-3);
-  border-bottom: 2px dashed var(--line);
+  padding: var(--sp-3) 0 0;
+  margin-top: var(--sp-3);
+  border-top: 2px dashed var(--line);
 }
 .adaptiveVoiceLabel {
   font-size: var(--fs-body);
@@ -537,13 +681,13 @@
 .adaptiveVoice .micBtn { width: 120px; height: 120px; }
 .adaptiveVoice .micIcon { width: 52px; height: 52px; }
 .clarify {
-  max-width: 40ch;
+  max-width: 44ch;
   text-align: center;
   font-size: var(--fs-lead);
   font-weight: 600;
   color: var(--ink);
-  background: var(--accent-soft, rgba(226, 144, 31, 0.12));
-  border-radius: var(--radius);
+  background: var(--accent-soft);
+  border-radius: var(--radius-md);
   padding: var(--sp-2) var(--sp-3);
 }
 
@@ -557,7 +701,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   padding: var(--sp-5);
   text-align: center;
 }
@@ -576,12 +720,18 @@
   font-variant-numeric: tabular-nums;
   text-shadow: 0 8px 40px rgba(226, 144, 31, 0.4);
 }
+.tokenName {
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  color: #eaf6f2;
+}
 .tokenDept {
   font-size: var(--fs-display);
   font-weight: 800;
   color: #fff;
+  line-height: 1.1;
 }
-.tokenWait { font-size: var(--fs-lead); color: #d6ece5; max-width: 22ch; }
+.tokenWait { font-size: var(--fs-lead); color: #d6ece5; max-width: 24ch; }
 .tokenUrgent {
   display: inline-flex;
   align-items: center;
@@ -594,8 +744,9 @@
   font-size: var(--fs-body);
   font-weight: 700;
 }
+.tokenGhost { color: #d6ece5; border: 2px solid rgba(255, 255, 255, 0.3); }
+.tokenGhost:hover { color: #fff; }
 .tokenRestart {
-  margin-top: var(--sp-4);
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
@@ -633,7 +784,7 @@
 .errorToast {
   background: var(--danger-soft);
   color: #7a1f1f;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: var(--sp-2) var(--sp-3);
   font-weight: 600;
   font-size: var(--fs-body);
@@ -650,6 +801,7 @@
   justify-content: center;
   text-align: center;
   gap: var(--sp-4);
+  padding-bottom: var(--sp-5);
 }
 .welcomeLangs {
   display: grid;
@@ -658,7 +810,8 @@
 }
 .welcomeLang {
   min-width: 0;
-  min-height: 120px;
+  min-height: 128px;
+  padding: 0 var(--sp-5);
   border-radius: var(--radius-lg);
   border: 3px solid var(--line);
   background: var(--surface);
@@ -674,12 +827,13 @@
 /* --- caregiver choice ----------------------------------------------------- */
 .bigChoices {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--sp-3);
+  max-width: 780px;
 }
 .bigChoice {
   min-width: 0;
-  min-height: 160px;
+  min-height: 200px;
   border-radius: var(--radius-lg);
   border: 3px solid var(--line);
   background: var(--surface);
@@ -689,55 +843,80 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
+  padding: var(--sp-3);
   box-shadow: var(--shadow);
   transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 .bigChoice:hover { transform: translateY(-4px); border-color: var(--primary); }
-.bigChoiceIcon { width: 64px; height: 64px; }
+.bigChoiceIcon { width: 72px; height: 72px; }
 .bigChoiceText {
   min-width: 0;
   font-size: var(--fs-option);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   white-space: normal;
   overflow-wrap: anywhere;
+  text-align: center;
 }
 
-/* --- truthful live intake summary ---------------------------------------- */
+/* --- the live rail -------------------------------------------------------- */
+/* A card, not a bare column: on a bright kiosk the patient must read it as "my
+   record so far", distinct from the question they are being asked. */
 .summaryRail {
   min-width: 0;
+  position: sticky;
+  top: var(--sp-2);
+  align-self: start;
+  max-height: calc(100dvh - 180px);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.summaryDetails {
   min-height: 0;
-  align-self: stretch;
-  border-right: 1px solid var(--line);
-  padding-right: var(--sp-4);
   overflow-y: auto;
 }
-.summaryDetails { height: 100%; }
 .summaryToggle { display: none; }
 .summaryBody {
-  height: 100%;
   display: flex !important;
   flex-direction: column;
   gap: var(--sp-2);
+  padding: var(--sp-3);
 }
-.summaryBody .assistantCol {
-  flex-direction: row;
-  justify-content: flex-start;
-  align-self: auto;
+.summaryHead {
+  display: flex;
+  align-items: center;
   gap: var(--sp-2);
+  min-width: 0;
 }
-.summaryBody .avatar {
-  width: 76px;
-  height: 76px;
+.summaryHead .avatar {
+  width: 64px;
+  height: 64px;
   box-shadow: none;
+  flex: none;
 }
-.summaryBody .avatarFace { width: 42px; height: 42px; }
-.summaryBody .avatarRing { inset: -6px; }
+.summaryHead .avatarFace { width: 36px; height: 36px; }
+.summaryHead .avatarRing { inset: -5px; }
+.summaryHead .avatarName,
+.summaryHead .avatarStatus { display: none; }
+.summaryHead .assistantCol { flex-direction: row; align-self: auto; gap: 0; }
+.summaryHeadText { min-width: 0; }
 .summaryTitle {
   margin: 0;
-  font-size: var(--fs-lead);
-  line-height: 1.25;
+  font-size: var(--fs-body);
+  line-height: 1.2;
+  font-weight: 800;
   color: var(--primary-d);
+}
+.summaryStage {
+  margin: 3px 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 .summaryFacts {
   display: grid;
@@ -776,18 +955,19 @@
 }
 .summarySymptoms li {
   min-width: 0;
-  padding: 7px 0;
+  padding: 8px 0;
   border-bottom: 1px dashed var(--line);
 }
+.summarySymptoms li:last-child { border-bottom: 0; }
 .summarySymptoms li span,
 .summarySymptoms li strong {
   display: block;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .summarySymptoms li span { color: var(--ink-soft); }
-.summarySymptoms li strong { color: var(--ink); }
+.summarySymptoms li strong { color: var(--ink); font-size: var(--fs-caption); }
 .summarySymptoms p {
   margin: 4px 0;
   color: var(--ink-soft);
@@ -795,72 +975,131 @@
 }
 .summaryMore { font-weight: 800; color: var(--primary-d) !important; }
 
-@media (max-width: 900px) {
-  .shell { padding: var(--sp-3); }
-  .stage { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
-  .assistantCol { flex-direction: row; align-self: flex-start; }
-  .avatar { width: 96px; height: 96px; }
-  .avatarFace { width: 52px; height: 52px; }
-  .summaryRail {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    padding: 0 0 var(--sp-2);
+/* --- narrow / portrait: the rail folds to a strip, never vanishes ---------
+   Keyed on orientation as well as width, because the pilot kiosk is a 1080×1920
+   portrait panel: wide enough for the two-column rule, and completely wrong for
+   it — a 300px rail beside a 700px question wastes the bottom half of a screen
+   the patient is standing in front of. */
+@media (max-width: 1023px), (orientation: portrait) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    /* The strip takes what it needs; the question takes the rest. Without the
+       explicit rows a grid taller than its content stretches *both* auto rows
+       and opens a lake of dead space between them on a tall portrait panel. */
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
+    gap: var(--sp-3);
   }
-  .summaryDetails { height: auto; }
+  .panel { min-height: 0; justify-content: flex-start; }
+  .panelInner { max-width: none; }
+  .summaryRail {
+    position: static;
+    max-height: none;
+  }
+  .summaryDetails { overflow: visible; }
   .summaryToggle {
     min-height: var(--tap-min);
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--sp-2);
+    padding: 0 var(--sp-3);
     cursor: pointer;
     color: var(--primary-d);
     font-weight: 800;
+    font-size: var(--fs-caption);
+    list-style: none;
   }
+  .summaryToggle::-webkit-details-marker { display: none; }
+  .summaryToggleLabel { text-transform: uppercase; letter-spacing: 0.04em; }
   .summaryToggle strong {
     min-width: 0;
+    margin-left: auto;
     color: var(--ink);
-    overflow-wrap: anywhere;
+    font-size: var(--fs-body);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .summaryChevron {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-right: 3px solid currentColor;
+    border-bottom: 3px solid currentColor;
+    transform: rotate(45deg) translate(-3px, -3px);
+    transition: transform var(--dur) var(--ease);
+  }
+  .summaryDetails[open] .summaryChevron {
+    transform: rotate(225deg) translate(-3px, -3px);
   }
   .summaryBody {
-    height: auto;
     display: grid !important;
-    grid-template-columns: 120px minmax(0, 1fr);
-    padding-top: var(--sp-2);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    border-top: 1px solid var(--line);
   }
-  .summaryDetails:not([open]) .summaryBody { display: none !important; }
-  .summaryBody .assistantCol { grid-row: 1 / span 3; }
-  .summaryTitle { display: none; }
-  .summaryFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .summarySymptoms { grid-column: 2; }
-  .options { grid-template-columns: minmax(0, 1fr); }
+  .summaryHead { display: none; }
+  .summaryFacts { border-top: 0; }
+  .options { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .options[data-count="5"] > :last-child { grid-column: auto; }
-  .deptGrid { grid-template-columns: minmax(0, 1fr); }
-  .deptGrid > :nth-last-child(1):nth-child(odd) { grid-column: auto; }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 680px), (orientation: portrait) and (max-width: 820px) {
   .brandName { display: none; }
-  .langBar { width: 100%; justify-content: stretch; }
-  .langChip { flex: 1 1 calc(50% - var(--sp-1)); min-width: 0; padding-inline: var(--sp-1); }
-  .summaryBody { grid-template-columns: minmax(0, 1fr); }
-  .summaryBody .assistantCol { display: none; }
-  .summaryFacts, .summarySymptoms { grid-column: 1; }
+  .topbar { gap: var(--sp-1); }
+  .langChip { padding: 0 12px; }
+  .restartBtn span { display: none; }
+  .detailsForm { grid-template-columns: minmax(0, 1fr); }
+  .options,
+  .deptGrid,
   .bigChoices { grid-template-columns: minmax(0, 1fr); }
   .welcomeLangs { grid-template-columns: minmax(0, 1fr); width: 100%; }
   .welcomeLang { width: 100%; min-height: 88px; font-size: var(--fs-question); }
+  .footer { flex-wrap: wrap; }
+  .footer .btnBig { flex: 1 1 100%; }
 }
 
-@media (max-height: 850px) and (min-width: 901px) {
+/* The pilot kiosk is a 1080×1920 panel a patient stands in front of, not a page
+   they lean over. At that height the laptop type scale leaves the whole lower
+   half empty and everything reads small from a metre away, so the surface scales
+   up its own tokens rather than shipping a second set of components. */
+@media (orientation: portrait) and (min-height: 1100px) {
+  .shell {
+    --fs-caption: 1.2rem;
+    --fs-body: 1.5rem;
+    --fs-lead: 1.85rem;
+    --fs-option: 2.1rem;
+    --fs-question: 3rem;
+  }
+  .panel { justify-content: center; }
+  .fieldInput,
+  .chipBtn { min-height: 100px; }
+  .optionCard { min-height: 136px; }
+  .optionIcon { width: 76px; height: 76px; }
+  .bigChoice { min-height: 260px; }
+  .bigChoiceIcon { width: 96px; height: 96px; }
+  .btnBig { min-height: 104px; }
+  .micBtn { width: 220px; height: 220px; }
+  .micIcon { width: 96px; height: 96px; }
+  .summaryToggle { min-height: 92px; }
+}
+
+/* A laptop in landscape has vertical room to spare nowhere — trim the rhythm so
+   the primary action stays above the fold without a scroll. */
+@media (max-height: 820px) and (min-width: 1024px) {
   .shell { padding-block: var(--sp-2); }
   .topbar { margin-bottom: var(--sp-2); }
-  .panel .audioBar { margin-bottom: var(--sp-2); }
-  .question { margin-bottom: var(--sp-2); }
-  .micBtn { width: 132px; height: 132px; }
+  .promptRow { margin-bottom: var(--sp-2); }
+  .detailsForm { gap: var(--sp-1) var(--sp-2); }
+  .question { font-size: 1.9rem; margin-bottom: var(--sp-1); }
+  .lead { margin-bottom: var(--sp-2); }
+  .micBtn { width: 128px; height: 128px; }
   .micIcon { width: 56px; height: 56px; }
-  .optionCard { min-height: 76px; padding-block: 10px; }
-  .optionIcon { width: 48px; height: 48px; }
-  .btnBig { min-height: 72px; }
+  .optionCard { min-height: 84px; padding-block: 10px; }
+  .optionIcon { width: 50px; height: 50px; }
+  .bigChoice { min-height: 156px; }
+  .fieldInput, .chipBtn { min-height: 64px; }
+  .btnBig { min-height: 68px; }
+  .footer { margin-top: var(--sp-3); }
 }
 
 /* --- downtime banner (S7, doc 01 §5) ------------------------------------- */
@@ -870,10 +1109,9 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  /* doc 04 §3: downtime flips the bar to marigold, not the calm green. */
   background: var(--accent);
   color: #3d2a00;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: var(--sp-2) var(--sp-3);
   font-weight: 700;
   font-size: var(--fs-body);
@@ -930,5 +1168,6 @@
     box-shadow: none !important;
   }
   .tokenNumber { color: #000 !important; }
+  .tokenName, .tokenDept, .tokenWait { color: #000 !important; }
   .tokenActions { display: none !important; }
 }

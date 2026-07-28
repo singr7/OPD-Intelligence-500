@@ -177,17 +177,21 @@ def test_summarize_prompt_renders_and_carries_the_doc_03_contract():
         lang_name="Hindi",
         patient="Ramesh, 54",
         answers="fever x2d",
+        final_words="mujhe raat ko saans phoolti hai",
         red_flags="none",
         history="none",
         since_last_visit="",
     )
     assert "fever x2d" in rendered
+    # S-UX.6: the patient's closing account reaches the summariser as its own
+    # input, not buried in the answer list where a word budget drops it first.
+    assert "mujhe raat ko saans phoolti hai" in rendered
 
     system = prompt.system
     for section in ("chief_concern", "hpi", "symptoms", "red_flags", "patient_words", "readback"):
         assert section in system, f"summary contract lost {section}"
     assert "unclear" in system  # never silently guess (doc 03 §4)
-    assert "150 words" in system
+    assert "closing free-text answer" in system  # S-UX.6: never dropped
 
 
 def test_dictation_prompt_forbids_drug_substitution():

@@ -63,12 +63,16 @@ test("full hindi kiosk intake, welcome → token", async ({ page }) => {
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
   await shot(page, "02-caregiver");
 
-  // 3. Patient name.
-  await page.getByText("मैं अपने लिए").click();
-  await expect(page.locator("main")).toHaveAttribute("data-screen", "name");
+  // 3. Registration details — name, age, gender, phone (S-UX.6).
+  await page.getByTestId("caregiver-self").click();
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "details");
   await page.getByTestId("patient-name").fill("सीमा देवी");
+  await page.getByTestId("patient-age").fill("54");
+  await page.getByTestId("patient-sex-female").click();
+  await page.getByTestId("patient-phone").fill("9876500011");
   await expect(page.getByTestId("summary-patient")).toHaveText("सीमा देवी");
-  await page.getByTestId("name-next").click();
+  await shot(page, "02b-details");
+  await page.getByTestId("details-next").click();
 
   // 4. Chief complaint (tap-to-type fallback in headless).
   await expect(page.locator("main")).toHaveAttribute("data-screen", "complaint");
@@ -132,11 +136,11 @@ test("tablet matrix keeps name, summary and primary action inside the viewport",
       await page.goto("/kiosk");
       if (scale === 2) await page.addStyleTag({ content: "html { font-size: 200%; }" });
       await page.getByTestId("welcome-lang-te").click();
-      await page.getByText("నా కోసం").click();
+      await page.getByTestId("caregiver-self").click();
       await page.getByTestId("patient-name").fill("శ్రీమతి వెంకట లక్ష్మీ దేవి");
 
       const metrics = await page.evaluate(() => {
-        const action = document.querySelector<HTMLElement>('[data-testid="name-next"]');
+        const action = document.querySelector<HTMLElement>('[data-testid="details-next"]');
         const box = action?.getBoundingClientRect();
         return {
           horizontalOverflow:

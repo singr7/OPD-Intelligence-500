@@ -49,7 +49,7 @@ from sqlalchemy.orm import selectinload
 from app.config import get_settings
 from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, Priority, QueueEntryState, VisitStatus
-from app.models.org import Department
+from app.models.org import Department, Doctor
 from app.models.patient import Patient
 from app.models.scheduling import Queue, QueueEntry
 
@@ -129,6 +129,10 @@ class EntryView:
     chief_complaint: str | None
     red_flag_count: int
     called_at: datetime | None
+    #: Who the token belongs to (S-UX.6). A queue of bare numbers is unreadable to
+    #: the family standing in front of it and to the staff calling names over it;
+    #: since the kiosk now registers a name, the queue carries it.
+    patient_name: str | None = None
 
 
 @dataclass(slots=True)
@@ -143,6 +147,11 @@ class DepartmentBoard:
     waiting_count: int
     est_wait_low: int
     est_wait_high: int
+    #: Who is running this room today, and who is in it (S-UX.6). A board that
+    #: names only the department sends a patient to a corridor; naming the doctor
+    #: and the token being served sends them to a door.
+    doctor_name: str | None = None
+    now_serving_name: str | None = None
 
 
 # -- queue lifecycle ----------------------------------------------------------
@@ -405,7 +414,9 @@ def estimate_wait(*, ahead: int, mean_minutes: float) -> tuple[int, int]:
     return low, high
 
 
-async def _view(entry: QueueEntry, *, chief: str | None, flags: int) -> EntryView:
+async def _view(
+    entry: QueueEntry, *, chief: str | None, flags: int, patient_name: str | None = None
+) -> EntryView:
     return EntryView(
         id=entry.id,
         visit_id=entry.visit_id,
@@ -417,6 +428,7 @@ async def _view(entry: QueueEntry, *, chief: str | None, flags: int) -> EntryVie
         chief_complaint=chief,
         red_flag_count=flags,
         called_at=entry.called_at,
+        patient_name=patient_name,
     )
 
 
@@ -434,6 +446,64 @@ async def _chief_and_flags(
     out: dict[uuid.UUID, tuple[str | None, int]] = {}
     for visit_id, chief, red_flags in result.all():
         out[visit_id] = (chief, len(red_flags or []))
+    return out
+
+
+async def _patient_names(
+    session: AsyncSession, visit_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """One query for the patient name behind each visit (S-UX.6).
+
+    Joined rather than stored on the queue entry: the desk can correct a name
+    after the token was issued, and a copy on the entry would keep calling the
+    patient by the typo.
+    """
+    if not visit_ids:
+        return {}
+    result = await session.execute(
+        select(Visit.id, Patient.name)
+        .join(Patient, Patient.id == Visit.patient_id)
+        .where(Visit.id.in_(visit_ids))
+    )
+    return {visit_id: name for visit_id, name in result.all()}
+
+
+#: How many doctors the board names before it stops trying. Past this the line
+#: is longer than the department name and stops being scannable from 8 metres.
+_MAX_BOARD_DOCTORS = 2
+
+
+async def _doctor_names(
+    session: AsyncSession, department_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """The active doctors per department, for the board's room line.
+
+    Every doctor on duty, joined — not one picked arbitrarily. This queue is
+    per-department (`Queue.doctor_id is NULL`), so the board genuinely cannot say
+    which of two oncologists a token belongs to; naming both is true, naming one
+    is a guess a patient would act on. Beyond `_MAX_BOARD_DOCTORS` it falls back
+    to a count rather than a wall of names.
+    """
+    if not department_ids:
+        return {}
+    result = await session.execute(
+        select(Doctor.department_id, Doctor.name)
+        .where(
+            Doctor.department_id.in_(department_ids),
+            Doctor.active.is_(True),
+            Doctor.deleted_at.is_(None),
+        )
+        .order_by(Doctor.name)
+    )
+    grouped: dict[uuid.UUID, list[str]] = {}
+    for department_id, name in result.all():
+        grouped.setdefault(department_id, []).append(name)
+    out: dict[uuid.UUID, str] = {}
+    for department_id, names in grouped.items():
+        if len(names) <= _MAX_BOARD_DOCTORS:
+            out[department_id] = " · ".join(names)
+        else:
+            out[department_id] = f"{len(names)} doctors on duty"
     return out
 
 
@@ -456,7 +526,9 @@ async def department_queue(
     if queue is None:
         return []
     entries = await _entries_for_queue(session, queue.id)
-    meta = await _chief_and_flags(session, [e.visit_id for e in entries])
+    visit_ids = [e.visit_id for e in entries]
+    meta = await _chief_and_flags(session, visit_ids)
+    names = await _patient_names(session, visit_ids)
 
     active = [e for e in entries if e.state in _ACTIVE_STATES]
     active.sort(key=lambda e: e.called_at or datetime.min.replace(tzinfo=UTC))
@@ -467,7 +539,11 @@ async def department_queue(
     views = []
     for entry in [*active, *waiting, *lab]:
         chief, flags = meta.get(entry.visit_id, (None, 0))
-        views.append(await _view(entry, chief=chief, flags=flags))
+        views.append(
+            await _view(
+                entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id)
+            )
+        )
     return views
 
 
@@ -496,6 +572,8 @@ async def board(session: AsyncSession, *, on: date_type | None = None) -> list[D
     }
     all_visit_ids = [e.visit_id for q in queues for e in q.entries]
     meta = await _chief_and_flags(session, all_visit_ids)
+    names = await _patient_names(session, all_visit_ids)
+    doctors = await _doctor_names(session, dept_ids)
 
     boards: list[DepartmentBoard] = []
     for queue in queues:
@@ -512,9 +590,13 @@ async def board(session: AsyncSession, *, on: date_type | None = None) -> list[D
         now = active[-1] if active else None
         mean = await _mean_consult_minutes(session, queue_id=queue.id)
         next_views = []
-        for idx, entry in enumerate(waiting[:3]):
+        for entry in waiting[:3]:
             chief, flags = meta.get(entry.visit_id, (None, 0))
-            next_views.append(await _view(entry, chief=chief, flags=flags))
+            next_views.append(
+                await _view(
+                    entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id)
+                )
+            )
         # Wait for the person at the back of "next 3" — the useful number for a
         # patient reading the board is "how long until roughly me".
         low, high = estimate_wait(ahead=len(waiting), mean_minutes=mean)
@@ -528,6 +610,8 @@ async def board(session: AsyncSession, *, on: date_type | None = None) -> list[D
                 waiting_count=len(waiting),
                 est_wait_low=low,
                 est_wait_high=high,
+                doctor_name=doctors.get(queue.department_id),
+                now_serving_name=names.get(now.visit_id) if now else None,
             )
         )
     boards.sort(key=lambda b: b.department_key)

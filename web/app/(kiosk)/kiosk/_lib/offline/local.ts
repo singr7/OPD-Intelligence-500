@@ -30,6 +30,7 @@
 // produces is byte-identical to the server's, and why sync can replay it into
 // ordinary rows.
 
+import type { PatientDetails } from "../api";
 import { treeRef, type NodeType, type Tree } from "../tree/types";
 import { Walk } from "../tree/walker";
 import type { AnswersJson, RedFlagHit } from "../tree/walker";
@@ -47,7 +48,7 @@ export type LocalSession = {
   departmentName: string;
   chiefComplaint: string;
   caregiver: boolean;
-  patientName: string;
+  details: PatientDetails;
   startedAt: string;
 };
 
@@ -79,7 +80,7 @@ export async function startLocal(input: {
   lang: string;
   chiefComplaint: string;
   caregiver: boolean;
-  patientName: string;
+  details: PatientDetails;
   departmentKey: string;
   departmentName: string;
 }): Promise<LocalSession> {
@@ -100,7 +101,7 @@ export async function startLocal(input: {
     departmentName: input.departmentName,
     chiefComplaint: input.chiefComplaint,
     caregiver: input.caregiver,
-    patientName: input.patientName,
+    details: input.details,
     startedAt: new Date().toISOString(),
   };
   sessions.set(session.sessionId, session);
@@ -187,7 +188,10 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
     redFlags: redFlags.map((hit) => ({ id: hit.id, severity: hit.severity })),
     chiefComplaint: session.chiefComplaint || null,
     caregiver: session.caregiver,
-    patientName: session.patientName,
+    patientName: session.details.name,
+    patientAge: session.details.age,
+    patientSex: session.details.sex,
+    patientPhone: session.details.phone,
     completedAt: new Date().toISOString(),
     status: "pending",
     attempts: 0,
@@ -225,11 +229,36 @@ export type WireNode = {
   unit: string | null;
   audio: string | null;
   summary_role: SummaryRole | null;
+  remaining: number;
+  voice_input: boolean;
 };
+
+/** How many questions are left, counting `nodeId`, on the default path.
+ *
+ *  The TypeScript twin of `remaining_questions` in app/intake/dispatch.py. It
+ *  must stay a twin: the kiosk shows the same progress and offers the mic on the
+ *  same screens whether the server answered or this tab did. */
+export function remainingQuestions(tree: Tree, nodeId: string): number {
+  let count = 0;
+  const seen = new Set<string>();
+  let current: string | null | undefined = nodeId;
+  while (current && !seen.has(current) && count <= tree.nodes.length) {
+    seen.add(current);
+    const node = tree.nodes.find((n) => n.id === current);
+    if (!node) break;
+    count += 1;
+    current = node.next?.default ?? null;
+  }
+  return count;
+}
+
+/** The closing questions where speaking is offered (mirrors VOICE_TAIL_QUESTIONS). */
+export const VOICE_TAIL_QUESTIONS = 2;
 
 export function renderNode(tree: Tree, nodeId: string, lang: string): WireNode | null {
   const node = tree.nodes.find((n) => n.id === nodeId);
   if (!node) return null;
+  const remaining = remainingQuestions(tree, nodeId);
   return {
     id: node.id,
     type: node.type,
@@ -246,6 +275,8 @@ export function renderNode(tree: Tree, nodeId: string, lang: string): WireNode |
     // falls back to TTS/Web Speech. Offline that fallback is Web Speech only.
     audio: node.audio[lang] ?? null,
     summary_role: node.summary_role,
+    remaining,
+    voice_input: node.type === "free_voice" || remaining <= VOICE_TAIL_QUESTIONS,
   };
 }
 

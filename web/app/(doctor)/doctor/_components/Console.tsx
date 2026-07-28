@@ -1,10 +1,16 @@
 "use client";
 
-// The doctor console (doc 03 §5, doc 04 §3).
+// The doctor console (doc 03 §5, doc 04 §3; rebuilt for S-UX.6).
 //
 // Its single job: absorb one patient's story in twenty seconds and move the
 // queue with one key. Layout is therefore two columns and nothing else — the
 // rail of who is waiting, and the card of who is in front of you.
+//
+// What S-UX.6 changed is *where the encounter lives*. It used to be implied by a
+// small state chip on the card and acted on by buttons scattered between the app
+// bar and the bottom of the card, which made "is this consult finished?" a
+// question the doctor had to reconstruct. Now one `EncounterBar` sits above the
+// card, says the state in words, and carries exactly one filled next step.
 //
 // The action verbs are the S8 queue's (`callNext` / `setEntryState`), imported
 // rather than reimplemented: same state machine, same audit trail, same order
@@ -19,10 +25,9 @@ import { clearToken, getToken, setToken } from "../_lib/session";
 import { CONSOLE_CSS, DICTATION_CSS } from "./consoleStyles";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
+import { EncounterBar, type Action } from "./EncounterBar";
 import { Login } from "./Login";
 import { PatientCard } from "./PatientCard";
-
-type Action = "in_consult" | "done" | "no_show" | "lab_requeue";
 
 export function Console() {
   const [token, setTok] = useState<string | null>(null);
@@ -36,6 +41,12 @@ export function Console() {
   // the doctor dictates they have finished reading the card, and a modal over a
   // clinical summary invites signing a note while half-reading the patient.
   const [dictating, setDictating] = useState(false);
+  // Which visits got a signed note in this session. The card model does not carry
+  // note status, and asking the server per row would be a request per patient —
+  // so the console remembers what it watched happen, and says nothing about
+  // visits it did not (the bar then reads "Write consult note", which is safe:
+  // the panel itself shows the real signed state when opened).
+  const [signedNotes, setSignedNotes] = useState<Set<string>>(new Set());
   const selectedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -203,16 +214,20 @@ export function Console() {
     <div className="console">
       <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS }} />
 
+      {/* The app bar carries identity only. Every verb that moves the queue now
+          lives on the encounter bar, next to the patient it acts on. */}
       <header className="appbar">
         <div className="appbar-l">
           <strong>{day?.doctor_name ?? "Doctor"}</strong>
-          <span className="room">{day?.department_name ?? ""}</span>
+          <span className="room">
+            {day?.department_name ?? ""}
+            {day?.date ? ` · ${day.date}` : ""}
+          </span>
         </div>
         <div className="appbar-r">
-          <kbd className="hint">N</kbd>
-          <button className="callnext" onClick={onCallNext} disabled={busy || !day}>
-            Call next patient
-          </button>
+          <span className="appbar-count">
+            <b>{day?.rows.filter((r) => r.state === "waiting").length ?? 0}</b> waiting
+          </span>
           <button className="signout" onClick={signOut}>
             Sign out
           </button>
@@ -233,6 +248,16 @@ export function Console() {
         )}
 
         <section className="stage">
+          <EncounterBar
+            card={card}
+            day={day}
+            busy={busy}
+            onAction={onAction}
+            onCallNext={onCallNext}
+            onDictate={() => setDictating(true)}
+            noteSigned={card ? signedNotes.has(card.visit_id) : false}
+          />
+
           {card && dictating ? (
             <DictationPanel
               token={token}
@@ -243,14 +268,12 @@ export function Console() {
               doctorName={day?.doctor_name ?? "Doctor"}
               departmentName={card.department_name}
               onClose={() => setDictating(false)}
+              onSigned={() =>
+                setSignedNotes((prev) => new Set(prev).add(card.visit_id))
+              }
             />
           ) : card ? (
-            <PatientCard
-              card={card}
-              busy={busy}
-              onAction={onAction}
-              onDictate={() => setDictating(true)}
-            />
+            <PatientCard card={card} />
           ) : (
             <p className="empty-state">
               {day && day.rows.length > 0

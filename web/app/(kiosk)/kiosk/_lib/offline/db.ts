@@ -60,6 +60,9 @@ export type QueuedIntake = {
   chiefComplaint: string | null;
   caregiver: boolean;
   patientName: string;
+  patientAge: number | null;
+  patientSex: string | null;
+  patientPhone: string;
   completedAt: string;
   /** "pending" → not yet accepted; "synced" → the server has it; "rejected" →
    *  the server refused it and retrying will not help (a human must look). */

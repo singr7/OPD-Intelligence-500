@@ -75,7 +75,13 @@ from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
-from app.patient_names import PatientNameError, normalize_patient_name
+from app.patient_names import (
+    PatientNameError,
+    normalize_patient_age,
+    normalize_patient_name,
+    normalize_patient_phone,
+    normalize_patient_sex,
+)
 from app.models.scheduling import OfflineTokenBlock
 from app.trees import bank
 from app.trees.schema import TreeError
@@ -263,6 +269,9 @@ async def sync_intake(
     chief_complaint: str | None = None,
     caregiver: bool = False,
     patient_name: str | None = None,
+    patient_age: int | None = None,
+    patient_sex: str | None = None,
+    patient_phone: str | None = None,
     completed_at: datetime | None = None,
 ) -> SyncResult:
     """Replay one offline intake onto the server.
@@ -326,7 +335,9 @@ async def sync_intake(
         hospital_id=department.hospital_id,
         mrn=f"WALKIN-{uuid.uuid4().hex[:10].upper()}",
         name=name,
-        phone="",
+        phone=normalize_patient_phone(patient_phone),
+        age=normalize_patient_age(patient_age),
+        sex=normalize_patient_sex(patient_sex),
         lang=lang,
         caregiver_name="(caregiver at kiosk)" if caregiver else None,
     )

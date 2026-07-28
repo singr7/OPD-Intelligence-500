@@ -99,8 +99,14 @@ function RoomCard({ dept }: { dept: BoardDept }) {
   const urgent = dept.now_serving_reason != null;
   return (
     <article className={`room ${urgent ? "room-urgent" : ""}`}>
+      {/* The room line names the department *and* the doctor running it: a family
+          reading "Room 3" from across the hall still has to ask someone which
+          door that is (S-UX.6). */}
       <div className="room-head">
-        <h2>{dept.department_name}</h2>
+        <div className="room-id">
+          <h2>{dept.department_name}</h2>
+          {dept.doctor_name && <p className="room-doc">{dept.doctor_name}</p>}
+        </div>
         <span className="waiting">{dept.waiting_count} waiting</span>
       </div>
 
@@ -108,6 +114,14 @@ function RoomCard({ dept }: { dept: BoardDept }) {
       <div key={dept.now_serving ?? "none"} className="serving-num">
         {dept.now_serving ?? "—"}
       </div>
+      {/* The name under the numeral, because the numeral alone is what people
+          mishear across a noisy hall. Nothing clinical is shown next to it — the
+          board never carries a complaint or a red-flag reason (doc 03 §6). */}
+      {dept.now_serving_name && (
+        <div className="serving-name" data-testid="serving-name">
+          {dept.now_serving_name}
+        </div>
+      )}
       {dept.now_serving_reason && (
         <div className="urgent-chip">
           <AlertTriangle aria-hidden="true" /> Priority assistance
@@ -124,7 +138,8 @@ function RoomCard({ dept }: { dept: BoardDept }) {
               className={`chip ${e.priority === "urgent" ? "chip-urgent" : ""}`}
               aria-label={`Token ${e.token_no}${e.priority === "urgent" ? ", priority assistance" : ""}`}
             >
-              {e.token_no}
+              <b>{e.token_no}</b>
+              {e.patient_name && <i>{e.patient_name}</i>}
               {e.red_flag && <AlertTriangle className="flag" aria-hidden="true" />}
             </span>
           ))}
@@ -273,7 +288,9 @@ const BOARD_CSS = `
 }
 .room-urgent { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(226,144,31,.35) inset; }
 .room-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.room-id { min-width: 0; }
 .room-head h2 { margin: 0; font-size: clamp(20px, 1.7vw, 30px); font-weight: 700; color: #eafaf4; }
+.room-doc { margin: 2px 0 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 600; color: #8fd8c1; }
 .waiting { color: #9fc3b8; font-size: clamp(12px, 1vw, 16px); font-weight: 600; white-space: nowrap; }
 .serving-label { margin-top: 8px; color: #8fb6ab; letter-spacing: .22em;
   font-size: clamp(11px, .9vw, 14px); font-weight: 700; }
@@ -287,6 +304,8 @@ const BOARD_CSS = `
   0% { transform: translateY(-14%) scale(.96); opacity: 0; filter: blur(2px); }
   100% { transform: none; opacity: 1; filter: none; }
 }
+.serving-name { margin-top: 2px; font-size: clamp(18px, 2vw, 34px); font-weight: 700;
+  color: #eafaf4; line-height: 1.2; overflow-wrap: anywhere; }
 .urgent-chip {
   align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; margin-top: 6px;
   background: var(--accent); color: #3a2606; font-weight: 800;
@@ -297,11 +316,14 @@ const BOARD_CSS = `
 .next-label { color: #8fb6ab; letter-spacing: .2em; font-size: clamp(11px,.9vw,13px); font-weight: 700; }
 .next-tokens { display: flex; gap: 10px; flex-wrap: wrap; }
 .chip {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: baseline; gap: 8px;
   background: rgba(255,255,255,.1); color: #eafaf4;
   border-radius: 12px; padding: 8px 14px; font-weight: 800;
   font-size: clamp(20px, 1.9vw, 30px); font-variant-numeric: tabular-nums;
 }
+.chip b { font-weight: 800; }
+.chip i { font-style: normal; font-weight: 600; font-size: .55em; color: #cfe8df;
+  max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-urgent { background: var(--accent); color: #3a2606; }
 .chip .flag { width: .7em; height: .7em; }
 .next-empty { color: #6f9389; font-size: 24px; }

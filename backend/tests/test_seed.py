@@ -166,7 +166,14 @@ async def test_seed_loads_the_tree_bank(session: AsyncSession) -> None:
 
     rows = list((await session.execute(select(QuestionTree))).scalars())
     assert {row.key for row in rows} == set(load_bank())
-    assert all(row.version == 1 for row in rows)
+    # The seeded version is the tree's own, not a constant: a clinical revision
+    # (S-UX.6 rewrote the gynae and general-medicine routing) bumps it, and a
+    # row that still claimed v1 would be a published tree lying about what an
+    # oncologist reviewed.
+    bank = load_bank()
+    assert {row.key: row.version for row in rows} == {
+        key: tree.version for key, tree in bank.items()
+    }
 
 
 async def test_seeded_trees_are_still_valid_trees_after_the_round_trip(
