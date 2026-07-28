@@ -53,8 +53,29 @@ git pull --ff-only
 docker compose build api web        # both, for the reasons above
 docker compose up -d --wait
 docker compose exec api python -m app.seed
-curl -fsS http://localhost:8000/health
+docker compose ps api               # the real host port, and healthy vs starting
+curl -i http://localhost:8000/health
 ```
+
+> Use `curl -i`, never `curl -fsS`, when a human is reading the result. `-f`
+> makes curl exit silently on any HTTP error and `-s` hides the transport error
+> too, so a refused connection and a crash-looping API both look like "it printed
+> nothing". `-fsS` belongs in the Compose healthcheck, where an exit code is the
+> whole point; it does not belong in a runbook step.
+
+### If `/health` answers nothing
+
+In order of how often it is the cause:
+
+1. **The API is on another host port.** Compose publishes
+   `${API_HOST_PORT:-8000}`; a box whose `.env` overrides it has nobody on 8000.
+   `docker compose ps api` prints the real mapping.
+2. **The container is restarting, not running.** `docker compose logs --tail=80 api`.
+   The known first-start failure on a fresh box is the missing `./config:/config:ro`
+   mount `app.tiers` needs — it dies with `tiers config not found at
+   /config/tiers.yaml` (see `CODEBASE_MEMORY.md`).
+3. **It is still starting.** `up -d --wait` returns only when healthy, but a
+   backgrounded or timed-out run leaves it `starting`.
 
 `app.seed` is idempotent. It republishes a tree when the authored version is
 higher than the stored one, which is exactly the gynae and general-medicine case.
