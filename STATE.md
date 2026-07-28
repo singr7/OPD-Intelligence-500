@@ -1,10 +1,22 @@
 # STATE
 
-**Current release priority (2026-07-28):** CLOUD1's GPU-free AWS standby controls are
-built on `aws-gpu-free-standby` and focused local infrastructure gates are green.
-Nothing was provisioned: real AWS/DNS/Omen access is still required for ECR push,
-TLS, backup/restore, cloud-voice, failover/failback, and measured RPO/RTO evidence.
-The user authorized proceeding to ANDROID1 while these external gates stay explicit.
+**Current release priority (2026-07-28):** ANDROID1's safe pairing, signing,
+distribution, and rollback controls are built on `android-pairing-release`; focused
+local gates are green. Production signing custody, public Omen/AWS hosting, and the
+physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
+unprovisioned, so the combined release must not be described as live.
+
+**Built (SESSION-ANDROID1):** One Android application can select only the approved
+Omen or AWS HTTPS API, probes server identity/contract/clock skew, persists its
+choice, and clears auth/server state on a confirmed switch. Room schema v2 preserves
+offline intakes with environment ownership and refuses cross-environment PII sync.
+Release builds require external signing inputs, validate the endpoint allow-list,
+retain the 15 MB gate, and emit a verified APK/manifest/checksum bundle. nginx and
+operator scripts publish that one artifact atomically with immutable versioned
+downloads and recoverable latest-link rollback. A disposable clean-worktree build
+proved R8, v2/v3 signatures, manifest, checksum, and size at 1.57 MB; its test key
+and artifact were deleted. The production key/backups, public byte-identical
+downloads, and install/upgrade tablet matrix were not available.
 
 **Built (SESSION-CLOUD1):** Terraform defines one encrypted gp3 EC2/Compose box with
 only 80/443 inbound, SSM rather than SSH, immutable scan-on-push ECR repos, a
@@ -699,6 +711,14 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **ANDROID1 is locally release-ready, not publicly released** — the repository has
+  safe environment pairing, an externally supplied signing path, verified artifact
+  metadata, and atomic hosting/rollback controls. It does not have the production
+  signing key or its two encrypted offline backups. Both approved public hostnames
+  failed DNS resolution, and no tablet/emulator was attached, so live identity/TLS,
+  byte-identical downloads, fresh install, signed upgrade, and the full two-server
+  intake/failure matrix remain external evidence. The disposable test certificate
+  and APK were deleted and are not a distributable release.
 - **The AWS standby is repository-complete but not provisioned** (CLOUD1) — no
   AWS account, DNS authority, Omen access, or real provider keys were available.
   Terraform apply, ECR digests, TLS/renewal, public proxy paths, S3 backup/restore,
