@@ -174,7 +174,9 @@ HSTS is enabled only after HTTPS health and a Certbot renewal dry run pass.
 In Cloudflare:
 
 1. Point the proxied (orange-cloud) `A` record at the Elastic IP.
-2. Set **SSL/TLS encryption mode** to **Full (strict)**, never Flexible.
+2. Prefer **SSL/TLS encryption mode: Full (strict)**. If the available origin
+   certificate does not match this hostname, use **Full** temporarily. Never use
+   Flexible with this nginx configuration.
 
 Place a hostname-matching, unexpired certificate and its matching private key on
 the host. A Cloudflare Origin CA certificate is valid for this path, although it
@@ -199,6 +201,18 @@ downloads Cloudflare's current published proxy networks and configures nginx to
 honor `CF-Connecting-IP` only from those trusted networks. It verifies origin
 HTTPS locally, then verifies public HTTPS through Cloudflare before enabling
 HSTS. Supplied certificates are not renewed by Certbot; monitor their expiry.
+
+The optional fourth argument explicitly selects non-strict Full mode:
+
+```bash
+sudo /opt/opd/current/deploy/aws/enable-cloudflare-tls.sh \
+  opd-cloud.radpretation.ai /etc/ssl/opd.pem /etc/ssl/opd.key full
+```
+
+Full mode still encrypts traffic between Cloudflare and nginx, but Cloudflare
+does not authenticate the origin certificate or requested hostname. Use this
+only as an explicit compatibility choice. Omit `full` (or pass `strict`) after
+installing a certificate whose SAN covers `opd-cloud.radpretation.ai`.
 
 After verification, restrict origin security-group ingress on 80/443 to
 Cloudflare's current published IPv4 and IPv6 ranges if the origin is intended to

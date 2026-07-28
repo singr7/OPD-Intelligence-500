@@ -5,14 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
 require_root
-if [[ $# -ne 3 || ! "$1" =~ ^[A-Za-z0-9.-]+$ \
-  || ! "$2" =~ ^/[A-Za-z0-9._/-]+$ || ! "$3" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
-  echo "usage: enable-cloudflare-tls.sh <hostname> <certificate-pem> <private-key>" >&2
+if [[ $# -lt 3 || $# -gt 4 || ! "$1" =~ ^[A-Za-z0-9.-]+$ \
+  || ! "$2" =~ ^/[A-Za-z0-9._/-]+$ || ! "$3" =~ ^/[A-Za-z0-9._/-]+$ \
+  || ! "${4:-strict}" =~ ^(full|strict)$ ]]; then
+  echo "usage: enable-cloudflare-tls.sh <hostname> <certificate-pem> <private-key> [full|strict]" >&2
   exit 2
 fi
 HOSTNAME="$1"
 CERTIFICATE="$2"
 PRIVATE_KEY="$3"
+CLOUDFLARE_MODE="${4:-strict}"
 
 if [[ ! -f "$CERTIFICATE" || ! -f "$PRIVATE_KEY" ]]; then
   echo "certificate or private key does not exist" >&2
@@ -20,7 +22,14 @@ if [[ ! -f "$CERTIFICATE" || ! -f "$PRIVATE_KEY" ]]; then
 fi
 
 openssl x509 -in "$CERTIFICATE" -noout -checkend 0 >/dev/null
-openssl x509 -in "$CERTIFICATE" -noout -checkhost "$HOSTNAME" >/dev/null
+if [[ "$CLOUDFLARE_MODE" == "strict" ]]; then
+  openssl x509 -in "$CERTIFICATE" -noout -checkhost "$HOSTNAME" >/dev/null
+else
+  if ! openssl x509 -in "$CERTIFICATE" -noout -checkhost "$HOSTNAME" >/dev/null 2>&1; then
+    echo "WARNING: using Cloudflare Full mode with a certificate that does not match $HOSTNAME" >&2
+    echo "The origin connection is encrypted but Cloudflare will not authenticate its hostname." >&2
+  fi
+fi
 openssl pkey -in "$PRIVATE_KEY" -noout >/dev/null
 
 CERT_KEY_SHA="$(
@@ -52,7 +61,7 @@ sed \
   "$SCRIPT_DIR/nginx/opd-cloudflare-tls.conf" >"$TMP_DIR/opd.conf"
 
 # Start HTTPS without HSTS. This local request deliberately bypasses public DNS
-# and certificate trust; hostname, lifetime, and key matching were checked above.
+# and certificate trust; certificate lifetime and key matching were checked above.
 grep -v Strict-Transport-Security "$TMP_DIR/opd.conf" \
   >/etc/nginx/sites-available/opd.conf.next
 mv /etc/nginx/sites-available/opd.conf.next /etc/nginx/sites-available/opd.conf
@@ -64,7 +73,7 @@ curl -kfsS --max-time 30 \
 
 if ! curl -fsS --max-time 30 "https://$HOSTNAME/api/health" >/dev/null; then
   echo "origin HTTPS passed, but public HTTPS failed." >&2
-  echo "Set Cloudflare SSL/TLS mode to Full (strict), confirm the orange-cloud DNS record," >&2
+  echo "Set Cloudflare SSL/TLS mode to $CLOUDFLARE_MODE, confirm the orange-cloud DNS record," >&2
   echo "and rerun this command. HSTS has not been enabled." >&2
   exit 5
 fi
@@ -76,5 +85,5 @@ systemctl reload nginx
 curl -fsS --max-time 30 "https://$HOSTNAME/api/health" >/dev/null
 
 openssl x509 -in "$CERTIFICATE" -noout -subject -issuer -dates
-echo "Cloudflare Full (strict) public HTTPS passed; HSTS is active"
+echo "Cloudflare $CLOUDFLARE_MODE public HTTPS passed; HSTS is active"
 echo "certificate renewal is external to Certbot; monitor and replace it before expiry"

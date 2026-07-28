@@ -60,7 +60,8 @@ if grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-http.conf"; then
   exit 1
 fi
 grep -q 'x509.*-checkhost' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
-grep -q 'Full (strict)' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+grep -q 'CLOUDFLARE_MODE.*strict' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+grep -q 'full|strict' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
 grep -q 'CF-Connecting-IP' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
 grep -q 'www.cloudflare.com/ips-v4' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
 grep -q 'curl -kfsS' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
