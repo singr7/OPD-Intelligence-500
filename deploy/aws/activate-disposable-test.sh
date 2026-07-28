@@ -23,19 +23,27 @@ if [[ -s "$RELEASES_DIR/restored-backup" ]]; then
   echo "refusing disposable mode: this database has a verified restore marker" >&2
   exit 3
 fi
-if [[ -e "$RELEASES_DIR/disposable-test-active" ]]; then
-  echo "refusing: disposable test mode is already marked active" >&2
-  exit 3
-fi
-
 prepare_release_images
 install -d -m 0750 "$RELEASES_DIR"
-umask 027
-{
-  printf 'mode=disposable-no-phi\n'
-  printf 'release_sha=%s\n' "$IMAGE_TAG"
-  printf 'activated_at=%s\n' "$(date -u +%FT%TZ)"
-} >"$RELEASES_DIR/disposable-test-active"
+MARKER="$RELEASES_DIR/disposable-test-active"
+if [[ -e "$MARKER" ]]; then
+  if [[ ! -s "$MARKER" ]] || ! grep -qx 'mode=disposable-no-phi' "$MARKER"; then
+    echo "refusing: existing disposable marker is invalid" >&2
+    exit 3
+  fi
+  echo "refreshing existing disposable test mode"
+else
+  [[ "$(writer_setting)" == "on" ]] || {
+    echo "refusing disposable activation: unmarked database is already writable" >&2
+    exit 3
+  }
+  umask 027
+  {
+    printf 'mode=disposable-no-phi\n'
+    printf 'release_sha=%s\n' "$IMAGE_TAG"
+    printf 'activated_at=%s\n' "$(date -u +%FT%TZ)"
+  } >"$MARKER"
+fi
 
 rollback_on_error() {
   local status=$?
@@ -46,7 +54,7 @@ rollback_on_error() {
   write_writer_env 0 || true
   compose up -d --wait postgres redis >/dev/null 2>&1 || true
   compose up -d --wait --force-recreate api web >/dev/null 2>&1 || true
-  rm -f "$RELEASES_DIR/disposable-test-active"
+  rm -f "$MARKER"
   exit "$status"
 }
 trap rollback_on_error ERR
@@ -67,6 +75,11 @@ curl -fsS http://127.0.0.1:18080/health >/dev/null
 curl -fsS "https://${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}/api/health" >/dev/null
 compose exec -T api python -m app.seed
 compose exec -T api python -m scripts.seed_app_demo
+curl -fsS \
+  -H 'Content-Type: application/json' \
+  -d '{"phone":"+915551900001"}' \
+  http://127.0.0.1:18080/auth/patient/otp/request |
+  python3 -c 'import json,sys; assert json.load(sys.stdin).get("debug_code")'
 
 trap - ERR
 echo "DISPOSABLE AWS TEST MODE ACTIVE"

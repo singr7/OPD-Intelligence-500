@@ -74,6 +74,9 @@ grep -q -- '--confirm-no-phi' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q 'restored-backup' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q 'OTP_DEBUG_ECHO=true' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q 'python -m scripts.seed_app_demo' "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q 'refreshing existing disposable test mode' \
+  "$SCRIPT_DIR/activate-disposable-test.sh"
+grep -q 'get("debug_code")' "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q -- '--force-recreate api voice-gw worker beat web' \
   "$SCRIPT_DIR/activate-disposable-test.sh"
 grep -q -- '--confirm-delete-test-data' "$SCRIPT_DIR/end-disposable-test.sh"
