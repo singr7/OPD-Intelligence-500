@@ -55,11 +55,13 @@ async function walkOneOfflineIntake(page: Page): Promise<number> {
   // From welcome → token, entirely offline. Returns the token shown.
   await page.getByTestId("welcome-lang-hi").click();
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
-  await page.getByText("मैं अपने लिए").click();
+  await page.getByTestId("caregiver-self").click();
 
-  await expect(page.locator("main")).toHaveAttribute("data-screen", "name");
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "details");
   await page.getByTestId("patient-name").fill("सीमा देवी");
-  await page.getByTestId("name-next").click();
+  await page.getByTestId("patient-age").fill("54");
+  await page.getByTestId("patient-sex-female").click();
+  await page.getByTestId("details-next").click();
 
   await expect(page.locator("main")).toHaveAttribute("data-screen", "complaint");
   await typeInto(page, "mujhe pet mein dard hai");

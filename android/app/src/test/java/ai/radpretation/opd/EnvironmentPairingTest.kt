@@ -49,19 +49,26 @@ class EnvironmentPairingTest {
     fun releaseAllowListRequiresHttpsExactHostsAndApiPath() {
         EnvironmentAllowList.parse(
             "https://omen.opd.radpretation.ai/api",
-            "https://aws.opd.radpretation.ai/api",
+            "https://opd-cloud.radpretation.ai/api",
             allowDebug = false,
         )
         org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
             EnvironmentAllowList.parse(
                 "http://omen.opd.radpretation.ai/api",
-                "https://aws.opd.radpretation.ai/api",
+                "https://opd-cloud.radpretation.ai/api",
                 false,
             )
         }
         org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
             EnvironmentAllowList.parse(
                 "https://evil.example/api",
+                "https://opd-cloud.radpretation.ai/api",
+                false,
+            )
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            EnvironmentAllowList.parse(
+                "https://omen.opd.radpretation.ai/api",
                 "https://aws.opd.radpretation.ai/api",
                 false,
             )

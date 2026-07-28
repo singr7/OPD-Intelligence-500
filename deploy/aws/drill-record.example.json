@@ -1,6 +1,6 @@
 {
   "source_environment": "https://omen.opd.radpretation.ai",
-  "target_environment": "https://aws.opd.radpretation.ai",
+  "target_environment": "https://opd-cloud.radpretation.ai",
   "stable_alias": "https://opd.radpretation.ai",
   "source_commit": "",
   "target_commit": "",

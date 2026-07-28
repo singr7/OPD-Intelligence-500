@@ -91,7 +91,11 @@ export function StaffLogin({
               autoComplete="one-time-code"
               autoFocus
             />
-            {hint && <p className={styles.hint}>{hint}</p>}
+            {hint && (
+              <p className={styles.hint} data-testid="otp-hint">
+                {hint}
+              </p>
+            )}
             <button className={styles.primary} type="submit" disabled={busy}>
               <LockKeyhole aria-hidden="true" />
               {busy ? "Checking..." : "Sign in"}

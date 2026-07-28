@@ -36,7 +36,7 @@ from app.intake.state import SessionState
 from app.models.enums import Lang, UsagePurpose
 from app.prompts import load
 from app.providers import LLMProvider, LLMRequest, with_fallback
-from app.trees.schema import Tree
+from app.trees.schema import NodeType, SummaryRole, Tree
 from app.trees.walker import RedFlagHit, Walk
 
 logger = logging.getLogger(__name__)
@@ -53,12 +53,36 @@ LANG_NAMES: dict[str, str] = {
 #: vocabulary, ending in a yes/no confirm (doc 03 §1: many patients cannot read,
 #: this is the only check they get). The LLM path writes a richer one; this is the
 #: offline floor, authored not model-generated. All four pilot languages (S13);
-#: {concern} and {flags} arrive already translated (tree text, flag instruction).
+#: {concern}, {facts} and {flags} arrive already translated (tree text, flag
+#: instruction) — this template never composes a clinical sentence of its own.
 _READBACK_TEMPLATE: dict[str, str] = {
-    Lang.EN: "You told me: {concern}. {flags}Is that right? Say yes, or tell me what to change.",
-    Lang.HI: "आपने बताया: {concern}। {flags}क्या यह सही है? हाँ कहिए, या बताइए क्या बदलना है।",
-    Lang.MR: "तुम्ही सांगितलं: {concern}. {flags}हे बरोबर आहे का? होय म्हणा, किंवा काय बदलायचं ते सांगा.",
-    Lang.TE: "మీరు చెప్పారు: {concern}. {flags}ఇది సరైనదేనా? అవును అనండి, లేదా ఏం మార్చాలో చెప్పండి.",
+    Lang.EN: (
+        "You told me: {concern}.\n{facts}{flags}"
+        "Is that right? Say yes, or tell me what to change."
+    ),
+    Lang.HI: (
+        "आपने बताया: {concern}।\n{facts}{flags}"
+        "क्या यह सही है? हाँ कहिए, या बताइए क्या बदलना है।"
+    ),
+    Lang.MR: (
+        "तुम्ही सांगितलं: {concern}.\n{facts}{flags}"
+        "हे बरोबर आहे का? होय म्हणा, किंवा काय बदलायचं ते सांगा."
+    ),
+    Lang.TE: (
+        "మీరు చెప్పారు: {concern}.\n{facts}{flags}"
+        "ఇది సరైనదేనా? అవును అనండి, లేదా ఏం మార్చాలో చెప్పండి."
+    ),
+}
+
+#: "And you also said:" — introduces the patient's own closing words in the
+#: read-back, so the last thing they volunteered is the last thing they hear
+#: repeated (S-UX.6: the closing answer must reach the doctor, and the patient
+#: must be able to catch it being wrong).
+_READBACK_OWN_WORDS: dict[str, str] = {
+    Lang.EN: "In your own words: {words}.",
+    Lang.HI: "आपके अपने शब्दों में: {words}।",
+    Lang.MR: "तुमच्या स्वतःच्या शब्दांत: {words}.",
+    Lang.TE: "మీ సొంత మాటల్లో: {words}.",
 }
 
 
@@ -200,17 +224,64 @@ def render_answers(tree: Tree, walk: Walk, lang: Lang | str) -> str:
     return "\n".join(lines) or "- (no answers recorded)"
 
 
+def answered_rows(tree: Tree, walk: Walk, lang: Lang | str) -> list[tuple[Any, str, str]]:
+    """Every answered node as `(node, question in `lang`, answer in `lang`)`.
+
+    One traversal, shared by the read-back (patient's language), the structured
+    symptom rows and the live rail — so those three can never disagree about what
+    the patient said, which is the failure the doctor notices first.
+    """
+    rows: list[tuple[Any, str, str]] = []
+    for node_id in walk.path():
+        answer = walk.answers.get(node_id)
+        if answer is None:
+            continue
+        node = tree.node(node_id)
+        said = answer.text or _value_text(node, answer.value, lang)
+        if not str(said).strip():
+            continue
+        rows.append((node, node.ask(lang), str(said).strip()))
+    return rows
+
+
+def final_free_text(tree: Tree, walk: Walk) -> str:
+    """The patient's closing free-text answer ("anything else?"), or "".
+
+    Last free-text node on the walked path, not the last node overall: some trees
+    ask for a medicine name in free text mid-walk, and the closing account is the
+    one the doctor most wants and the summariser most easily drops.
+    """
+    for node_id in reversed(walk.path()):
+        answer = walk.answers.get(node_id)
+        if answer is None:
+            continue
+        if tree.node(node_id).type is not NodeType.FREE_VOICE:
+            continue
+        text = (answer.text or str(answer.value or "")).strip()
+        if text:
+            return text
+    return ""
+
+
 def _value_text(node, value: Any, lang: Lang | str) -> str:
-    """Human-readable rendering of a stored value, for when there is no raw text."""
+    """Human-readable rendering of a stored value, for when there is no raw text.
+
+    Always in the language asked for, with English as the fallback. The
+    single-select branch used to hardcode English regardless of `lang`, which the
+    doctor's summary never noticed — it asks for English — but the patient's
+    spoken read-back did: it told a Hindi speaker "You told me: My periods are
+    irregular", which is not a sentence she can confirm or correct.
+    """
+    def label(option) -> str:
+        return option.text.get(str(lang)) or option.text.get(Lang.EN) or option.id
+
     if isinstance(value, list):
         labels = [
-            opt.text.get(str(lang)) or opt.text.get(Lang.EN, opt.id)
-            for item in value
-            if (opt := node.option(item)) is not None
+            label(opt) for item in value if (opt := node.option(item)) is not None
         ]
         return ", ".join(labels) if labels else str(value)
     if isinstance(value, str) and (opt := node.option(value)) is not None:
-        return opt.text.get(Lang.EN) or opt.id
+        return label(opt)
     return str(value)
 
 
@@ -228,6 +299,10 @@ class LLMSummarizer:
             lang_name=LANG_NAMES.get(str(state.lang), str(state.lang)),
             patient=state.chief_complaint or "(walk-in, details in the answers)",
             answers=render_answers(tree, walk, state.lang),
+            # Handed over separately as well as inside `answers`: it is the line a
+            # summariser under a word budget drops first, and it is the one the
+            # doctor most wants (S-UX.6).
+            final_words=final_free_text(tree, walk) or "(the patient said nothing further)",
             red_flags=_flags_for_prompt(flags, state.lang),
             history="(none recorded)",
             since_last_visit="",
@@ -264,32 +339,60 @@ class TemplateSummarizer:
 
     def build(self, state: SessionState, tree: Tree, walk: Walk) -> IntakeSummary:
         flags = walk.red_flags()
-        concern = (
+        english = answered_rows(tree, walk, Lang.EN)
+        spoken = answered_rows(tree, walk, state.lang)
+        closing = final_free_text(tree, walk)
+
+        primary = _role_answer(english, SummaryRole.PRIMARY_SYMPTOM)
+        fallback = (
             state.chief_complaint
             or _first_answer_text(tree, walk, state.lang)
             or (tree.title.get(str(state.lang)) or tree.title.get(Lang.EN, "Intake"))
         )
-        hpi = []
-        for node_id in walk.path():
-            answer = walk.answers.get(node_id)
-            if answer is None:
-                continue
-            node = tree.node(node_id)
-            said = answer.text or _value_text(node, answer.value, state.lang)
-            hpi.append(f"{node.ask(Lang.EN)}: {said}")
-        red_flag_lines = [flag.name(Lang.EN) for flag in flags]
-        readback = _template_readback(concern, flags, state.lang)
+        # Two audiences, two languages, one fact: the doctor's card reads English,
+        # the spoken read-back has to be in the words the patient used — telling a
+        # Hindi speaker "You told me: Pain" is not a check they can answer.
+        concern = primary or fallback
+        spoken_concern = _role_answer(spoken, SummaryRole.PRIMARY_SYMPTOM) or fallback
+
+        hpi = [f"{question}: {said}" for _, question, said in english]
+        # One row, from the roles the tree author marked. Deliberately not a row
+        # per answer: `symptoms` is the doctor's at-a-glance table, and a table
+        # with twelve rows is the same as no table at all.
+        symptoms: tuple[dict[str, str], ...] = ()
+        if primary:
+            symptoms = (
+                {
+                    "symptom": primary,
+                    "duration": _role_answer(english, SummaryRole.DURATION) or "",
+                    "severity": _role_answer(english, SummaryRole.SEVERITY) or "",
+                },
+            )
+
         return IntakeSummary(
             chief_concern=concern,
-            readback=readback,
+            readback=_template_readback(spoken_concern, spoken, closing, flags, state.lang),
             hpi=tuple(hpi),
-            red_flags=tuple(red_flag_lines),
+            symptoms=symptoms,
+            red_flags=tuple(flag.name(Lang.EN) for flag in flags),
             patient_words=(
-                {"quote": state.chief_complaint, "lang": str(state.lang)}
-                if state.chief_complaint
+                {"quote": closing or state.chief_complaint or "", "lang": str(state.lang)}
+                if (closing or state.chief_complaint)
                 else {}
             ),
         )
+
+
+def _role_answer(rows: Sequence[tuple[Any, str, str]], role: SummaryRole) -> str | None:
+    """The most recent answer the tree author tagged with this summary role.
+
+    `summary_role` is presentation-only metadata (STATE.md invariant): it decides
+    where an answer is *shown*, never where the walk goes or whether a flag fires.
+    """
+    for node, _question, said in reversed(rows):
+        if node.summary_role is role:
+            return said
+    return None
 
 
 def _first_answer_text(tree: Tree, walk: Walk, lang: Lang | str) -> str | None:
@@ -300,12 +403,38 @@ def _first_answer_text(tree: Tree, walk: Walk, lang: Lang | str) -> str | None:
     return None
 
 
-def _template_readback(concern: str, flags: Sequence[RedFlagHit], lang: Lang | str) -> str:
+#: How many answered questions the template read-back repeats back. Long enough
+#: that a patient can catch a wrong answer, short enough to stay listenable when
+#: it is spoken aloud to someone who cannot read the screen.
+_READBACK_MAX_FACTS = 6
+
+
+def _template_readback(
+    concern: str,
+    rows: Sequence[tuple[Any, str, str]],
+    closing: str,
+    flags: Sequence[RedFlagHit],
+    lang: Lang | str,
+) -> str:
     template = _READBACK_TEMPLATE.get(str(lang)) or _READBACK_TEMPLATE[Lang.HI]
-    # Speak the (oncologist-authored) flag instruction verbatim — never a
-    # model's or a template's own reassurance.
-    flag_text = (flags[0].say(lang) + " ") if flags else ""
-    return template.format(concern=concern, flags=flag_text)
+
+    # The questions and answers in the patient's own language, as the tree wrote
+    # them — this path composes no clinical sentence of its own, which is exactly
+    # why it can be trusted with no model behind it.
+    facts = [
+        f"{question} — {said}"
+        for node, question, said in rows
+        if node.type is not NodeType.FREE_VOICE
+    ][:_READBACK_MAX_FACTS]
+    if closing:
+        own = _READBACK_OWN_WORDS.get(str(lang)) or _READBACK_OWN_WORDS[Lang.HI]
+        facts.append(own.format(words=closing))
+    facts_text = ("\n".join(facts) + "\n") if facts else ""
+
+    # Speak the (clinician-authored) flag instruction verbatim — never a model's
+    # or a template's own reassurance.
+    flag_text = (flags[0].say(lang) + "\n") if flags else ""
+    return template.format(concern=concern, facts=facts_text, flags=flag_text)
 
 
 def _flags_for_prompt(flags: Sequence[RedFlagHit], lang: Lang | str) -> str:

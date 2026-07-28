@@ -1,6 +1,6 @@
 {
   "key": "gynae_routing",
-  "version": 1,
+  "version": 2,
   "department": "GYNAE",
   "languages": [
     "en",
@@ -38,13 +38,23 @@
           }
         },
         {
+          "id": "periods",
+          "icon": "clock",
+          "text": {
+            "en": "My periods are irregular or have stopped",
+            "hi": "माहवारी अनियमित है या बंद हो गई है",
+            "mr": "पाळी अनियमित आहे किंवा बंद झाली आहे",
+            "te": "నా రుతుస్రావం క్రమం తప్పింది లేదా ఆగిపోయింది"
+          }
+        },
+        {
           "id": "discharge",
           "icon": "drop",
           "text": {
-            "en": "Discharge",
-            "hi": "पानी या स्राव आना",
-            "mr": "स्राव येणं",
-            "te": "స్రావం రావడం"
+            "en": "Discharge, itching or burning",
+            "hi": "स्राव, खुजली या जलन",
+            "mr": "स्राव, खाज किंवा जळजळ",
+            "te": "స్రావం, దురద లేదా మంట"
           }
         },
         {
@@ -58,34 +68,29 @@
           }
         },
         {
-          "id": "lump",
+          "id": "other",
           "icon": "lump",
           "text": {
-            "en": "A lump or swelling",
-            "hi": "गाँठ या सूजन",
-            "mr": "गाठ किंवा सूज",
-            "te": "గడ్డ లేదా వాపు"
-          }
-        },
-        {
-          "id": "other",
-          "icon": "question",
-          "text": {
-            "en": "Something else",
-            "hi": "कुछ और",
-            "mr": "आणखी काहीतरी",
-            "te": "మరేదైనా"
+            "en": "A lump, swelling, or something else",
+            "hi": "गाँठ, सूजन या कुछ और",
+            "mr": "गाठ, सूज किंवा आणखी काही",
+            "te": "గడ్డ, వాపు లేదా మరేదైనా"
           }
         }
       ],
       "next": {
-        "default": "gy.bleeding_heavy"
+        "bleeding": "gy.bleeding_heavy",
+        "periods": "gy.cycle",
+        "discharge": "gy.discharge",
+        "pain": "gy.pain_severity",
+        "default": "gy.duration"
       },
       "adaptive_hints": "This is a private question in a public room. Ask it quietly and do not repeat the answer back loudly on the kiosk."
     },
     {
       "id": "gy.bleeding_heavy",
       "type": "single",
+      "summary_role": "symptom_detail",
       "text": {
         "en": "Are you bleeding heavily right now — soaking a pad in an hour or less?",
         "hi": "क्या अभी बहुत खून बह रहा है — एक घंटे या उससे कम में पैड भीग जाता है?",
@@ -147,6 +152,173 @@
       "adaptive_hints": "The pad-per-hour measure is the only reliable one — 'a lot' means different things to different women."
     },
     {
+      "id": "gy.cycle",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "What is happening with your periods?",
+        "hi": "आपकी माहवारी के साथ क्या हो रहा है?",
+        "mr": "तुमच्या पाळीबाबत काय होतंय?",
+        "te": "మీ రుతుస్రావంతో ఏమి జరుగుతోంది?"
+      },
+      "options": [
+        {
+          "id": "late",
+          "icon": "clock",
+          "text": {
+            "en": "They come late, or the gap keeps changing",
+            "hi": "देर से आती है, या अंतर बदलता रहता है",
+            "mr": "उशिरा येते, किंवा अंतर बदलत राहतं",
+            "te": "ఆలస్యంగా వస్తోంది, లేదా వ్యవధి మారుతూ ఉంది"
+          }
+        },
+        {
+          "id": "missed",
+          "icon": "empty",
+          "text": {
+            "en": "I have missed them for two months or more",
+            "hi": "दो महीने या उससे ज़्यादा से नहीं आई",
+            "mr": "दोन महिने किंवा त्याहून जास्त काळ आलेली नाही",
+            "te": "రెండు నెలలు లేదా అంతకంటే ఎక్కువ కాలం రాలేదు"
+          }
+        },
+        {
+          "id": "heavy",
+          "icon": "blood",
+          "text": {
+            "en": "They are much heavier or longer than before",
+            "hi": "पहले से बहुत ज़्यादा या लंबी चलती है",
+            "mr": "पूर्वीपेक्षा खूप जास्त किंवा जास्त दिवस असते",
+            "te": "గతంకంటే చాలా ఎక్కువగా లేదా ఎక్కువ రోజులు ఉంటోంది"
+          }
+        },
+        {
+          "id": "painful",
+          "icon": "pain",
+          "text": {
+            "en": "They are very painful",
+            "hi": "बहुत दर्द होता है",
+            "mr": "खूप वेदना होतात",
+            "te": "చాలా నొప్పిగా ఉంటుంది"
+          }
+        },
+        {
+          "id": "stopped",
+          "icon": "stop",
+          "text": {
+            "en": "They have stopped completely",
+            "hi": "पूरी तरह बंद हो गई है",
+            "mr": "पूर्णपणे बंद झाली आहे",
+            "te": "పూర్తిగా ఆగిపోయింది"
+          }
+        }
+      ],
+      "next": {
+        "default": "gy.duration"
+      },
+      "adaptive_hints": "Do not ask about pregnancy here — the doctor will. Record only what she says about the cycle itself."
+    },
+    {
+      "id": "gy.discharge",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "What is it like? Choose the one that fits best.",
+        "hi": "यह कैसा है? जो सबसे सही लगे वह चुनिए।",
+        "mr": "ते कसं आहे? जे सर्वात योग्य वाटेल ते निवडा.",
+        "te": "అది ఎలా ఉంది? బాగా సరిపోయేదాన్ని ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "itch",
+          "icon": "skin",
+          "text": {
+            "en": "Mostly itching or burning",
+            "hi": "ज़्यादातर खुजली या जलन",
+            "mr": "बहुतेक खाज किंवा जळजळ",
+            "te": "ఎక్కువగా దురద లేదా మంట"
+          }
+        },
+        {
+          "id": "smell",
+          "icon": "drop",
+          "text": {
+            "en": "Discharge with a bad smell",
+            "hi": "बदबूदार स्राव",
+            "mr": "दुर्गंधीयुक्त स्राव",
+            "te": "దుర్వాసనతో స్రావం"
+          }
+        },
+        {
+          "id": "urine",
+          "icon": "water",
+          "text": {
+            "en": "Burning when passing urine",
+            "hi": "पेशाब करते समय जलन",
+            "mr": "लघवी करताना जळजळ",
+            "te": "మూత్రం పోసేటప్పుడు మంట"
+          }
+        },
+        {
+          "id": "fever_pain",
+          "icon": "alert",
+          "text": {
+            "en": "With fever and lower stomach pain",
+            "hi": "बुखार और पेट के निचले हिस्से में दर्द के साथ",
+            "mr": "ताप आणि पोटाच्या खालच्या भागात दुखण्यासह",
+            "te": "జ్వరం మరియు కడుపు కింది భాగంలో నొప్పితో"
+          },
+          "flag": true
+        },
+        {
+          "id": "none",
+          "icon": "ok",
+          "text": {
+            "en": "None of these",
+            "hi": "इनमें से कोई नहीं",
+            "mr": "यापैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ కాదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "gy.duration"
+      },
+      "red_flag": {
+        "id": "gy.pelvic_infection",
+        "severity": "semi",
+        "label": {
+          "en": "Discharge with fever and pelvic pain",
+          "hi": "बुखार और पेडू के दर्द के साथ स्राव",
+          "mr": "ताप आणि ओटीपोटातील दुखण्यासह स्राव",
+          "te": "జ్వరం మరియు కటి నొప్పితో స్రావం"
+        },
+        "instruction": {
+          "en": "Please tell the staff at the desk that you have fever with this today.",
+          "hi": "कृपया डेस्क पर स्टाफ को बताएं कि आज इसके साथ बुखार भी है।",
+          "mr": "कृपया डेस्कवरील कर्मचाऱ्यांना सांगा की आज यासोबत तापही आहे.",
+          "te": "దయచేసి ఈ రోజు దీనితో పాటు జ్వరం ఉందని డెస్క్ వద్ద సిబ్బందికి చెప్పండి."
+        }
+      },
+      "adaptive_hints": "A private question in a public room. Do not repeat the answer back loudly."
+    },
+    {
+      "id": "gy.pain_severity",
+      "type": "scale",
+      "summary_role": "severity",
+      "text": {
+        "en": "How bad is the pain right now? Zero is no pain, ten is the worst.",
+        "hi": "अभी दर्द कितना है? शून्य मतलब दर्द नहीं, दस मतलब सबसे ज़्यादा।",
+        "mr": "आत्ता दुखणं किती आहे? शून्य म्हणजे दुखत नाही, दहा म्हणजे सर्वात जास्त.",
+        "te": "ఇప్పుడు నొప్పి ఎంత ఉంది? సున్నా అంటే నొప్పి లేదు, పది అంటే అత్యధికం."
+      },
+      "min": 0,
+      "max": 10,
+      "next": {
+        "default": "gy.duration"
+      }
+    },
+    {
       "id": "gy.duration",
       "type": "number",
       "summary_role": "duration",
@@ -167,10 +339,10 @@
       "id": "gy.words",
       "type": "free_voice",
       "text": {
-        "en": "Tell me in your own words what is happening.",
-        "hi": "अपने शब्दों में बताएं कि क्या हो रहा है।",
-        "mr": "काय होतंय ते तुमच्या शब्दांत सांगा.",
-        "te": "ఏం జరుగుతోందో మీ మాటల్లో చెప్పండి."
+        "en": "Is there anything else you want the doctor to know?",
+        "hi": "क्या कुछ और है जो आप डॉक्टर को बताना चाहती हैं?",
+        "mr": "डॉक्टरांना सांगायचं आणखी काही आहे का?",
+        "te": "డాక్టర్‌కు చెప్పాలనుకుంటున్న మరేదైనా ఉందా?"
       },
       "adaptive_hints": "Last node. This quote goes to the doctor verbatim."
     }

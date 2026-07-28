@@ -24,10 +24,15 @@ fi
 certbot certonly --non-interactive --agree-tos --email "$EMAIL" \
   --webroot -w /var/www/letsencrypt -d "$HOSTNAME"
 
+install -o root -g root -m 0644 \
+  "$SCRIPT_DIR/nginx/opd-proxy.conf" /etc/nginx/opd-proxy.conf
+
 # Bring up TLS without HSTS first. A bad certificate or proxy health must not
 # pin a broken HTTPS origin into clients for a year.
-sed "s/AWS_HOSTNAME/$HOSTNAME/g" "$SCRIPT_DIR/nginx/opd-tls.conf" |
-  grep -v Strict-Transport-Security >/etc/nginx/sites-available/opd.conf.next
+sed "s/AWS_HOSTNAME/$HOSTNAME/g" "$SCRIPT_DIR/nginx/opd-tls.conf" \
+  >/etc/nginx/sites-available/opd.conf.next
+normalize_nginx_http2_syntax /etc/nginx/sites-available/opd.conf.next
+sed -i '/Strict-Transport-Security/d' /etc/nginx/sites-available/opd.conf.next
 mv /etc/nginx/sites-available/opd.conf.next /etc/nginx/sites-available/opd.conf
 nginx -t
 systemctl reload nginx
@@ -35,6 +40,7 @@ curl -fsS "https://$HOSTNAME/api/health" >/dev/null
 
 sed "s/AWS_HOSTNAME/$HOSTNAME/g" "$SCRIPT_DIR/nginx/opd-tls.conf" \
   >/etc/nginx/sites-available/opd.conf.next
+normalize_nginx_http2_syntax /etc/nginx/sites-available/opd.conf.next
 mv /etc/nginx/sites-available/opd.conf.next /etc/nginx/sites-available/opd.conf
 nginx -t
 systemctl reload nginx

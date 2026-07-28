@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 fun SignInScreen(container: AppContainer, onEnvironment: () -> Unit = {}) {
     var phone by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+    var demoCode by remember { mutableStateOf<String?>(null) }
     var codeSent by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -111,7 +112,9 @@ fun SignInScreen(container: AppContainer, onEnvironment: () -> Unit = {}) {
                 enabled = phone.length >= 8 && !busy,
                 onClick = {
                     run {
-                        container.auth.requestOtp(phone)
+                        val response = container.auth.requestOtp(phone)
+                        demoCode = response.debugCode
+                        code = response.debugCode.orEmpty()
                         codeSent = true
                     }
                 },
@@ -126,6 +129,13 @@ fun SignInScreen(container: AppContainer, onEnvironment: () -> Unit = {}) {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("code_field"),
             )
             Spacer(Modifier.height(20.dp))
+            demoCode?.let {
+                WarningStamp(
+                    stringResource(R.string.signin_demo_code, it),
+                    Modifier.testTag("demo_code"),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
             BigButton(
                 text = stringResource(R.string.signin_verify),
                 enabled = code.length >= 4 && !busy,
@@ -136,12 +146,18 @@ fun SignInScreen(container: AppContainer, onEnvironment: () -> Unit = {}) {
             QuietButton(
                 text = stringResource(R.string.signin_resend),
                 enabled = !busy,
-                onClick = { run { container.auth.requestOtp(phone) } },
+                onClick = {
+                    run {
+                        val response = container.auth.requestOtp(phone)
+                        demoCode = response.debugCode
+                        code = response.debugCode.orEmpty()
+                    }
+                },
             )
             Spacer(Modifier.height(12.dp))
             QuietButton(
                 text = stringResource(R.string.cancel),
-                onClick = { codeSent = false; code = "" },
+                onClick = { codeSent = false; code = ""; demoCode = null },
             )
         }
 

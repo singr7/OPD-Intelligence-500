@@ -19,6 +19,7 @@
     <string name="signin_send">कोड पाठवा</string>
     <string name="signin_code_title">कोड टाका</string>
     <string name="signin_code_help">आम्ही तो %1$s वर पाठवला आहे.</string>
+    <string name="signin_demo_code">डेमो OTP: %1$s</string>
     <string name="signin_verify">माझी फाईल उघडा</string>
     <string name="signin_resend">पुन्हा पाठवा</string>
     <string name="signin_failed">हा कोड चालला नाही. आणखी एकदा प्रयत्न करू.</string>

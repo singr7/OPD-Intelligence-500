@@ -66,13 +66,16 @@ class BoardEntryOut(BaseModel):
     priority: str
     priority_reason: str | None = None
     red_flag: bool = False
+    patient_name: str | None = None
 
 
 class BoardDeptOut(BaseModel):
     department_key: str
     department_name: str
+    doctor_name: str | None = None
     now_serving: int | None
     now_serving_reason: str | None
+    now_serving_name: str | None = None
     next: list[BoardEntryOut]
     waiting_count: int
     est_wait_low: int
@@ -92,11 +95,13 @@ class ConsoleEntryOut(BaseModel):
     state: str
     chief_complaint: str | None
     red_flag_count: int
+    patient_name: str | None = None
 
 
 class ConsoleDeptOut(BaseModel):
     department_key: str
     department_name: str
+    doctor_name: str | None = None
     entries: list[ConsoleEntryOut]
 
 
@@ -177,14 +182,17 @@ async def get_board(
             BoardDeptOut(
                 department_key=b.department_key,
                 department_name=b.department_name,
+                doctor_name=b.doctor_name,
                 now_serving=b.now_serving,
                 now_serving_reason=b.now_serving_reason,
+                now_serving_name=b.now_serving_name,
                 next=[
                     BoardEntryOut(
                         token_no=e.token_no,
                         priority=e.priority.value,
                         priority_reason=e.priority_reason,
                         red_flag=e.red_flag_count > 0,
+                        patient_name=e.patient_name,
                     )
                     for e in b.next_tokens
                 ],
@@ -244,6 +252,7 @@ async def get_console(
             ConsoleDeptOut(
                 department_key=b.department_key,
                 department_name=b.department_name,
+                doctor_name=b.doctor_name,
                 entries=[
                     ConsoleEntryOut(
                         id=e.id,
@@ -253,6 +262,7 @@ async def get_console(
                         state=e.state.value,
                         chief_complaint=e.chief_complaint,
                         red_flag_count=e.red_flag_count,
+                        patient_name=e.patient_name,
                     )
                     for e in entries
                 ],

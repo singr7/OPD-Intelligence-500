@@ -28,6 +28,7 @@
     <string name="signin_send">Send code</string>
     <string name="signin_code_title">Enter the code</string>
     <string name="signin_code_help">We sent it to %1$s.</string>
+    <string name="signin_demo_code">Demo OTP: %1$s</string>
     <string name="signin_verify">Open my file</string>
     <string name="signin_resend">Send it again</string>
     <string name="signin_failed">That code did not work. Let\'s try once more.</string>

@@ -18,6 +18,22 @@ export type KioskNode = {
   unit: string | null;
   audio: string | null;
   summary_role: SummaryRole | null;
+  // How many questions are left on the tree's default path, counting this one —
+  // the honest progress number (S-UX.6). Null from an older server.
+  remaining?: number | null;
+  // True when this node invites a spoken answer: a free-text node always, a tap
+  // node only in the closing pair. The mic is drawn from this and nothing else.
+  voice_input?: boolean;
+};
+
+/** Who the intake is for (S-UX.6). Collected once, on the details screen, before
+ *  the clinical walk — so the token slip, the queue and the prescription all name
+ *  the same person instead of "Walk-in patient". */
+export type PatientDetails = {
+  name: string;
+  age: number | null;
+  sex: "male" | "female" | "other" | null;
+  phone: string;
 };
 
 export type Dept = { key: string; name: string };
@@ -123,6 +139,9 @@ export type SyncBody = {
     chief_complaint: string | null;
     caregiver: boolean;
     patient_name: string;
+    patient_age: number | null;
+    patient_sex: string | null;
+    patient_phone: string | null;
     completed_at: string;
   }[];
 };
@@ -146,6 +165,9 @@ export const kioskApi = {
     chief_complaint: string;
     caregiver: boolean;
     patient_name: string;
+    patient_age: number | null;
+    patient_sex: string | null;
+    patient_phone: string | null;
     dept_key?: string;
   }) {
     return post<StartResult>("/kiosk/start", input);

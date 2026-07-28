@@ -33,10 +33,38 @@ from app.intake.state import SessionState, SessionStatus, SessionStore
 from app.intake.summary import IntakeSummary, Summarizer
 from app.models.enums import Lang
 from app.prompts.tools import INTAKE_TOOLS_BY_NAME, tool
-from app.trees.schema import Tree
+from app.trees.schema import NodeType, Tree
 from app.trees.walker import AnswerError, Walk
 
 logger = logging.getLogger(__name__)
+
+#: How many questions at the end of a tree invite a spoken answer (S-UX.6).
+#: The closing pair is where a patient has something to add that the taps cannot
+#: hold; a microphone on every yes/no screen in between is noise a nervous person
+#: reads as "you are supposed to talk to this machine".
+VOICE_TAIL_QUESTIONS = 2
+
+
+def remaining_questions(tree: Tree, node_id: str) -> int:
+    """How many questions are left, counting `node_id`, on the default path.
+
+    The default chain, not the branch the patient will actually take: the branch
+    depends on an answer that has not happened yet. It is therefore an honest
+    estimate for a progress bar, and — being derived from the tree rather than a
+    counter — it cannot drift from the walk the way a client-side step number does.
+    The tree validator rejects cycles, so this always terminates.
+    """
+    count = 0
+    seen: set[str] = set()
+    current: str | None = node_id
+    while current is not None and current not in seen and count < len(tree.nodes) + 1:
+        seen.add(current)
+        node = tree.nodes.get(current)
+        if node is None:
+            break
+        count += 1
+        current = node.next.get("default")
+    return count
 
 
 class ToolError(ValueError):
@@ -120,6 +148,7 @@ class ToolDispatcher:
         if node is None:
             return {"complete": True, "node": None}
         lang = self.state.lang
+        remaining = remaining_questions(self.tree, node.id)
         return {
             "complete": False,
             "node": {
@@ -140,6 +169,10 @@ class ToolDispatcher:
                 "audio": node.audio_clip(lang),
                 "summary_role": (
                     str(node.summary_role) if node.summary_role is not None else None
+                ),
+                "remaining": remaining,
+                "voice_input": (
+                    node.type is NodeType.FREE_VOICE or remaining <= VOICE_TAIL_QUESTIONS
                 ),
             },
         }

@@ -22,10 +22,38 @@ export const CONSOLE_CSS = `
 .appbar kbd.hint { font: 600 12px/1 var(--font-sans), monospace; color: #c5d1cd;
   border: 1px solid #4a5b56; border-bottom-width: 2px; border-radius: 5px;
   padding: 4px 7px; background: var(--shell-raised); }
-.callnext { border: none; background: var(--brand); color: #fff; font-weight: 700;
-  font-size: 14px; min-height: 40px; padding: 0 17px; border-radius: var(--radius-control); cursor: pointer; }
-.callnext:disabled { opacity: .55; cursor: default; }
+.appbar-count { font-size: 13px; color: #b9c7c2; }
+.appbar-count b { font-size: 16px; color: #fff; font-variant-numeric: tabular-nums; }
 .signout { border: none; background: none; color: #b9c7c2; cursor: pointer; font-size: 13px; }
+
+/* ---- the encounter bar (S-UX.6) ---------------------------------------- */
+/* One strip, directly above the card: what state this encounter is in, and the
+   one thing to press next. It is the only place on the console where a filled
+   button appears, so "filled" always means "this is the next step". */
+.encounter { max-width: 1100px; margin: 0 auto 14px; display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 12px 18px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line);
+  border-radius: var(--radius-panel); }
+.encounter[data-state="called"] { border-left-color: var(--info); }
+.encounter[data-state="in_consult"] { border-left-color: var(--brand); }
+.encounter[data-state="lab_requeue"] { border-left-color: var(--attention); }
+.encounter[data-state="done"], .encounter[data-state="no_show"] { border-left-color: var(--border-strong); }
+.enc-who { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.enc-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+.enc-dot.live { background: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+.enc-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.enc-text strong { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: .005em; }
+.enc-text span { font-size: 14px; color: var(--ink-soft); }
+.enc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.enc-actions .act { display: inline-flex; align-items: center; gap: 7px; }
+.enc-actions .act.quiet { background: none; border-color: transparent; color: var(--ink-soft);
+  font-weight: 600; }
+.enc-actions .act.quiet:hover { border-color: var(--line); color: var(--ink); }
+.enc-actions .act.primary .hint { border-color: rgba(255,255,255,.45); color: #fff;
+  background: rgba(255,255,255,.16); }
+.enc-actions .hint { font: 700 11px/1 var(--font-sans), monospace; color: var(--text-muted);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
+  padding: 3px 5px; background: var(--canvas); }
 
 .err-toast { margin: 14px 22px 0; background: var(--danger-soft); color: var(--danger);
   border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; }
@@ -207,16 +235,17 @@ export const CONSOLE_CSS = `
 
 @media (max-width: 600px) {
   .appbar { padding: 10px 14px; align-items: flex-start; }
-  .appbar .room, .appbar kbd.hint { display: none; }
-  .callnext { padding: 0 12px; }
+  .appbar .room { display: none; }
   .signout { display: none; }
   .stage { padding: 10px; }
+  .encounter { align-items: stretch; }
+  .enc-actions { width: 100%; }
+  .enc-actions .act { flex: 1 1 auto; justify-content: center; }
+  .enc-actions .hint { display: none; }
   .who { padding: 16px 16px 0; }
   .who h1 { font-size: 22px; }
   .concern, .own-words, .unclear, .fold { margin-left: 16px; margin-right: 16px; }
   .symptoms { width: calc(100% - 32px); margin-left: 16px; margin-right: 16px; }
-  .actions { padding-left: 16px; padding-right: 16px; }
-  .act.note-action { margin-left: 0; }
   .timeline li { grid-template-columns: 1fr; gap: 3px; }
 }
 `;

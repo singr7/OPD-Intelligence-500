@@ -6,7 +6,7 @@ Use only non-PHI identifiers in the drill record.
 ## Fixed environments
 
 - Omen: `https://omen.opd.radpretation.ai`
-- AWS: `https://aws.opd.radpretation.ai`
+- AWS: `https://opd-cloud.radpretation.ai`
 - stable Android/pairing alias: `https://opd.radpretation.ai`
 
 ## Before the first drill

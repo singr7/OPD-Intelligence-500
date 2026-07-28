@@ -15,13 +15,16 @@ export type BoardEntry = {
   priority: Priority;
   priority_reason: string | null;
   red_flag: boolean;
+  patient_name: string | null;
 };
 
 export type BoardDept = {
   department_key: string;
   department_name: string;
+  doctor_name: string | null;
   now_serving: number | null;
   now_serving_reason: string | null;
+  now_serving_name: string | null;
   next: BoardEntry[];
   waiting_count: number;
   est_wait_low: number;
@@ -41,11 +44,13 @@ export type ConsoleEntry = {
   state: "waiting" | "called" | "in_consult" | "done" | "no_show" | "lab_requeue";
   chief_complaint: string | null;
   red_flag_count: number;
+  patient_name: string | null;
 };
 
 export type ConsoleDept = {
   department_key: string;
   department_name: string;
+  doctor_name: string | null;
   entries: ConsoleEntry[];
 };
 

@@ -1,10 +1,8 @@
 # HANDOFF — after SESSION-ANDROID1
 
-**Repo state:** branch `android-pairing-release`; final close commit is the branch
-tip. Focused Android, backend environment, release-manifest, deployment-contract,
-ShellCheck, web production-build, secret-scan, and diff-hygiene gates are green.
-The pre-existing `web/tsconfig.tsbuildinfo` modification remains intentionally
-uncommitted. The full application suite was not repeated at the user's direction.
+**Repo state:** the VOICE1 → CLOUD1 → ANDROID1 chain is consolidated on `main`.
+The generated `web/tsconfig.tsbuildinfo` is no longer tracked. Live AWS preparation
+continues on `aws-ubuntu-live-prep` for `opd-cloud.radpretation.ai`.
 
 ANDROID1's repository work is complete: one allow-listed Omen/AWS app, server
 identity probing, auth/cache reset on switching, environment-owned offline PII,
@@ -57,6 +55,10 @@ tablet was available. Before calling VOICE1/CLOUD1/ANDROID1 released:
 
 ## Backlog additions
 
+- Plan returning, referred, results-only, and short-follow-up arrival paths before
+  changing intake behavior. Keep the live rail through read-back and make “anything
+  else for the doctor” durable and visible. The bounded planning brief is
+  `sessions/SESSION-INTAKE-CONTINUITY-PLAN.md`.
 - Add CI-held release-signing integration only if the organization can provide
   hardware-backed or equivalently controlled key custody without exposing secrets
   to repository logs or artifacts.

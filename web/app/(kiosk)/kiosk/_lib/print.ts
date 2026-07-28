@@ -29,6 +29,9 @@ export type Slip = {
   tokenNo: number | null;
   departmentName: string;
   hospitalName: string;
+  /** Who the token belongs to (S-UX.6). Blank on an older intake that never
+   *  collected a name — the slip then reads as it always did, by number alone. */
+  patientName?: string;
   /** ISO time the token was issued. */
   issuedAt: string;
   /** true when the intake raised a red flag — the slip says "show this at the
@@ -80,6 +83,7 @@ export function escposSlip(slip: Slip): Uint8Array {
   line(slip.hospitalName);
   bytes.push(...BOLD_OFF);
   line(slip.departmentName);
+  if (slip.patientName) line(slip.patientName);
   bytes.push(...FEED(1));
 
   // The token, the biggest thing on the slip — it is what the patient watches

@@ -32,7 +32,7 @@ APKSIGNER="$BUILD_TOOLS/apksigner"
 
 OUTPUT_DIR="${OPD_RELEASE_OUTPUT:-$ANDROID_ROOT/release}"
 install -d -m 0750 "$OUTPUT_DIR"
-VERSION="1.0.0-android1"
+VERSION="1.0.1-demo1"
 OUT_APK="$OUTPUT_DIR/opd-patient-$VERSION.apk"
 cp "$APK" "$OUT_APK"
 "$APKSIGNER" verify --verbose --print-certs "$OUT_APK" >"$OUTPUT_DIR/apksigner-report.txt"
@@ -42,7 +42,7 @@ CERTIFICATE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$OUTPUT_DI
 [[ "$CERTIFICATE" =~ ^[0-9a-fA-F]{64}$ ]]
 python3 "$SCRIPT_DIR/release_manifest.py" \
   --output "$OUTPUT_DIR/opd-patient-$VERSION.json" \
-  --version-code 2 \
+  --version-code 3 \
   --version-name "$VERSION" \
   --release-sha "$RELEASE_SHA" \
   --apk "$OUT_APK" \

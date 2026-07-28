@@ -10,7 +10,8 @@ WRITER_ENV="${WRITER_ENV:-$OPD_RUNTIME/writer.env}"
 RELEASES_DIR="${RELEASES_DIR:-$OPD_RUNTIME/releases}"
 
 compose() {
-  docker compose --env-file "$APPLICATION_ENV" --env-file "$WRITER_ENV" -f "$COMPOSE_FILE" "$@"
+  docker compose --env-file "$APPLICATION_ENV" --env-file "$WRITER_ENV" \
+    --env-file "$OPD_RUNTIME/release.env" -f "$COMPOSE_FILE" "$@"
 }
 
 require_root() {
@@ -27,6 +28,20 @@ require_sha() {
   fi
 }
 
+normalize_nginx_http2_syntax() {
+  local config_file="$1"
+  local nginx_version
+  nginx_version="$(nginx -v 2>&1)"
+  nginx_version="${nginx_version#nginx version: nginx/}"
+  if dpkg --compare-versions "$nginx_version" ge 1.25.1; then
+    sed -i \
+      -e 's/listen 443 ssl http2;/listen 443 ssl;/' \
+      -e 's/listen \[::\]:443 ssl http2;/listen [::]:443 ssl;/' \
+      "$config_file"
+    sed -i '/listen \[::\]:443 ssl;/a\    http2 on;' "$config_file"
+  fi
+}
+
 load_env() {
   if [[ ! -r "$APPLICATION_ENV" || ! -r "$WRITER_ENV" ]]; then
     echo "runtime environment files are missing" >&2
@@ -37,12 +52,48 @@ load_env() {
   source "$APPLICATION_ENV"
   # shellcheck disable=SC1090
   source "$WRITER_ENV"
+  if [[ -r "$OPD_RUNTIME/release.env" ]]; then
+    # shellcheck disable=SC1090,SC1091
+    source "$OPD_RUNTIME/release.env"
+  fi
   set +a
   if [[ ! "${POSTGRES_USER:-opd}" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] ||
     [[ ! "${POSTGRES_DB:-opd}" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then
     echo "POSTGRES_USER and POSTGRES_DB must be simple PostgreSQL identifiers" >&2
     exit 2
   fi
+  OPD_IMAGE_SOURCE="${OPD_IMAGE_SOURCE:-ecr}"
+  if [[ "$OPD_IMAGE_SOURCE" != "ecr" && "$OPD_IMAGE_SOURCE" != "local" ]]; then
+    echo "OPD_IMAGE_SOURCE must be ecr or local" >&2
+    exit 2
+  fi
+  export OPD_IMAGE_SOURCE
+  IMAGE_TAG="${IMAGE_TAG:-${RELEASE_SHA:-}}"
+  if [[ -n "$IMAGE_TAG" ]]; then
+    require_sha "$IMAGE_TAG"
+    export IMAGE_TAG
+  fi
+}
+
+prepare_release_images() {
+  : "${ECR_REGISTRY:?set ECR_REGISTRY image namespace}"
+  case "$OPD_IMAGE_SOURCE" in
+    ecr)
+      : "${AWS_REGION:?set AWS_REGION}"
+      aws ecr get-login-password --region "$AWS_REGION" |
+        docker login --username AWS --password-stdin "$ECR_REGISTRY"
+      compose pull api voice-gw worker beat web
+      ;;
+    local)
+      local image
+      for image in api voice-gw worker web; do
+        docker image inspect "$ECR_REGISTRY/opd-$image:$IMAGE_TAG" >/dev/null || {
+          echo "missing local release image: $ECR_REGISTRY/opd-$image:$IMAGE_TAG" >&2
+          exit 3
+        }
+      done
+      ;;
+  esac
 }
 
 writer_setting() {
@@ -64,6 +115,19 @@ write_writer_env() {
   chown root:root "$WRITER_ENV.tmp"
   chmod 0600 "$WRITER_ENV.tmp"
   mv "$WRITER_ENV.tmp" "$WRITER_ENV"
+}
+
+write_release_env() {
+  local sha="$1"
+  require_sha "$sha"
+  umask 077
+  {
+    printf 'IMAGE_TAG=%s\n' "$sha"
+    printf 'RELEASE_SHA=%s\n' "$sha"
+  } >"$OPD_RUNTIME/release.env.tmp"
+  chown root:root "$OPD_RUNTIME/release.env.tmp"
+  chmod 0600 "$OPD_RUNTIME/release.env.tmp"
+  mv "$OPD_RUNTIME/release.env.tmp" "$OPD_RUNTIME/release.env"
 }
 
 set_database_read_only() {

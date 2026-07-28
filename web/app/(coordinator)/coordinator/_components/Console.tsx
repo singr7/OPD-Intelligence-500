@@ -261,7 +261,10 @@ function DeptQueue({
   return (
     <section className="dept">
       <div className="dept-head">
-        <h2>{dept.department_name}</h2>
+        <h2>
+          {dept.department_name}
+          {dept.doctor_name && <em className="dept-doc">{dept.doctor_name}</em>}
+        </h2>
         <button
           className="call-next"
           onClick={() => onAction(() => callNext(token, dept.department_key))}
@@ -299,6 +302,9 @@ function DeptQueue({
                   <span className="chip-flag">{entry.red_flag_count} red flag{entry.red_flag_count > 1 ? "s" : ""}</span>
                 )}
               </div>
+              {/* The name first: a coordinator moving the line is calling people,
+                  not numbers (S-UX.6). */}
+              {entry.patient_name && <div className="pname">{entry.patient_name}</div>}
               <div className="chief">{entry.chief_complaint || "—"}</div>
             </div>
 

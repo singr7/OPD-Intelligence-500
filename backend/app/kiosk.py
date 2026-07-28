@@ -41,7 +41,13 @@ from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
-from app.patient_names import PatientNameError, normalize_patient_name
+from app.patient_names import (
+    PatientNameError,
+    normalize_patient_age,
+    normalize_patient_name,
+    normalize_patient_phone,
+    normalize_patient_sex,
+)
 from app.routing import DepartmentGuess, DepartmentOption, classify_department
 from app.trees import bank, store
 from app.trees.schema import Tree
@@ -151,11 +157,18 @@ async def create_walk_in(
     tree: Tree,
     caregiver: bool = False,
     patient_name: str | None = None,
+    patient_age: int | None = None,
+    patient_sex: str | None = None,
+    patient_phone: str | None = None,
 ) -> WalkIn:
     """Create the named walk-in patient, visit and intake for a kiosk session.
 
     ``patient_name=None`` retains the rollout-safe fallback for an older kiosk.
     ``mrn`` remains a generated walk-in key, not a registered hospital MRN.
+
+    Age, sex and phone are the S-UX.6 registration facts the kiosk now collects
+    before the clinical walk. They are optional and normalised (never rejected):
+    a demographic typo must not cost the patient their place in the queue.
     """
     try:
         name = normalize_patient_name(patient_name)
@@ -165,7 +178,9 @@ async def create_walk_in(
         hospital_id=department.hospital_id,
         mrn=f"WALKIN-{uuid.uuid4().hex[:10].upper()}",
         name=name,
-        phone="",
+        phone=normalize_patient_phone(patient_phone),
+        age=normalize_patient_age(patient_age),
+        sex=normalize_patient_sex(patient_sex),
         lang=lang,
         # Kept alongside `Intake.caregiver_answered` (the real flag since S16):
         # on an anonymous walk-in there is no registered caregiver name to
