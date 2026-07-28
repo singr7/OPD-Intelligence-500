@@ -29,7 +29,7 @@ esac
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl gnupg git jq nginx certbot \
+apt-get install -y ca-certificates curl gnupg git jq nginx certbot openssl \
   python3 python3-certbot-nginx unzip awscli
 
 if ! command -v docker >/dev/null; then
@@ -59,4 +59,4 @@ fi
 
 echo
 echo "Ubuntu host preparation complete for $PUBLIC_HOSTNAME."
-echo "Next: fetch the root-only runtime secret, deploy a full-SHA release, point DNS, then enable TLS."
+echo "Next: create the root-only runtime env, build/deploy a full-SHA release, point DNS, then enable TLS."

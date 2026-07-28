@@ -35,10 +35,22 @@ done
 
 grep -q 'linux/amd64,linux/arm64' "$SCRIPT_DIR/build-release.sh"
 grep -q 'git status --porcelain' "$SCRIPT_DIR/build-release.sh"
+grep -q 'git.*status --porcelain' "$SCRIPT_DIR/build-local-release.sh"
+grep -q 'opd-local' "$SCRIPT_DIR/build-local-release.sh"
+grep -q 'prepare_release_images' "$SCRIPT_DIR/deploy.sh"
+grep -q 'write_release_env' "$SCRIPT_DIR/rollback.sh"
 if grep -qE '(^|:)latest([[:space:]]|$)' "$SCRIPT_DIR/compose.yml"; then
   echo "mutable latest tag leaked into AWS Compose" >&2
   exit 1
 fi
+
+LOCAL_CONFIG="$TEST_RUNTIME/compose.local.rendered.yml"
+OPD_RUNTIME="$TEST_RUNTIME" \
+ECR_REGISTRY="opd-local" \
+IMAGE_TAG="0123456789abcdef0123456789abcdef01234567" \
+POSTGRES_PASSWORD="test-only" \
+docker compose -f "$SCRIPT_DIR/compose.yml" config >"$LOCAL_CONFIG"
+grep -q 'opd-local/opd-api:0123456789abcdef0123456789abcdef01234567' "$LOCAL_CONFIG"
 
 grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-tls.conf"
 if grep -q 'Strict-Transport-Security' "$SCRIPT_DIR/nginx/opd-http.conf"; then

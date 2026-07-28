@@ -10,8 +10,10 @@ IMAGE_TAG="$1"
 load_env
 export IMAGE_TAG
 
-compose pull api voice-gw worker beat web
+prepare_release_images
+write_release_env "$IMAGE_TAG"
 compose up -d --wait api voice-gw worker beat web
 curl -fsS http://127.0.0.1:18080/health >/dev/null
+curl -fsS http://127.0.0.1:18080/environment | grep -q "$IMAGE_TAG"
 printf '%s\n' "$IMAGE_TAG" >"$RELEASES_DIR/current-sha"
 echo "application rolled back to $IMAGE_TAG; data volume and writer state unchanged"

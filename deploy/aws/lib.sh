@@ -43,6 +43,33 @@ load_env() {
     echo "POSTGRES_USER and POSTGRES_DB must be simple PostgreSQL identifiers" >&2
     exit 2
   fi
+  OPD_IMAGE_SOURCE="${OPD_IMAGE_SOURCE:-ecr}"
+  if [[ "$OPD_IMAGE_SOURCE" != "ecr" && "$OPD_IMAGE_SOURCE" != "local" ]]; then
+    echo "OPD_IMAGE_SOURCE must be ecr or local" >&2
+    exit 2
+  fi
+  export OPD_IMAGE_SOURCE
+}
+
+prepare_release_images() {
+  : "${ECR_REGISTRY:?set ECR_REGISTRY image namespace}"
+  case "$OPD_IMAGE_SOURCE" in
+    ecr)
+      : "${AWS_REGION:?set AWS_REGION}"
+      aws ecr get-login-password --region "$AWS_REGION" |
+        docker login --username AWS --password-stdin "$ECR_REGISTRY"
+      compose pull api voice-gw worker beat web
+      ;;
+    local)
+      local image
+      for image in api voice-gw worker web; do
+        docker image inspect "$ECR_REGISTRY/opd-$image:$IMAGE_TAG" >/dev/null || {
+          echo "missing local release image: $ECR_REGISTRY/opd-$image:$IMAGE_TAG" >&2
+          exit 3
+        }
+      done
+      ;;
+  esac
 }
 
 writer_setting() {
@@ -64,6 +91,16 @@ write_writer_env() {
   chown root:root "$WRITER_ENV.tmp"
   chmod 0600 "$WRITER_ENV.tmp"
   mv "$WRITER_ENV.tmp" "$WRITER_ENV"
+}
+
+write_release_env() {
+  local sha="$1"
+  require_sha "$sha"
+  umask 077
+  printf 'RELEASE_SHA=%s\n' "$sha" >"$OPD_RUNTIME/release.env.tmp"
+  chown root:root "$OPD_RUNTIME/release.env.tmp"
+  chmod 0600 "$OPD_RUNTIME/release.env.tmp"
+  mv "$OPD_RUNTIME/release.env.tmp" "$OPD_RUNTIME/release.env"
 }
 
 set_database_read_only() {

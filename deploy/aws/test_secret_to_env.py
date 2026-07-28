@@ -27,6 +27,7 @@ class SecretToEnvTests(unittest.TestCase):
             "PUBLIC_HOSTNAME": "aws.opd.example.invalid",
             "ENVIRONMENT_ID": "aws",
             "ENVIRONMENT_NAME": "AWS standby",
+            "OPD_IMAGE_SOURCE": "ecr",
         }
 
     def convert(self, payload: dict[str, str]) -> tuple[int, str, int]:
