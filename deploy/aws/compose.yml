@@ -1,0 +1,140 @@
+name: opd-aws
+
+x-app: &app
+  env_file:
+    - ${OPD_RUNTIME:-/opt/opd/runtime}/application.env
+    - ${OPD_RUNTIME:-/opt/opd/runtime}/writer.env
+  restart: unless-stopped
+  stop_grace_period: 45s
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+
+x-backend: &backend
+  <<: *app
+  image: ${ECR_REGISTRY:?set ECR_REGISTRY}/opd-api:${IMAGE_TAG:?set immutable IMAGE_TAG}
+  environment:
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-opd}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opd}
+    REDIS_URL: redis://redis:6379/0
+  volumes:
+    - ../../config:/config:ro
+    - ../../seeds:/seeds:ro
+
+services:
+  postgres:
+    image: postgres:16.4
+    <<: *app
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-opd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-opd}
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opd} -d ${POSTGRES_DB:-opd}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 3g
+
+  redis:
+    image: redis:7.4.1
+    <<: *app
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "768mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - /data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    mem_limit: 1g
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["migration"]
+
+  api:
+    <<: *backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18080:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 2g
+
+  voice-gw:
+    <<: *app
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/opd-voice-gw:${IMAGE_TAG:?set immutable IMAGE_TAG}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-opd}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opd}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../../config:/app/config:ro
+      - ../../seeds:/app/seeds:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 2g
+
+  worker:
+    <<: *backend
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/opd-worker:${IMAGE_TAG:?set immutable IMAGE_TAG}
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 2g
+
+  beat:
+    <<: *backend
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/opd-worker:${IMAGE_TAG:?set immutable IMAGE_TAG}
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+
+  web:
+    <<: *app
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/opd-web:${IMAGE_TAG:?set immutable IMAGE_TAG}
+    environment:
+      NEXT_PUBLIC_API_BASE: /api
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:13000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 2g
