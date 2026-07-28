@@ -37,11 +37,26 @@ docker build --pull --label "$COMMON_LABEL" \
   -t "$ECR_REGISTRY/opd-worker:$IMAGE_TAG" backend
 docker build --pull --label "$COMMON_LABEL" -f voice-gw/Dockerfile \
   -t "$ECR_REGISTRY/opd-voice-gw:$IMAGE_TAG" .
+# Server voice is the default and the right posture: the clip is transcribed and
+# the read-aloud synthesised on the box, so patient audio never reaches a browser
+# vendor. It requires an STT/TTS provider to actually be configured — this stack
+# ships no Whisper or local TTS container, so an unconfigured host falls to the
+# `fake` providers, which return a canned transcript and silence. That looks
+# exactly like a broken microphone.
+#
+# On a disposable synthetic-data box with no provider configured, set these to 0
+# to fall back to the browser's own Web Speech and get a working demo:
+#
+#   KIOSK_SERVER_STT=0 KIOSK_SERVER_TTS=0 sudo -E build-local-release.sh <sha>
+#
+# Chrome's recogniser ships the audio to Google. That is acceptable for synthetic
+# data and is NOT acceptable once real patients speak into this. Never ship 0 to a
+# host that could receive PHI.
 docker build --pull --label "$COMMON_LABEL" \
   --build-arg "NEXT_PUBLIC_API_BASE=https://$PUBLIC_HOSTNAME/api" \
-  --build-arg NEXT_PUBLIC_KIOSK_SERVER_STT=1 \
-  --build-arg NEXT_PUBLIC_KIOSK_SERVER_TTS=1 \
-  --build-arg NEXT_PUBLIC_KIOSK_ADAPTIVE=1 \
+  --build-arg "NEXT_PUBLIC_KIOSK_SERVER_STT=${KIOSK_SERVER_STT:-1}" \
+  --build-arg "NEXT_PUBLIC_KIOSK_SERVER_TTS=${KIOSK_SERVER_TTS:-1}" \
+  --build-arg "NEXT_PUBLIC_KIOSK_ADAPTIVE=${KIOSK_ADAPTIVE:-1}" \
   -t "$ECR_REGISTRY/opd-web:$IMAGE_TAG" web
 
 declare -A IDS

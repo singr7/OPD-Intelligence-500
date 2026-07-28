@@ -38,6 +38,7 @@ import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offlin
 import { printSlip } from "./_lib/print";
 import {
   cancelSpeech,
+  kioskAdaptiveEnabled,
   listen,
   recordToServer,
   serverSttEnabled,
@@ -1026,10 +1027,20 @@ function QuestionScreen({
   const [num, setNum] = useState<number>(node.min ?? 0);
   const [text, setText] = useState("");
 
-  // Where the microphone belongs (S-UX.6). The server decides — a free-text node
-  // always, a tap node only in the closing pair — so the kiosk never has to guess
-  // from a step counter, and offline the ported walker computes the same answer.
-  const voiceInvited = node.voice_input ?? node.type === "free_voice";
+  // Where the microphone belongs (S-UX.6). Two gates, and both must pass.
+  //
+  // *Where*: the server decides — a free-text node always, a tap node only in the
+  // closing pair — so the kiosk never guesses from a step counter, and offline the
+  // ported walker computes the same answer.
+  //
+  // *Whether at all*: `kioskAdaptiveEnabled()` — the build flag, server-STT and a
+  // real recorder. Without it there is nothing behind the mic, and a dead
+  // microphone is worse than no microphone: the patient presses it, nothing
+  // happens, and they conclude the machine is broken rather than that they should
+  // tap. S-UX.6 dropped this gate by accident; it is the reason a box with no STT
+  // provider still showed a mic on the closing questions.
+  const voiceInvited =
+    (node.voice_input ?? node.type === "free_voice") && kioskAdaptiveEnabled();
 
   // Everything on the screen is also spoken, options included (doc 04 law 12).
   // A patient who cannot read the choices has not been offered them.
