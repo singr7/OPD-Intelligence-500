@@ -21,6 +21,7 @@ import { expect, test } from "@playwright/test";
 const API = process.env.API_BASE ?? "http://127.0.0.1:8123";
 const SHOTS = "screenshots/sgl1";
 const ADMIN_PHONE = "+915550000001"; // seeded Priya Sharma (admin)
+let cachedAccessToken: string | null = null;
 
 type Ctx = import("@playwright/test").APIRequestContext;
 type Pg = import("@playwright/test").Page;
@@ -28,10 +29,12 @@ type Pg = import("@playwright/test").Page;
 test.describe.configure({ mode: "serial" });
 
 async function loginToken(request: Ctx): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
   const req = await request.post(`${API}/auth/otp/request`, { data: { phone: ADMIN_PHONE } });
   const code = (await req.json()).debug_code as string;
   const ver = await request.post(`${API}/auth/otp/verify`, { data: { phone: ADMIN_PHONE, code } });
-  return (await ver.json()).access_token as string;
+  cachedAccessToken = (await ver.json()).access_token as string;
+  return cachedAccessToken;
 }
 
 async function signedIn(page: Pg, token: string) {
@@ -67,10 +70,17 @@ async function publish(request: Ctx, token: string, open: Record<string, boolean
 }
 
 test("the Channels tab shows what is open and why the rest is not", async ({ page, request }) => {
-  await signedIn(page, await loginToken(request));
+  const token = await loginToken(request);
+  await publish(
+    request,
+    token,
+    { kiosk: true, phone: true, whatsapp: true, app: true },
+    "E2E baseline: all channels open",
+  );
+  await signedIn(page, token);
   await page.click("nav button:has-text('Channels')");
 
-  await expect(page.locator("section h2").first()).toHaveText("Channels");
+  await expect(page.locator("main section h2").first()).toHaveText("Channels");
   // The first table is the channel list; the second is the version rail.
   await expect(page.locator("table").first().locator("tbody tr")).toHaveCount(4);
   await page.screenshot({ path: `${SHOTS}/01-channels.png`, fullPage: true });
@@ -97,8 +107,9 @@ test("kiosk-first: closing the other three from the console shuts them politely"
   // The console's own view agrees: one channel open, three closed, and each
   // closed row says which of the two problems it has.
   await expect(page.locator(".notice").first()).toContainText("Open now: Kiosk");
-  await expect(page.locator("tr:has-text('WhatsApp') .pill.bad")).toHaveText("Closed");
-  await expect(page.locator("tr:has-text('WhatsApp')")).toContainText("switched off");
+  const whatsappRow = page.locator("table").first().locator("tr:has-text('WhatsApp')");
+  await expect(whatsappRow.locator(".pill.bad")).toHaveText("Closed");
+  await expect(whatsappRow).toContainText("switched off");
   await page.screenshot({ path: `${SHOTS}/03-kiosk-only.png`, fullPage: true });
 
   // 1. WhatsApp: Meta still gets its 200 — a non-200 makes it redeliver forever —
