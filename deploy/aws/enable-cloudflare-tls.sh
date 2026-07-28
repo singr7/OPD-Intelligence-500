@@ -50,6 +50,8 @@ chown root:root "$CERTIFICATE" "$PRIVATE_KEY"
 chmod 0644 "$CERTIFICATE"
 chmod 0600 "$PRIVATE_KEY"
 
+install -o root -g root -m 0644 \
+  "$SCRIPT_DIR/nginx/opd-proxy.conf" /etc/nginx/opd-proxy.conf
 "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
 
 TMP_DIR="$(mktemp -d)"
@@ -59,6 +61,7 @@ sed \
   -e "s|TLS_CERTIFICATE_KEY|$PRIVATE_KEY|g" \
   -e "s|TLS_CERTIFICATE|$CERTIFICATE|g" \
   "$SCRIPT_DIR/nginx/opd-cloudflare-tls.conf" >"$TMP_DIR/opd.conf"
+normalize_nginx_http2_syntax "$TMP_DIR/opd.conf"
 
 # Start HTTPS without HSTS. This local request deliberately bypasses public DNS
 # and certificate trust; certificate lifetime and key matching were checked above.

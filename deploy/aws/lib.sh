@@ -28,6 +28,20 @@ require_sha() {
   fi
 }
 
+normalize_nginx_http2_syntax() {
+  local config_file="$1"
+  local nginx_version
+  nginx_version="$(nginx -v 2>&1)"
+  nginx_version="${nginx_version#nginx version: nginx/}"
+  if dpkg --compare-versions "$nginx_version" ge 1.25.1; then
+    sed -i \
+      -e 's/listen 443 ssl http2;/listen 443 ssl;/' \
+      -e 's/listen \[::\]:443 ssl http2;/listen [::]:443 ssl;/' \
+      "$config_file"
+    sed -i '/listen \[::\]:443 ssl;/a\    http2 on;' "$config_file"
+  fi
+}
+
 load_env() {
   if [[ ! -r "$APPLICATION_ENV" || ! -r "$WRITER_ENV" ]]; then
     echo "runtime environment files are missing" >&2

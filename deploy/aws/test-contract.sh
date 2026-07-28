@@ -65,6 +65,11 @@ grep -q 'full|strict' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
 grep -q 'CF-Connecting-IP' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
 grep -q 'www.cloudflare.com/ips-v4' "$SCRIPT_DIR/configure-cloudflare-real-ip.sh"
 grep -q 'curl -kfsS' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+grep -q 'normalize_nginx_http2_syntax' "$SCRIPT_DIR/enable-cloudflare-tls.sh"
+if grep -q 'proxy_read_timeout' "$SCRIPT_DIR/nginx/opd-proxy.conf"; then
+  echo "shared proxy config must not duplicate per-location read timeouts" >&2
+  exit 1
+fi
 grep -q 'OnCalendar=\*:0/15' "$SCRIPT_DIR/systemd/opd-backup.timer"
 grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.timer"
 python3 "$SCRIPT_DIR/test_secret_to_env.py"
