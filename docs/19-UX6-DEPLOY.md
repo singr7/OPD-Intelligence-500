@@ -43,10 +43,72 @@ cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433
   .venv/bin/python -m scripts.seed_doctor_demo
 ```
 
-## AWS / Ubuntu host
+## AWS / Ubuntu host — keeping disposable test mode
 
-Follow `docs/18-AWS-UBUNTU-QUICKSTART.md` as written; the only addition is the
-reseed, because two trees changed version:
+For a host **already running the disposable no-PHI test mode** (writable,
+synthetic data only), updating to a new release keeps that mode. Two facts make
+this safe rather than hopeful, both read off the scripts:
+
+- `lib.sh:load_env` sources `writer.env`, and `deploy.sh` honours
+  `OPD_WRITER_ENABLED=1`. So `deploy.sh` leaves the database writable and never
+  touches the disposable marker or the `ENV=test` / `OTP_DEBUG_ECHO` /
+  `SMS_PROVIDER=fake` lines.
+- `activate-disposable-test.sh` **refreshes** an existing valid marker instead of
+  refusing it, and `write_writer_env` rewrites rather than appends — so re-running
+  it is idempotent.
+
+`deploy.sh` does not seed, and this release changes two tree versions, so step 4
+is the one that actually lands the content:
+
+```bash
+export RELEASE_SHA=<full-40-char-sha>
+
+# 0. Record where you are, so rollback has a known target
+sudo cat /opt/opd/runtime/releases/current-sha
+sudo cat /opt/opd/runtime/releases/disposable-test-active   # expect mode=disposable-no-phi
+
+# 1. Pin the new commit (as the repo owner, not root)
+cd /opt/opd/source/repo
+git fetch origin
+git checkout --detach "$RELEASE_SHA"
+test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+test -z "$(git status --porcelain)"
+
+# 2. Build the CPU-only images for this SHA
+sudo /opt/opd/current/deploy/aws/build-local-release.sh "$RELEASE_SHA"
+
+# 3. Deploy — keeps writer state, so disposable mode stays on
+sudo /opt/opd/current/deploy/aws/deploy.sh "$RELEASE_SHA"
+
+# 4. Refresh disposable mode: republishes the v2 trees, re-verifies OTP echo
+sudo /opt/opd/current/deploy/aws/activate-disposable-test.sh \
+  "$RELEASE_SHA" --confirm-no-phi
+```
+
+Verify:
+
+```bash
+curl -i https://opd-cloud.radpretation.ai/api/health
+curl -fsS https://opd-cloud.radpretation.ai/api/environment | python3 -m json.tool
+sudo cat /opt/opd/runtime/releases/disposable-test-active
+```
+
+> `deploy.sh` ends with `writer=off`, which reads backwards. `writer_setting`
+> reports PostgreSQL's `default_transaction_read_only`, so **`off` means
+> writable** — correct for disposable mode. `on` means it fell back to read-only
+> standby, and step 3 did not preserve what you expected.
+
+**Do not run** `end-disposable-test.sh` (destructive: erases the test database and
+Redis state) or `promote.sh` while you want this mode. To go back:
+`sudo /opt/opd/current/deploy/aws/rollback.sh <previous-sha>` — it changes code
+only, preserves data and writer state, and refuses if those image tags were
+pruned.
+
+## AWS / Ubuntu host — read-only standby
+
+For a host in ordinary read-only standby, follow
+`docs/18-AWS-UBUNTU-QUICKSTART.md` as written; the only addition is the reseed,
+because two trees changed version:
 
 ```bash
 git pull --ff-only
