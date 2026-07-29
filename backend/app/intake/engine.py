@@ -282,12 +282,27 @@ class IntakeEngine:
         return ToolDispatcher(state, tree, self._store, self._summarizer(state))
 
     def _summarizer(self, state: SessionState) -> Summarizer:
-        """V3 summarises deterministically (offline); V1/V2 use the LLM but fall
-        back to the template if it is down — degrade, never deny (doc 02 §5)."""
+        """The LLM writes the summary whenever a real one is reachable; the
+        deterministic template covers every case where it is not.
+
+        V3 used to be pinned to the template unconditionally, on the reasoning
+        that V3 is the offline, zero-AI tier. That conflated two different things:
+        *the walk* must be deterministic and offline-capable — and still is, since
+        nothing here touches traversal or red flags — but *the summary* is
+        presentation, and pinning it meant a cloud kiosk with a configured vendor
+        still handed the doctor a transcript of questions and answers instead of a
+        summary.
+
+        The offline guarantee survives because it is structural rather than
+        remembered: a box with no configured LLM gets the template by the check
+        below, and a box whose LLM is merely *down* gets it from
+        `_ResilientSummarizer`. Degrade, never deny (doc 02 §5).
+        """
         template = TemplateSummarizer()
-        if state.active_tier is V3:
+        chain = self._llm_chain(state)
+        if not _has_real_llm(chain):
             return template
-        return _ResilientSummarizer(LLMSummarizer(self._llm_chain(state)), template)
+        return _ResilientSummarizer(LLMSummarizer(chain), template)
 
     # -- the run loop ---------------------------------------------------------
 
@@ -657,6 +672,21 @@ class IntakeEngine:
             intake.completed_at = datetime.now(UTC)
             if intake.visit is not None and state.status is SessionStatus.COMPLETE:
                 intake.visit.status = VisitStatus.INTAKE_DONE
+
+
+
+def _has_real_llm(chain: Sequence[LLMProvider]) -> bool:
+    """True when some provider in the chain is a configured, non-fake vendor.
+
+    `configured` is false when a vendor was selected but given no credentials, and
+    the fakes announce themselves by name. Either way there is nothing worth
+    calling, and asking anyway would cost a round trip to learn what the registry
+    already knows.
+    """
+    return any(
+        provider.health.configured and not provider.name.startswith("fake")
+        for provider in chain
+    )
 
 
 class _ResilientSummarizer:

@@ -620,6 +620,39 @@ async def test_llm_summarizer_validates_the_contract(tree, store):
     assert summary.red_flags == ("Severe pain",)
 
 
+async def test_a_v3_kiosk_uses_the_llm_summary_when_one_is_configured(tree, store):
+    """A V3 walk is deterministic; its *summary* is not required to be.
+
+    V3 used to be pinned to the template, so a cloud kiosk with a configured
+    vendor still handed the doctor a transcript of questions and answers. The walk
+    is what has to be deterministic and offline-capable — and still is; nothing
+    about summarisation touches traversal or red flags.
+    """
+    llm = FakeLLMProvider()
+    llm.health.configured = True
+    llm.name = "openai"  # stand in for a real, credentialed vendor
+    llm.queue(FakeLLMScript(text=summary_payload(concern="Fever for three days")))
+
+    engine = IntakeEngine(store, llm_providers=[llm])
+    state = await engine.start_session(
+        tree=tree, channel=Channel.KIOSK, lang="hi", configured_tier=V3
+    )
+    walk = Walk(tree)
+    walk.save("fever", "yes")
+    summary = await engine._summarizer(state).summarize(state, tree, walk)
+    assert summary.chief_concern == "Fever for three days"
+
+
+async def test_a_v3_kiosk_with_no_real_llm_stays_on_the_template(tree, store):
+    """The offline guarantee, structural rather than remembered: an unconfigured
+    or fake vendor is never called, so a box with no network still summarises."""
+    engine = IntakeEngine(store, llm_providers=[FakeLLMProvider()])
+    state = await engine.start_session(
+        tree=tree, channel=Channel.KIOSK, lang="hi", configured_tier=V3
+    )
+    assert isinstance(engine._summarizer(state), TemplateSummarizer)
+
+
 async def test_llm_summary_rejects_malformed_output(tree):
     with pytest.raises(SummaryError):
         IntakeSummary.parse({"hpi": ["no chief concern here"]})
