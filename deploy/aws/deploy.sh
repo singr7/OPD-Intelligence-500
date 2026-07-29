@@ -6,8 +6,13 @@ source "$SCRIPT_DIR/lib.sh"
 
 require_root
 require_sha "${1:-}"
-IMAGE_TAG="$1"
+REQUESTED_SHA="$1"
 load_env
+# `load_env` sources release.env, which carries the *last deployed* IMAGE_TAG.
+# Assigning IMAGE_TAG before that call lets the old value silently overwrite the
+# SHA the operator asked for, so hold the request in its own variable and restore
+# it afterwards (activate-disposable-test.sh already did this; these two did not).
+IMAGE_TAG="$REQUESTED_SHA"
 export IMAGE_TAG
 write_release_env "$IMAGE_TAG"
 
