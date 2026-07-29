@@ -105,6 +105,39 @@ class FakeSTTProvider(STTProvider):
         return Transcript(text=text, lang=lang, provider=self.name, confidence=self._confidence)
 
 
+#: Container formats a speech vendor infers from the upload's filename, and the
+#: extension each one wants. The kiosk records with MediaRecorder, which in
+#: Chrome produces `audio/webm;codecs=opus`; telephony produces WAV. Uploading
+#: WebM bytes under the name `audio.wav` — which every provider here used to do —
+#: makes the vendor parse the container it was told about rather than the one it
+#: was given, and it rejects the clip as malformed. The filename is not cosmetic.
+_UPLOAD_EXTENSIONS: dict[str, str] = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "mp4",
+    "audio/m4a": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/flac": "flac",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/wave": "wav",
+}
+
+
+def upload_part(clip: AudioClip) -> tuple[str, bytes, str]:
+    """The multipart `files=` tuple for a clip, named after what it actually is.
+
+    Falls back to WAV for raw PCM and for anything unrecognised, which is the
+    historical behaviour and correct for the telephony path.
+    """
+    base = (clip.mime or "").split(";", 1)[0].strip().lower()
+    extension = _UPLOAD_EXTENSIONS.get(base)
+    if extension is None:
+        return ("audio.wav", clip.data, "audio/wav")
+    return (f"audio.{extension}", clip.data, base)
+
+
 class SarvamSTTProvider(STTProvider):
     """Sarvam Saaras v3 — Indic STT with returned language metadata.
 
@@ -141,7 +174,7 @@ class SarvamSTTProvider(STTProvider):
             response = await self._client.post(
                 "/speech-to-text",
                 headers={"api-subscription-key": self._api_key},
-                files={"file": ("audio.wav", clip.data, "audio/wav")},
+                files={"file": upload_part(clip)},
                 data={
                     "model": self.model,
                     "language_code": bcp47(lang),
@@ -199,7 +232,7 @@ class OpenAISTTProvider(STTProvider):
             response = await self._client.post(
                 "/audio/transcriptions",
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                files={"file": ("audio.wav", clip.data, "audio/wav")},
+                files={"file": upload_part(clip)},
                 data={"model": self.model, "language": str(lang), "response_format": "json"},
             )
         except httpx.HTTPError as exc:

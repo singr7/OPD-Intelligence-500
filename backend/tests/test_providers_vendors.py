@@ -28,7 +28,7 @@ from app.providers.llm import GeminiFlashProvider, LLMRequest, OpenAIProvider
 from app.providers.messaging import Button, ListRow, MetaWhatsAppProvider, OutboundMessage
 from app.providers.resilience import ProviderBadRequest, ProviderUnavailable, RetryPolicy
 from app.providers.sms import ExotelSMSProvider, Msg91SMSProvider, SmsMessage
-from app.providers.stt import GoogleSTTProvider, SarvamSTTProvider
+from app.providers.stt import GoogleSTTProvider, OpenAISTTProvider, SarvamSTTProvider
 from app.providers.telephony import CallRequest, CallState, ExotelTelephonyProvider
 from app.providers.tts import GoogleTTSProvider, SarvamTTSProvider
 
@@ -373,6 +373,32 @@ async def test_sarvam_stt_uploads_audio_and_does_not_invent_confidence(meter):
     assert result.confidence is None
     assert seen[0].headers["api-subscription-key"] == "s-key"
     assert b"hi-IN" in seen[0].content  # bare `hi` would be rejected by the vendor
+
+
+async def test_stt_uploads_are_named_after_their_real_container(meter):
+    """The kiosk records WebM/Opus; telephony produces WAV.
+
+    Every STT provider used to hand the vendor a part called `audio.wav` whatever
+    the bytes actually were. OpenAI and Sarvam both infer the container from the
+    filename, so a WebM clip announced as WAV is rejected as malformed — which
+    presents as "the kiosk cannot hear me" while the read-aloud works fine, and
+    is invisible in any test that only ever passes WAV.
+    """
+    seen, handler = _captures(httpx.Response(200, json={"text": "mujhe bukhar hai"}))
+    stt = OpenAISTTProvider(
+        api_key="o-key",
+        client=_client(handler, base_url=OpenAISTTProvider.BASE_URL),
+    )
+
+    await stt.transcribe(AudioClip(data=b"webm-bytes", mime="audio/webm;codecs=opus"), "hi")
+    assert b"audio.webm" in seen[0].content
+    assert b"audio.wav" not in seen[0].content
+
+    # Raw PCM and anything unrecognised keep the historical WAV naming, which is
+    # what the telephony path needs.
+    seen.clear()
+    await stt.transcribe(AudioClip(data=b"\x00\x00" * 8, mime="audio/l16"), "hi")
+    assert b"audio.wav" in seen[0].content
 
 
 async def test_google_stt_reports_real_confidence(meter):
