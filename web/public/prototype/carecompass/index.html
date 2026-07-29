@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>CareCompass — cancer care companion (prototype)</title>
+<meta name="description" content="Seeded prototype of a context-aware cancer care companion for patients and caregivers." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ============ DEMO CHROME (desktop only) ============ -->
+<div class="demo-bar" id="demoBar">
+  <div class="demo-brand">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3 L14.6 9.4 L21 12 L14.6 14.6 L12 21 L9.4 14.6 L3 12 L9.4 9.4 Z" fill="currentColor"/></svg>
+    <span>CareCompass <em>prototype</em></span>
+  </div>
+  <div class="demo-seg" role="group" aria-label="Preview device">
+    <button data-device="laptop" class="on">Laptop</button>
+    <button data-device="phone">Phone</button>
+  </div>
+  <div class="demo-ctx" id="demoCtx" aria-label="Simulated care context">
+    <span class="demo-ctx-label">Context</span>
+    <div class="demo-seg ctx" role="group">
+      <button data-ctx="hospital" class="on">At hospital</button>
+      <button data-ctx="discharged">Just discharged</button>
+      <button data-ctx="home">At home</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="stage" id="stage">
+<div class="device" id="device">
+  <div class="app" id="app">
+
+    <!-- Desktop navigation rail -->
+    <nav class="rail" id="rail" aria-label="Main">
+      <div class="rail-brand">
+        <span class="rail-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3 L14.6 9.4 L21 12 L14.6 14.6 L12 21 L9.4 14.6 L3 12 L9.4 9.4 Z" fill="currentColor"/></svg>
+        </span>
+        <span class="rail-word">CareCompass</span>
+      </div>
+      <ul class="rail-nav" id="railNav"></ul>
+      <div class="rail-foot">
+        <div class="rail-who">
+          <span class="avatar" aria-hidden="true">AM</span>
+          <span>
+            <b id="railName">Ananya Mehta</b>
+            <i id="railSub">Breast cancer · Stage II</i>
+          </span>
+        </div>
+        <p class="rail-note">Prototype with seeded data. Nothing here is a real medical record.</p>
+      </div>
+    </nav>
+
+    <!-- Scrollable content column -->
+    <main class="view" id="view" tabindex="-1"></main>
+
+    <!-- Mobile bottom navigation -->
+    <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
+
+  </div>
+</div>
+</div>
+
+<!-- Bottom sheet / side panel -->
+<div class="sheet-scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <header class="sheet-head">
+    <span class="sheet-grab" aria-hidden="true"></span>
+    <h2 id="sheetTitle"></h2>
+    <button class="sheet-x" id="sheetClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+  <div class="sheet-body" id="sheetBody"></div>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="seed.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

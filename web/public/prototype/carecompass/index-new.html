@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Passage — cancer care, as one continuous thread (prototype v2)</title>
+<meta name="description" content="A second paradigm: no tabs, no pages. One river of moments through treatment." />
+<link rel="stylesheet" href="styles-new.css" />
+</head>
+<body data-phase="now">
+
+<!-- drifting ambient light; colour follows whatever moment you are looking at -->
+<div class="aura" aria-hidden="true">
+  <span class="aura-l past"></span>
+  <span class="aura-l now"></span>
+  <span class="aura-l future"></span>
+</div>
+
+<!-- the only persistent chrome -->
+<header class="topline">
+  <div class="mark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <circle cx="12" cy="12" r="3" fill="currentColor"/>
+    </svg>
+    <b>Passage</b>
+  </div>
+  <nav class="lenses" id="lenses" aria-label="Lens"></nav>
+  <a class="compare" href="index.html" title="Open version 1 for comparison">v1 ↗</a>
+</header>
+
+<!-- the compass: says where in time you are looking, never where you 'are' -->
+<aside class="compass" id="compass" aria-hidden="true">
+  <span class="c-ring" id="cRing"></span>
+  <span class="c-date" id="cDate">Today</span>
+  <span class="c-phase" id="cPhase">now</span>
+</aside>
+
+<!-- the river -->
+<main class="river" id="river"></main>
+
+<!-- magnet back to the present -->
+<button class="magnet" id="magnet" hidden>
+  <span class="m-dot"></span><span id="magnetLabel">Back to now</span>
+</button>
+
+<!-- always reachable, never in the way -->
+<div class="sos" id="sos">
+  <button class="sos-btn" id="sosBtn" aria-expanded="false">
+    <span class="sos-pulse" aria-hidden="true"></span>Something’s not right
+  </button>
+  <div class="sos-panel" id="sosPanel" hidden></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="seed.js"></script>
+<script src="app-new.js"></script>
+</body>
+</html>

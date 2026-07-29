@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Good Days — a forecast for your body (prototype v3)</title>
+<meta name="description" content="Not a record of your treatment. A forecast of how the next weeks will feel, so you can plan a life around them." />
+<link rel="stylesheet" href="styles-v3.css" />
+</head>
+<body>
+
+<div class="sky" aria-hidden="true"></div>
+
+<header class="bar">
+  <div class="brand">
+    <span class="brand-m" aria-hidden="true"></span>
+    <b>Good&nbsp;Days</b>
+  </div>
+  <span class="bar-mid" id="barCycle"></span>
+  <nav class="stageseg" id="stageSeg" aria-label="Where in the journey"></nav>
+  <nav class="bar-alt"><a href="index.html">v1</a><a href="index-new.html">v2</a></nav>
+</header>
+
+<main class="wrap">
+
+  <!-- the single most valuable sentence in the app -->
+  <section class="lead" id="lead"></section>
+
+  <!-- THE SIGNATURE: your body as terrain -->
+  <section class="terrain-block">
+    <div class="t-head">
+      <h2 id="tTitle">The next three weeks</h2>
+      <p id="tHint">Drag across the days. Every one of them has a name.</p>
+    </div>
+    <div class="terrain" id="terrain"></div>
+    <div class="t-legend" id="tLegend"></div>
+    <!-- medicines drawn on the SAME axis, so they read as one shape -->
+    <div class="rhythm" id="rhythm"></div>
+  </section>
+
+  <!-- what the selected point actually means -->
+  <section class="readout" id="readout"></section>
+
+  <!-- reporting, made worth doing -->
+  <section class="check" id="check"></section>
+
+  <!-- the next visit: intake written from the check-ins, plus prep -->
+  <section class="visit" id="visit"></section>
+
+  <!-- everything, in one place, and sendable -->
+  <section class="records" id="records"></section>
+
+  <!-- the question no cancer app answers -->
+  <section class="plans" id="plans"></section>
+
+  <!-- how it knows -->
+  <section class="why" id="why"></section>
+
+  <footer class="foot">
+    <p><b>Prototype.</b> Seeded data for one imagined patient. A forecast of how days
+    are likely to <i>feel</i> — never a prediction of whether treatment is working,
+    and never a reason to change a dose.</p>
+  </footer>
+</main>
+
+<div class="sos">
+  <button class="sos-btn" id="sosBtn" aria-expanded="false"><i></i>Something feels wrong</button>
+  <div class="sos-panel" id="sosPanel" hidden></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="seed-v3.js"></script>
+<script src="app-v3.js"></script>
+</body>
+</html>

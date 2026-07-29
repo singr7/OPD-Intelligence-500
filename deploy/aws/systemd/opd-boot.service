@@ -1,0 +1,20 @@
+[Unit]
+Description=Bring the deployed OPD release up and reconcile the writer setting
+# Docker must be running, and /data must be mounted — PostgreSQL lives there and
+# an unmounted volume would silently become an empty database on the root disk.
+After=docker.service network-online.target
+Requires=docker.service
+RequiresMountsFor=/data
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/opd/current/deploy/aws/boot.sh
+# Docker image starts and health waits are slow on a cold boot; the default
+# 90s timeout kills this halfway through and leaves a partial stack.
+TimeoutStartSec=900
+StandardOutput=append:/var/log/opd/boot.log
+StandardError=append:/var/log/opd/boot.log
+
+[Install]
+WantedBy=multi-user.target
