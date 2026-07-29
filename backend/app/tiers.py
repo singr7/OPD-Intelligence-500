@@ -39,6 +39,7 @@ half lands.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -227,8 +228,21 @@ def parse_tier_config(data: dict[str, Any]) -> TierConfig:
                     f"seats but the box has {max_oss}"
                 )
 
+    # `tiers.yaml` is the fleet's committed default, and on the Omen box — which
+    # has the GPU containers — `local_oss` is the right one: the audio never
+    # leaves the premises. A GPU-free host (the AWS standby ships no Whisper and
+    # no local TTS container) has no way to honour it, and the failure is opaque:
+    # the local TTS URL is empty, so the patient hears nothing and the log says
+    # "Request URL is missing an 'http://' or 'https://' protocol".
+    #
+    # So the profile is overridable per box by `KIOSK_VOICE_PROFILE`. Read from
+    # the environment rather than from `Settings` on purpose: Settings cannot
+    # distinguish "operator set this" from "the field's default happens to be
+    # local_oss", and silently overriding a committed file with a default is how
+    # a GPU box quietly starts shipping patient audio to a vendor.
+    override = os.environ.get("KIOSK_VOICE_PROFILE", "").strip()
     try:
-        kiosk_profile = profile_name(data.get("kiosk_voice_profile", "local_oss"))
+        kiosk_profile = profile_name(override or data.get("kiosk_voice_profile", "local_oss"))
     except VoiceProfileError as exc:
         raise TierConfigError(str(exc)) from exc
 
