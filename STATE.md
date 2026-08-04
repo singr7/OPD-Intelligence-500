@@ -711,15 +711,23 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
-- **`app.assignment` has no HTTP surface** (AR1) — identity matching and doctor
-  assignment are implemented and tested at the service layer, but nothing calls
-  them. `create_walk_in` does not yet look for a returning patient, there is no
-  `POST /kiosk/{id}/assign`, and neither the kiosk staff strip nor the
-  coordinator's assign control exists. Migration `c6e3681f5ce1` is applied
-  locally only. Deployable but invisible until AR2. Two half-edges to close
-  there: `assign()` changes `Visit.department_id` without re-homing the queue
-  entry or reissuing the token, and the coordinator PIN mechanism the kiosk strip
-  needs has not been chosen (see `HANDOFF.md → Decisions needed`).
+- **Assignment and identity have no UI** (AR2) — the backend is complete and
+  tested: PIN-gated staff strip (`/kiosk/staff/*`, `/kiosk/{sid}/strip|assign`),
+  console assignment (`/queue/entries/{id}/assign|assignable`), returning-patient
+  matching on `/kiosk/start`, and department transfer with token reissue. No
+  screen calls any of it, so nothing a coordinator or patient can see has changed.
+  Migrations `c6e3681f5ce1` and `520d07f0b3e4` are applied **locally only**, and
+  `make deploy` does not run migrations.
+- **The kiosk cannot match or assign while offline** (AR2, accepted pilot debt) —
+  no roster and no server, so an offline arrival syncs as a new patient with
+  `patient_link_state = none` and no doctor. The coordinator console's assign
+  control and the doctor console's `Unassigned` count are the compensating
+  controls; neither is optional, and the doctor-side half is not built yet
+  (Session B). Duplicate patient rows are the expected outcome and must stay
+  mergeable without data loss.
+- **A kiosk PIN cannot be issued from any UI** (AR2) — `app.auth.kiosk_pin.set_pin`
+  has no route. The pilot's coordinator PIN must be seeded or set by hand until
+  AR3 decides otherwise.
 - **The test suite pins absolute 2026 dates in several places** (AR1) — the
   roster/people/scheduling and check-in tests were authored with dates then in the
   near future. Two classes of failure have already rotted in and were repaired;
