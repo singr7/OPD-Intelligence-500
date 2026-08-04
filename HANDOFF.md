@@ -57,17 +57,19 @@ sed -n '1,80p' sessions/SESSION-ASSIGN-RX-PLAN.md   # §1.2 sketches the strip
 - The test suite still pins absolute 2026 dates in places; prefer
   `tests/factories.generation_start()` / `a_weekday_ahead()` over a new pin.
 
+## Decisions taken (do not re-litigate in AR3)
+
+1. **PIN issuance is seeded, not a screen.** Settled and built: `make seed` gives
+   the seeded coordinator PIN `4729` on local/test only; `make kiosk-pin` is the
+   operator's set/rotate/clear/unlock path. No admin UI for one coordinator.
+2. **New kiosk copy ships English + Hindi.** Marathi and Telugu are deferred and
+   must be logged as pending per doc 07 §4 — the arrival screens are
+   patient-facing, so the gap is recorded explicitly rather than left implied.
+   Do not machine-translate them into the other two.
+
 ## Decisions needed from the human
 
-1. **PIN issuance.** Nothing in the admin UI sets a coordinator's kiosk PIN yet —
-   `app.auth.kiosk_pin.set_pin` exists but has no route. Should AR3 add it to the
-   admin people screen, or should the pilot's single PIN be seeded and rotated by
-   hand? Seeding is fine for one coordinator and avoids building a screen nobody
-   will use twice.
-2. **Language coverage for the new kiosk copy.** The arrival questions need
-   Hindi, Marathi and Telugu, and doc 07 §4 requires patient-facing strings in all
-   active languages or an explicit pending note. Is native review available for
-   AR3, or should the new screens ship English + Hindi with the other two flagged?
+None blocking AR3.
 
 ## Backlog additions
 
