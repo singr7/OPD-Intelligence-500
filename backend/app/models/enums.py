@@ -130,6 +130,27 @@ class QueueEntryState(StrEnum):
     LAB_REQUEUE = "lab_requeue"
 
 
+class PatientLinkState(StrEnum):
+    """Whether this visit's patient row is known to be the right one.
+
+    A kiosk arrival always creates its own patient row so intake can begin
+    without waiting for anyone. When the arrival screen recognises a phone number
+    or UHC ID, the match is recorded as a `CANDIDATE` and **nothing is disclosed
+    on the kiosk** — a public terminal that prints a named oncology history to
+    whoever types ten digits is a disclosure incident with a queue attached. A
+    coordinator confirms or rejects it on the staff strip.
+    """
+
+    #: No prior record was offered or found. The ordinary new-registration path.
+    NONE = "none"
+    #: A prior patient was matched but no human has agreed it is the same person.
+    CANDIDATE = "candidate"
+    #: A coordinator confirmed the match; the visit now points at the prior record.
+    CONFIRMED = "confirmed"
+    #: A coordinator looked and said it is a different person. Never re-offered.
+    REJECTED = "rejected"
+
+
 class DictationStatus(StrEnum):
     DRAFT = "draft"
     SIGNED = "signed"

@@ -40,6 +40,7 @@ from app.models.enums import (
     DoseStatus,
     IntakeTier,
     Lang,
+    PatientLinkState,
     VisitStatus,
 )
 
@@ -62,6 +63,19 @@ class Visit(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
         enum_type(VisitStatus, "visit_status"), default=VisitStatus.REGISTERED, index=True
     )
     channel: Mapped[Channel] = mapped_column(enum_type(Channel, "channel"))
+
+    #: A prior patient this arrival may be, pending a coordinator's confirmation.
+    #: Never merged automatically: a wrong merge in an oncology record is worse
+    #: than a duplicate, and only the duplicate is repairable without argument.
+    candidate_patient_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("patients.id"), index=True
+    )
+    patient_link_state: Mapped[PatientLinkState] = mapped_column(
+        enum_type(PatientLinkState, "patient_link_state"),
+        default=PatientLinkState.NONE,
+        server_default=PatientLinkState.NONE.value,
+        index=True,
+    )
 
     intakes: Mapped[list[Intake]] = relationship(back_populates="visit")
     dictations: Mapped[list[Dictation]] = relationship(back_populates="visit")

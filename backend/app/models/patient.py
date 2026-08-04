@@ -29,6 +29,14 @@ class Patient(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
 
     hospital_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hospitals.id"), index=True)
     mrn: Mapped[str] = mapped_column(String(32), unique=True, index=True)  # natural key
+    #: A health ID the patient already carries (the pilot site calls it a UHC ID).
+    #: Deliberately *not* modelled as ABHA: a real ABHA integration brings ABDM
+    #: registration, consent artefacts and linkage duties, which is a programme
+    #: rather than a column. `external_id_kind` labels whatever the deployment
+    #: actually issues. Optional everywhere — it never gates an intake or a token,
+    #: and it is not unique, because a mistyped ID must not block a second patient.
+    external_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    external_id_kind: Mapped[str | None] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(200))
     phone: Mapped[str] = mapped_column(String(20), index=True)
     alt_phone: Mapped[str | None] = mapped_column(String(20))
