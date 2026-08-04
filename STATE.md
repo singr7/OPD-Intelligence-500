@@ -711,6 +711,20 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **`app.assignment` has no HTTP surface** (AR1) — identity matching and doctor
+  assignment are implemented and tested at the service layer, but nothing calls
+  them. `create_walk_in` does not yet look for a returning patient, there is no
+  `POST /kiosk/{id}/assign`, and neither the kiosk staff strip nor the
+  coordinator's assign control exists. Migration `c6e3681f5ce1` is applied
+  locally only. Deployable but invisible until AR2. Two half-edges to close
+  there: `assign()` changes `Visit.department_id` without re-homing the queue
+  entry or reissuing the token, and the coordinator PIN mechanism the kiosk strip
+  needs has not been chosen (see `HANDOFF.md → Decisions needed`).
+- **The test suite pins absolute 2026 dates in several places** (AR1) — the
+  roster/people/scheduling and check-in tests were authored with dates then in the
+  near future. Two classes of failure have already rotted in and were repaired;
+  `tests/factories.generation_start()` / `a_weekday_ahead()` exist so new tests do
+  not pin a fresh one. A sweep for remaining wall-clock coupling is backlogged.
 - **ANDROID1 is locally release-ready, not publicly released** — the repository has
   safe environment pairing, an externally supplied signing path, verified artifact
   metadata, and atomic hosting/rollback controls. It does not have the production
