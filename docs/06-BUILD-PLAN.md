@@ -260,6 +260,45 @@ the pilot started.
 
 ---
 
+### Assignment / identity / prescription track — AR (operator, 2026-08-04)
+
+The authoritative specification is **`sessions/SESSION-ASSIGN-RX-PLAN.md`**. Sequential.
+
+1. **AR1 — schema and service layer.** ✅ Closed. `PatientLinkState`, patient
+   `external_id`, visit `candidate_patient_id`, `app.assignment`.
+2. **AR2 — PIN, routes, department transfer.** ✅ Closed. Kiosk staff PIN and its
+   narrow token, the strip's HTTP surface, console assignment, token reissue on a
+   department change, seeded PIN + `make kiosk-pin`.
+3. **AR3 — the screens.** Kiosk arrival questions (English + Hindi; Marathi and
+   Telugu deferred and logged), the PIN-gated staff strip on the token screen, and
+   the coordinator's assign control. Doc 04 is mandatory; doc 14 governs the staff
+   surfaces.
+4. **Session B — doctor workspace IA.** Scoped worklist (`Mine` / `Unassigned` /
+   `Department`) with the always-visible unassigned count, "Take this patient", the
+   persistent context spine, four working tabs, and one quiet "Coming soon" entry.
+5. **Session C — consult and prescription paths.** Dictation-free typed Rx,
+   mapping-failure recovery, `conclude` with `rx_mode`, prescription preview fixes.
+
+**AR3 does not close this track, and shipping it alone is worse than shipping
+neither.** After AR3 a coordinator assigns a doctor to every arrival, but
+`doctor.day_list` is still department-scoped and ignores `Visit.doctor_id`
+entirely — so the assignment is data nobody reads. Staff would be doing real work
+at the kiosk with no observable effect, which is the fastest way to teach them the
+tool is decorative. Session B is what makes assignment mean something, and it also
+carries the `Unassigned` count that is the compensating control for every `Skip`
+and every offline arrival (both accepted debt, `STATE.md`).
+
+Gate: **do not present AR3 to pilot users without Session B.** If B cannot follow
+immediately, put the strip's doctor picker behind a flag and ship the identity
+half only — a coordinator confirming a returning patient is useful on its own; a
+coordinator assigning a doctor nobody's screen respects is not.
+
+An `xfail(strict=True)` test in `backend/tests/test_doctor.py`
+(`test_session_b_the_worklist_scopes_to_the_assigned_doctor`) fails loudly the
+moment Session B makes it pass, so the marker cannot outlive the gap it tracks.
+
+---
+
 ### Voice/cloud/Android release track (operator, 2026-07-27)
 
 The authoritative specification is

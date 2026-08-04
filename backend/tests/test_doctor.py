@@ -115,6 +115,44 @@ async def test_day_list_shows_the_department_queue_with_the_patient(
     assert row.state == "waiting"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Session B (sessions/SESSION-ASSIGN-RX-PLAN.md §3). AR2 made a coordinator "
+        "able to assign a doctor to every arrival; day_list still ignores "
+        "Visit.doctor_id, so that assignment is data nobody reads. This is strict "
+        "on purpose: when Session B lands, pytest reports XPASS as a failure and "
+        "whoever ships it has to delete this marker rather than leave a stale "
+        "xfail sitting on a behaviour that now works."
+    ),
+)
+async def test_session_b_the_worklist_scopes_to_the_assigned_doctor(
+    session: AsyncSession,
+) -> None:
+    """The gate that keeps Session B behind AR3.
+
+    Two patients in one department: one assigned to this doctor, one left in the
+    pool. `scope="mine"` must show only the first, and the unassigned one must
+    still be reachable and *countable* — an unassigned waiting patient that no
+    console surfaces is worse than the over-broad list it replaced.
+    """
+    clinic = await f.build_clinic(session)
+    mine, _, _ = await _seed_visit(session, clinic, token_no=1)
+    mine.doctor_id = clinic["doctor"].id
+
+    other = f.make_patient(clinic["hospital"])
+    session.add(other)
+    await session.flush()
+    pooled, _, _ = await _seed_visit(session, clinic, token_no=2, patient=other)
+    assert pooled.doctor_id is None
+    await session.flush()
+
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="mine")
+
+    assert [r.visit_id for r in day.rows] == [mine.id]
+    assert day.counts["unassigned"] == 1
+
+
 async def test_day_list_keeps_the_queues_urgent_first_order(session: AsyncSession) -> None:
     """The doctor sees the same order as the board — severity is not re-decided
     here, it arrives already sorted by `department_queue`."""

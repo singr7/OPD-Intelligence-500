@@ -715,6 +715,13 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **Assignment is inert until Session B** (AR2) — `doctor.day_list` is
+  department-scoped and ignores `Visit.doctor_id`, so a coordinator can assign a
+  doctor and no doctor's screen respects it. Shipping AR3's picker without B means
+  staff doing real work at the kiosk for no observable effect. Gate recorded in
+  `docs/06-BUILD-PLAN.md` (AR track) and enforced by an `xfail(strict=True)` in
+  `tests/test_doctor.py::test_session_b_the_worklist_scopes_to_the_assigned_doctor`,
+  which fails as XPASS the moment B lands.
 - **Assignment and identity have no UI** (AR2) — the backend is complete and
   tested: PIN-gated staff strip (`/kiosk/staff/*`, `/kiosk/{sid}/strip|assign`),
   console assignment (`/queue/entries/{id}/assign|assignable`), returning-patient
