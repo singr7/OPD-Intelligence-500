@@ -46,6 +46,9 @@ migration: ## Autogenerate a revision from model changes: make migration m="add 
 seed: ## Load the pilot seed dataset (idempotent — safe to re-run)
 	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.seed
 
+kiosk-pin: ## Kiosk staff PINs: no ARGS lists them; ARGS="--phone +91... --set|--clear|--unlock"
+	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m scripts.set_kiosk_pin $(ARGS)
+
 # --- Appointments (S15) -------------------------------------------------------
 slots: ## Materialise bookable slots from the seeded templates (idempotent)
 	cd backend && DATABASE_URL=$(HOST_DB_URL) .venv/bin/python -m app.worker opd.slots.generate

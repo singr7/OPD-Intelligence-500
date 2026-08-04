@@ -1,4 +1,11 @@
 {
+  "_kiosk_pin_note": [
+    "`kiosk_pin` seeds the numeric PIN that unlocks the kiosk's staff strip. It is a",
+    "committed, publicly-readable default and is therefore treated like one: the seed",
+    "refuses to set it when ENV=production, and it is only ever written to a user who",
+    "has no PIN yet, so re-seeding never clobbers a PIN an operator has rotated.",
+    "Rotate or clear it with `make kiosk-pin` (backend/scripts/set_kiosk_pin.py)."
+  ],
   "_phone_note": [
     "Phone numbers here are unroutable by construction: Indian mobile numbers start",
     "with 6-9, so a +91 5xxxxxxxxx number can never reach a real handset. That is",
@@ -22,7 +29,8 @@
       "role": "coordinator",
       "name": "Rekha Meena",
       "phone": "+915550000002",
-      "lang": "hi"
+      "lang": "hi",
+      "kiosk_pin": "4729"
     },
     {
       "role": "nurse",

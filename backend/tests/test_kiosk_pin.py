@@ -166,3 +166,39 @@ async def test_a_deactivated_coordinator_cannot_unlock(session, coordinator, set
 
     with pytest.raises(kp.PinError):
         await kp.verify_pin(session, user=coordinator, pin="4718", settings=settings)
+
+
+# -- seeding ------------------------------------------------------------------
+
+
+async def test_seeding_never_clobbers_a_rotated_pin(session, coordinator, monkeypatch):
+    """`make seed` runs on every deploy. Overwriting would silently hand the
+    corridor back a value printed in this repository."""
+    from app.seed import _seed_kiosk_pin
+
+    await kp.set_pin(session, user=coordinator, pin="8261")
+    rotated = coordinator.kiosk_pin_hash
+
+    await _seed_kiosk_pin(session, coordinator, "4729")
+
+    assert coordinator.kiosk_pin_hash == rotated
+
+
+async def test_seeding_a_pin_is_refused_outside_local(session, coordinator, settings, monkeypatch):
+    """The seeded PIN is committed and world-readable, so a box that a real
+    patient could walk up to must not be given it."""
+    import app.seed as seed_mod
+
+    monkeypatch.setattr(settings, "env", "production")
+    monkeypatch.setattr(seed_mod, "get_settings", lambda: settings)
+
+    await seed_mod._seed_kiosk_pin(session, coordinator, "4729")
+
+    assert coordinator.kiosk_pin_hash is None
+
+
+async def test_seeding_gives_a_fresh_coordinator_the_pin(session, coordinator):
+    from app.seed import _seed_kiosk_pin
+
+    await _seed_kiosk_pin(session, coordinator, "4729")
+    assert coordinator.kiosk_pin_hash is not None

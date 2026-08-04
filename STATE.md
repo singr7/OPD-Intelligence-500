@@ -410,6 +410,10 @@ box).
 make dev                 # full stack (11 services)
 make migrate             # apply migrations to the local DB
 make seed                # load the pilot dataset + price book + trees (idempotent)
+make kiosk-pin           # list who can unlock the kiosk staff strip, and who is locked out
+make kiosk-pin ARGS="--phone +915550000002 --set"     # set/rotate (prompts; never echoes)
+make kiosk-pin ARGS="--phone +915550000002 --clear"   # remove the PIN entirely
+make kiosk-pin ARGS="--phone +915550000002 --unlock"  # clear a lockout, keep the PIN
 make test                # backend + voice-gw pytest, web typecheck/lint, android JVM tests
 make preflight           # build the api+voice-gw IMAGES and prove they import — run before any
                          #   box deploy. `make test` runs in the venvs (pyproject); the images
@@ -726,8 +730,14 @@ the only gate right now.**
   (Session B). Duplicate patient rows are the expected outcome and must stay
   mergeable without data loss.
 - **A kiosk PIN cannot be issued from any UI** (AR2) — `app.auth.kiosk_pin.set_pin`
-  has no route. The pilot's coordinator PIN must be seeded or set by hand until
-  AR3 decides otherwise.
+  has no route, by decision: one pilot coordinator does not justify an admin
+  screen. `make seed` gives the seeded coordinator (`+915550000002`) the
+  **committed, world-readable** PIN `4729` on local/test boxes *only*; the seed
+  refuses outside local and never overwrites a PIN that has been rotated.
+  Anywhere real patients arrive, set it with `make kiosk-pin ARGS="--phone ...
+  --set"`, which prompts and never takes the PIN on argv. `--clear` and
+  `--unlock` are the forgot-it and locked-out paths. **Rotate `4729` before the
+  kiosk faces a corridor.**
 - **The test suite pins absolute 2026 dates in several places** (AR1) — the
   roster/people/scheduling and check-in tests were authored with dates then in the
   near future. Two classes of failure have already rotted in and were repaired;

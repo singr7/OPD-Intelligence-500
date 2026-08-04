@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import Actor, acting_as
 from app.checkins import protocols
+from app.config import get_settings
 from app.db import build_engine, build_sessionmaker
 from app.models.content import ProtocolBankVersion, QuestionTree
 from app.models.enums import Lang, PriceUnit, Role, Sex, SlotType, TreeStatus
@@ -176,7 +177,41 @@ async def _upsert_user(
         report.record(report.unchanged, "user")
 
     await session.flush()
+    await _seed_kiosk_pin(session, user, row.get("kiosk_pin"))
     return user
+
+
+async def _seed_kiosk_pin(session: AsyncSession, user: User, pin: str | None) -> None:
+    """Give a seeded coordinator the pilot's kiosk PIN, once and never again.
+
+    Two rules, both deliberate:
+
+    * **Only when the user has none.** The seed is idempotent and re-run on every
+      deploy; overwriting would silently reset a PIN an operator had rotated and
+      hand the corridor back a value that is printed in this repository.
+    * **Never in production.** This PIN is committed and world-readable. A box
+      serving real patients gets its PIN from `scripts/set_kiosk_pin.py`, typed by
+      a human who is not this file.
+    """
+    if not pin or user.kiosk_pin_hash is not None:
+        return
+
+    from app.auth import kiosk_pin as kp
+
+    # `is_local` is the repository's existing boundary (local/test). Inverting it
+    # rather than testing for "production" by name means staging and pilot boxes
+    # are covered too — anywhere a real patient could walk up to the kiosk.
+    if not get_settings().is_local:
+        logger.warning(
+            "refusing to seed a kiosk PIN for %s outside local/test — "
+            "set one with scripts/set_kiosk_pin.py",
+            user.phone,
+        )
+        return
+    try:
+        await kp.set_pin(session, user=user, pin=pin)
+    except kp.PinError as exc:
+        logger.warning("seeded kiosk PIN for %s rejected: %s", user.phone, exc)
 
 
 async def _upsert_doctors(
