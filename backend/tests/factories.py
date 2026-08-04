@@ -105,6 +105,28 @@ def make_patient(hospital: Hospital, **overrides: Any) -> Patient:
     )
 
 
+def generation_start() -> date:
+    """Tomorrow — the first date whose whole day is still ahead of us.
+
+    Slot inventory generated from *today* includes today's already-past clinic
+    hours, so `future_slots`-style reads legitimately disagree with what
+    `generate_slots` reports having created. Anchoring generation at tomorrow
+    keeps that class of assertion true at every hour and on every weekday,
+    instead of only on the days the suite happens to be run.
+    """
+    return datetime.now(UTC).date() + timedelta(days=1)
+
+
+def a_weekday_ahead() -> str:
+    """A weekday name (``"Tuesday"``) whose next occurrence is wholly in the future.
+
+    Roster CSVs name a weekday. Naming *today's* weekday makes a fortnight
+    horizon contain one occurrence that has already partly elapsed, which is the
+    same trap `generation_start` avoids for explicit dates.
+    """
+    return (datetime.now(UTC).date() + timedelta(days=1)).strftime("%A")
+
+
 def make_slot_template(doctor: Doctor, **overrides: Any) -> SlotTemplate:
     return SlotTemplate(
         **{

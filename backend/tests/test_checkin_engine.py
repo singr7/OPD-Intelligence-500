@@ -128,7 +128,11 @@ async def test_the_session_acceptance_criterion(
     assert [rung["day_offset"] for rung in plan.schedule] == [2, 7, 14]
 
     # --- one tap ------------------------------------------------------------
-    created = await cp.approve(session, plan=plan, doctor=clinic["doctor"])
+    # Approve on the scenario's clock, not the wall clock. `approve` schedules the
+    # first rung at `max(due_at, now)` so a plan approved late is due immediately;
+    # left to the real clock, this fixture's July due dates would all be "overdue"
+    # and fire at once, and the ladder below could never be driven.
+    created = await cp.approve(session, plan=plan, doctor=clinic["doctor"], now=treated_on)
     d2 = created[0]
     assert d2.day_offset == 2
     assert d2.question_set == "gi_platinum"

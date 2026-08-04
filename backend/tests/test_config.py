@@ -22,6 +22,11 @@ def _prod(**overrides: object) -> Settings:
     """
     base = {
         "env": "production",
+        # CLOUD1 made both of these production-checked: a box that cannot say
+        # which environment it is or which SHA it is running cannot be diagnosed
+        # from a support call, so `assert_production_safe` refuses to start.
+        "environment_id": "omen",
+        "release_sha": "0" * 40,
         "jwt_secret": "a-real-secret-of-at-least-32-characters",
         "otp_debug_echo": False,
         "sms_provider": "msg91",

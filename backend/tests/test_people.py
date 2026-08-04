@@ -29,6 +29,7 @@ from app.models.enums import Channel, Lang, Role, SlotType
 from app.models.org import Doctor, User
 from app.models.scheduling import AppointmentSlot, SlotTemplate
 from tests.factories import (
+    generation_start,
     make_department,
     make_doctor,
     make_hospital,
@@ -234,7 +235,7 @@ async def _booked_doctor(session):
     session.add(template)
     await session.flush()
 
-    await scheduling.generate_slots(session, start=datetime.now(UTC).date(), days=21)
+    await scheduling.generate_slots(session, start=generation_start(), days=21)
     slots = (
         (
             await session.execute(

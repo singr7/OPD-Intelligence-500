@@ -28,6 +28,8 @@ from app.models.enums import Channel, Role
 from app.models.org import Department, Hospital
 from app.models.scheduling import AppointmentSlot, SlotTemplate
 from tests.factories import (
+    a_weekday_ahead,
+    generation_start,
     make_department,
     make_doctor,
     make_hospital,
@@ -248,14 +250,19 @@ async def test_a_row_that_matches_what_is_already_there_is_unchanged(session):
 
 async def test_applying_creates_the_clinic_and_its_inventory(session):
     _, _, doctors, _ = await _hospital_with_two_doctors(session)
+    # Not "Tuesday": `apply_roster` generates from today inclusive, so a clinic on
+    # *today's* weekday contributes hours that have already elapsed, and the
+    # closing `future_slots == slots_generated` assertion would hold only on the
+    # days of the week this suite is not run.
+    weekday = a_weekday_ahead()
     plan = await roster.plan_roster(
-        session, _rows(HEADER + "RMC-ONC-1001,Tuesday,10:00,13:00,follow_up,2\n")
+        session, _rows(HEADER + f"RMC-ONC-1001,{weekday},10:00,13:00,follow_up,2\n")
     )
     assert plan.rows[0].slots_per_week == 12
 
     result = await roster.apply_roster(session, plan, horizon_days=14)
     assert result.created == 1
-    # Two Tuesdays at most in a fortnight, twelve 15-minute slots each.
+    # Two occurrences at most in a fortnight, twelve 15-minute slots each.
     assert result.slots_generated in (12, 24)
 
     clinics = await roster.list_clinics(session)
@@ -276,7 +283,7 @@ async def _clinic_with_a_booking(session):
     )
     session.add(template)
     await session.flush()
-    await scheduling.generate_slots(session, start=datetime.now(UTC).date(), days=21)
+    await scheduling.generate_slots(session, start=generation_start(), days=21)
     slots = (
         (
             await session.execute(
@@ -321,7 +328,7 @@ async def test_moving_a_clinic_retires_the_old_inventory_and_keeps_the_new(sessi
     )
     assert impact is not None and len(impact.booked) == 1
 
-    await scheduling.generate_slots(session, start=datetime.now(UTC).date(), days=21)
+    await scheduling.generate_slots(session, start=generation_start(), days=21)
     tz = scheduling.hospital_tz()
     live = [
         slot
@@ -396,7 +403,7 @@ async def test_capacity_is_never_shrunk_below_what_is_already_booked(session):
     )
     session.add(template)
     await session.flush()
-    await scheduling.generate_slots(session, start=datetime.now(UTC).date(), days=21)
+    await scheduling.generate_slots(session, start=generation_start(), days=21)
     slot = (
         (
             await session.execute(

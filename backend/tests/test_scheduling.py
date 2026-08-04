@@ -18,7 +18,13 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from app import scheduling
 from app.models.enums import AppointmentStatus, Channel, SlotType
 from app.models.scheduling import Appointment
-from tests.factories import build_clinic, make_patient, make_slot, make_slot_template
+from tests.factories import (
+    build_clinic,
+    generation_start,
+    make_patient,
+    make_slot,
+    make_slot_template,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -77,10 +83,14 @@ async def test_regeneration_does_not_reset_a_booked_slot(session):
     clinic = await build_clinic(session)
     session.add(make_slot_template(clinic["doctor"]))
     await session.flush()
-    [slot, *_] = await scheduling.generate_slots(session, start=date(2026, 8, 3), days=7)
+    # Generated from tomorrow, not a pinned date: this test *books* the slot, and
+    # booking rightly refuses an instant that has already passed. Any seven-day
+    # window starting tomorrow contains the template's weekday exactly once.
+    start = generation_start()
+    [slot, *_] = await scheduling.generate_slots(session, start=start, days=7)
 
     await scheduling.book(session, patient=clinic["patient"], slot_id=slot.id, source=Channel.PHONE)
-    await scheduling.generate_slots(session, start=date(2026, 8, 3), days=7)
+    await scheduling.generate_slots(session, start=start, days=7)
 
     await session.refresh(slot)
     assert slot.booked == 1

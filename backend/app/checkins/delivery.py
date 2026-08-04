@@ -154,12 +154,19 @@ async def _send_whatsapp(
     hospital_name: str,
     conversations: ConversationStore | None,
     settings: Settings,
+    now: datetime | None = None,
 ) -> str:
-    """Returns a detail line. Raises `ProviderError`/`TemplateError` on failure."""
+    """Returns a detail line. Raises `ProviderError`/`TemplateError` on failure.
+
+    `now` is the beat tick's clock, not the wall clock. The 24h window has to be
+    judged against the same instant the rest of the tick is judged against —
+    reading `datetime.now()` here would let a replay, a backfill, or a skewed box
+    decide the window differently from the caller that chose to send.
+    """
     in_window = False
     if conversations is not None:
         conversation = await conversations.get(patient.phone)
-        in_window = conversation is not None and conversation.within_window()
+        in_window = conversation is not None and conversation.within_window(now=now)
 
     if not in_window:
         # Meta refuses free text out of window, so the personalised message
@@ -256,6 +263,7 @@ async def deliver(
                 hospital_name=hospital_name,
                 conversations=conversations,
                 settings=settings,
+                now=now,
             )
         elif channel is Channel.PHONE:
             detail = await _place_call(checkin, patient=patient, settings=settings)
