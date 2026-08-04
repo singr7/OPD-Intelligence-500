@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKey, enum_type
@@ -62,6 +62,17 @@ class User(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     totp_secret: Mapped[str | None] = mapped_column(String(64))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    #: Argon2 of a numeric PIN that unlocks the kiosk's staff strip. Deliberately
+    #: *not* the staff login: a PIN is a handful of digits typed on a screen a
+    #: queue can see, so it buys a narrow, short-lived kiosk-only token and never
+    #: a full staff session (`app.auth.kiosk_pin`). Null means this user cannot
+    #: unlock a kiosk, which is the correct default for everyone.
+    kiosk_pin_hash: Mapped[str | None] = mapped_column(String(255))
+    kiosk_pin_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    #: Set when the attempt cap trips. A shoulder-surfed PIN is guessable in a few
+    #: hundred tries; the lockout is what makes that expensive rather than free.
+    kiosk_pin_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     doctor: Mapped[Doctor | None] = relationship(back_populates="user", uselist=False)
 

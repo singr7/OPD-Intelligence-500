@@ -13,8 +13,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import tests.factories as f
 from app import assignment as a
+from app import kiosk as kiosk_svc
 from app import queue as q
-from app.models.enums import Channel, PatientLinkState, Role, VisitStatus
+from app.models.enums import (
+    Channel,
+    PatientLinkState,
+    Priority,
+    QueueEntryState,
+    Role,
+    VisitStatus,
+)
+from app.models.scheduling import Queue
 
 pytestmark = pytest.mark.asyncio
 
@@ -297,7 +306,7 @@ async def test_a_doctor_from_another_department_is_refused(session, clinic):
         await a.assign(session, visit=visit, doctor_id=outsider.id)
 
 
-async def test_changing_department_moves_the_visit_and_allows_its_doctors(session, clinic):
+async def _other_department_with_a_doctor(session, clinic):
     other_dept = f.make_department(clinic["hospital"])
     session.add(other_dept)
     await session.flush()
@@ -307,12 +316,88 @@ async def test_changing_department_moves_the_visit_and_allows_its_doctors(sessio
     surgeon = f.make_doctor(user, other_dept)
     session.add(surgeon)
     await session.flush()
-    _, visit = await _walk_in(session, clinic)
+    return other_dept, surgeon
 
-    await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
+
+async def _queued_walk_in(session, clinic, *, priority=Priority.ROUTINE, reason=None):
+    """A walk-in that actually reached the line, which is the only state a
+    department correction happens from."""
+    walk_in, visit = await _walk_in(session, clinic)
+    visit.token_no = await kiosk_svc.allocate_token(session, visit)
+    entry = await q.enqueue(session, visit=visit, priority=priority, priority_reason=reason)
+    return walk_in, visit, entry
+
+
+async def test_changing_department_moves_the_visit_and_allows_its_doctors(session, clinic):
+    other_dept, surgeon = await _other_department_with_a_doctor(session, clinic)
+    _, visit, entry = await _queued_walk_in(session, clinic)
+
+    result = await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
 
     assert visit.department_id == other_dept.id
     assert visit.doctor_id == surgeon.id
+    # The queue entry moved with the patient rather than being left behind on a
+    # board they are no longer queued in.
+    moved_to = await session.get(Queue, entry.queue_id)
+    assert moved_to.department_id == other_dept.id
+
+
+async def test_changing_department_reissues_the_token(session, clinic):
+    """The old number belongs to the old department's series and can collide
+    with a real one there."""
+    other_dept, surgeon = await _other_department_with_a_doctor(session, clinic)
+    # Somebody is already holding token 1 in the destination department.
+    sitting = f.make_patient(clinic["hospital"])
+    session.add(sitting)
+    await session.flush()
+    theirs = f.make_visit(sitting, other_dept, date=TODAY, channel=Channel.KIOSK)
+    session.add(theirs)
+    await session.flush()
+    theirs.token_no = await kiosk_svc.allocate_token(session, theirs)
+
+    _, visit, _ = await _queued_walk_in(session, clinic)
+    old = visit.token_no
+
+    result = await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
+
+    assert result.token_reissued
+    assert result.old_token_no == old
+    assert result.new_token_no == visit.token_no != old
+    assert visit.token_no != theirs.token_no
+
+
+async def test_a_moved_patient_keeps_their_urgency(session, clinic):
+    """Re-routing is a clerical correction. A red flag is not undone by it."""
+    other_dept, surgeon = await _other_department_with_a_doctor(session, clinic)
+    _, visit, entry = await _queued_walk_in(
+        session, clinic, priority=Priority.URGENT, reason="Non-healing ulcer"
+    )
+
+    await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
+
+    assert entry.priority is Priority.URGENT
+    assert entry.priority_reason == "Non-healing ulcer"
+
+
+async def test_a_consultation_already_under_way_cannot_be_re_routed(session, clinic):
+    """By then there is a clinical record attached to the department it happened in."""
+    other_dept, surgeon = await _other_department_with_a_doctor(session, clinic)
+    _, visit, entry = await _queued_walk_in(session, clinic)
+    entry.state = QueueEntryState.IN_CONSULT
+    await session.flush()
+
+    with pytest.raises(a.AssignmentError):
+        await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
+
+
+async def test_assigning_within_the_department_never_touches_the_token(session, clinic):
+    _, visit, _ = await _queued_walk_in(session, clinic)
+    old = visit.token_no
+
+    result = await a.assign(session, visit=visit, doctor_id=clinic["doctor"].id)
+
+    assert not result.token_reissued
+    assert visit.token_no == old
 
 
 async def test_an_inactive_doctor_is_refused(session, clinic):

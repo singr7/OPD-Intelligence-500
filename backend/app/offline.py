@@ -75,6 +75,7 @@ from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
+from app.models.scheduling import OfflineTokenBlock
 from app.patient_names import (
     PatientNameError,
     normalize_patient_age,
@@ -82,7 +83,6 @@ from app.patient_names import (
     normalize_patient_phone,
     normalize_patient_sex,
 )
-from app.models.scheduling import OfflineTokenBlock
 from app.trees import bank
 from app.trees.schema import TreeError
 from app.trees.walker import Walk

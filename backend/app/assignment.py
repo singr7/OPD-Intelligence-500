@@ -250,13 +250,29 @@ def default_doctor(options: list[DoctorOption]) -> DoctorOption | None:
 # -- assignment ---------------------------------------------------------------
 
 
+@dataclass(slots=True)
+class Assignment:
+    """The outcome of one strip confirmation, including anything the patient
+    must now be told."""
+
+    visit: Visit
+    #: Set when the department changed: the patient's printed slip is stale and
+    #: the coordinator has to hand them this number instead.
+    old_token_no: int | None = None
+    new_token_no: int | None = None
+
+    @property
+    def token_reissued(self) -> bool:
+        return self.new_token_no is not None and self.new_token_no != self.old_token_no
+
+
 async def assign(
     session: AsyncSession,
     *,
     visit: Visit,
     doctor_id: uuid.UUID | None,
     department: Department | None = None,
-) -> Visit:
+) -> Assignment:
     """Point a visit at a doctor, and optionally at a different department.
 
     `doctor_id=None` is a first-class outcome, not a failure: it means the
@@ -267,13 +283,28 @@ async def assign(
     A doctor must belong to the visit's (possibly just-changed) department.
     Assigning across departments would put a patient on a worklist filtered by a
     department they are not queued in, and they would drop out of both.
+
+    A department change moves the queue entry and reissues the token
+    (`queue.transfer_department`) — the two things that are keyed per department.
+    It does **not** re-open the clinical record: the tree that was walked, the
+    flags it raised and the urgency they set all stand, and the doctor's card
+    shows the original routing so the note is read in the context it was taken in.
     """
+    result = Assignment(visit=visit, old_token_no=visit.token_no, new_token_no=visit.token_no)
+
     if department is not None and department.id != visit.department_id:
-        visit.department_id = department.id
-        # A department correction does not re-open the clinical record: the tree
-        # that was walked, the flags it raised and the urgency they set all stand.
-        # The doctor's card shows the original routing so the note is read in the
-        # context it was taken in.
+        # Imported here: `app.queue` imports `app.kiosk` for token allocation and
+        # `app.kiosk` imports this module for the arrival lookup.
+        from app import queue as queue_svc
+
+        try:
+            transfer = await queue_svc.transfer_department(
+                session, visit=visit, department=department
+            )
+        except queue_svc.QueueError as exc:
+            raise AssignmentError(str(exc)) from exc
+        result.old_token_no = transfer.old_token_no
+        result.new_token_no = transfer.new_token_no
 
     if doctor_id is not None:
         doctor = await session.get(Doctor, doctor_id)
@@ -286,4 +317,4 @@ async def assign(
         visit.doctor_id = None
 
     await session.flush()
-    return visit
+    return result

@@ -36,6 +36,7 @@ doc 01 §7's success metric is ±15 min.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -52,6 +53,8 @@ from app.models.enums import Channel, IntakeTier, Lang, Priority, QueueEntryStat
 from app.models.org import Department, Doctor
 from app.models.patient import Patient
 from app.models.scheduling import Queue, QueueEntry
+
+logger = logging.getLogger(__name__)
 
 #: Lower sorts earlier. Urgent first — the whole point of the priority column.
 PRIORITY_RANK: dict[Priority, int] = {
@@ -239,6 +242,87 @@ async def enqueue(
     visit.status = VisitStatus.IN_QUEUE
     await session.flush()
     return entry
+
+
+@dataclass(slots=True)
+class Transfer:
+    """What a department correction did to a patient's place in the line."""
+
+    entry: QueueEntry
+    old_token_no: int
+    new_token_no: int
+    old_department_id: uuid.UUID
+
+
+async def transfer_department(
+    session: AsyncSession, *, visit: Visit, department: Department
+) -> Transfer:
+    """Move a queued visit to another department, reissuing its token.
+
+    A coordinator correcting a routing mistake has to move two things that are
+    keyed per department: the queue entry and the token number. Moving only the
+    visit would leave the patient on a board they are not queued in, and keeping
+    the old number would put a Medical Oncology token into the Surgical Oncology
+    series, where it can collide with a real one (`uq_visits_dept_date_token`).
+
+    The **entry is moved, not recreated**. Queue reads here do not filter
+    `deleted_at`, so a soft-deleted entry would keep appearing on the board; and
+    moving preserves priority, `priority_reason` and `called_at`, which a red-flag
+    patient must not lose by being re-routed.
+
+    The patient's printed slip is now stale — the caller is responsible for
+    telling them their new number. That is a real cost of the correction, and it
+    is why the coordinator has to choose it rather than have it happen quietly.
+
+    Refuses once the consultation has started: a visit that is mid-consult or
+    finished has a clinical record attached to the department it happened in.
+    """
+    if department.id == visit.department_id:
+        raise QueueError("that visit is already in this department")
+
+    entry = await session.scalar(
+        select(QueueEntry)
+        .join(Queue, Queue.id == QueueEntry.queue_id)
+        .where(QueueEntry.visit_id == visit.id, Queue.date == visit.date)
+    )
+    if entry is None:
+        raise QueueError("that visit is not in a queue")
+    if entry.state not in (QueueEntryState.WAITING, QueueEntryState.CALLED):
+        raise QueueError(f"a {entry.state} visit cannot be moved to another department")
+
+    old_department_id = visit.department_id
+    old_token_no = entry.token_no
+
+    # Free the old number before taking a new one: `allocate_token` short-circuits
+    # on a visit that already has one, and the unique constraint is per department.
+    visit.department_id = department.id
+    visit.token_no = None
+    await session.flush()
+
+    from app.kiosk import allocate_token
+
+    new_token_no = await allocate_token(session, visit)
+
+    queue = await get_or_create_queue(session, department_id=department.id, on=visit.date)
+    entry.queue_id = queue.id
+    entry.token_no = new_token_no
+    entry.position = new_token_no
+    await session.flush()
+
+    logger.info(
+        "visit %s moved from department %s to %s; token %s -> %s",
+        visit.id,
+        old_department_id,
+        department.id,
+        old_token_no,
+        new_token_no,
+    )
+    return Transfer(
+        entry=entry,
+        old_token_no=old_token_no,
+        new_token_no=new_token_no,
+        old_department_id=old_department_id,
+    )
 
 
 async def enqueue_from_intake(session: AsyncSession, *, visit: Visit, intake: Intake) -> QueueEntry:
@@ -449,9 +533,7 @@ async def _chief_and_flags(
     return out
 
 
-async def _patient_names(
-    session: AsyncSession, visit_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, str]:
+async def _patient_names(session: AsyncSession, visit_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     """One query for the patient name behind each visit (S-UX.6).
 
     Joined rather than stored on the queue entry: the desk can correct a name
@@ -540,9 +622,7 @@ async def department_queue(
     for entry in [*active, *waiting, *lab]:
         chief, flags = meta.get(entry.visit_id, (None, 0))
         views.append(
-            await _view(
-                entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id)
-            )
+            await _view(entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id))
         )
     return views
 
@@ -593,9 +673,7 @@ async def board(session: AsyncSession, *, on: date_type | None = None) -> list[D
         for entry in waiting[:3]:
             chief, flags = meta.get(entry.visit_id, (None, 0))
             next_views.append(
-                await _view(
-                    entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id)
-                )
+                await _view(entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id))
             )
         # Wait for the person at the back of "next 3" — the useful number for a
         # patient reading the board is "how long until roughly me".

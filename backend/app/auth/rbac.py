@@ -225,3 +225,48 @@ require_staff = require_roles(*STAFF_ROLES)
 require_clinical = require_roles(*CLINICAL_ROLES)
 require_admin = require_roles(Role.ADMIN)
 require_doctor = require_roles(Role.DOCTOR, Role.ADMIN)
+
+
+async def require_kiosk_staff(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+) -> Principal:
+    """The coordinator who unlocked the kiosk's staff strip with a PIN.
+
+    A separate guard from `current_principal` because it accepts a *different*
+    token type. The PIN behind it is a few digits typed on a screen a waiting
+    room can see, so what it opens is deliberately tiny: the kiosk's own
+    identity/assignment verbs and nothing else. Never reuse this guard to save a
+    coordinator a login on a richer surface — the console, the patient card and
+    the audit trail are worth more than four digits.
+    """
+    # Imported here rather than at module scope: `app.auth.kiosk_pin` imports
+    # token helpers from `app.auth.tokens`, and hoisting this would make the auth
+    # package import itself in a cycle.
+    from app.auth.kiosk_pin import PIN_ROLES, decode_kiosk_staff_token
+
+    if credentials is None:
+        raise CREDENTIALS_EXCEPTION
+
+    try:
+        claims = decode_kiosk_staff_token(credentials.credentials, settings)
+        user_id = uuid.UUID(claims["sub"])
+    except (TokenError, KeyError, ValueError) as exc:
+        raise CREDENTIALS_EXCEPTION from exc
+
+    user = await session.get(User, user_id)
+    if user is None or not user.can_login:
+        raise CREDENTIALS_EXCEPTION
+    # Re-checked against the database, like `current_principal`: a coordinator
+    # whose PIN was cleared or whose role changed must lose the strip at once,
+    # not when their half-hour token happens to expire.
+    if user.role not in PIN_ROLES or user.kiosk_pin_hash is None:
+        raise CREDENTIALS_EXCEPTION
+
+    return Principal(
+        id=user.id,
+        role=user.role,
+        name=user.name,
+        hospital_id=user.hospital_id,
+    )
