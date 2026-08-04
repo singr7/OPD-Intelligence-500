@@ -1,7 +1,7 @@
 # HANDOFF — after SESSION-AR2
 
-**Repo state:** branch `assign-rx-identity`, last commit `74319d1`.
-`make test-backend` 1325 passed. Migrations `c6e3681f5ce1` and `520d07f0b3e4`
+**Repo state:** branch `assign-rx-identity`, last commit `d183f45`.
+`make test-backend` 1328 passed. Migrations `c6e3681f5ce1` and `520d07f0b3e4`
 are applied **locally only**.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open; see
@@ -20,8 +20,9 @@ and until it lands nothing a user touches has changed.
 
 1. **Kiosk arrival**: "Have you visited us before?" → phone → optional UHC ID.
    Doc 04 rural-first laws apply — audio-first, one decision per screen, ≥64px
-   targets, tap alternative always present, and all four languages. On a match
-   the screen says only "we may already have your file; our staff will confirm".
+   targets, tap alternative always present. **English + Hindi only** (see below).
+   On a match the screen says only "we may already have your file; our staff
+   will confirm" — never the name, the MRN, or anything clinical.
 2. **Kiosk staff strip** on the token screen: locked by default, `Unlock` →
    name picker (`GET /kiosk/staff/holders`) → numeric keypad → `POST
    /kiosk/staff/unlock`. Unlocked, it shows the candidate, department, doctor
@@ -38,7 +39,7 @@ First commands:
 
 ```
 git checkout assign-rx-identity
-make test-backend            # expect 1325 passed
+make test-backend            # expect 1328 passed
 docs/04-UIUX-GUIDE.md        # mandatory before any screen
 sed -n '1,80p' sessions/SESSION-ASSIGN-RX-PLAN.md   # §1.2 sketches the strip
 ```
