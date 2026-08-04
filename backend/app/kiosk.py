@@ -88,6 +88,13 @@ async def _departments(session: AsyncSession) -> list[Department]:
     return list(result.scalars().all())
 
 
+async def department_by_code(session: AsyncSession, code: str) -> Department | None:
+    """One active department by its natural key, or None."""
+    return await session.scalar(
+        select(Department).where(Department.code == code, Department.active.is_(True))
+    )
+
+
 async def route_complaint(
     session: AsyncSession,
     *,
@@ -160,6 +167,7 @@ async def create_walk_in(
     patient_age: int | None = None,
     patient_sex: str | None = None,
     patient_phone: str | None = None,
+    patient_external_id: str | None = None,
 ) -> WalkIn:
     """Create the named walk-in patient, visit and intake for a kiosk session.
 
@@ -179,6 +187,9 @@ async def create_walk_in(
         mrn=f"WALKIN-{uuid.uuid4().hex[:10].upper()}",
         name=name,
         phone=normalize_patient_phone(patient_phone),
+        # Stored on the walk-in row too, so a coordinator who rejects the match
+        # still ends up with the identifier the patient actually gave us.
+        external_id=(patient_external_id or "").strip() or None,
         age=normalize_patient_age(patient_age),
         sex=normalize_patient_sex(patient_sex),
         lang=lang,
@@ -209,6 +220,24 @@ async def create_walk_in(
     )
     session.add(intake)
     await session.flush()
+
+    # Did this person give us something we already hold a file under? Recorded on
+    # the visit for the coordinator's strip and *nothing more*: the kiosk never
+    # tells the patient whose file it found, and the walk-in row above stands
+    # until a human confirms the match (`app.assignment`).
+    if patient_phone or patient_external_id:
+        # Imported here — `app.assignment` reaches back into `app.queue`, which
+        # imports this module for token allocation.
+        from app import assignment as assignment_svc
+
+        candidate = await assignment_svc.find_candidate(
+            session,
+            hospital_id=department.hospital_id,
+            phone=patient_phone,
+            external_id=patient_external_id,
+            exclude_patient_id=patient.id,
+        )
+        await assignment_svc.note_candidate(session, visit=visit, candidate=candidate)
 
     return WalkIn(patient=patient, visit=visit, intake=intake)
 

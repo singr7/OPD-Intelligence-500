@@ -332,7 +332,7 @@ async def test_changing_department_moves_the_visit_and_allows_its_doctors(sessio
     other_dept, surgeon = await _other_department_with_a_doctor(session, clinic)
     _, visit, entry = await _queued_walk_in(session, clinic)
 
-    result = await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
+    await a.assign(session, visit=visit, doctor_id=surgeon.id, department=other_dept)
 
     assert visit.department_id == other_dept.id
     assert visit.doctor_id == surgeon.id

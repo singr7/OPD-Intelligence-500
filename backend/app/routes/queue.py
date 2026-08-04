@@ -25,6 +25,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketDisconnect
 
+from app import assignment as assignment_svc
+from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import print_sheets
 from app import queue as queue_svc
@@ -32,7 +34,8 @@ from app.auth.rbac import Principal, require_staff
 from app.db import get_session
 from app.models.clinical import Intake, Visit
 from app.models.enums import Lang, QueueEntryState
-from app.models.org import Department, Hospital
+from app.models.org import Department, Doctor, Hospital
+from app.models.scheduling import QueueEntry
 from app.queue_hub import QueueHub
 from app.trees import bank
 
@@ -319,6 +322,116 @@ async def set_entry_state(
         chief_complaint=None,
         red_flag_count=0,
     )
+
+
+class EntryAssignIn(BaseModel):
+    link_candidate: bool | None = None
+    department_key: str | None = None
+    doctor_id: uuid.UUID | None = None
+
+
+class EntryAssignOut(BaseModel):
+    entry_id: uuid.UUID
+    visit_id: uuid.UUID
+    department_key: str
+    department_name: str
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    link_state: str
+    token_no: int | None = None
+    previous_token_no: int | None = None
+    token_reissued: bool = False
+
+
+class AssignableDoctorOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    qualification: str | None = None
+    on_duty: bool
+
+
+@router.get("/entries/{entry_id}/assignable", response_model=list[AssignableDoctorOut])
+async def assignable(
+    entry_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    _: Principal = Depends(require_staff),
+) -> list[AssignableDoctorOut]:
+    """Who this entry's department can be assigned to today."""
+    entry, visit = await _entry_and_visit(session, entry_id)
+    options = await assignment_svc.assignable_doctors(
+        session, department_id=visit.department_id, on=visit.date
+    )
+    return [
+        AssignableDoctorOut(id=o.id, name=o.name, qualification=o.qualification, on_duty=o.on_duty)
+        for o in options
+    ]
+
+
+@router.post("/entries/{entry_id}/assign", response_model=EntryAssignOut)
+async def assign_entry(
+    entry_id: uuid.UUID,
+    payload: EntryAssignIn,
+    session: AsyncSession = Depends(get_session),
+    hub: QueueHub = Depends(get_hub),
+    _: Principal = Depends(require_staff),
+) -> EntryAssignOut:
+    """Assign, re-route or link a queued visit from the coordinator console.
+
+    The same verbs as the kiosk's staff strip, reached from the desk instead of
+    the terminal. This is the compensating control for every arrival the strip
+    did not settle — a `Skip`, and every visit an **offline** kiosk synced with no
+    roster to pick from. Without it those patients would sit in the department
+    pool with nobody's name on them, which is exactly the state the doctor
+    console's `Unassigned` count exists to make impossible to miss.
+    """
+    entry, visit = await _entry_and_visit(session, entry_id)
+
+    try:
+        if payload.link_candidate is True:
+            await assignment_svc.confirm_link(session, visit=visit)
+        elif payload.link_candidate is False:
+            await assignment_svc.reject_link(session, visit=visit)
+
+        department = None
+        if payload.department_key:
+            department = await kiosk_svc.department_by_code(session, payload.department_key)
+            if department is None:
+                raise HTTPException(status_code=422, detail="no such department")
+
+        result = await assignment_svc.assign(
+            session, visit=visit, doctor_id=payload.doctor_id, department=department
+        )
+    except assignment_svc.AssignmentError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    dept = await session.get(Department, visit.department_id)
+    doctor = await session.get(Doctor, visit.doctor_id) if visit.doctor_id else None
+
+    await session.commit()
+    await hub.notify_queue_changed()
+
+    return EntryAssignOut(
+        entry_id=entry.id,
+        visit_id=visit.id,
+        department_key=dept.code if dept else "",
+        department_name=dept.name if dept else "",
+        assigned_doctor_id=doctor.id if doctor else None,
+        assigned_doctor_name=doctor.name if doctor else None,
+        link_state=str(visit.patient_link_state),
+        token_no=result.new_token_no,
+        previous_token_no=result.old_token_no if result.token_reissued else None,
+        token_reissued=result.token_reissued,
+    )
+
+
+async def _entry_and_visit(session: AsyncSession, entry_id: uuid.UUID):
+    entry = await session.get(QueueEntry, entry_id)
+    if entry is None or entry.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="no such queue entry")
+    visit = await session.get(Visit, entry.visit_id)
+    if visit is None or visit.deleted_at is not None:  # pragma: no cover - FK-guaranteed
+        raise HTTPException(status_code=404, detail="no such visit")
+    return entry, visit
 
 
 @router.post("/reorder")

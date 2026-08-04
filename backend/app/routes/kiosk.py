@@ -15,9 +15,27 @@ reuse the vocabulary. One request = one tool call over the dispatcher:
 The kiosk is a V3 client (taps, no model in the walk); the one model call is Q1's
 department classifier, and `needs_human` is honoured — `/start` then returns a
 department chooser instead of a session, and the kiosk re-calls `/start` with the
-chosen `dept_key`. Nothing here is authenticated: a kiosk is a public terminal and
-the intake carries no credential (the visit is an anonymous walk-in). It must stay
-that boring — no patient lookup, no PII in a path.
+chosen `dept_key`.
+
+## What is and is not authenticated here
+
+The **patient's** intake is not, and must stay that way: a kiosk is a public
+terminal, the visit is an anonymous walk-in, and no route the patient drives may
+require or return a credential. No PII in a path.
+
+Since AR2 there is one authenticated cluster — the coordinator's *staff strip* on
+the last screen (`/staff/holders`, `/staff/unlock`, `/{sid}/strip`,
+`/{sid}/assign`). It exists because the pilot runs a single kiosk with a single
+coordinator standing at it, and it is guarded by `require_kiosk_staff`, which
+accepts only the narrow `kiosk_staff` token a PIN mints — never an ordinary staff
+session (`app.auth.kiosk_pin` explains why that separation is the whole design).
+
+`/start` now takes an optional phone/UHC ID and *may* find a prior patient, but
+the lookup's result is never returned to the terminal: it is recorded on the visit
+as a candidate for the coordinator to confirm behind the PIN. A public screen that
+prints a named oncology history to whoever types ten digits is the failure this
+arrangement exists to prevent, so the boring rule survives in the form that
+matters — nothing patient-identifying leaves these routes unauthenticated.
 """
 
 from __future__ import annotations
@@ -25,23 +43,31 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import assignment as assignment_svc
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import queue as queue_svc
+from app.auth.rbac import Principal, require_kiosk_staff
 from app.channels import require_open, resolve_config
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.intake import IntakeEngine, Interpreter, SessionState, ToolError
+from app.models.clinical import Visit
 from app.models.enums import Channel, Lang, UsagePurpose
+from app.models.org import Doctor
+from app.models.patient import Patient
 from app.providers.audio import AudioClip
 from app.providers.base import ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import get_meter, usage_scope
@@ -104,6 +130,11 @@ class StartIn(BaseModel):
     patient_age: int | None = Field(default=None, ge=0, le=200)
     patient_sex: str | None = Field(default=None, max_length=16)
     patient_phone: str | None = Field(default=None, max_length=24)
+    #: The health ID the patient already carries — the pilot site's UHC ID/MRN,
+    #: which may be printed on a card or a discharge summary they are holding.
+    #: Optional in the strictest sense: it never gates an intake or a token, and a
+    #: patient who does not have one, cannot read one, or declines is unaffected.
+    patient_external_id: str | None = Field(default=None, max_length=64)
     #: A confirmed department (staff- or patient-picked from the chooser). When
     #: present the classifier is skipped entirely.
     dept_key: str | None = None
@@ -248,6 +279,7 @@ async def start(
             patient_age=payload.patient_age,
             patient_sex=payload.patient_sex,
             patient_phone=payload.patient_phone,
+            patient_external_id=payload.patient_external_id,
         )
     except kiosk_svc.KioskError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1017,6 +1049,268 @@ async def sync(
         synced=synced,
         duplicates=sum(1 for r in results if r.status == "duplicate"),
         rejected=sum(1 for r in results if r.status == "rejected"),
+    )
+
+
+# -- the coordinator's staff strip --------------------------------------------
+#
+# The kiosk's last screen belongs to the patient: token, department, red-flag
+# instruction, all spoken. These routes drive the strip *below* it, which is
+# locked until a coordinator enters their PIN and relocks on idle.
+#
+# The pilot runs one kiosk with one coordinator standing at it, which is what
+# makes a screen-side staff control workable at all. Two things are settled here
+# in one action: whether this arrival is the returning patient the arrival screen
+# matched, and which doctor is going to see them.
+
+
+class PinHolderOut(BaseModel):
+    """A coordinator who can unlock this kiosk. Name only — nothing contactable."""
+
+    id: uuid.UUID
+    name: str
+
+
+class UnlockIn(BaseModel):
+    user_id: uuid.UUID
+    pin: str = Field(min_length=1, max_length=16)
+
+
+class UnlockOut(BaseModel):
+    token: str
+    expires_at: datetime
+    name: str
+
+
+class CandidateOut(BaseModel):
+    """The possible prior file. Returned **only** behind the PIN."""
+
+    patient_id: uuid.UUID
+    name: str
+    mrn: str
+    age: int | None = None
+    sex: str | None = None
+    external_id: str | None = None
+    last_visit_on: date_type | None = None
+
+
+class StripDoctorOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    qualification: str | None = None
+    on_duty: bool
+
+
+class StripOut(BaseModel):
+    visit_id: uuid.UUID
+    token_no: int | None = None
+    department_key: str
+    department_name: str
+    departments: list[DeptOut]
+    doctors: list[StripDoctorOut]
+    #: Pre-selected when exactly one doctor is on duty; null when it is a real
+    #: choice, because an unnoticed default is how a patient lands on the wrong list.
+    default_doctor_id: uuid.UUID | None = None
+    assigned_doctor_id: uuid.UUID | None = None
+    link_state: str
+    candidate: CandidateOut | None = None
+
+
+class AssignIn(BaseModel):
+    #: True confirms the candidate is the same person; False records that a human
+    #: looked and it is not. Null leaves the question open for the console.
+    link_candidate: bool | None = None
+    department_key: str | None = None
+    doctor_id: uuid.UUID | None = None
+
+
+class AssignOut(BaseModel):
+    visit_id: uuid.UUID
+    department_key: str
+    department_name: str
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    link_state: str
+    patient_name: str | None = None
+    token_no: int | None = None
+    #: Set when a department change reissued the number. The coordinator has to
+    #: hand the patient this one — their printed slip is now stale.
+    previous_token_no: int | None = None
+    token_reissued: bool = False
+
+
+@router.get("/staff/holders", response_model=list[PinHolderOut])
+async def staff_holders(session: AsyncSession = Depends(get_session)) -> list[PinHolderOut]:
+    """Who can unlock this kiosk.
+
+    Unauthenticated because it has to be: the strip cannot ask who you are after
+    you have identified yourself. It discloses staff *names* — which are on the
+    badges of the people standing in the same corridor — and nothing else. No
+    phone, no role, no id beyond the opaque one the unlock call needs.
+    """
+    from app.auth.kiosk_pin import PIN_ROLES
+    from app.models.org import User
+
+    users = await session.scalars(
+        select(User)
+        .where(
+            User.kiosk_pin_hash.is_not(None),
+            User.role.in_(tuple(PIN_ROLES)),
+            User.active.is_(True),
+            User.deleted_at.is_(None),
+        )
+        .order_by(User.name)
+    )
+    return [PinHolderOut(id=u.id, name=u.name) for u in users]
+
+
+@router.post("/staff/unlock", response_model=UnlockOut)
+async def staff_unlock(
+    payload: UnlockIn,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> UnlockOut:
+    """Exchange a coordinator's PIN for a narrow, short-lived kiosk token."""
+    from app.auth import kiosk_pin as kp
+    from app.models.org import User
+
+    user = await session.get(User, payload.user_id)
+    if user is None or user.deleted_at is not None:
+        # Same shape as a wrong PIN: the strip must not become a way to probe
+        # which staff ids exist.
+        raise HTTPException(status_code=401, detail="that PIN was not recognised")
+    try:
+        issued = await kp.verify_pin(session, user=user, pin=payload.pin, settings=settings)
+    except kp.PinLocked as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except kp.PinError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    await session.commit()
+    return UnlockOut(token=issued.token, expires_at=issued.expires_at, name=user.name)
+
+
+async def _strip_visit(engine: IntakeEngine, session: AsyncSession, session_id: str) -> Visit:
+    state = await _load_state(engine, session_id)
+    if state.visit_id is None:  # pragma: no cover - a started session always has one
+        raise HTTPException(status_code=409, detail="this session has no visit yet")
+    visit = await session.get(Visit, state.visit_id)
+    if visit is None or visit.deleted_at is not None:  # pragma: no cover - FK-guaranteed
+        raise HTTPException(status_code=404, detail="no such visit")
+    return visit
+
+
+@router.get("/{session_id}/strip", response_model=StripOut)
+async def read_strip(
+    session_id: str,
+    principal: Principal = Depends(require_kiosk_staff),
+    engine: IntakeEngine = Depends(get_engine),
+    session: AsyncSession = Depends(get_session),
+) -> StripOut:
+    """What the unlocked strip shows: the possible match, and who is in clinic."""
+    visit = await _strip_visit(engine, session, session_id)
+    dept = await session.get(kiosk_svc.Department, visit.department_id)
+    if dept is None:  # pragma: no cover - FK-guaranteed
+        raise HTTPException(status_code=404, detail="no such department")
+
+    departments = await kiosk_svc._departments(session)
+    options = await assignment_svc.assignable_doctors(session, department_id=dept.id, on=visit.date)
+    default = assignment_svc.default_doctor(options)
+
+    candidate: CandidateOut | None = None
+    if visit.candidate_patient_id is not None:
+        prior = await session.get(Patient, visit.candidate_patient_id)
+        if prior is not None and prior.deleted_at is None:
+            last = await session.scalar(
+                select(func.max(Visit.date)).where(
+                    Visit.patient_id == prior.id,
+                    Visit.id != visit.id,
+                    Visit.deleted_at.is_(None),
+                )
+            )
+            candidate = CandidateOut(
+                patient_id=prior.id,
+                name=prior.name,
+                mrn=prior.mrn,
+                age=prior.age,
+                sex=str(prior.sex) if prior.sex else None,
+                external_id=prior.external_id,
+                last_visit_on=last,
+            )
+
+    return StripOut(
+        visit_id=visit.id,
+        token_no=visit.token_no,
+        department_key=dept.code,
+        department_name=dept.name,
+        departments=[DeptOut(key=d.code, name=d.name) for d in departments],
+        doctors=[
+            StripDoctorOut(id=o.id, name=o.name, qualification=o.qualification, on_duty=o.on_duty)
+            for o in options
+        ],
+        default_doctor_id=default.id if default else None,
+        assigned_doctor_id=visit.doctor_id,
+        link_state=str(visit.patient_link_state),
+        candidate=candidate,
+    )
+
+
+@router.post("/{session_id}/assign", response_model=AssignOut)
+async def assign_from_strip(
+    session_id: str,
+    payload: AssignIn,
+    request: Request,
+    principal: Principal = Depends(require_kiosk_staff),
+    engine: IntakeEngine = Depends(get_engine),
+    session: AsyncSession = Depends(get_session),
+) -> AssignOut:
+    """Settle identity and assignment in one action.
+
+    Order matters: the link is resolved first, so a confirmed match means the
+    doctor is assigned against the patient's real file rather than the throwaway
+    walk-in row.
+    """
+    visit = await _strip_visit(engine, session, session_id)
+
+    try:
+        if payload.link_candidate is True:
+            await assignment_svc.confirm_link(session, visit=visit)
+        elif payload.link_candidate is False:
+            await assignment_svc.reject_link(session, visit=visit)
+
+        department = None
+        if payload.department_key:
+            department = await kiosk_svc.department_by_code(session, payload.department_key)
+            if department is None:
+                raise HTTPException(status_code=422, detail="no such department")
+
+        result = await assignment_svc.assign(
+            session, visit=visit, doctor_id=payload.doctor_id, department=department
+        )
+    except assignment_svc.AssignmentError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    dept = await session.get(kiosk_svc.Department, visit.department_id)
+    doctor = await session.get(Doctor, visit.doctor_id) if visit.doctor_id else None
+    patient = await session.get(Patient, visit.patient_id)
+
+    await session.commit()
+    # The board shows the token and the department; both may have just changed.
+    hub: QueueHub | None = getattr(request.app.state, "queue_hub", None)
+    if hub is not None:
+        await hub.notify_queue_changed()
+
+    return AssignOut(
+        visit_id=visit.id,
+        department_key=dept.code if dept else "",
+        department_name=dept.name if dept else "",
+        assigned_doctor_id=doctor.id if doctor else None,
+        assigned_doctor_name=doctor.name if doctor else None,
+        link_state=str(visit.patient_link_state),
+        patient_name=patient.name if patient else None,
+        token_no=result.new_token_no,
+        previous_token_no=result.old_token_no if result.token_reissued else None,
+        token_reissued=result.token_reissued,
     )
 
 
