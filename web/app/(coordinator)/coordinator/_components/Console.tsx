@@ -14,6 +14,7 @@ import {
   CloudOff,
   PhoneCall,
   Stethoscope,
+  UserPlus,
   Users,
 } from "lucide-react";
 import {
@@ -23,11 +24,13 @@ import {
   ConsoleDept,
   ConsoleEntry,
   fetchConsole,
+  fetchDepartments,
   reorder,
   setDowntime,
   setEntryState,
 } from "@/app/_lib/queue";
 import { QueueEvent, useQueueSocket } from "@/app/_lib/useQueueSocket";
+import { AssignPanel } from "./AssignPanel";
 import { ReconciliationTab } from "./ReconciliationTab";
 import { PaperEntryTab } from "./PaperEntryTab";
 import { PrintTab } from "./PrintTab";
@@ -39,6 +42,10 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
   const [data, setData] = useState<ConsoleData | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
   const [error, setError] = useState<string | null>(null);
+  // Every active department, for the assign panel's re-route picker. Fetched
+  // once: `data.departments` is only the ones with a queue running today, and a
+  // wrongly-routed patient often has to move into an empty one.
+  const [allDepts, setAllDepts] = useState<{ key: string; name: string }[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +70,14 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    // A failure here costs the re-route picker, not the console: the queue is
+    // still workable without it, so it does not sign anyone out.
+    fetchDepartments(token)
+      .then(setAllDepts)
+      .catch(() => setAllDepts([]));
+  }, [token]);
 
   const guard = async (fn: () => Promise<void>) => {
     setError(null);
@@ -125,7 +140,13 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
       {error && <div className="err-toast">{error}</div>}
 
       {tab === "queue" && (
-        <QueueTab data={data} token={token} onAction={guard} />
+        <QueueTab
+          data={data}
+          token={token}
+          onAction={guard}
+          departments={allDepts.length ? allDepts : deptOptions(data)}
+          onRefresh={refresh}
+        />
       )}
       {tab === "reconciliation" && <ReconciliationTab token={token} onSignOut={onSignOut} />}
       {tab === "paper" && (
@@ -156,10 +177,14 @@ function QueueTab({
   data,
   token,
   onAction,
+  departments,
+  onRefresh,
 }: {
   data: ConsoleData | null;
   token: string;
   onAction: (fn: () => Promise<void>) => Promise<void>;
+  departments: { key: string; name: string }[];
+  onRefresh: () => Promise<void>;
 }) {
   if (!data) return <p className="loading">Loading queue…</p>;
   const active = data.departments.filter((d) => d.entries.length > 0);
@@ -188,6 +213,16 @@ function QueueTab({
       value: entries.filter((e) => e.state === "in_consult").length,
       icon: Stethoscope,
       tone: "success",
+    },
+    {
+      // The desk's copy of the doctor console's `Unassigned` count (plan §3).
+      // A waiting patient with no doctor's name on them is not an error, but it
+      // is a state somebody has to resolve, and a count nobody sees is a state
+      // nobody resolves.
+      label: "Waiting, unassigned",
+      value: entries.filter((e) => e.state === "waiting" && !e.assigned_doctor_id).length,
+      icon: UserPlus,
+      tone: "attention",
     },
     {
       label: "Active departments",
@@ -220,7 +255,14 @@ function QueueTab({
       </header>
       <div className="queue-grid">
         {active.map((dept) => (
-          <DeptQueue key={dept.department_key} dept={dept} token={token} onAction={onAction} />
+          <DeptQueue
+            key={dept.department_key}
+            dept={dept}
+            token={token}
+            onAction={onAction}
+            departments={departments}
+            onRefresh={onRefresh}
+          />
         ))}
       </div>
     </div>
@@ -231,12 +273,19 @@ function DeptQueue({
   dept,
   token,
   onAction,
+  departments,
+  onRefresh,
 }: {
   dept: ConsoleDept;
   token: string;
   onAction: (fn: () => Promise<void>) => Promise<void>;
+  departments: { key: string; name: string }[];
+  onRefresh: () => Promise<void>;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
+  /** Which row has its assign panel open. One at a time — the panel is a place
+   *  to make a decision, not a column of half-finished ones. */
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   const move = (index: number, dir: -1 | 1) => {
     const ids = dept.entries.map((e) => e.id);
@@ -301,6 +350,22 @@ function DeptQueue({
                 {entry.red_flag_count > 0 && (
                   <span className="chip-flag">{entry.red_flag_count} red flag{entry.red_flag_count > 1 ? "s" : ""}</span>
                 )}
+                {/* Who has this patient, stated on every row. An unassigned one
+                    reads as a thing to do rather than as a blank. */}
+                {entry.assigned_doctor_name ? (
+                  <span className="chip-doc" data-testid="entry-doctor">
+                    {entry.assigned_doctor_name}
+                  </span>
+                ) : (
+                  <span className="chip-unassigned" data-testid="entry-unassigned">
+                    Unassigned
+                  </span>
+                )}
+                {entry.link_state === "candidate" && (
+                  <span className="chip-match" data-testid="entry-match">
+                    Possible existing file
+                  </span>
+                )}
               </div>
               {/* The name first: a coordinator moving the line is calling people,
                   not numbers (S-UX.6). */}
@@ -310,6 +375,14 @@ function DeptQueue({
 
             <div className="actions">
               <EntryActions entry={entry} token={token} onAction={onAction} />
+              <button
+                className="act ghost"
+                onClick={() => setAssigning(assigning === entry.id ? null : entry.id)}
+                aria-expanded={assigning === entry.id}
+                data-testid="assign-open"
+              >
+                {entry.assigned_doctor_id ? "Reassign" : "Assign"}
+              </button>
               {entry.state === "waiting" && (
                 <div className="nudge">
                   <button onClick={() => move(i, -1)} aria-label="Move up">
@@ -321,6 +394,17 @@ function DeptQueue({
                 </div>
               )}
             </div>
+
+            {assigning === entry.id && (
+              <AssignPanel
+                entry={entry}
+                token={token}
+                departments={departments}
+                departmentKey={dept.department_key}
+                onClose={() => setAssigning(null)}
+                onDone={onRefresh}
+              />
+            )}
           </li>
         ))}
       </ul>

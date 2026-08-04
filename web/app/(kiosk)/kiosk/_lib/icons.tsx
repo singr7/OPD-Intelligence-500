@@ -400,6 +400,38 @@ const ICONS: Record<string, (p: P) => React.ReactNode> = {
       </>,
       title
     ),
+  // The arrival pair (AR3). "Have you been here before?" is a question about a
+  // *file*, and "do you have an ID?" is a question about a *card the patient is
+  // holding* — both drawn as the physical object, because the patient is being
+  // asked to remember an object, not a concept.
+  folder: ({ title }) =>
+    wrap(
+      <>
+        <path
+          d="M7 15a4 4 0 014-4h8l4 5h14a4 4 0 014 4v13a4 4 0 01-4 4H11a4 4 0 01-4-4z"
+          fill={soft}
+          stroke={ink}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+        />
+        <path d="M16 27h16" stroke={ink} strokeWidth="2.5" strokeLinecap="round" />
+      </>,
+      title
+    ),
+  card: ({ title }) =>
+    wrap(
+      <>
+        <rect x="6" y="12" width="36" height="24" rx="4" fill={soft} stroke={ink} strokeWidth="2.5" />
+        <circle cx="17" cy="22" r="4" fill="#fff" stroke={ink} strokeWidth="2.5" />
+        <path
+          d="M11 31c1.5-3 3.5-4 6-4s4.5 1 6 4M27 20h9M27 26h6"
+          stroke={ink}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </>,
+      title
+    ),
   keyboard: ({ title }) =>
     wrap(
       <>

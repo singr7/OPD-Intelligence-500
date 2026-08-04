@@ -46,7 +46,7 @@ export const CONSOLE_CSS = `
 
 /* queue */
 .queue-page { max-width: 1480px; margin: 0 auto; padding: 24px; }
-.metric-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px;
+.metric-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px;
   overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--line); }
 .metric { min-height: 86px; display: flex; align-items: center; gap: 12px; padding: 16px;
   background: var(--surface); }
@@ -55,6 +55,7 @@ export const CONSOLE_CSS = `
 .metric small { color: var(--text-muted); font-size: 12px; }
 .metric strong { color: var(--text); font-size: 25px; line-height: 1; font-variant-numeric: tabular-nums; }
 .metric.tone-danger > svg, .metric.tone-danger strong { color: var(--danger); }
+.metric.tone-attention > svg, .metric.tone-attention strong { color: #7a4d0a; }
 .metric.tone-info > svg { color: var(--info); }
 .metric.tone-success > svg { color: var(--brand); }
 .queue-heading { display: flex; justify-content: space-between; align-items: end; margin: 26px 0 12px; }
@@ -106,6 +107,39 @@ export const CONSOLE_CSS = `
 .act.primary { background: var(--primary); color: #fff; }
 .act.primary:hover { background: var(--primary-d); }
 .act.ghost { background: #fff; border: 1px solid var(--line); color: var(--ink-soft); }
+.chip-doc { background: var(--brand-soft); color: var(--brand-strong); font-weight: 700;
+  font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+.chip-unassigned { background: var(--attention-soft); color: #7a4d0a; font-weight: 700;
+  font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+.chip-match { background: var(--info-soft); color: var(--info); font-weight: 700; font-size: 12px;
+  padding: 3px 10px; border-radius: 999px; }
+
+/* assign panel (AR3) — opens under its row, inside the queue it is read against */
+.assign { grid-column: 1 / -1; margin-top: 10px; padding: 12px; border-radius: 7px;
+  background: var(--surface-subtle); border: 1px solid var(--line); display: grid; gap: 10px; }
+.assign-link { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  font-size: 13px; color: var(--text-muted); }
+.assign-link-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.assign-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.assign-row label { display: grid; gap: 4px; font-size: 12px; font-weight: 700;
+  color: var(--text-muted); }
+.assign-row select { min-height: 40px; padding: 0 10px; font-size: 14px; color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff;
+  font-family: inherit; }
+.assign-row select:disabled { background: #eef2f0; color: var(--text-faint); }
+.assign-warn { margin: 0; font-size: 12.5px; font-weight: 600; color: #7a4d0a;
+  background: var(--attention-soft); border-radius: var(--radius-control); padding: 8px 10px; }
+.assign-err { margin: 0; font-size: 13px; font-weight: 600; color: var(--danger); }
+.assign-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.assign.reissued { background: var(--accent); border-color: #c47c17; color: #2a1a00;
+  grid-template-columns: 1fr auto auto; align-items: center; }
+.reissue-copy { display: grid; gap: 2px; }
+.reissue-copy strong { font-size: 14px; }
+.reissue-copy span { font-size: 12.5px; }
+.reissue-token { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1; }
+.assign.reissued .act.primary { background: #2a1a00; color: var(--accent); }
+
 .nudge { display: flex; flex-direction: column; gap: 2px; }
 .nudge button { border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 26px;
   height: 20px; cursor: pointer; color: var(--ink-soft); line-height: 1; }
@@ -163,6 +197,8 @@ export const CONSOLE_CSS = `
   .paper-form .row { grid-template-columns: 1fr; }
   .entry { grid-template-columns: auto 1fr; }
   .actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .assign-row { grid-template-columns: 1fr; }
+  .assign.reissued { grid-template-columns: 1fr; }
 }
 @media (max-width: 1000px) {
   .appbar { align-items: flex-start; }

@@ -136,6 +136,16 @@ class EntryView:
     #: the family standing in front of it and to the staff calling names over it;
     #: since the kiosk now registers a name, the queue carries it.
     patient_name: str | None = None
+    #: Who is going to see them (AR3). Null means the department pool — a
+    #: legitimate state (`Skip` at the kiosk, every offline arrival), and the one
+    #: the console's assign control exists to resolve. The console has to *show*
+    #: it or a coordinator cannot tell an unassigned patient from an assigned
+    #: one, and would re-assign people who already have a doctor.
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    #: `none` / `candidate` / `confirmed` / `rejected` — whether a prior file was
+    #: matched to this arrival and whether a human has ruled on it yet.
+    link_state: str = "none"
 
 
 @dataclass(slots=True)
@@ -499,8 +509,14 @@ def estimate_wait(*, ahead: int, mean_minutes: float) -> tuple[int, int]:
 
 
 async def _view(
-    entry: QueueEntry, *, chief: str | None, flags: int, patient_name: str | None = None
+    entry: QueueEntry,
+    *,
+    chief: str | None,
+    flags: int,
+    patient_name: str | None = None,
+    assignment: tuple[uuid.UUID | None, str | None, str] = (None, None, "none"),
 ) -> EntryView:
+    doctor_id, doctor_name, link_state = assignment
     return EntryView(
         id=entry.id,
         visit_id=entry.visit_id,
@@ -513,6 +529,9 @@ async def _view(
         red_flag_count=flags,
         called_at=entry.called_at,
         patient_name=patient_name,
+        assigned_doctor_id=doctor_id,
+        assigned_doctor_name=doctor_name,
+        link_state=link_state,
     )
 
 
@@ -548,6 +567,28 @@ async def _patient_names(session: AsyncSession, visit_ids: list[uuid.UUID]) -> d
         .where(Visit.id.in_(visit_ids))
     )
     return {visit_id: name for visit_id, name in result.all()}
+
+
+async def _assignments(
+    session: AsyncSession, visit_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[uuid.UUID | None, str | None, str]]:
+    """One query for who each visit is assigned to, and its identity state (AR3).
+
+    Left-joined: an unassigned visit is the ordinary case at this pilot, not a
+    missing row, and it must come back as `(None, None, state)` rather than
+    dropping out of the console.
+    """
+    if not visit_ids:
+        return {}
+    result = await session.execute(
+        select(Visit.id, Visit.doctor_id, Doctor.name, Visit.patient_link_state)
+        .outerjoin(Doctor, Doctor.id == Visit.doctor_id)
+        .where(Visit.id.in_(visit_ids))
+    )
+    return {
+        visit_id: (doctor_id, doctor_name, str(link_state))
+        for visit_id, doctor_id, doctor_name, link_state in result.all()
+    }
 
 
 #: How many doctors the board names before it stops trying. Past this the line
@@ -611,6 +652,7 @@ async def department_queue(
     visit_ids = [e.visit_id for e in entries]
     meta = await _chief_and_flags(session, visit_ids)
     names = await _patient_names(session, visit_ids)
+    assigned = await _assignments(session, visit_ids)
 
     active = [e for e in entries if e.state in _ACTIVE_STATES]
     active.sort(key=lambda e: e.called_at or datetime.min.replace(tzinfo=UTC))
@@ -622,7 +664,13 @@ async def department_queue(
     for entry in [*active, *waiting, *lab]:
         chief, flags = meta.get(entry.visit_id, (None, 0))
         views.append(
-            await _view(entry, chief=chief, flags=flags, patient_name=names.get(entry.visit_id))
+            await _view(
+                entry,
+                chief=chief,
+                flags=flags,
+                patient_name=names.get(entry.visit_id),
+                assignment=assigned.get(entry.visit_id, (None, None, "none")),
+            )
         )
     return views
 

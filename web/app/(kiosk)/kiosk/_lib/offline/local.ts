@@ -192,6 +192,7 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
     patientAge: session.details.age,
     patientSex: session.details.sex,
     patientPhone: session.details.phone,
+    patientExternalId: session.details.externalId,
     completedAt: new Date().toISOString(),
     status: "pending",
     attempts: 0,

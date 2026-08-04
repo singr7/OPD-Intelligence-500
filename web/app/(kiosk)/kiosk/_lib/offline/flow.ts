@@ -73,6 +73,7 @@ export function makeFlow({ net }: FlowDeps) {
           patient_age: input.details.age,
           patient_sex: input.details.sex,
           patient_phone: input.details.phone || null,
+          patient_external_id: input.details.externalId || null,
           dept_key: input.deptKey,
         });
         net.observedSuccess();

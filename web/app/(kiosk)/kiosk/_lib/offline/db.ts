@@ -63,6 +63,12 @@ export type QueuedIntake = {
   patientAge: number | null;
   patientSex: string | null;
   patientPhone: string;
+  /** The hospital ID the patient gave on the arrival screen (AR3). Optional and
+   *  un-indexed, so it needs no schema version bump. Carried through sync rather
+   *  than dropped: the patient typed it, and it is what lets the console offer
+   *  the coordinator a prior file for an arrival the offline kiosk could not
+   *  match at the time. */
+  patientExternalId?: string;
   completedAt: string;
   /** "pending" → not yet accepted; "synced" → the server has it; "rejected" →
    *  the server refused it and retrying will not help (a human must look). */

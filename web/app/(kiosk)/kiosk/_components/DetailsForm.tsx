@@ -24,6 +24,7 @@ export const emptyDetails: PatientDetails = {
   age: null,
   sex: null,
   phone: "",
+  externalId: "",
 };
 
 /** Enough to start: a name. Everything else is the patient's to withhold. */

@@ -34,6 +34,10 @@ export type PatientDetails = {
   age: number | null;
   sex: "male" | "female" | "other" | null;
   phone: string;
+  /** The hospital ID the patient already carries (AR3). Optional in the
+   *  strictest sense — it never gates an intake or a token, and the server uses
+   *  it only to *suggest* a prior file to a coordinator. */
+  externalId: string;
 };
 
 export type Dept = { key: string; name: string };
@@ -142,6 +146,7 @@ export type SyncBody = {
     patient_age: number | null;
     patient_sex: string | null;
     patient_phone: string | null;
+    patient_external_id: string | null;
     completed_at: string;
   }[];
 };
@@ -159,6 +164,80 @@ export type SyncResponse = {
   rejected: number;
 };
 
+// -- staff strip (AR3) --------------------------------------------------------
+//
+// Everything below the `staffHolders` call is PIN-gated server-side by
+// `require_kiosk_staff`. The token it returns is deliberately narrow — it opens
+// this strip and nothing else — and it is held in memory by the strip component
+// only, never in localStorage: a coordinator's PIN typed in a public corridor
+// must not survive the shift, the tab, or the next patient.
+
+export type PinHolder = { id: string; name: string };
+
+export type UnlockResult = { token: string; expires_at: string; name: string };
+
+export type StripCandidate = {
+  patient_id: string;
+  name: string;
+  mrn: string;
+  age: number | null;
+  sex: string | null;
+  external_id: string | null;
+  last_visit_on: string | null;
+};
+
+export type StripDoctor = {
+  id: string;
+  name: string;
+  qualification: string | null;
+  on_duty: boolean;
+};
+
+export type StripResult = {
+  visit_id: string;
+  token_no: number | null;
+  department_key: string;
+  department_name: string;
+  departments: Dept[];
+  doctors: StripDoctor[];
+  default_doctor_id: string | null;
+  assigned_doctor_id: string | null;
+  link_state: "none" | "candidate" | "confirmed" | "rejected";
+  candidate: StripCandidate | null;
+};
+
+export type AssignResult = {
+  visit_id: string;
+  department_key: string;
+  department_name: string;
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  link_state: string;
+  patient_name: string | null;
+  token_no: number | null;
+  previous_token_no: number | null;
+  token_reissued: boolean;
+};
+
+async function staffGet<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => res.statusText));
+  return res.json() as Promise<T>;
+}
+
+async function staffPost<T>(path: string, token: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => res.statusText));
+  return res.json() as Promise<T>;
+}
+
 export const kioskApi = {
   start(input: {
     lang: string;
@@ -168,6 +247,7 @@ export const kioskApi = {
     patient_age: number | null;
     patient_sex: string | null;
     patient_phone: string | null;
+    patient_external_id: string | null;
     dept_key?: string;
   }) {
     return post<StartResult>("/kiosk/start", input);
@@ -207,5 +287,33 @@ export const kioskApi = {
   },
   sync(body: SyncBody) {
     return post<SyncResponse>("/kiosk/sync", body);
+  },
+
+  // -- staff strip (AR3) ------------------------------------------------------
+  /** Who can unlock this kiosk. Unauthenticated by necessity — the strip cannot
+   *  ask who you are after you have identified yourself — and it returns names
+   *  and opaque ids only. */
+  staffHolders() {
+    return fetch(`${API_BASE}/kiosk/staff/holders`, { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new ApiError(r.status, r.statusText);
+      return r.json() as Promise<PinHolder[]>;
+    });
+  },
+  staffUnlock(input: { user_id: string; pin: string }) {
+    return post<UnlockResult>("/kiosk/staff/unlock", input);
+  },
+  strip(sessionId: string, token: string) {
+    return staffGet<StripResult>(`/kiosk/${sessionId}/strip`, token);
+  },
+  assign(
+    sessionId: string,
+    token: string,
+    input: {
+      link_candidate?: boolean | null;
+      department_key?: string | null;
+      doctor_id?: string | null;
+    }
+  ) {
+    return staffPost<AssignResult>(`/kiosk/${sessionId}/assign`, token, input);
   },
 };

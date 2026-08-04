@@ -522,3 +522,199 @@ export const T = {
 export function t(key: keyof typeof T, lang: KioskLang): string {
   return T[key][lang];
 }
+
+// -- AR3: arrival identity + the staff strip ----------------------------------
+//
+// **English and Hindi only, deliberately.** This copy ships in the pilot's two
+// spoken languages and is *not* machine-drafted into Marathi and Telugu the way
+// the block above was. These are patient-facing screens that ask for a phone
+// number and a health ID — the two strings a patient is most likely to act on
+// wrongly if the translation is off — and a wrong Telugu sentence about "your
+// old file" is worse than an English one the patient asks a human to read.
+//
+// The gap is logged as pending in HANDOFF.md and STATE.md per doc 07 §4. When a
+// native reviewer supplies mr/te, these keys move into `T` above and `tb`
+// disappears; the type below is what makes that a compile-time move rather than
+// a search.
+type Bi = { hi: string; en: string };
+
+export const T2 = {
+  returningTitle: {
+    hi: "क्या आप पहले यहाँ आ चुके हैं?",
+    en: "Have you visited us before?",
+  } as Bi,
+  returningHint: {
+    hi: "अगर आ चुके हैं तो हम आपकी पुरानी फ़ाइल ढूँढ़ सकते हैं। न याद हो तो भी कोई बात नहीं।",
+    en: "If you have, we can look for your old file. If you're not sure, that's fine too.",
+  } as Bi,
+  returningYes: {
+    hi: "हाँ, आ चुके हैं",
+    en: "Yes, I've been here",
+  } as Bi,
+  returningNo: {
+    hi: "नहीं, पहली बार",
+    en: "No, first time",
+  } as Bi,
+  arrivalPhoneTitle: {
+    hi: "आपका मोबाइल नंबर",
+    en: "Your phone number",
+  } as Bi,
+  arrivalPhoneHint: {
+    hi: "वही नंबर जो पिछली बार दिया था। न देना चाहें तो छोड़ दीजिए।",
+    en: "The number you gave us last time. You can skip it if you'd rather not.",
+  } as Bi,
+  arrivalIdTitle: {
+    hi: "क्या आपके पास अस्पताल का पहचान नंबर है?",
+    en: "Do you have a hospital ID number?",
+  } as Bi,
+  arrivalIdHint: {
+    hi: "यह आपकी पुरानी पर्ची या कार्ड पर लिखा होता है। न हो तो छोड़ दीजिए।",
+    en: "It's printed on your old slip or card. Skip this if you don't have one.",
+  } as Bi,
+  arrivalIdInput: {
+    hi: "पहचान नंबर",
+    en: "Hospital ID",
+  } as Bi,
+  skipThis: {
+    hi: "छोड़ दीजिए",
+    en: "Skip this",
+  } as Bi,
+  // Shown once the patient has given a phone or an ID — and shown *whether or
+  // not* anything matched, which is the point. The kiosk is a public terminal;
+  // a line that appears only on a hit tells whoever is standing behind the
+  // patient that this hospital has a file on them. See app/assignment.py.
+  arrivalAck: {
+    hi: "धन्यवाद — शायद आपकी फ़ाइल हमारे पास पहले से है। हमारे कर्मचारी अभी इसकी पुष्टि करेंगे।",
+    en: "Thank you — we may already have your file. Our staff will confirm it in a moment.",
+  } as Bi,
+  keypadDelete: {
+    hi: "मिटाएँ",
+    en: "Delete",
+  } as Bi,
+  // -- the staff strip (coordinator-facing, on the patient's token screen) ----
+  staffTitle: {
+    hi: "कर्मचारी",
+    en: "Staff",
+  } as Bi,
+  staffUnlock: {
+    hi: "खोलिए",
+    en: "Unlock",
+  } as Bi,
+  staffLock: {
+    hi: "बंद कीजिए",
+    en: "Lock",
+  } as Bi,
+  staffLocked: {
+    hi: "यह हिस्सा कर्मचारियों के लिए है।",
+    en: "This section is for staff.",
+  } as Bi,
+  staffWhoAreYou: {
+    hi: "आप कौन हैं?",
+    en: "Who are you?",
+  } as Bi,
+  staffEnterPin: {
+    hi: "अपना पिन डालिए",
+    en: "Enter your PIN",
+  } as Bi,
+  staffWrongPin: {
+    hi: "यह पिन सही नहीं है।",
+    en: "That PIN was not recognised.",
+  } as Bi,
+  staffNoHolders: {
+    hi: "किसी कर्मचारी का पिन सेट नहीं है।",
+    en: "No staff PIN has been set on this kiosk.",
+  } as Bi,
+  staffCandidate: {
+    hi: "शायद पुरानी फ़ाइल",
+    en: "Possible existing file",
+  } as Bi,
+  staffNoCandidate: {
+    hi: "कोई पुरानी फ़ाइल नहीं मिली — नई फ़ाइल बनेगी।",
+    en: "No prior file matched — this arrival stays a new file.",
+  } as Bi,
+  staffSamePerson: {
+    hi: "यही व्यक्ति — जोड़िए",
+    en: "Same person — link",
+  } as Bi,
+  staffNotSamePerson: {
+    hi: "यह अलग व्यक्ति है",
+    en: "Not the same person",
+  } as Bi,
+  staffLinked: {
+    hi: "फ़ाइल जोड़ दी गई",
+    en: "File linked",
+  } as Bi,
+  staffRejected: {
+    hi: "अलग व्यक्ति — नई फ़ाइल",
+    en: "Different person — new file",
+  } as Bi,
+  staffLastVisit: {
+    hi: "पिछली बार",
+    en: "Last visit",
+  } as Bi,
+  staffDepartment: {
+    hi: "विभाग",
+    en: "Department",
+  } as Bi,
+  staffDoctor: {
+    hi: "डॉक्टर",
+    en: "Doctor",
+  } as Bi,
+  staffNoDoctor: {
+    hi: "कोई नहीं — विभाग की सूची में",
+    en: "Nobody yet — leave in the department pool",
+  } as Bi,
+  staffOnDuty: {
+    hi: "आज ड्यूटी पर",
+    en: "On duty today",
+  } as Bi,
+  staffOffDuty: {
+    hi: "आज ड्यूटी पर नहीं",
+    en: "Not rostered today",
+  } as Bi,
+  staffNoDoctors: {
+    hi: "इस विभाग में कोई डॉक्टर दर्ज नहीं है।",
+    en: "No doctors are on record for this department.",
+  } as Bi,
+  staffSkip: {
+    hi: "अभी छोड़िए",
+    en: "Skip",
+  } as Bi,
+  staffConfirm: {
+    hi: "पक्का कीजिए",
+    en: "Confirm",
+  } as Bi,
+  staffSkipHint: {
+    hi: "छोड़ने पर मरीज़ विभाग की सूची में रहेगा — डेस्क से बाद में दिया जा सकता है।",
+    en: "Skipping leaves the patient in the department pool — the desk can assign them later.",
+  } as Bi,
+  staffAssigned: {
+    hi: "हो गया",
+    en: "Done",
+  } as Bi,
+  staffChanging: {
+    hi: "सहेज रहे हैं…",
+    en: "Saving…",
+  } as Bi,
+  // A department change reissues the token. The patient is holding a printed
+  // slip with the old number on it, so this is shouted, not noted.
+  staffNewToken: {
+    hi: "नया टोकन नंबर — मरीज़ को यही बताइए",
+    en: "New token number — hand this to the patient",
+  } as Bi,
+  staffOldToken: {
+    hi: "पुरानी पर्ची का नंबर {n} अब नहीं चलेगा",
+    en: "Their printed slip says {n} — that number is no longer valid",
+  } as Bi,
+  staffTokenAck: {
+    hi: "मैंने मरीज़ को बता दिया",
+    en: "I've told the patient",
+  } as Bi,
+} as const;
+
+/** Kiosk copy that exists in Hindi and English only (see the note above).
+ *  A Marathi or Telugu kiosk falls through to English rather than to a
+ *  machine translation nobody has read. */
+export function tb(key: keyof typeof T2, lang: KioskLang): string {
+  return lang === "hi" ? T2[key].hi : T2[key].en;
+}

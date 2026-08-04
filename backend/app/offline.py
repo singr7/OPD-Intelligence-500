@@ -69,7 +69,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import queue
+from app import assignment, queue
 from app.config import get_settings
 from app.models.clinical import Intake, Visit
 from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
@@ -272,6 +272,7 @@ async def sync_intake(
     patient_age: int | None = None,
     patient_sex: str | None = None,
     patient_phone: str | None = None,
+    patient_external_id: str | None = None,
     completed_at: datetime | None = None,
 ) -> SyncResult:
     """Replay one offline intake onto the server.
@@ -340,6 +341,7 @@ async def sync_intake(
         sex=normalize_patient_sex(patient_sex),
         lang=lang,
         caregiver_name="(caregiver at kiosk)" if caregiver else None,
+        external_id=(patient_external_id or "").strip() or None,
     )
     session.add(patient)
     await session.flush()
@@ -391,6 +393,20 @@ async def sync_intake(
     )
     session.add(intake)
     await session.flush()
+
+    # The prior-file lookup the kiosk could not do during the outage (AR3). It
+    # runs here, at sync, for exactly the same reason it runs online: it records
+    # a *candidate* and discloses nothing. Nobody is standing at the kiosk any
+    # more, so the coordinator console is where this one gets settled — which is
+    # what its assign control exists for.
+    candidate = await assignment.find_candidate(
+        session,
+        hospital_id=department.hospital_id,
+        phone=patient.phone,
+        external_id=patient.external_id,
+        exclude_patient_id=patient.id,
+    )
+    await assignment.note_candidate(session, visit=visit, candidate=candidate)
 
     await _mark_used(session, block, token_no)
 

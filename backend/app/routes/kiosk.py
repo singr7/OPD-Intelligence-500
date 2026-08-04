@@ -933,6 +933,10 @@ class SyncIntakeIn(BaseModel):
     patient_age: int | None = Field(default=None, ge=0, le=200)
     patient_sex: str | None = Field(default=None, max_length=16)
     patient_phone: str | None = Field(default=None, max_length=24)
+    #: The health ID from the arrival screen (AR3). An offline kiosk cannot look
+    #: up a prior file — there is no server to ask — but the patient still typed
+    #: this, so it rides along and the lookup happens here, at sync.
+    patient_external_id: str | None = Field(default=None, max_length=64)
     completed_at: datetime | None = None
 
 
@@ -1023,6 +1027,7 @@ async def sync(
             patient_age=item.patient_age,
             patient_sex=item.patient_sex,
             patient_phone=item.patient_phone,
+            patient_external_id=item.patient_external_id,
             completed_at=item.completed_at,
         )
         results.append(

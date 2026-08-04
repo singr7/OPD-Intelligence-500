@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./kiosk.module.css";
-import { KIOSK_LANGS, KioskLang, t } from "./_lib/i18n";
+import { KIOSK_LANGS, KioskLang, t, tb } from "./_lib/i18n";
 import {
   ApiError,
   ConfirmResult,
@@ -34,6 +34,7 @@ import {
   StartResult,
 } from "./_lib/api";
 import { useOffline } from "./_lib/offline/useOffline";
+import { isLocalSession } from "./_lib/offline/local";
 import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offline/flow";
 import { printSlip } from "./_lib/print";
 import {
@@ -53,11 +54,16 @@ import { FacesScale } from "./_components/FacesScale";
 import { Stepper } from "./_components/Stepper";
 import { BodyMap } from "./_components/BodyMap";
 import { MicButton } from "./_components/MicButton";
+import { Keypad } from "./_components/Keypad";
 import { DetailsForm, emptyDetails, detailsComplete } from "./_components/DetailsForm";
+import { StaffStrip } from "./_components/StaffStrip";
 
 type Screen =
   | "welcome"
   | "caregiver"
+  | "returning"
+  | "arrivalPhone"
+  | "arrivalId"
   | "details"
   | "complaint"
   | "chooser"
@@ -83,6 +89,11 @@ type IntakeSummary = {
   answers: SummaryAnswer[];
   /** Where the patient is, for the rail's own progress line. */
   stage: Screen;
+  /** The named screens before the clinical walk, for *this* patient — a
+   *  returning one is asked two more things than a first-timer, and a progress
+   *  line that counts screens nobody will see is a lie in the reassuring
+   *  direction. */
+  leadSteps: Screen[];
   questionsLeft: number | null;
 };
 
@@ -91,8 +102,11 @@ const IDLE_PROMPT_MS = 60_000;
 const IDLE_BLUR_MS = 90_000;
 
 /** The named steps before the clinical questions start, for the rail's progress
- *  line. The questions themselves count down from the server's `remaining`. */
-const LEAD_STEPS: Screen[] = ["caregiver", "details", "complaint"];
+ *  line. The questions themselves count down from the server's `remaining`.
+ *  The two arrival screens are spliced in only for a patient who said they have
+ *  been here before — see `IntakeSummary.leadSteps`. */
+const LEAD_STEPS: Screen[] = ["caregiver", "returning", "details", "complaint"];
+const ARRIVAL_STEPS: Screen[] = ["arrivalPhone", "arrivalId"];
 
 /** How many answers the rail shows before folding the rest into a count. Enough
  *  to see the shape of the conversation, few enough that the rail never becomes
@@ -103,6 +117,9 @@ export function KioskApp() {
   const [lang, setLang] = useState<KioskLang>("hi");
   const [screen, setScreen] = useState<Screen>("welcome");
   const [caregiver, setCaregiver] = useState(false);
+  /** Did the patient say they have been here before? Null until asked. Drives
+   *  only which screens are shown — nothing clinical, and never a gate. */
+  const [returning, setReturning] = useState<boolean | null>(null);
   const [details, setDetails] = useState<PatientDetails>(emptyDetails);
   const [complaint, setComplaint] = useState("");
   const [summaryAnswers, setSummaryAnswers] = useState<SummaryAnswer[]>([]);
@@ -168,6 +185,7 @@ export function KioskApp() {
     cancelSpeech();
     setScreen("welcome");
     setCaregiver(false);
+    setReturning(null);
     setDetails(emptyDetails);
     setComplaint("");
     setSummaryAnswers([]);
@@ -220,8 +238,19 @@ export function KioskApp() {
     department,
     answers: summaryAnswers,
     stage: screen,
+    leadSteps: returning
+      ? [...LEAD_STEPS.slice(0, 2), ...ARRIVAL_STEPS, ...LEAD_STEPS.slice(2)]
+      : LEAD_STEPS,
     questionsLeft: node?.remaining ?? null,
   };
+
+  /** True once the patient has handed over something we can match a prior file
+   *  on. It is what the details screen's reassurance line is keyed to — *not* a
+   *  match, which the kiosk deliberately never learns. */
+  const gaveIdentity = Boolean(details.phone.trim() || details.externalId.trim());
+  const detailsSpoken = gaveIdentity
+    ? `${tb("arrivalAck", lang)} ${t("detailsTitle", lang)}`
+    : t("detailsTitle", lang);
 
   const captureSummary = (current: KioskNode, acceptedValue: unknown, rawText?: string) => {
     const answer = describeDisplayedAnswer(current, acceptedValue, rawText);
@@ -394,7 +423,7 @@ export function KioskApp() {
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(false);
-                setScreen("details");
+                setScreen("returning");
               }}
               data-testid="caregiver-self"
             >
@@ -407,7 +436,7 @@ export function KioskApp() {
               className={s.bigChoice}
               onClick={() => {
                 setCaregiver(true);
-                setScreen("details");
+                setScreen("returning");
               }}
               data-testid="caregiver-other"
             >
@@ -420,16 +449,181 @@ export function KioskApp() {
         </Stage>
       )}
 
+      {/* --- arrival identity (AR3, plan §1.1) --------------------------------
+          Three screens, one decision each, every one of them skippable. They
+          exist so a coordinator can be *offered* a prior file three screens
+          later; they are not registration, they never gate a token, and a
+          patient who taps straight through reaches exactly the intake they
+          would have had before this session existed. */}
+      {screen === "returning" && (
+        <Stage
+          lang={lang}
+          speaking={speaking}
+          promptText={tb("returningTitle", lang)}
+          hint={tb("returningHint", lang)}
+          onReplay={() => say(tb("returningTitle", lang))}
+          autoSpeak={tb("returningTitle", lang)}
+          say={say}
+          summary={summary}
+        >
+          <div className={s.bigChoices}>
+            <button
+              className={s.bigChoice}
+              onClick={() => {
+                setReturning(true);
+                setScreen("arrivalPhone");
+              }}
+              data-testid="returning-yes"
+            >
+              <span className={s.bigChoiceIcon}>
+                <Icon name="folder" />
+              </span>
+              <span className={s.bigChoiceText}>{tb("returningYes", lang)}</span>
+            </button>
+            <button
+              className={s.bigChoice}
+              onClick={() => {
+                setReturning(false);
+                setScreen("details");
+              }}
+              data-testid="returning-no"
+            >
+              <span className={s.bigChoiceIcon}>
+                <Icon name="user" />
+              </span>
+              <span className={s.bigChoiceText}>{tb("returningNo", lang)}</span>
+            </button>
+          </div>
+          <div className={s.footer}>
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              onClick={() => setScreen("caregiver")}
+            >
+              ← {t("back", lang)}
+            </button>
+          </div>
+        </Stage>
+      )}
+
+      {screen === "arrivalPhone" && (
+        <Stage
+          lang={lang}
+          speaking={speaking}
+          promptText={tb("arrivalPhoneTitle", lang)}
+          hint={tb("arrivalPhoneHint", lang)}
+          onReplay={() => say(tb("arrivalPhoneTitle", lang))}
+          autoSpeak={tb("arrivalPhoneTitle", lang)}
+          say={say}
+          summary={summary}
+        >
+          <Keypad
+            lang={lang}
+            value={details.phone.replace(/\D/g, "")}
+            onChange={(next) => setDetails({ ...details, phone: next })}
+            maxLength={10}
+            label={tb("arrivalPhoneTitle", lang)}
+            testId="arrival-phone"
+          />
+          <div className={s.footer}>
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              onClick={() => setScreen("returning")}
+            >
+              ← {t("back", lang)}
+            </button>
+            <div className={s.spacer} />
+            {/* Skip is a peer of Next, not a link hidden under it: the number is
+                optional, and an optional field that looks mandatory is a field
+                people lie in. */}
+            <button
+              className={`${s.btn} ${s.btnGhost} ${s.btnBig}`}
+              onClick={() => setScreen("arrivalId")}
+              data-testid="arrival-phone-skip"
+            >
+              {tb("skipThis", lang)}
+            </button>
+            <button
+              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+              onClick={() => setScreen("arrivalId")}
+              data-testid="arrival-phone-next"
+            >
+              {t("next", lang)} →
+            </button>
+          </div>
+        </Stage>
+      )}
+
+      {screen === "arrivalId" && (
+        <Stage
+          lang={lang}
+          speaking={speaking}
+          promptText={tb("arrivalIdTitle", lang)}
+          hint={tb("arrivalIdHint", lang)}
+          onReplay={() => say(tb("arrivalIdTitle", lang))}
+          autoSpeak={tb("arrivalIdTitle", lang)}
+          say={say}
+          summary={summary}
+        >
+          <label className={`${s.field} ${s.fieldWide} ${s.arrivalIdField}`}>
+            <span className={s.fieldLabel}>
+              <span className={s.fieldIcon} aria-hidden="true">
+                <Icon name="card" />
+              </span>
+              {tb("arrivalIdInput", lang)}
+              <em className={s.fieldOptional}>{t("optionalLabel", lang)}</em>
+            </span>
+            <input
+              className={s.fieldInput}
+              value={details.externalId}
+              maxLength={64}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              placeholder="—"
+              onChange={(e) => setDetails({ ...details, externalId: e.target.value })}
+              data-testid="arrival-external-id"
+            />
+          </label>
+          <div className={s.footer}>
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              onClick={() => setScreen("arrivalPhone")}
+            >
+              ← {t("back", lang)}
+            </button>
+            <div className={s.spacer} />
+            <button
+              className={`${s.btn} ${s.btnGhost} ${s.btnBig}`}
+              onClick={() => setScreen("details")}
+              data-testid="arrival-id-skip"
+            >
+              {tb("skipThis", lang)}
+            </button>
+            <button
+              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+              onClick={() => setScreen("details")}
+              data-testid="arrival-id-next"
+            >
+              {t("next", lang)} →
+            </button>
+          </div>
+        </Stage>
+      )}
+
       {screen === "details" && (
         <Stage
           lang={lang}
           speaking={speaking}
           promptText={t("detailsTitle", lang)}
           hint={t("detailsHint", lang)}
-          onReplay={() => say(t("detailsTitle", lang))}
-          autoSpeak={t("detailsTitle", lang)}
+          // The acknowledgement is read out before the screen's own question —
+          // it answers what the patient just did, and doc 04 law 1 makes audio
+          // the channel, not the caption.
+          onReplay={() => say(detailsSpoken)}
+          autoSpeak={detailsSpoken}
           say={say}
           summary={summary}
+          banner={gaveIdentity ? <ArrivalAck lang={lang} /> : undefined}
         >
           <DetailsForm
             lang={lang}
@@ -441,7 +635,7 @@ export function KioskApp() {
           <div className={s.footer}>
             <button
               className={`${s.btn} ${s.btnGhost}`}
-              onClick={() => setScreen("caregiver")}
+              onClick={() => setScreen(returning ? "arrivalId" : "returning")}
             >
               ← {t("back", lang)}
             </button>
@@ -555,6 +749,11 @@ export function KioskApp() {
           lang={lang}
           token={token}
           details={details}
+          // The strip talks to the server about *this* session. An offline
+          // intake has no server session to settle against, which is the
+          // accepted debt in the plan (§8): those visits sync unassigned and are
+          // assigned from the coordinator console instead.
+          sessionId={sessionId && !isLocalSession(sessionId) ? sessionId : null}
           onDone={reset}
           say={say}
         />
@@ -736,11 +935,11 @@ function SummaryRail({
  *  client-side step counter that drifts the moment a branch is taken. */
 function stageLabel(lang: KioskLang, summary: IntakeSummary): string {
   if (summary.stage === "readback") return t("reviewStep", lang);
-  const lead = LEAD_STEPS.indexOf(summary.stage);
+  const lead = summary.leadSteps.indexOf(summary.stage);
   if (lead >= 0) {
     return t("stepProgress", lang)
       .replace("{n}", String(lead + 1))
-      .replace("{total}", String(LEAD_STEPS.length));
+      .replace("{total}", String(summary.leadSteps.length));
   }
   // Deliberately a countdown, not "3 of 8". The tree branches, so a total is a
   // promise the walk cannot keep — and a progress bar that jumps backwards is
@@ -1283,6 +1482,27 @@ function AdaptiveVoiceAnswer({
   );
 }
 
+/** The one thing the kiosk says about a possible prior file (AR3, plan §1.1).
+ *
+ *  It is shown to **everyone who gave a phone number or an ID** — not only to
+ *  the patients who matched. That is not a softening of the feature; it is the
+ *  feature. A line that appears only on a hit turns a public terminal into an
+ *  oracle: type a neighbour's ten digits, watch whether the screen changes, and
+ *  you have learned that this cancer hospital holds a file on them. The
+ *  recognition happens server-side and is disclosed three screens later, behind
+ *  a PIN, to a human standing there. */
+function ArrivalAck({ lang }: { lang: KioskLang }) {
+  const text = tb("arrivalAck", lang);
+  return (
+    <div className={s.arrivalAck} role="status" data-testid="arrival-ack">
+      <span className={s.arrivalAckIcon} aria-hidden="true">
+        <Icon name="folder" />
+      </span>
+      <span lang={lang}>{text}</span>
+    </div>
+  );
+}
+
 function UrgentBanner({ lang }: { lang: KioskLang }) {
   return (
     <div className={s.redFlag}>
@@ -1388,12 +1608,15 @@ function TokenScreen({
   lang,
   token,
   details,
+  sessionId,
   onDone,
   say,
 }: {
   lang: KioskLang;
   token: ConfirmResult;
   details: PatientDetails;
+  /** Null when there is no server session to settle — an offline intake. */
+  sessionId: string | null;
   onDone: () => void;
   say: (t: string) => void;
 }) {
@@ -1405,50 +1628,58 @@ function TokenScreen({
 
   return (
     <div className={s.tokenScreen}>
-      <div className={s.tokenLabel}>{t("tokenTitle", lang)}</div>
-      <div className={s.tokenNumber} data-testid="token-number">
-        {token.token_no ?? "—"}
-      </div>
-      {details.name ? (
-        <div className={s.tokenName} data-testid="token-name">
-          {details.name}
+      {/* The patient's half. It keeps the whole screen when there is no strip,
+          and the strip below never takes space from the token numeral — a
+          patient reading their number from three metres away is the one job
+          this screen has. */}
+      <div className={s.tokenPatient}>
+        <div className={s.tokenLabel}>{t("tokenTitle", lang)}</div>
+        <div className={s.tokenNumber} data-testid="token-number">
+          {token.token_no ?? "—"}
         </div>
-      ) : null}
-      {token.department ? (
-        <div className={s.tokenDept}>{token.department.name}</div>
-      ) : null}
-      <div className={s.tokenWait}>{t("tokenWait", lang)}</div>
-      {token.red_flags.length > 0 ? (
-        <div className={s.tokenUrgent}>
-          <Icon name="alert" /> {t("urgentNote", lang)}
+        {details.name ? (
+          <div className={s.tokenName} data-testid="token-name">
+            {details.name}
+          </div>
+        ) : null}
+        {token.department ? (
+          <div className={s.tokenDept}>{token.department.name}</div>
+        ) : null}
+        <div className={s.tokenWait}>{t("tokenWait", lang)}</div>
+        {token.red_flags.length > 0 ? (
+          <div className={s.tokenUrgent}>
+            <Icon name="alert" /> {t("urgentNote", lang)}
+          </div>
+        ) : null}
+        <div className={s.tokenActions}>
+          <button
+            className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
+            data-testid="token-print"
+            onClick={() =>
+              void printSlip({
+                tokenNo: token.token_no,
+                departmentName: token.department?.name ?? "",
+                hospitalName: t("hospital", lang),
+                patientName: details.name,
+                issuedAt: new Date().toISOString(),
+                urgent: token.red_flags.length > 0,
+                lang,
+              })
+            }
+          >
+            <Icon name="printer" /> {t("printSlip", lang)}
+          </button>
+          <button
+            className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
+            onClick={onDone}
+            data-testid="token-done"
+          >
+            {t("startOver", lang)}
+          </button>
         </div>
-      ) : null}
-      <div className={s.tokenActions}>
-        <button
-          className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
-          data-testid="token-print"
-          onClick={() =>
-            void printSlip({
-              tokenNo: token.token_no,
-              departmentName: token.department?.name ?? "",
-              hospitalName: t("hospital", lang),
-              patientName: details.name,
-              issuedAt: new Date().toISOString(),
-              urgent: token.red_flags.length > 0,
-              lang,
-            })
-          }
-        >
-          <Icon name="printer" /> {t("printSlip", lang)}
-        </button>
-        <button
-          className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
-          onClick={onDone}
-          data-testid="token-done"
-        >
-          {t("startOver", lang)}
-        </button>
       </div>
+
+      {sessionId && <StaffStrip lang={lang} sessionId={sessionId} say={say} />}
     </div>
   );
 }

@@ -663,3 +663,78 @@ async def test_the_bundle_etag_changes_when_the_content_does(
 
     after = (await client.get("/kiosk/bundle")).json()["etag"]
     assert before != after
+
+
+# -- arrival identity across an outage (AR3) ----------------------------------
+
+
+async def test_an_offline_arrival_carries_its_health_id_and_finds_the_prior_file(
+    session: AsyncSession,
+) -> None:
+    """The kiosk had no server to ask, so the lookup happens at sync instead.
+
+    It still discloses nothing: the visit gets a *candidate*, and the console's
+    assign control is where a human settles it.
+    """
+    from app.models.enums import PatientLinkState
+
+    hospital = await _seed_departments(session)
+    prior = f.make_patient(hospital, mrn="MRN-OLD-1", external_id="UHC-777")
+    session.add(prior)
+    await session.flush()
+
+    blocks = await offline_svc.lease_blocks(session, kiosk_id="kiosk-a")
+    block = next(b for b in blocks if b.department_key == "MEDONC")
+    tree_key = _tree_key()
+
+    result = await offline_svc.sync_intake(
+        session,
+        kiosk_id="kiosk-a",
+        client_id="c-arrival-identity-1",
+        department_key="MEDONC",
+        tree_key=tree_key,
+        lang=Lang.HI,
+        token_no=block.start_no,
+        answers=_answers_for(tree_key),
+        patient_name="सीमा देवी",
+        patient_external_id="UHC-777",
+    )
+
+    assert result.status == "synced"
+    intake = await session.get(Intake, result.intake_id)
+    visit = await session.get(Visit, intake.visit_id)
+    walk_in = await session.get(Patient, visit.patient_id)
+    # The ID the patient typed during the outage is not dropped on the floor.
+    assert walk_in.external_id == "UHC-777"
+    # And it is a candidate, not a merge: nothing was linked without a human.
+    assert visit.candidate_patient_id == prior.id
+    assert visit.patient_link_state is PatientLinkState.CANDIDATE
+    assert visit.patient_id == walk_in.id
+
+
+async def test_an_offline_arrival_with_no_match_stays_a_new_file(
+    session: AsyncSession,
+) -> None:
+    hospital = await _seed_departments(session)
+    blocks = await offline_svc.lease_blocks(session, kiosk_id="kiosk-a")
+    block = next(b for b in blocks if b.department_key == "MEDONC")
+    tree_key = _tree_key()
+
+    result = await offline_svc.sync_intake(
+        session,
+        kiosk_id="kiosk-a",
+        client_id="c-arrival-identity-2",
+        department_key="MEDONC",
+        tree_key=tree_key,
+        lang=Lang.HI,
+        token_no=block.start_no,
+        answers=_answers_for(tree_key),
+        patient_name="सीमा देवी",
+        patient_external_id="UHC-NOBODY",
+    )
+
+    intake = await session.get(Intake, result.intake_id)
+    visit = await session.get(Visit, intake.visit_id)
+    assert visit.candidate_patient_id is None
+    assert str(visit.patient_link_state) == "none"
+    assert hospital is not None

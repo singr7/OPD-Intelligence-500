@@ -36,6 +36,8 @@ export type Board = {
   departments: BoardDept[];
 };
 
+export type LinkState = "none" | "candidate" | "confirmed" | "rejected";
+
 export type ConsoleEntry = {
   id: string;
   token_no: number;
@@ -45,6 +47,12 @@ export type ConsoleEntry = {
   chief_complaint: string | null;
   red_flag_count: number;
   patient_name: string | null;
+  // Who is going to see them, and whether a prior file was matched (AR3). Null
+  // doctor = the department pool, which is where a kiosk `Skip` and every
+  // offline arrival land.
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  link_state: LinkState;
 };
 
 export type ConsoleDept = {
@@ -127,6 +135,72 @@ export async function reorder(
 
 export async function setDowntime(token: string, active: boolean): Promise<void> {
   await staffPost(token, "/queue/downtime", { active });
+}
+
+// -- assignment (AR3) ---------------------------------------------------------
+//
+// The desk's half of the kiosk staff strip. It is the compensating control for
+// every arrival the strip did not settle: a `Skip`, and every visit an offline
+// kiosk synced with no roster to pick from.
+
+export type AssignableDoctor = {
+  id: string;
+  name: string;
+  qualification: string | null;
+  on_duty: boolean;
+};
+
+export type AssignEntryInput = {
+  link_candidate?: boolean | null;
+  department_key?: string | null;
+  doctor_id?: string | null;
+};
+
+export type AssignEntryResult = {
+  entry_id: string;
+  visit_id: string;
+  department_key: string;
+  department_name: string;
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  link_state: LinkState;
+  token_no: number | null;
+  previous_token_no: number | null;
+  token_reissued: boolean;
+};
+
+export async function fetchAssignable(
+  token: string,
+  entryId: string,
+): Promise<AssignableDoctor[]> {
+  const res = await fetch(`${API_BASE}/queue/entries/${entryId}/assignable`, {
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) throw new Error(`assignable ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDepartments(
+  token: string,
+): Promise<{ key: string; name: string }[]> {
+  const res = await fetch(`${API_BASE}/queue/departments`, {
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) throw new Error(`departments ${res.status}`);
+  return res.json();
+}
+
+export async function assignEntry(
+  token: string,
+  entryId: string,
+  input: AssignEntryInput,
+): Promise<AssignEntryResult> {
+  const res = await staffPost(token, `/queue/entries/${entryId}/assign`, input);
+  return res.json();
 }
 
 export async function fetchReconciliation(

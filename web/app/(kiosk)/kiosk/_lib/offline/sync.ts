@@ -64,6 +64,7 @@ export async function syncPending(): Promise<SyncSummary> {
         patient_age: row.patientAge ?? null,
         patient_sex: row.patientSex ?? null,
         patient_phone: row.patientPhone || null,
+        patient_external_id: row.patientExternalId || null,
         completed_at: row.completedAt,
       })),
     });

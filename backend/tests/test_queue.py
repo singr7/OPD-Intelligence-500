@@ -575,3 +575,93 @@ async def test_token_block_route_renders_the_kiosk_block(
     assert resp.status_code == 200
     # First offline block starts at the configured base (500).
     assert ">500<" in resp.text
+
+
+# -- console assignment fields (AR3) ------------------------------------------
+#
+# The console's assign control is the compensating control for every arrival the
+# kiosk strip did not settle. It can only be that if the console can *see* the
+# state it is compensating for, which is what these three fields are for.
+
+
+async def test_console_entry_reports_unassigned_by_default(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    await _enqueue_visit(session, clinic, token_no=1)
+
+    resp = await client.get("/queue/console", headers=_staff_headers(settings, user))
+    entry = next(
+        d for d in resp.json()["departments"] if d["department_key"] == clinic["department"].code
+    )["entries"][0]
+    assert entry["assigned_doctor_id"] is None
+    assert entry["assigned_doctor_name"] is None
+    assert entry["link_state"] == "none"
+
+
+async def test_console_entry_names_the_assigned_doctor(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    from app import assignment as assignment_svc
+    from app.models.clinical import Visit
+
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    entry = await _enqueue_visit(session, clinic, token_no=4)
+    visit = await session.get(Visit, entry.visit_id)
+    assert visit is not None
+    await assignment_svc.assign(session, visit=visit, doctor_id=clinic["doctor"].id)
+
+    resp = await client.get("/queue/console", headers=_staff_headers(settings, user))
+    row = next(
+        d for d in resp.json()["departments"] if d["department_key"] == clinic["department"].code
+    )["entries"][0]
+    assert row["assigned_doctor_id"] == str(clinic["doctor"].id)
+    assert row["assigned_doctor_name"] == clinic["doctor"].name
+
+
+async def test_console_entry_reports_an_unresolved_candidate(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    from app import assignment as assignment_svc
+    from app.models.clinical import Visit
+
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    entry = await _enqueue_visit(session, clinic, token_no=6)
+    visit = await session.get(Visit, entry.visit_id)
+    assert visit is not None
+    prior = f.make_patient(clinic["hospital"])
+    session.add(prior)
+    await session.flush()
+    await assignment_svc.note_candidate(session, visit=visit, candidate=prior)
+
+    resp = await client.get("/queue/console", headers=_staff_headers(settings, user))
+    row = next(
+        d for d in resp.json()["departments"] if d["department_key"] == clinic["department"].code
+    )["entries"][0]
+    assert row["link_state"] == "candidate"
+    # The console says a match *exists*. Who it is stays behind the kiosk's PIN
+    # and the doctor's patient card — a queue row is not a disclosure surface.
+    assert prior.name not in resp.text
+
+
+async def test_console_departments_lists_every_active_department(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """Including ones with nobody queued — that is the whole point of the route."""
+    clinic = await _clinic(session)
+    user = await _coordinator(session, clinic)
+    empty = f.make_department(clinic["hospital"], code="EMPTYDEPT", name="Empty Department")
+    session.add(empty)
+    await session.flush()
+
+    resp = await client.get("/queue/departments", headers=_staff_headers(settings, user))
+    assert resp.status_code == 200
+    keys = {d["key"] for d in resp.json()}
+    assert {clinic["department"].code, "EMPTYDEPT"} <= keys
+
+
+async def test_console_departments_requires_staff(client: AsyncClient) -> None:
+    assert (await client.get("/queue/departments")).status_code == 401

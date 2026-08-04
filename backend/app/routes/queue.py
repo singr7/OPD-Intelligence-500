@@ -99,6 +99,13 @@ class ConsoleEntryOut(BaseModel):
     chief_complaint: str | None
     red_flag_count: int
     patient_name: str | None = None
+    #: Who this visit is assigned to, and whether a prior file was matched (AR3).
+    #: The console's assign control reads all three: without them it cannot tell
+    #: an unassigned patient from an assigned one, and it would offer to settle
+    #: an identity question a coordinator already answered at the kiosk.
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    link_state: str = "none"
 
 
 class ConsoleDeptOut(BaseModel):
@@ -266,6 +273,9 @@ async def get_console(
                         chief_complaint=e.chief_complaint,
                         red_flag_count=e.red_flag_count,
                         patient_name=e.patient_name,
+                        assigned_doctor_id=e.assigned_doctor_id,
+                        assigned_doctor_name=e.assigned_doctor_name,
+                        link_state=e.link_state,
                     )
                     for e in entries
                 ],
@@ -348,6 +358,33 @@ class AssignableDoctorOut(BaseModel):
     name: str
     qualification: str | None = None
     on_duty: bool
+
+
+class QueueDepartmentOut(BaseModel):
+    key: str
+    name: str
+
+
+@router.get("/departments", response_model=list[QueueDepartmentOut])
+async def console_departments(
+    session: AsyncSession = Depends(get_session),
+    _: Principal = Depends(require_staff),
+) -> list[QueueDepartmentOut]:
+    """Every active department, for the console's re-route picker.
+
+    Deliberately not `GET /queue/console`'s department list, which is only the
+    ones with a queue running today: a visit routed to the wrong department has
+    to be movable *into* a department that has nobody in it yet, which is the
+    common case for the first patient of the morning.
+    """
+    rows = (
+        await session.execute(
+            select(Department)
+            .where(Department.deleted_at.is_(None), Department.active.is_(True))
+            .order_by(Department.name)
+        )
+    ).scalars()
+    return [QueueDepartmentOut(key=d.code, name=d.name) for d in rows]
 
 
 @router.get("/entries/{entry_id}/assignable", response_model=list[AssignableDoctorOut])

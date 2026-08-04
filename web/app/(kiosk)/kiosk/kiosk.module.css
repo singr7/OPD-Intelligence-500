@@ -1156,6 +1156,321 @@
   justify-content: center;
 }
 
+/* --- AR3: arrival identity ------------------------------------------------
+   The keypad is the same object in two sizes: the patient's phone number, and
+   the coordinator's PIN. Ten keys that never move, because the alternative on a
+   kiosk shell is an on-screen keyboard that may or may not appear and may or
+   may not cover the field it is filling. */
+.keypad {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+  margin-top: var(--sp-2);
+}
+.keypadDisplay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: min(420px, 80vw);
+  min-height: 84px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.keypadEmpty { color: #9fb0ab; letter-spacing: 0; }
+.keypadKeys {
+  display: grid;
+  grid-template-columns: repeat(3, var(--tap-min));
+  gap: var(--sp-2);
+}
+.keypadKey {
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-option);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.keypadKey:hover { border-color: var(--primary); }
+.keypadKey:active { transform: scale(0.95); }
+.keypadKey:disabled { opacity: 0.4; cursor: not-allowed; }
+.keypadBack { color: var(--danger); border-color: var(--danger-soft); }
+
+/* Larger keys on the real kiosk, where the patient is standing and may be
+   wearing the only pair of reading glasses in the family. */
+@media (min-width: 900px) and (min-height: 800px) {
+  .keypadKeys { grid-template-columns: repeat(3, 96px); }
+  .keypadKey { width: 96px; height: 96px; font-size: 2.25rem; }
+}
+
+.keypadCompact .keypadDisplay {
+  min-width: 220px;
+  min-height: 56px;
+  font-size: var(--fs-option);
+  border-radius: var(--radius-md);
+}
+.keypadCompact .keypadKeys { grid-template-columns: repeat(3, 56px); }
+.keypadCompact .keypadKey {
+  width: 56px;
+  height: 56px;
+  font-size: var(--fs-body);
+  border-radius: var(--radius-md);
+}
+
+.arrivalIdField { max-width: 560px; }
+
+/* The reassurance line after a phone or an ID was given. Calm, not celebratory:
+   it promises a human will check, and promises nothing else. */
+.arrivalAck {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--primary-soft);
+  border: 2px solid #bfded3;
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--primary-d);
+  line-height: var(--line-indic);
+}
+.arrivalAckIcon { width: 40px; height: 40px; flex: none; }
+
+/* --- AR3: the coordinator's strip on the token screen ---------------------
+   A band along the bottom of the token screen. Locked by default; the patient's
+   token keeps the room above it. Its colours are the token screen's, dimmed —
+   it must read as *part of* this screen but plainly not addressed to the
+   patient. */
+.tokenPatient {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 0;
+}
+.staffStrip {
+  flex: none;
+  width: min(1100px, 100%);
+  margin-top: var(--sp-3);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  color: #eaf6f2;
+  display: grid;
+  gap: var(--sp-2);
+}
+.staffStripLocked { background: rgba(255, 255, 255, 0.05); }
+.staffHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.staffLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #bfe3d8;
+}
+.staffLabel svg { width: 22px; height: 22px; }
+.staffWho {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.staffUnlockBtn,
+.staffLockBtn {
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #eaf6f2;
+  font-weight: 800;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.staffUnlockBtn:hover,
+.staffLockBtn:hover { border-color: #fff; color: #fff; }
+.staffLockedNote {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: #bfe3d8;
+}
+.staffError {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: #ffd9d9;
+}
+.staffBody { display: grid; gap: var(--sp-2); }
+.staffQuestion {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 800;
+  color: #fff;
+}
+.staffHolderRow { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.staffHolder {
+  min-height: 56px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.staffHolder:hover { border-color: var(--accent); }
+
+/* The candidate. The only place in the entire kiosk that renders a prior
+   patient's name, and it exists only inside an unlocked strip. */
+.staffCandidate {
+  display: grid;
+  gap: var(--sp-1);
+  background: rgba(255, 255, 255, 0.1);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2);
+}
+.staffCandidateLabel {
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  color: #ffd9a3;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.staffCandidateFacts { display: grid; gap: 2px; }
+.staffCandidateFacts strong { font-size: var(--fs-body); color: #fff; }
+.staffCandidateFacts span { font-size: var(--fs-caption); color: #d6ece5; }
+.staffCandidateActions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.staffChoice {
+  min-height: 48px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: #eaf6f2;
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.staffChoiceOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #2a1a00;
+}
+.staffSettled {
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  color: #ffd9a3;
+}
+
+.staffPickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-2);
+}
+.staffPicker { display: grid; gap: 4px; }
+.staffPicker span {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: #bfe3d8;
+}
+.staffPicker select {
+  min-height: 56px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: #0d4a3e;
+  color: #fff;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.staffPicker select:disabled { opacity: 0.55; }
+
+.staffActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.staffSkipHint {
+  flex: 1;
+  min-width: 220px;
+  font-size: var(--fs-caption);
+  color: #bfe3d8;
+}
+.staffPrimaryBtn,
+.staffGhostBtn {
+  min-height: 56px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-pill);
+  font-weight: 800;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.staffPrimaryBtn {
+  background: var(--accent);
+  border: 2px solid var(--accent);
+  color: #2a1a00;
+}
+.staffPrimaryBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.staffGhostBtn {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  color: #eaf6f2;
+}
+
+/* A reissued token. The patient is holding a slip that is now wrong, so this
+   takes the whole strip in marigold and stays until a human acknowledges it. */
+.staffReissue {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  background: var(--accent);
+  color: #2a1a00;
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+}
+.staffReissueText { display: grid; gap: 2px; flex: 1; min-width: 240px; }
+.staffReissueText strong { font-size: var(--fs-body); }
+.staffReissueText span { font-size: var(--fs-caption); font-weight: 600; }
+.staffReissueNumber {
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.staffReissue .staffPrimaryBtn {
+  background: #2a1a00;
+  border-color: #2a1a00;
+  color: var(--accent);
+}
+
 /* Browser-print fallback (a kiosk with no thermal printer): print only the token
    card, black on white. The ESC/POS bytes are the real path on a kiosk with a
    print bridge; this is the honest fallback. */
@@ -1170,4 +1485,8 @@
   .tokenNumber { color: #000 !important; }
   .tokenName, .tokenDept, .tokenWait { color: #000 !important; }
   .tokenActions { display: none !important; }
+  /* The slip is the patient's. Staff never appears on it — least of all a
+     candidate's name, which would print a second patient's identity onto a
+     piece of paper the first one walks out with. */
+  .staffStrip { display: none !important; }
 }
