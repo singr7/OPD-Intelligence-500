@@ -89,8 +89,41 @@ There is no §6 to build. The candidates, in the order I would take them:
   who reviews the AR3 strings, and when? (The doctor console is staff-facing and
   English-only, consistent with every other staff surface — not part of this.)
 
+## Backlog: the coordinator queue card (seen on AWS, 2026-08-05)
+
+From a live `Department queues` screenshot at a two-column card width. All layout
+— none of it blocks a deploy, and together they make the busiest staff screen
+hard to scan. `web/app/(coordinator)/coordinator/_components/Console.tsx` and its
+`consoleStyles.ts`.
+
+1. **The chips overflow their column and collide with the buttons.** `.entry` is
+   `grid-template-columns: auto 1fr auto`; `.mid` has `min-width: 0` but
+   `.chips` does not, so a wide chip cannot shrink and paints *under* the
+   action buttons. In the screenshot `Unassigned` is half-hidden behind `Call`.
+   Fix at the chips container, not by widening the card — the card is already
+   440px and the grid is `auto-fill`.
+2. **A long `priority_reason` sets the row height.** "Urgent · Coughing blood"
+   wraps to three lines and drags the whole row with it; the token numeral then
+   floats in the middle of a tall empty column. The reason wants truncation with
+   the full text in a `title`, the way the diagnosis line does on the doctor rail.
+3. **`.pname` / `.chief` need `dir="auto"`.** They are patient-entered text with
+   `text-overflow: ellipsis`. Any right-to-left content truncates from the wrong
+   end — the screenshot shows `…ب تشسبین`, three characters and an ellipsis on
+   the wrong side. The script guard now keeps Urdu out of the record, so this is
+   hygiene rather than a live bug, but it is one attribute.
+4. **"0 waiting" on a card with a patient in the room** reads as an empty
+   department. It is literally true (`waiting` excludes `called`), and it is the
+   same figure the doctor console shows — so the fix is wording, not arithmetic:
+   "0 waiting · 1 called".
+5. **Seeded doctors are named "Dr Pulmonology"** on that box, which looks like a
+   placeholder in a demo. Seed data, not code.
+
 ## Backlog additions
 
+- **`tests/test_campaign.py::test_a_thirty_seventy_mix_produces_the_documented_split`
+  is flaky.** It draws 60 random patients and asserts a hash split within a
+  tolerance; it failed once in three full runs and passes in isolation. Pre-existing,
+  not caused by the script guard. Either seed the patients or widen the tolerance.
 - **The analyser meter has never run against a real microphone.** Headless
   Chromium has none, so only the timer path is tested. Look at it on the Omen
   with a headset before the pilot.

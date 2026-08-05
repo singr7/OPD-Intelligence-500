@@ -777,6 +777,16 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **A model's script is guarded, not trusted** (2026-08-05) — `app.languages`
+  rejects text containing a non-Latin script the patient's language does not use,
+  at six boundaries: the kiosk `/stt` route, `IntakeEngine._hear`, the WhatsApp
+  voice note, the summary read-back and patient quote, the V2 assistant turn, and
+  the interpreter's clarify. Transcription is *dropped* (the words are the
+  patient's; transliterating would invent them) and generation *falls back* to the
+  authored deterministic string. `summarize@v3` also pins the script in the
+  prompt. `tests/test_script_guard.py` fails when a new module asks a model for
+  patient-facing text without running the guard or being declared exempt — that
+  test is the guarantee, not the prompt.
 - **Nothing in this product captures an allergy** (Session B) — not the kiosk
   intake, not the consult note, no field on `Patient` or `Visit`. The context
   spine and the History tab therefore both say so in words. Neither says "no
