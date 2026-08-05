@@ -121,6 +121,12 @@ class DayCounts:
     #: badge shows, because a badge that disagrees with the list under it is
     #: worse than a badge that disagrees with a metric on another screen.
     unassigned_waiting: int
+    #: Everyone in the department still waiting to be called, whatever scope is
+    #: open and whoever they are assigned to. The encounter bar states it when
+    #: the room is free, and it has to mean "the line outside" — a figure that
+    #: shrank because the doctor switched to their own list would be answering a
+    #: different question than the one being asked.
+    waiting: int
 
 
 @dataclass(slots=True)
@@ -218,6 +224,7 @@ async def day_list(
         unassigned_waiting=sum(
             1 for row in rows if row.assigned_doctor_id is None and row.state == "waiting"
         ),
+        waiting=sum(1 for row in rows if row.state == "waiting"),
     )
 
     return DayList(
@@ -409,6 +416,12 @@ class PatientCard:
     assigned_doctor_id: uuid.UUID | None = None
     assigned_doctor_name: str | None = None
     diagnosis: DiagnosisView | None = None
+    #: Whether a family member answered the intake instead of the patient. Part
+    #: of the provenance line that replaced the old "88% confidence" number: a
+    #: confidence percentage nobody can calibrate is false precision, while "a
+    #: caregiver answered this, in Hindi, at 09:14, on the conversational tier"
+    #: is four facts a doctor can actually weigh.
+    caregiver_answered: bool = False
 
 
 async def patient_card(
@@ -465,6 +478,7 @@ async def patient_card(
         assigned_doctor_id=assigned.id if assigned else None,
         assigned_doctor_name=assigned.name if assigned else None,
         diagnosis=await _diagnosis(session, patient_id=patient.id, current_visit_id=visit.id),
+        caregiver_answered=bool(intake.caregiver_answered) if intake else False,
     )
 
 

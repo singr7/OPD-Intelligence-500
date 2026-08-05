@@ -1,77 +1,57 @@
 "use client";
 
-// The patient card (doc 03 §4/§5, doc 04 §3).
+// The work area under the context spine: Overview, Intake answers, History.
+// (The fourth tab, Consult, is the dictation panel and is mounted by `Console`.)
 //
-// Its single job: one patient's story, absorbed in twenty seconds. So the order
-// on screen is the order of clinical urgency, not the order of the data model:
+// What moved out of here in Session B is as important as what stayed. Identity,
+// the token, the diagnosis, allergies and the red-flag strip all belong to the
+// spine now, because they must survive dictating and prescribing — this file
+// used to render the flags at the top of a card that unmounted the moment the
+// doctor started writing.
 //
-//   1. the red-flag strip — what could kill this patient today
-//   2. the chief concern, then the symptoms table
-//   3. everything else, collapsed (answers, timeline, trends, history)
+// What is left is the 20-second read, and it follows two rules from the plan:
 //
-// Red flags render as solid danger stamps carrying the rule's actual
-// instruction, not pale badge chips: this is the one thing on the screen that
-// must survive being glanced at, and a tinted pill next to a tinted pill is how
-// an alarm becomes decoration.
+// * **Unframed sections, no nested cards** (doc 14 principle 5). Headings and
+//   whitespace do the grouping. The screen this replaces nested cards three
+//   deep, which is how a dense screen becomes an unreadable one.
+// * **No confidence percentage.** The provenance line states four things a
+//   doctor can actually weigh — who answered, on which tier, in which language,
+//   and when it finished — instead of one number nobody can calibrate.
 
-import { useState } from "react";
 import type { PatientCard as Card } from "../_lib/doctor";
 import { Sparkline } from "./Sparkline";
+import type { WorkTab } from "./WorkTabs";
 
-const SEX_SHORT: Record<string, string> = { male: "M", female: "F", other: "—" };
+const TIER_LABEL: Record<string, string> = {
+  prerecorded: "tap-only, pre-recorded prompts",
+  conversational: "conversational voice",
+  adaptive: "adaptive follow-ups",
+};
 
-export function PatientCard({ card }: { card: Card }) {
-  const s = card.summary;
-  const urgent = card.red_flags.filter((f) => f.severity === "urgent");
-  const other = card.red_flags.filter((f) => f.severity !== "urgent");
+const LANG_NAME: Record<string, string> = {
+  hi: "Hindi",
+  en: "English",
+  mr: "Marathi",
+  te: "Telugu",
+};
 
+export function PatientCard({ card, tab }: { card: Card; tab: WorkTab }) {
   return (
-    <article className="card" data-testid="patient-card">
-      {/* 1. red flags, before anything else on the screen */}
-      {card.red_flags.length > 0 && (
-        <section className="flagstrip" data-testid="red-flag-strip">
-          {[...urgent, ...other].map((flag) => (
-            <div key={flag.id} className={`stamp ${flag.severity}`}>
-              <span className="stamp-mark" aria-hidden="true">
-                {flag.severity === "urgent" ? "!" : "•"}
-              </span>
-              <span className="stamp-body">
-                <strong>{flag.label}</strong>
-                {/* The rule's instruction is patient-facing copy — the words the
-                    kiosk actually spoke. Labelled, so the doctor reads it as
-                    "what they were already told", not as an instruction to them. */}
-                {flag.instruction && (
-                  <em>
-                    <span className="stamp-said">Patient was told:</span> {flag.instruction}
-                  </em>
-                )}
-              </span>
-            </div>
-          ))}
-        </section>
-      )}
+    <article className="work" data-testid="patient-card">
+      {tab === "overview" && <Overview card={card} />}
+      {tab === "answers" && <Answers card={card} />}
+      {tab === "history" && <History card={card} />}
+    </article>
+  );
+}
 
-      {/* 2. who, and the concern */}
-      <header className="who">
-        <div className="who-l">
-          <h1>{card.name}</h1>
-          <p className="meta">
-            {card.age != null && <span>{card.age}y</span>}
-            {card.sex && <span>{SEX_SHORT[card.sex] ?? card.sex}</span>}
-            {card.village && <span>{card.village}</span>}
-            <span className="mrn">{card.mrn}</span>
-          </p>
-        </div>
-        {/* The visit state is not repeated here: the encounter bar directly above
-            says it in words, and two half-answers to "where am I" is what made
-            the old card ambiguous. */}
-        <div className="who-r">
-          <span className="tok">{card.token_no ?? "—"}</span>
-          <span className="tok-label">token</span>
-        </div>
-      </header>
-
-      <p className="concern">{s.chief_concern ?? card.chief_complaint_en ?? card.chief_complaint}</p>
+function Overview({ card }: { card: Card }) {
+  const s = card.summary;
+  return (
+    <>
+      <p className="concern">
+        {s.chief_concern ?? card.chief_complaint_en ?? card.chief_complaint ?? "—"}
+      </p>
 
       {card.chief_complaint && (
         <p className="own-words" lang={card.intake_lang ?? "hi"}>
@@ -81,65 +61,128 @@ export function PatientCard({ card }: { card: Card }) {
       )}
 
       {s.symptoms.length > 0 && (
-        <table className="symptoms">
-          <thead>
-            <tr>
-              <th>Symptom</th>
-              <th>Duration</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {s.symptoms.map((row, i) => (
-              <tr key={i}>
-                <td>{row.symptom ?? "—"}</td>
-                <td>{row.duration ?? "—"}</td>
-                <td>{row.severity ?? "—"}</td>
+        <Section title="Symptoms">
+          <table className="symptoms">
+            <thead>
+              <tr>
+                <th>Symptom</th>
+                <th>Duration</th>
+                <th>Severity</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {s.symptoms.map((row, i) => (
+                <tr key={i}>
+                  <td>{row.symptom ?? "—"}</td>
+                  <td>{row.duration ?? "—"}</td>
+                  <td>{row.severity ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
       )}
 
-      {s.unclear.length > 0 && (
-        <p className="unclear">
-          Unclear — please confirm: {s.unclear.join("; ")}
-        </p>
-      )}
-
-      {/* 3. everything else, collapsed */}
       {s.since_last_visit.length > 0 && (
-        <Fold title="Since last visit" count={s.since_last_visit.length} open>
+        <Section title="Since last visit">
           <ul className="lines">
             {s.since_last_visit.map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ul>
-        </Fold>
+        </Section>
       )}
 
       {s.hpi.length > 0 && (
-        <Fold title="History of presenting illness" count={s.hpi.length}>
+        <Section title="History of presenting illness">
           <ul className="lines">
             {s.hpi.map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ul>
-        </Fold>
+        </Section>
       )}
 
+      {s.unclear.length > 0 && (
+        <p className="unclear">Unclear — please confirm: {s.unclear.join("; ")}</p>
+      )}
+
+      {/* The provenance line. Four facts, stated plainly, in place of the
+          confidence percentage this screen used to carry. */}
+      <p className="provenance" data-testid="provenance">
+        Answered by <strong>{card.caregiver_answered ? "a caregiver" : "the patient"}</strong>
+        {card.intake_lang && <> in {LANG_NAME[card.intake_lang] ?? card.intake_lang}</>}
+        {card.tier && <> · {TIER_LABEL[card.tier] ?? card.tier}</>}
+        {card.completed_at && <> · finished {new Date(card.completed_at).toLocaleTimeString()}</>}
+      </p>
+    </>
+  );
+}
+
+function Answers({ card }: { card: Card }) {
+  if (card.answers.length === 0) {
+    return <p className="work-empty">This intake recorded no answers.</p>;
+  }
+  return (
+    <Section title="The questions as they were asked">
+      <ul className="answers">
+        {card.answers.map((a) => (
+          <li key={a.node_id} className={a.flagged ? "flagged" : undefined}>
+            <span className="q">{a.question}</span>
+            <span className="a">
+              {a.answer}
+              {a.said && a.said !== a.answer && <em className="said"> &ldquo;{a.said}&rdquo;</em>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function History({ card }: { card: Card }) {
+  const s = card.summary;
+  const past = card.timeline.filter((v) => !v.is_current);
+  return (
+    <>
+      {/* Allergies appear here in full *and* in the spine (plan §4.3). Here the
+          full version is an honest statement of a gap rather than a list. */}
+      <Section title="Allergies">
+        <p className="lines-note" data-testid="history-allergies">
+          Nothing in this system captures allergies yet — not the kiosk intake, not the consult
+          note. Treat this as unknown and ask, rather than as an empty list.
+        </p>
+      </Section>
+
       {s.history_meds.length > 0 && (
-        <Fold title="History & current medicines" count={s.history_meds.length}>
+        <Section title="Conditions & current medicines">
           <ul className="lines">
             {s.history_meds.map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ul>
-        </Fold>
+        </Section>
       )}
 
+      <Section title="Past visits" count={past.length}>
+        {past.length === 0 ? (
+          <p className="lines-note">This is their first recorded visit.</p>
+        ) : (
+          <ol className="timeline">
+            {card.timeline.map((v) => (
+              <li key={v.visit_id} className={v.is_current ? "now" : undefined}>
+                <span className="tdate">{v.date}</span>
+                <span className="tdept">{v.department_name}</span>
+                <span className="tcc">{v.chief_complaint ?? "—"}</span>
+                <span className="tstatus">{v.is_current ? "today" : v.status}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Section>
+
       {card.trends.length > 0 && (
-        <Fold title="Check-in trend" count={card.trends.length}>
+        <Section title="Check-in trend">
           <ul className="trends">
             {card.trends.map((t) => {
               const first = t.points[0].value;
@@ -156,65 +199,30 @@ export function PatientCard({ card }: { card: Card }) {
               );
             })}
           </ul>
-        </Fold>
+        </Section>
       )}
-
-      {card.answers.length > 0 && (
-        <Fold title="Intake answers" count={card.answers.length}>
-          <ul className="answers">
-            {card.answers.map((a) => (
-              <li key={a.node_id} className={a.flagged ? "flagged" : undefined}>
-                <span className="q">{a.question}</span>
-                <span className="a">
-                  {a.answer}
-                  {a.said && a.said !== a.answer && <em className="said"> &ldquo;{a.said}&rdquo;</em>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Fold>
-      )}
-
-      {card.timeline.length > 1 && (
-        <Fold title="Past visits" count={card.timeline.length - 1}>
-          <ol className="timeline">
-            {card.timeline.map((v) => (
-              <li key={v.visit_id} className={v.is_current ? "now" : undefined}>
-                <span className="tdate">{v.date}</span>
-                <span className="tdept">{v.department_name}</span>
-                <span className="tcc">{v.chief_complaint ?? "—"}</span>
-                <span className="tstatus">{v.is_current ? "today" : v.status}</span>
-              </li>
-            ))}
-          </ol>
-        </Fold>
-      )}
-    </article>
+    </>
   );
 }
 
-function Fold({
+/** An unframed section: a heading, a rule, and the content. No card, no nesting
+ *  (doc 14 principle 5). */
+function Section({
   title,
   count,
-  open = false,
   children,
 }: {
   title: string;
   count?: number;
-  open?: boolean;
   children: React.ReactNode;
 }) {
-  const [isOpen, setOpen] = useState(open);
   return (
-    <section className={`fold ${isOpen ? "open" : ""}`}>
-      <button className="fold-h" onClick={() => setOpen((v) => !v)} aria-expanded={isOpen}>
-        <span className="chev" aria-hidden="true">
-          ›
-        </span>
-        <span>{title}</span>
-        {count != null && <span className="fold-n">{count}</span>}
-      </button>
-      {isOpen && <div className="fold-b">{children}</div>}
+    <section className="wsec">
+      <h2>
+        {title}
+        {count != null && count > 0 && <span className="wsec-n">{count}</span>}
+      </h2>
+      {children}
     </section>
   );
 }

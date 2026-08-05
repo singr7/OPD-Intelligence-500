@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest additions. The prototype gets its own launcher icon so it
+  can be opened on a device without touching the real app's navigation, and it
+  disappears entirely from release builds along with its assets.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".prototype.PrototypeActivity"
+            android:exported="true"
+            android:label="Good Days (proto)"
+            android:theme="@style/Theme.Opd"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

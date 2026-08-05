@@ -51,7 +51,10 @@ export function EncounterBar({
    *  rather than inviting the doctor to write a second one. */
   noteSigned: boolean;
 }) {
-  const waiting = day?.rows.filter((r) => r.state === "waiting").length ?? 0;
+  // The department's waiting count, not this scope's. "Room is free · 4 waiting"
+  // has to mean the line outside the door; a number that shrank because the
+  // doctor opened their own list would be answering a different question.
+  const waiting = day?.counts.waiting ?? 0;
   const state = card?.entry_state ?? null;
   const finished = state === "done" || state === "no_show";
   const roomIsEmpty = !card || finished;

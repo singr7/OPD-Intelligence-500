@@ -112,6 +112,30 @@ android {
     }
 }
 
+/**
+ * Bundle the "Good Days" design prototype into debug builds only.
+ *
+ * Its source of truth stays in web/public/prototype/carecompass — copying it in
+ * at build time means one copy in the repo instead of two that drift apart. It
+ * never reaches a release build, so it costs nothing against the 15MB budget.
+ */
+val prototypeAssets = layout.buildDirectory.dir("generated/prototypeAssets")
+
+val bundlePrototype by tasks.registering(Copy::class) {
+    group = "build"
+    description = "Copies the Good Days prototype into debug assets."
+    from(rootProject.file("../web/public/prototype/carecompass")) {
+        include(
+            "index-v3.html", "styles-v3.css", "app-v3.js", "seed-v3.js",
+            "manifest.webmanifest", "icon-192.png", "icon-512.png",
+        )
+    }
+    into(prototypeAssets.map { it.dir("carecompass") })
+}
+
+android.sourceSets.getByName("debug").assets.srcDir(prototypeAssets)
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn(bundlePrototype) }
+
 val validateReleaseEnvironments by tasks.registering {
     group = "verification"
     doLast {

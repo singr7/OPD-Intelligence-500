@@ -1,11 +1,34 @@
 // Typed client for the doctor surface (backend app/routes/doctor.py).
 //
-// Reads only. The console's *actions* are the S8 queue verbs — `callNext` and
-// `setEntryState` are imported from the shared queue client, not reimplemented
-// here, because S9 deliberately added no doctor-flavoured action endpoints
-// (backend app/doctor.py explains why).
+// Two reads and one write. The console's *queue* actions are still the S8 verbs
+// — `callNext` and `setEntryState` are imported from the shared queue client,
+// not reimplemented here, because there are no doctor-flavoured copies of the
+// queue state machine (backend app/doctor.py explains why).
+//
+// `takePatient` is the one write, and it is not a queue transition: it changes
+// who the visit belongs to, not where it sits in the line.
 
 import { API_BASE, AuthError } from "@/app/_lib/queue";
+
+/** The three worklists. `mine` is the default because the kiosk now assigns
+ *  essentially every arrival (AR3); `unassigned` is the safety net for the ones
+ *  it did not — a kiosk `Skip`, and every offline arrival. */
+export type DayScope = "mine" | "unassigned" | "department";
+
+export const DAY_SCOPES: DayScope[] = ["mine", "unassigned", "department"];
+
+export type DayCounts = {
+  mine: number;
+  unassigned: number;
+  department: number;
+  /** Unassigned *and still waiting* — the coordinator console's exact
+   *  definition, and what drives the rail's attention state. */
+  unassigned_waiting: number;
+  /** Everyone in the department still waiting, whatever scope is open. "The
+   *  line outside" — a figure that shrank when the doctor switched to their own
+   *  list would answer a different question than the one being asked. */
+  waiting: number;
+};
 
 export type DayRow = {
   entry_id: string;
@@ -20,13 +43,19 @@ export type DayRow = {
   chief_complaint: string | null;
   red_flag_count: number;
   called_at: string | null;
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  is_mine: boolean;
 };
 
 export type Day = {
   doctor_name: string;
+  doctor_id: string;
   department_key: string;
   department_name: string;
   date: string;
+  scope: DayScope;
+  counts: DayCounts;
   rows: DayRow[];
 };
 
@@ -98,14 +127,33 @@ export type PatientCard = {
   tier: string | null;
   intake_lang: string | null;
   completed_at: string | null;
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  diagnosis: Diagnosis | null;
+  /** Whether a family member answered instead of the patient. Part of the
+   *  provenance line that replaced the old confidence percentage. */
+  caregiver_answered: boolean;
+};
+
+/** The working diagnosis and where it came from. `on` is the date of the visit
+ *  whose *signed* note carried it — the spine states it, because an unqualified
+ *  diagnosis line silently belonging to a note from March is worse than none. */
+export type Diagnosis = {
+  text: string;
+  on: string;
+  is_current_visit: boolean;
 };
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
-export async function fetchDay(token: string, signal?: AbortSignal): Promise<Day> {
-  const res = await fetch(`${API_BASE}/doctor/day`, {
+export async function fetchDay(
+  token: string,
+  scope: DayScope = "mine",
+  signal?: AbortSignal,
+): Promise<Day> {
+  const res = await fetch(`${API_BASE}/doctor/day?scope=${scope}`, {
     headers: authHeaders(token),
     cache: "no-store",
     signal,
@@ -113,6 +161,19 @@ export async function fetchDay(token: string, signal?: AbortSignal): Promise<Day
   if (res.status === 401) throw new AuthError();
   if (!res.ok) throw new Error(`day ${res.status}`);
   return res.json();
+}
+
+/** "I'll see this one." Works on an unassigned patient and on a colleague's. */
+export async function takePatient(token: string, visitId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/doctor/visits/${visitId}/take`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `take ${res.status}`);
+  }
 }
 
 export async function fetchPatient(

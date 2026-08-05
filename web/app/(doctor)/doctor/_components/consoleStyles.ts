@@ -70,6 +70,26 @@ export const CONSOLE_CSS = `
 .rail { background: var(--surface); border-right: 1px solid var(--line);
   padding: 20px 14px 8px; position: sticky; top: 64px; height: calc(100vh - 64px);
   overflow-y: auto; }
+/* the three scopes. Unassigned is the only one that can raise its voice, and
+   it does so in words as well as colour (doc 04 §4 forbids colour-only meaning). */
+.scopes { display: flex; gap: 4px; padding: 0 2px 10px; }
+.scope { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 8px 4px; border: 1px solid transparent; border-radius: 9px;
+  background: none; cursor: pointer; font: inherit; color: var(--ink-soft); }
+.scope:hover { background: var(--bg); }
+.scope-name { font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.scope-n { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--ink); }
+.scope.is-open { background: var(--primary-soft); border-color: var(--primary-soft);
+  color: var(--primary-d); }
+.scope.is-open .scope-n { color: var(--primary-d); }
+.scope.is-attention { background: var(--accent-soft); border-color: #e8c583; color: #7a4d0a; }
+.scope.is-attention .scope-n { color: #7a4d0a; }
+.scope.is-attention.is-open { border-color: var(--accent); }
+.unassigned-alert { margin: 0 2px 12px; padding: 7px 11px; border-radius: 9px;
+  background: var(--accent-soft); color: #7a4d0a; font-size: 13px; font-weight: 700;
+  line-height: 1.4; }
+
 .rail-h { display: flex; align-items: baseline; gap: 8px; padding: 0 6px 12px; }
 .rail-count { font-size: 26px; font-weight: 800; color: var(--ink);
   font-variant-numeric: tabular-nums; }
@@ -112,14 +132,66 @@ export const CONSOLE_CSS = `
 .station.is-active .sstate { color: #7a4d0a; }
 .station .sflag { font-size: 13px; font-weight: 700; color: var(--danger); }
 .station .sreason { font-size: 13px; color: var(--danger); line-height: 1.45; margin-top: 2px; }
+/* whose patient this is — stated only when it is not the reading doctor's */
+.station .swho { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.station .swho.pool { color: #7a4d0a; font-weight: 700; }
+.station .take { margin: 0 8px 8px 74px; border: 1.5px solid var(--line); background: var(--surface);
+  color: var(--ink); font: 700 13px/1 var(--font-sans), sans-serif; padding: 8px 12px;
+  border-radius: var(--radius-control); cursor: pointer; }
+.station .take:hover { border-color: var(--primary); color: var(--primary-d); }
+.station .take:disabled { opacity: .5; cursor: default; }
 
-/* ---- the card ---------------------------------------------------------- */
+/* ---- the context spine (plan §4.2) ------------------------------------- */
+/* Sticky, and it never unmounts. Four things and no fifth: identity + token,
+   diagnosis, allergies, red flags. It sits at the top of the stage above the tab
+   row, so every tab — including the consult note — is read with the dangerous
+   facts still on screen. */
 .stage { min-width: 0; padding: 24px; }
-.card { max-width: 1100px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-panel); padding: 0 0 18px; overflow: hidden; }
+.spine-ctx { position: sticky; top: 64px; z-index: 5; max-width: 1100px; margin: 0 auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0; overflow: hidden; }
 
-/* 1. red flags — solid stamps, not pale chips */
-.flagstrip { display: flex; flex-direction: column; gap: 1px; background: var(--line); }
+.cx-id { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  padding: 16px 22px 0; }
+.cx-who { min-width: 0; }
+.cx-who h1 { margin: 0; font-size: 24px; line-height: 1.2; color: var(--ink); }
+.cx-meta { margin: 5px 0 0; display: flex; flex-wrap: wrap; gap: 9px; font-size: 13px;
+  color: var(--ink-soft); align-items: center; }
+.cx-mrn { font-variant-numeric: tabular-nums; opacity: .85; }
+.cx-state { border-radius: 999px; padding: 2px 8px; background: #eef2f0; color: var(--text-muted);
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.cx-state.state-in_consult { background: var(--brand-soft); color: var(--brand-hover); }
+.cx-state.state-called { background: var(--info-soft); color: var(--info); }
+.cx-state.state-lab_requeue { background: var(--attention-soft); color: #7a4d0a; }
+.cx-owner { border-radius: 999px; padding: 2px 9px; background: var(--bg); color: var(--ink);
+  font-size: 12px; font-weight: 700; }
+.cx-owner.pool { background: var(--accent-soft); color: #7a4d0a; }
+/* the token: train-board treatment, tabular numerals — what reconnects this
+   console to the board and the coordinator across a corridor */
+.cx-tok { flex: none; text-align: right; display: grid; justify-items: end; gap: 2px; }
+.cx-tok-n { font-size: 32px; font-weight: 800; color: var(--ink); line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.cx-tok-l { font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--ink-soft); }
+
+/* one line, never truncated */
+.cx-dx { margin: 12px 22px 0; font-size: 16px; font-weight: 700; line-height: 1.4;
+  color: var(--ink); }
+.cx-dx-src { font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.cx-dx-none { font-weight: 500; color: var(--ink-soft); }
+
+.cx-allergy { margin: 6px 22px 0; font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+.cx-allergy-l { font-weight: 800; color: var(--ink); text-transform: uppercase;
+  letter-spacing: .06em; font-size: 12px; margin-right: 4px; }
+
+/* No flags is a state, not an absence — it is said plainly, in a calm register,
+   so that "nothing fired" and "the strip failed to render" cannot look alike. */
+.cx-noflags { margin: 12px 0 0; padding: 9px 22px; background: var(--bg); color: var(--ink-soft);
+  font-size: 13px; font-weight: 600; border-top: 1px solid var(--line); }
+
+/* red flags — solid stamps, not pale chips */
+.cx-flags { display: flex; flex-direction: column; gap: 1px; background: var(--line);
+  margin-top: 12px; }
 .stamp { display: flex; align-items: flex-start; gap: 12px; padding: 13px 22px;
   background: var(--danger); color: #fff; }
 .stamp.semi { background: #8a5a10; }
@@ -131,32 +203,61 @@ export const CONSOLE_CSS = `
 .stamp-said { font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
   font-size: 11px; opacity: .8; }
 
-/* 2. who, concern, symptoms */
-.who { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
-  padding: 20px 22px 0; }
-.who h1 { margin: 0; font-size: 26px; line-height: 1.2; color: var(--ink); }
-.who .meta { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 10px; font-size: 14px;
-  color: var(--ink-soft); }
-.who .meta .mrn { font-variant-numeric: tabular-nums; opacity: .8; }
-.who-r { text-align: right; flex: none; display: grid; justify-items: end; gap: 3px; }
-.visit-state { display: inline-flex; border-radius: 999px; padding: 3px 8px; background: #eef2f0;
-  color: var(--text-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
-.visit-state.state-in_consult { background: var(--brand-soft); color: var(--brand-hover); }
-.visit-state.state-called { background: var(--info-soft); color: var(--info); }
-.visit-state.state-lab_requeue { background: var(--attention-soft); color: #7a4d0a; }
-.who-r .tok { display: block; font-size: 34px; font-weight: 800; color: var(--ink);
-  font-variant-numeric: tabular-nums; line-height: 1; }
-.who-r .tok-label { font-size: 12px; text-transform: uppercase; letter-spacing: .09em;
-  color: var(--ink-soft); }
+/* ---- the tab row (plan §4.3/§4.4) -------------------------------------- */
+/* Four working tabs, and one muted trailing disclosure for the four unbuilt
+   surfaces. The disclosure deliberately does not look like a tab: it never
+   carries the open underline and it does not hover-highlight, so a placeholder
+   is not mistaken for a broken feature. */
+.worktabs-wrap { max-width: 1100px; margin: 0 auto; background: var(--surface);
+  border: 1px solid var(--line); border-top: 0; }
+.worktabs { display: flex; align-items: stretch; gap: 2px; padding: 0 12px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line); }
+.wtab { display: inline-flex; align-items: center; gap: 7px; background: none; border: none;
+  border-bottom: 3px solid transparent; cursor: pointer; font: 700 14px/1 var(--font-sans), sans-serif;
+  color: var(--ink-soft); padding: 13px 12px 11px; }
+.wtab:hover { color: var(--ink); }
+.wtab.is-open { color: var(--primary-d); border-bottom-color: var(--primary); }
+.wtab-n { font-size: 12px; font-weight: 700; color: var(--ink-soft); background: var(--bg);
+  border-radius: 999px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+.wtab-signed { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--primary-d); background: var(--primary-soft); border-radius: 999px; padding: 3px 8px; }
+.wtab-soon { margin-left: auto; background: none; border: none; cursor: pointer;
+  font: 600 13px/1 var(--font-sans), sans-serif; color: var(--text-muted); padding: 13px 8px 11px; }
+.wtab-soon:hover { color: var(--ink-soft); }
+.soon-panel { padding: 12px 22px 14px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.soon-panel p { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+.soon-panel strong { color: var(--ink); font-weight: 700; }
 
-.concern { margin: 14px 22px 0; font-size: 19px; font-weight: 700; line-height: 1.4;
+/* ---- the work area ----------------------------------------------------- */
+/* Unframed sections: headings and whitespace do the grouping, and nothing nests
+   (doc 14 principle 5). */
+.work { max-width: 1100px; margin: 0 auto; background: var(--surface);
+  border: 1px solid var(--line); border-top: 0;
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel); padding: 4px 0 20px; }
+.work-empty { padding: 34px 22px; color: var(--ink-soft); font-size: 14px; }
+/* The consult note is a tab body, not a panel that took the screen: it joins the
+   same frame the other three tabs render into. */
+.worktabs-wrap + .dict { border-top: 0; border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
+.wsec { margin: 18px 22px 0; }
+.wsec h2 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; font-size: 12px;
+  font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft);
+  border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.wsec-n { font-size: 12px; font-weight: 700; color: var(--ink-soft); background: var(--bg);
+  border-radius: 999px; padding: 1px 8px; letter-spacing: 0; }
+.lines-note { margin: 0; font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+/* Provenance a doctor can act on, in place of a confidence percentage nobody
+   can calibrate (plan §4.3). */
+.provenance { margin: 20px 22px 0; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+.provenance strong { color: var(--ink); font-weight: 700; }
+
+.concern { margin: 18px 22px 0; font-size: 19px; font-weight: 700; line-height: 1.4;
   color: var(--ink); }
 .own-words { margin: 10px 22px 0; padding-left: 14px; border-left: 3px solid var(--primary-soft);
   font-size: 15px; color: var(--ink-soft); line-height: var(--line-indic); }
 .own-words .gloss { opacity: .85; font-style: italic; }
 
-.symptoms { width: calc(100% - 44px); margin: 16px 22px 0; border-collapse: collapse;
-  font-size: 14px; }
+.symptoms { width: 100%; border-collapse: collapse; font-size: 14px; }
 .symptoms th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
   color: var(--ink-soft); font-weight: 700; padding: 0 10px 6px 0;
   border-bottom: 1px solid var(--line); }
@@ -177,18 +278,6 @@ export const CONSOLE_CSS = `
 .act.note-action { margin-left: auto; border-color: var(--brand); color: var(--brand-hover); }
 .act.danger-quiet { color: var(--danger); }
 .act:disabled { opacity: .5; cursor: default; }
-
-/* 3. everything else, collapsed */
-.fold { margin: 14px 22px 0; border-top: 1px solid var(--line); }
-.fold-h { display: flex; align-items: center; gap: 9px; width: 100%; background: none; border: none;
-  cursor: pointer; padding: 12px 0 10px; font: inherit; font-size: 14px; font-weight: 700;
-  color: var(--ink); text-align: left; }
-.fold-h .chev { display: inline-block; color: var(--ink-soft); font-size: 17px; line-height: 1;
-  transition: transform var(--dur) var(--ease); }
-.fold.open .fold-h .chev { transform: rotate(90deg); }
-.fold-n { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--ink-soft);
-  background: var(--bg); border-radius: 999px; padding: 2px 9px; }
-.fold-b { padding: 0 0 14px; }
 
 .lines { margin: 0; padding-left: 20px; }
 .lines li { font-size: 14px; line-height: 1.6; color: var(--ink); margin-bottom: 5px; }
@@ -222,15 +311,14 @@ export const CONSOLE_CSS = `
 .timeline .tstatus { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--ink-soft); }
 
-@media (prefers-reduced-motion: reduce) {
-  .fold-h .chev { transition: none; }
-}
-
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
-  .rail { position: relative; top: 0; height: auto; max-height: 340px; border-right: 0;
+  .rail { position: relative; top: 0; height: auto; max-height: 420px; border-right: 0;
     border-bottom: 1px solid var(--line); }
   .stage { padding: 16px; }
+  /* On one column the rail scrolls away above the stage, so a sticky spine
+     would pin itself under nothing. It stays in flow instead. */
+  .spine-ctx { position: relative; top: 0; }
 }
 
 @media (max-width: 600px) {
@@ -242,10 +330,11 @@ export const CONSOLE_CSS = `
   .enc-actions { width: 100%; }
   .enc-actions .act { flex: 1 1 auto; justify-content: center; }
   .enc-actions .hint { display: none; }
-  .who { padding: 16px 16px 0; }
-  .who h1 { font-size: 22px; }
-  .concern, .own-words, .unclear, .fold { margin-left: 16px; margin-right: 16px; }
-  .symptoms { width: calc(100% - 32px); margin-left: 16px; margin-right: 16px; }
+  .cx-id { padding: 14px 16px 0; }
+  .cx-who h1 { font-size: 21px; }
+  .cx-dx, .cx-allergy { margin-left: 16px; margin-right: 16px; }
+  .concern, .own-words, .unclear, .wsec, .provenance { margin-left: 16px; margin-right: 16px; }
+  .wtab-soon { margin-left: 0; }
   .timeline li { grid-template-columns: 1fr; gap: 3px; }
 }
 `;

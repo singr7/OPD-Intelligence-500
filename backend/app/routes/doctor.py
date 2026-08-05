@@ -65,6 +65,7 @@ class DayCountsOut(BaseModel):
     unassigned: int
     department: int
     unassigned_waiting: int
+    waiting: int
 
 
 class DayOut(BaseModel):
@@ -160,6 +161,7 @@ class CardOut(BaseModel):
     assigned_doctor_id: uuid.UUID | None = None
     assigned_doctor_name: str | None = None
     diagnosis: DiagnosisOut | None = None
+    caregiver_answered: bool = False
 
 
 # -- routes -------------------------------------------------------------------

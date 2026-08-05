@@ -1,53 +1,66 @@
 "use client";
 
-// The doctor console (doc 03 §5, doc 04 §3; rebuilt for S-UX.6).
+// The doctor console (doc 03 §5, doc 04 §3; rebuilt for S-UX.6, rescoped in
+// Session B).
 //
 // Its single job: absorb one patient's story in twenty seconds and move the
-// queue with one key. Layout is therefore two columns and nothing else — the
-// rail of who is waiting, and the card of who is in front of you.
+// queue with one key. Layout is two columns — the rail of who is waiting, and
+// the stage for who is in front of you.
 //
-// What S-UX.6 changed is *where the encounter lives*. It used to be implied by a
-// small state chip on the card and acted on by buttons scattered between the app
-// bar and the bottom of the card, which made "is this consult finished?" a
-// question the doctor had to reconstruct. Now one `EncounterBar` sits above the
-// card, says the state in words, and carries exactly one filled next step.
+// Session B changed two things about that stage.
 //
-// The action verbs are the S8 queue's (`callNext` / `setEntryState`), imported
-// rather than reimplemented: same state machine, same audit trail, same order
-// the board and the coordinator see. Every mutation refetches the day, because
-// the coordinator may be moving the same line at the same time.
+// **The rail now has three scopes.** `Mine` is the default, which is only a sane
+// default because AR3 made the kiosk assign essentially every arrival. The
+// safety net is `Unassigned`, and its count stays visible whether or not its tab
+// is open — it is what a kiosk `Skip` and every offline arrival land in, and a
+// patient nobody's list contains is a patient nobody sees.
+//
+// **The context spine never unmounts.** Identity, token, diagnosis, allergies
+// and red flags used to live at the top of the patient card, which was replaced
+// wholesale by the dictation panel the moment the doctor pressed D. So the
+// allergy the doctor most needed while prescribing was the one thing guaranteed
+// to be off screen. Now the spine sits above the tab row and survives every tab,
+// including Consult.
+//
+// The queue verbs are still the S8 queue's (`callNext` / `setEntryState`),
+// imported rather than reimplemented: same state machine, same audit trail, same
+// order the board and the coordinator see. Every mutation refetches the day,
+// because the coordinator may be moving the same line at the same time.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
-import type { Day, DayRow, PatientCard as Card } from "../_lib/doctor";
-import { fetchDay, fetchPatient } from "../_lib/doctor";
+import type { Day, DayRow, DayScope, PatientCard as Card } from "../_lib/doctor";
+import { fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
 import { CONSOLE_CSS, DICTATION_CSS } from "./consoleStyles";
+import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
 import { EncounterBar, type Action } from "./EncounterBar";
 import { Login } from "./Login";
 import { PatientCard } from "./PatientCard";
+import { WorkTabs, type WorkTab } from "./WorkTabs";
 
 export function Console() {
   const [token, setTok] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [day, setDay] = useState<Day | null>(null);
+  const [scope, setScope] = useState<DayScope>("mine");
   const [card, setCard] = useState<Card | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The consult note takes the stage rather than floating over it: by the time
-  // the doctor dictates they have finished reading the card, and a modal over a
-  // clinical summary invites signing a note while half-reading the patient.
-  const [dictating, setDictating] = useState(false);
+  // Which tab of the record is open. The consult note is one of them rather than
+  // a panel that replaces the screen: by the time the doctor dictates they have
+  // finished reading, but they must not lose the red flags to do it.
+  const [tab, setTab] = useState<WorkTab>("overview");
   // Which visits got a signed note in this session. The card model does not carry
   // note status, and asking the server per row would be a request per patient —
   // so the console remembers what it watched happen, and says nothing about
-  // visits it did not (the bar then reads "Write consult note", which is safe:
-  // the panel itself shows the real signed state when opened).
+  // visits it did not (the Consult tab then shows the real signed state).
   const [signedNotes, setSignedNotes] = useState<Set<string>>(new Set());
   const selectedRef = useRef<string | null>(null);
+  const scopeRef = useRef<DayScope>("mine");
 
   useEffect(() => {
     setTok(getToken());
@@ -58,19 +71,23 @@ export function Console() {
     selectedRef.current = selected;
   }, [selected]);
 
+  useEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
+
   const signOut = useCallback(() => {
     clearToken();
     setTok(null);
     setDay(null);
     setCard(null);
     setSelected(null);
-    setDictating(false);
+    setTab("overview");
   }, []);
 
   const loadDay = useCallback(
-    async (tok: string) => {
+    async (tok: string, want?: DayScope) => {
       try {
-        const next = await fetchDay(tok);
+        const next = await fetchDay(tok, want ?? scopeRef.current);
         setDay(next);
         setError(null);
         return next;
@@ -115,6 +132,40 @@ export function Console() {
       cancelled = true;
     };
   }, [token, loadDay, openPatient]);
+
+  // Switching scope refetches but deliberately leaves the stage alone. A doctor
+  // checking the unassigned pool mid-consult has not stopped consulting, and
+  // clearing the card under them would be the console changing the subject.
+  const onScope = useCallback(
+    async (next: DayScope) => {
+      if (!token || next === scope) return;
+      setScope(next);
+      scopeRef.current = next;
+      await loadDay(token, next);
+    },
+    [token, scope, loadDay],
+  );
+
+  const onTake = useCallback(
+    async (row: DayRow) => {
+      if (!token || busy) return;
+      setBusy(true);
+      try {
+        await takePatient(token, row.visit_id);
+        await loadDay(token);
+        // Taking a patient is an act of intent — open them. The doctor said
+        // "I'll see this one", and the next thing they want is the card.
+        await openPatient(token, row.visit_id);
+        setTab("overview");
+      } catch (err) {
+        if (err instanceof AuthError) signOut();
+        else setError(err instanceof Error ? err.message : "Could not take that patient.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [token, busy, loadDay, openPatient, signOut],
+  );
 
   const onCallNext = useCallback(async () => {
     if (!token || !day || busy) return;
@@ -178,24 +229,25 @@ export function Console() {
       } else if (key === "d") {
         e.preventDefault();
         // Only with a patient on the stage: a consult note belongs to a visit.
-        setDictating((open) => (selectedRef.current ? !open : open));
+        if (selectedRef.current) {
+          setTab((open) => (open === "consult" ? "overview" : "consult"));
+        }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [token, onCallNext]);
 
-  // Moving to *another* patient closes the note — it is that visit's, not a
-  // scratchpad that follows the doctor down the list. Keyed on the value
-  // changing rather than on the effect running, because the first load resolves
-  // `selected` asynchronously: a plain dependency effect closes a note the
-  // doctor opened a moment earlier, and it does it often enough to look random.
-  const dictatingFor = useRef<string | null>(null);
+  // Moving to *another* patient returns to the Overview — the note is that
+  // visit's, not a scratchpad that follows the doctor down the list. Keyed on
+  // the value changing rather than on the effect running, because the first load
+  // resolves `selected` asynchronously: a plain dependency effect closes a note
+  // the doctor opened a moment earlier, and it does it often enough to look
+  // random.
+  const tabFor = useRef<string | null>(null);
   useEffect(() => {
-    if (dictatingFor.current !== null && dictatingFor.current !== selected) {
-      setDictating(false);
-    }
-    dictatingFor.current = selected;
+    if (tabFor.current !== null && tabFor.current !== selected) setTab("overview");
+    tabFor.current = selected;
   }, [selected]);
 
   if (!ready) return null;
@@ -210,11 +262,13 @@ export function Console() {
     );
   }
 
+  const isMine = card ? card.assigned_doctor_id === day?.doctor_id : true;
+
   return (
     <div className="console">
       <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS }} />
 
-      {/* The app bar carries identity only. Every verb that moves the queue now
+      {/* The app bar carries identity only. Every verb that moves the queue
           lives on the encounter bar, next to the patient it acts on. */}
       <header className="appbar">
         <div className="appbar-l">
@@ -226,7 +280,7 @@ export function Console() {
         </div>
         <div className="appbar-r">
           <span className="appbar-count">
-            <b>{day?.rows.filter((r) => r.state === "waiting").length ?? 0}</b> waiting
+            <b>{day?.counts.waiting ?? 0}</b> waiting
           </span>
           <button className="signout" onClick={signOut}>
             Sign out
@@ -242,6 +296,9 @@ export function Console() {
             day={day}
             selectedVisitId={selected}
             onSelect={(row: DayRow) => token && openPatient(token, row.visit_id)}
+            onScope={onScope}
+            onTake={onTake}
+            busy={busy}
           />
         ) : (
           <p className="loading">Loading today&rsquo;s list…</p>
@@ -254,26 +311,38 @@ export function Console() {
             busy={busy}
             onAction={onAction}
             onCallNext={onCallNext}
-            onDictate={() => setDictating(true)}
+            onDictate={() => setTab("consult")}
             noteSigned={card ? signedNotes.has(card.visit_id) : false}
           />
 
-          {card && dictating ? (
-            <DictationPanel
-              token={token}
-              visitId={card.visit_id}
-              patientName={card.name}
-              patientMrn={card.mrn}
-              visitDate={card.visit_date}
-              doctorName={day?.doctor_name ?? "Doctor"}
-              departmentName={card.department_name}
-              onClose={() => setDictating(false)}
-              onSigned={() =>
-                setSignedNotes((prev) => new Set(prev).add(card.visit_id))
-              }
-            />
-          ) : card ? (
-            <PatientCard card={card} />
+          {card ? (
+            <>
+              {/* Sticky, and mounted for every tab including Consult. */}
+              <ContextSpine card={card} isMine={isMine} />
+
+              <WorkTabs
+                tab={tab}
+                onTab={setTab}
+                answerCount={card.answers.length}
+                noteSigned={signedNotes.has(card.visit_id)}
+              />
+
+              {tab === "consult" ? (
+                <DictationPanel
+                  token={token}
+                  visitId={card.visit_id}
+                  patientName={card.name}
+                  patientMrn={card.mrn}
+                  visitDate={card.visit_date}
+                  doctorName={day?.doctor_name ?? "Doctor"}
+                  departmentName={card.department_name}
+                  onClose={() => setTab("overview")}
+                  onSigned={() => setSignedNotes((prev) => new Set(prev).add(card.visit_id))}
+                />
+              ) : (
+                <PatientCard card={card} tab={tab} />
+              )}
+            </>
           ) : (
             <p className="empty-state">
               {day && day.rows.length > 0

@@ -712,6 +712,7 @@ async def test_day_route_defaults_to_mine_and_still_counts_the_pool(
         "unassigned": 1,
         "department": 1,
         "unassigned_waiting": 1,
+        "waiting": 1,
     }
 
 
