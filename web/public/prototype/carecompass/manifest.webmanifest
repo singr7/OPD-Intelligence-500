@@ -1,0 +1,16 @@
+{
+  "name": "Good Days",
+  "short_name": "Good Days",
+  "description": "A forecast for your body, so you can plan a life around treatment.",
+  "start_url": "./index-v3.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#071614",
+  "theme_color": "#071614",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

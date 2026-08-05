@@ -1297,6 +1297,15 @@
 }
 .arrivalAckIcon { width: 40px; height: 40px; flex: none; }
 
+/* On a laptop-height screen the acknowledgement sits above a four-field form,
+   so it shrinks rather than pushing the phone number below the fold — the one
+   field on that screen a returning patient most needs to check, because the
+   kiosk pre-filled it from the keypad two screens ago. */
+@media (max-height: 820px) and (min-width: 1024px) {
+  .arrivalAck { padding: var(--sp-1) var(--sp-2); font-size: var(--fs-caption); }
+  .arrivalAckIcon { width: 28px; height: 28px; }
+}
+
 /* The token screen on a laptop-height display — the staff tablet and the demo
    machine, not the real portrait kiosk. The numeral keeps its size; the
    supporting lines give way, so the strip fits under the actions instead of
