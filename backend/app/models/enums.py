@@ -301,6 +301,13 @@ class UsagePurpose(StrEnum):
     ROUTING = "routing"
     DICTATION = "dictation"
     CHECKIN = "checkin"
+    #: Reading a scanned medical record (SESSION-MRD1) — both the vision call and
+    #: the summary written from its output. Its own purpose rather than `summary`
+    #: because a document is priced per page of image and an intake summary is
+    #: not, so averaging them together makes the S18 cost-per-intake number a
+    #: fiction. The column is a plain varchar(11) with no check constraint, so
+    #: this needed no migration; a value longer than that would.
+    DOCUMENT = "document"
     OTHER = "other"
 
 
