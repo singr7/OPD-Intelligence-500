@@ -31,7 +31,7 @@ preflight` was run against this commit and both images import.
 
 ```bash
 git checkout main && git pull --ff-only
-git rev-parse HEAD          # must print 4c7f1fb1e50e2e490f3d30b224e9b4ba4636c857
+git rev-parse HEAD          # this is the SHA you deploy
 make test-backend           # 1376 passed
 make preflight              # both images build and import
 ```
@@ -48,7 +48,8 @@ real patient record.
 --rm migrate`), so there is no separate alembic step on this host.
 
 ```bash
-export RELEASE_SHA=4c7f1fb1e50e2e490f3d30b224e9b4ba4636c857
+export RELEASE_SHA=$(git ls-remote origin refs/heads/main | cut -f1)
+echo "$RELEASE_SHA"       # 40 chars — sanity-check it before going further
 
 # 0. Record where you are, so rollback has a target
 sudo cat /opt/opd/runtime/releases/current-sha
@@ -195,7 +196,7 @@ git fetch origin
 
 # 2. Pull and build without switching anything over
 git pull --ff-only origin main
-git rev-parse HEAD                   # 4c7f1fb1e50e2e490f3d30b224e9b4ba4636c857
+git rev-parse HEAD                   # must equal "$RELEASE_SHA"
 docker compose config | grep NEXT_PUBLIC   # must be https://opd.radpretation.ai/api
 docker compose build                 # 5–15 min; stop opd-stt first if the web build OOMs
 
