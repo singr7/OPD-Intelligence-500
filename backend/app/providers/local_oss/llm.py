@@ -45,6 +45,12 @@ class LocalLLMProvider(OpenAIProvider):
     #: against the measured first-token latency.
     timeout_seconds: ClassVar[float] = 10.0
 
+    #: The served Qwen3 is text-only, so document pages must not be routed here
+    #: (inheriting OpenAIProvider's `True` would have done exactly that). Serving
+    #: a VLM instead is a real option later; flipping this is then the whole
+    #: change, and doc 21 §1 records it as the local-extraction path.
+    supports_images: ClassVar[bool] = False
+
     def __init__(
         self,
         *,

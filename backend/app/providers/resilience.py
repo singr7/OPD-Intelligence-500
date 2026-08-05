@@ -44,6 +44,19 @@ class ProviderBadRequest(ProviderError):
     """
 
 
+class UnsupportedCapability(ProviderUnavailable):
+    """This provider cannot do what the request needs — e.g. read images.
+
+    Deliberately a subclass of `ProviderUnavailable` so `with_fallback` walks
+    *past* a text-only provider to a vision-capable one instead of failing the
+    call. Raised before the vendor is dialled, so it costs nothing and meters
+    nothing: no call was made.
+
+    It is not `ProviderBadRequest`, because the request is not malformed — the
+    same request succeeds against a provider that has the capability.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class RetryPolicy:
     """Exponential backoff with jitter, deliberately shallow.

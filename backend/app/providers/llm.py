@@ -19,6 +19,7 @@ it, we say so rather than estimate — a made-up token count reconciles to nothi
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from abc import abstractmethod
@@ -32,6 +33,7 @@ from app.models.enums import UsagePurpose
 from app.prompts.tools import ToolSpec
 from app.providers.base import Provider, ProviderBadRequest, ProviderUnavailable
 from app.providers.metering import MeterCall, UsageDelta
+from app.providers.resilience import UnsupportedCapability
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,25 @@ class ToolCall:
     name: str
     arguments: dict[str, Any]
     call_id: str | None = None  # OpenAI needs this echoed back; Gemini does not
+
+
+@dataclass(frozen=True, slots=True)
+class ImagePart:
+    """One image attached to a completion — a scanned report page (MRD, doc 21).
+
+    Bytes, not a URL. The pages live in our own object store behind
+    authentication; handing a vendor a URL it has to fetch would mean publishing
+    a patient's lab report to the open internet to summarise it.
+    """
+
+    data: bytes
+    media_type: str = "image/jpeg"
+
+    def b64(self) -> str:
+        return base64.b64encode(self.data).decode("ascii")
+
+    def data_uri(self) -> str:
+        return f"data:{self.media_type};base64,{self.b64()}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +83,10 @@ class LLMRequest:
     tools: Sequence[ToolSpec] = ()
     # Prior turns as (role, text); V2 dialogue passes the conversation so far.
     history: Sequence[tuple[str, str]] = ()
+    # Page images for a vision call. Attached to the final user turn only — the
+    # history is text, because re-sending a 4-page report on every turn of a
+    # conversation is how a document pipeline gets expensive by accident.
+    images: Sequence[ImagePart] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +124,23 @@ class LLMProvider(Provider):
     kind: ClassVar[str] = "llm"
     model: ClassVar[str] = ""
 
+    #: Whether the configured model can read `LLMRequest.images`.
+    #:
+    #: A vision request sent to a text-only provider is **refused**, never
+    #: stripped of its images and sent anyway. A model asked to extract values
+    #: from pages it was never shown answers from nothing, and that answer is
+    #: indistinguishable from a real reading — which is precisely the failure
+    #: mode a lab-report pipeline must not have.
+    supports_images: ClassVar[bool] = False
+
     async def complete(
         self, request: LLMRequest, *, purpose: UsagePurpose = UsagePurpose.OTHER
     ) -> LLMResult:
+        if request.images and not self.supports_images:
+            raise UnsupportedCapability(
+                f"{self.name} ({self.model}) cannot read images; "
+                f"{len(request.images)} attached"
+            )
         return await self._invoke(
             purpose, lambda call: self._complete(request, call), model=self.model
         )
@@ -206,6 +245,9 @@ class FakeLLMProvider(LLMProvider):
 
     name: ClassVar[str] = "fake-llm"
     model: ClassVar[str] = "fake-llm-1"
+    #: The fake reads "images" so the whole MRD pipeline runs with no vendor —
+    #: same reason every other fake exists. It records them on `calls` for tests.
+    supports_images: ClassVar[bool] = True
 
     def __init__(self, *, script: Sequence[FakeLLMScript] = (), **kwargs) -> None:
         super().__init__(**kwargs)
@@ -296,6 +338,8 @@ class GeminiFlashProvider(LLMProvider):
 
     name: ClassVar[str] = "gemini-flash"
     model: ClassVar[str] = "gemini-2.5-flash"
+    #: Flash is natively multimodal — the document path (doc 21 §1) uses it.
+    supports_images: ClassVar[bool] = True
 
     BASE_URL: ClassVar[str] = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -320,7 +364,14 @@ class GeminiFlashProvider(LLMProvider):
             {"role": "user" if role == "user" else "model", "parts": [{"text": text}]}
             for role, text in request.history
         ]
-        contents.append({"role": "user", "parts": [{"text": request.prompt}]})
+        # Images before the instruction: Gemini reads parts in order, and the
+        # instruction is about the pages, so the pages come first.
+        parts: list[dict[str, Any]] = [
+            {"inline_data": {"mime_type": image.media_type, "data": image.b64()}}
+            for image in request.images
+        ]
+        parts.append({"text": request.prompt})
+        contents.append({"role": "user", "parts": parts})
 
         payload: dict[str, Any] = {
             "contents": contents,
@@ -395,6 +446,10 @@ class OpenAIProvider(LLMProvider):
 
     name: ClassVar[str] = "openai"
     model: ClassVar[str] = "gpt-5.6-luna"
+    #: True for the default model. If `OPENAI_MODEL` is pointed at a text-only
+    #: model this becomes a wrong "yes" — the vendor's own 400 is then the
+    #: backstop, which is why `_complete` maps 400 to ProviderBadRequest.
+    supports_images: ClassVar[bool] = True
 
     BASE_URL: ClassVar[str] = "https://api.openai.com/v1"
 
@@ -428,7 +483,18 @@ class OpenAIProvider(LLMProvider):
             {"role": "user" if role == "user" else "assistant", "content": text}
             for role, text in request.history
         )
-        messages.append({"role": "user", "content": request.prompt})
+        if request.images:
+            # The multi-part content form. Sent only when there are images: the
+            # plain string form is what every existing prompt has been exercised
+            # against, and a local OpenAI-compatible server may accept only that.
+            content: Any = [
+                {"type": "image_url", "image_url": {"url": image.data_uri()}}
+                for image in request.images
+            ]
+            content.append({"type": "text", "text": request.prompt})
+        else:
+            content = request.prompt
+        messages.append({"role": "user", "content": content})
 
         payload: dict[str, Any] = {
             "model": self.model,
@@ -506,6 +572,9 @@ class SarvamLLMProvider(OpenAIProvider):
 
     name: ClassVar[str] = "sarvam"
     model: ClassVar[str] = "sarvam-30b"
+    #: Text-only. Inherited from OpenAIProvider it would have been a silent yes,
+    #: and a Sarvam-first chain would have sent report pages nowhere.
+    supports_images: ClassVar[bool] = False
     BASE_URL: ClassVar[str] = "https://api.sarvam.ai/v1"
 
     def _auth_headers(self) -> dict[str, str]:

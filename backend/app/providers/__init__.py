@@ -32,6 +32,7 @@ from app.providers.base import (
 from app.providers.costguard import CostGuard, Verdict, downgrade, get_guard
 from app.providers.llm import (
     FakeLLMProvider,
+    ImagePart,
     LLMProvider,
     LLMRequest,
     LLMResult,
@@ -81,7 +82,7 @@ from app.providers.registry import (
     stt_chain,
     tts_chain,
 )
-from app.providers.resilience import CircuitBreaker, RetryPolicy
+from app.providers.resilience import CircuitBreaker, RetryPolicy, UnsupportedCapability
 from app.providers.sms import (
     ExotelSMSProvider,
     FakeSMSProvider,
@@ -131,6 +132,7 @@ __all__ = [
     "FakeSTTProvider",
     "FakeTTSProvider",
     "FakeTelephonyProvider",
+    "ImagePart",
     "LLMProvider",
     "LLMRequest",
     "LLMResult",
@@ -167,6 +169,7 @@ __all__ = [
     "TelephonyProvider",
     "ToolCall",
     "Transcript",
+    "UnsupportedCapability",
     "VoiceboxTTSProvider",
     "UsageDelta",
     "UsageMeter",

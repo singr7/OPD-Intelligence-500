@@ -17,6 +17,7 @@ handset. Registered in STATE.md → Stubs & fakes.
 
 from __future__ import annotations
 
+import base64
 import json
 
 import httpx
@@ -24,9 +25,21 @@ import pytest
 
 from app.prompts.tools import INTAKE_TOOLS
 from app.providers.audio import AudioClip
-from app.providers.llm import GeminiFlashProvider, LLMRequest, OpenAIProvider
+from app.providers.base import with_fallback
+from app.providers.llm import (
+    GeminiFlashProvider,
+    ImagePart,
+    LLMRequest,
+    OpenAIProvider,
+    SarvamLLMProvider,
+)
 from app.providers.messaging import Button, ListRow, MetaWhatsAppProvider, OutboundMessage
-from app.providers.resilience import ProviderBadRequest, ProviderUnavailable, RetryPolicy
+from app.providers.resilience import (
+    ProviderBadRequest,
+    ProviderUnavailable,
+    RetryPolicy,
+    UnsupportedCapability,
+)
 from app.providers.sms import ExotelSMSProvider, Msg91SMSProvider, SmsMessage
 from app.providers.stt import GoogleSTTProvider, OpenAISTTProvider, SarvamSTTProvider
 from app.providers.telephony import CallRequest, CallState, ExotelTelephonyProvider
@@ -653,3 +666,125 @@ async def test_transport_errors_become_provider_unavailable(meter):
 
     with pytest.raises(ProviderUnavailable, match="transport error"):
         await llm.complete(LLMRequest(prompt="x"))
+
+
+# -- vision: report pages on the wire (doc 21 §1.4) ----------------------------
+
+
+async def test_gemini_sends_pages_as_inline_data_before_the_instruction(meter):
+    """Wire shape for the MRD path: pages are `inline_data` parts on the final
+    user turn, base64, ahead of the text — the instruction is *about* the pages."""
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+                "usageMetadata": {"promptTokenCount": 900, "candidatesTokenCount": 40},
+            },
+        )
+    )
+    llm = GeminiFlashProvider(
+        api_key="k", client=_client(handler, base_url=GeminiFlashProvider.BASE_URL)
+    )
+
+    await llm.complete(
+        LLMRequest(
+            prompt="Extract the values",
+            images=[ImagePart(data=b"\xff\xd8page-one"), ImagePart(data=b"\xff\xd8page-two")],
+        )
+    )
+
+    parts = json.loads(seen[0].content)["contents"][-1]["parts"]
+    assert [p.get("inline_data", {}).get("mime_type") for p in parts[:2]] == [
+        "image/jpeg",
+        "image/jpeg",
+    ]
+    assert base64.b64decode(parts[0]["inline_data"]["data"]) == b"\xff\xd8page-one"
+    assert parts[-1]["text"] == "Extract the values"
+
+
+async def test_openai_sends_pages_as_image_url_parts(meter):
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 900, "completion_tokens": 40},
+            },
+        )
+    )
+    llm = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
+
+    await llm.complete(
+        LLMRequest(prompt="Extract the values", images=[ImagePart(data=b"\xff\xd8jpeg")])
+    )
+
+    content = json.loads(seen[0].content)["messages"][-1]["content"]
+    assert content[0]["type"] == "image_url"
+    assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    assert content[-1] == {"type": "text", "text": "Extract the values"}
+
+
+async def test_openai_keeps_the_plain_string_content_form_when_there_are_no_images(meter):
+    """Every existing prompt has only ever been exercised against the string
+    form, and a local OpenAI-compatible server may accept nothing else. Adding
+    vision must not silently rewrite the shape of every other call."""
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 2},
+            },
+        )
+    )
+    llm = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
+
+    await llm.complete(LLMRequest(prompt="no pages here"))
+
+    assert json.loads(seen[0].content)["messages"][-1]["content"] == "no pages here"
+
+
+async def test_a_text_only_provider_refuses_pages_instead_of_dropping_them(meter):
+    """The load-bearing one. A text-only vendor must never be handed a document
+    request with the images quietly stripped: it would answer confidently from
+    nothing, and a summary of pages the model never saw is indistinguishable
+    from a real reading. It must also never reach the network — assert that."""
+    dialled: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        dialled.append(request)
+        return httpx.Response(200, json={})
+
+    llm = SarvamLLMProvider(
+        api_key="k", client=_client(handler, base_url=SarvamLLMProvider.BASE_URL)
+    )
+
+    with pytest.raises(UnsupportedCapability, match="cannot read images"):
+        await llm.complete(LLMRequest(prompt="Extract", images=[ImagePart(data=b"page")]))
+
+    assert dialled == []
+
+
+async def test_unsupported_capability_falls_through_to_a_vision_provider(meter):
+    """`UnsupportedCapability` is a subclass of ProviderUnavailable on purpose:
+    a chain whose primary is text-only should reach the vision model behind it,
+    not fail the document."""
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "read it"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 900, "completion_tokens": 40},
+            },
+        )
+    )
+    text_only = SarvamLLMProvider(api_key="k", client=_client(handler))
+    vision = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
+
+    request = LLMRequest(prompt="Extract", images=[ImagePart(data=b"page")])
+    result = await with_fallback(
+        [text_only, vision], lambda provider: provider.complete(request)
+    )
+
+    assert result.text == "read it"
