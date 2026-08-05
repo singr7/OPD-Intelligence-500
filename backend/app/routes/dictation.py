@@ -11,6 +11,7 @@ The verbs are deliberately separate rather than one save-everything endpoint:
 
     POST   /dictation/visits/{visit_id}      open the draft, store the transcript
     POST   /dictation/{id}/map               transcript -> structured fields
+    POST   /dictation/{id}/compose           open the fields with no model at all
     PATCH  /dictation/{id}                   the doctor's corrections
     POST   /dictation/{id}/sign              lock it
     GET    /dictation/visits/{visit_id}      read it back
@@ -268,6 +269,27 @@ async def map_fields(
             dictation = await dictation_svc.map_transcript(
                 session, dictation=dictation, doctor=doctor, mapper=mapper
             )
+    except dictation_svc.DictationError as exc:
+        raise _fail(exc) from exc
+    return _out(dictation)
+
+
+@router.post("/{dictation_id}/compose", response_model=DictationOut)
+async def compose(
+    dictation_id: uuid.UUID,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+) -> DictationOut:
+    """Open the editable fields without a model (plan §5.3a: "Type note").
+
+    The typed note and the dictated one are the same record from here on: same
+    `PATCH`, same signature, same formulary refusal, same prescription. Speech is
+    an input method, not a prerequisite for prescribing.
+    """
+    doctor = await _doctor(session, principal)
+    dictation = await _load(session, dictation_id, doctor)
+    try:
+        dictation = await dictation_svc.compose(session, dictation=dictation, doctor=doctor)
     except dictation_svc.DictationError as exc:
         raise _fail(exc) from exc
     return _out(dictation)

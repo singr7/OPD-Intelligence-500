@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import tests.factories as f
 from app import dictation as dic
 from app import formulary as formulary_mod
+from app import prescription as prescription_svc
 from app import queue as q
 from app.auth.tokens import create_access_token
 from app.config import Settings
@@ -301,8 +302,16 @@ async def test_mapping_stores_both_the_model_version_and_the_working_copy(
     assert structured["mapping_error"] is None
 
 
-async def test_a_dead_llm_keeps_the_transcript(session: AsyncSession) -> None:
-    """The recording is the irreplaceable half — the doctor has moved on."""
+async def test_a_dead_llm_keeps_the_transcript_and_opens_the_fields(
+    session: AsyncSession,
+) -> None:
+    """The recording is the irreplaceable half — the doctor has moved on.
+
+    And the failure is recoverable rather than terminal (plan §5.2): the fields
+    open, empty, so the doctor can fill them in and still reach a signature. An
+    empty form is not an invention; what would be an invention is a diagnosis or
+    a drug line nobody dictated, and there is neither.
+    """
     clinic, visit = await _clinic_with_visit(session)
     dictation = await dic.start(
         session, visit_id=visit.id, doctor=clinic["doctor"], transcript="fever hai, Dolo 650 SOS"
@@ -322,7 +331,10 @@ async def test_a_dead_llm_keeps_the_transcript(session: AsyncSession) -> None:
     assert dictation.transcript == "fever hai, Dolo 650 SOS"
     assert dictation.status is DictationStatus.DRAFT
     assert dictation.structured["mapping_error"]
-    assert dictation.structured["fields"] is None  # nothing invented
+    assert dictation.structured["mapped"] is None  # the model produced nothing
+    fields = dictation.structured["fields"]
+    assert fields is not None  # ...but the doctor is not stuck
+    assert fields["meds"] == [] and fields["diagnosis"] is None  # nothing invented
 
 
 async def test_corrections_land_on_fields_and_leave_the_model_version_alone(
@@ -408,6 +420,144 @@ async def test_correcting_before_mapping_is_refused(session: AsyncSession) -> No
         await dic.apply_corrections(
             session, dictation=dictation, doctor=clinic["doctor"], patch={"diagnosis": "d"}
         )
+
+
+# -- the typed note (plan §5.3a) ----------------------------------------------
+#
+# A consult that produces a prescription with no speech in it at all. It is the
+# *same* record and the same signature boundary as a dictated one — the point of
+# these tests is that nothing about the drug-safety refusal gets softer because
+# the doctor typed instead of talking.
+
+
+async def _typed(session: AsyncSession):
+    """A draft with no transcript and the fields open, as "Type note" leaves it."""
+    clinic, visit = await _clinic_with_visit(session)
+    dictation = await dic.start(session, visit_id=visit.id, doctor=clinic["doctor"])
+    dictation = await dic.compose(session, dictation=dictation, doctor=clinic["doctor"])
+    return clinic, dictation
+
+
+async def test_a_typed_note_opens_the_editable_fields_with_no_model(
+    session: AsyncSession,
+) -> None:
+    clinic, dictation = await _typed(session)
+
+    structured = dictation.structured
+    assert structured["fields"] == dic.DictationMapping().to_dict()
+    # `mapped` stays null: no model produced anything, so there is nothing for
+    # the review screen to diff against, and it must not pretend otherwise.
+    assert structured["mapped"] is None
+    assert structured["model"] is None and structured["mapping_error"] is None
+    assert dictation.transcript is None
+
+
+async def test_composing_twice_never_clears_what_is_already_there(
+    session: AsyncSession,
+) -> None:
+    """Idempotent, and non-destructive on a mapped draft: a doctor pressing
+    "Type note" on a mapped note wants to edit it, not to lose it."""
+    clinic, dictation = await _mapped(session, CASES[0])
+    before = dict(dictation.structured["fields"])
+
+    dictation = await dic.compose(session, dictation=dictation, doctor=clinic["doctor"])
+
+    assert dictation.structured["fields"] == before
+
+
+async def test_a_typed_drug_is_not_called_unsaid_but_is_still_checked(
+    session: AsyncSession,
+) -> None:
+    """`unsaid` asks "did a model rename this on the way in?". On a typed note
+    there was no model and no speech, so the question does not apply — while the
+    formulary verdict, which is about the drug and not about who wrote it, does."""
+    clinic, dictation = await _typed(session)
+
+    dictation = await dic.apply_corrections(
+        session,
+        dictation=dictation,
+        doctor=clinic["doctor"],
+        patch={
+            "meds": [
+                {"name": "Tab Augmentin 625", "dose": "625 mg", "freq": "BD", "duration": "5 days"},
+                {"name": "Tab Notarealdrug 10", "freq": "OD"},
+            ]
+        },
+    )
+
+    meds = dictation.structured["fields"]["meds"]
+    assert [m["unsaid"] for m in meds] == [False, False]
+    assert meds[0]["known"] is True
+    assert meds[1]["known"] is False  # still flagged, still blocks the signature
+
+
+async def test_a_typed_note_reaches_a_signature_and_a_prescription(
+    session: AsyncSession,
+) -> None:
+    """The acceptance criterion: a prescription produced with no speech at all."""
+    clinic, dictation = await _typed(session)
+    dictation = await dic.apply_corrections(
+        session,
+        dictation=dictation,
+        doctor=clinic["doctor"],
+        patch={
+            "diagnosis": "Acute tonsillitis",
+            "meds": [{"name": "Tab Augmentin 625", "freq": "BD", "duration": "5 days"}],
+        },
+    )
+
+    signed = await dic.sign(session, dictation=dictation, doctor=clinic["doctor"])
+
+    assert signed.status is DictationStatus.SIGNED
+    rx = await prescription_svc.for_dictation(session, dictation_id=signed.id)
+    assert rx is not None
+    assert rx.meds[0]["name"] == "Tab Augmentin 625"
+
+
+async def test_a_typed_note_still_refuses_an_unacknowledged_flag(
+    session: AsyncSession,
+) -> None:
+    clinic, dictation = await _typed(session)
+    dictation = await dic.apply_corrections(
+        session,
+        dictation=dictation,
+        doctor=clinic["doctor"],
+        patch={"meds": [{"name": "Tab Notarealdrug 10", "freq": "OD"}]},
+    )
+
+    with pytest.raises(dic.DictationError, match="not been acknowledged"):
+        await dic.sign(session, dictation=dictation, doctor=clinic["doctor"])
+    assert dictation.status is DictationStatus.DRAFT
+
+
+async def test_a_second_failed_mapping_does_not_wipe_what_the_doctor_typed(
+    session: AsyncSession,
+) -> None:
+    """The recovery path must survive a retry of the thing that failed."""
+    clinic, visit = await _clinic_with_visit(session)
+    dictation = await dic.start(
+        session, visit_id=visit.id, doctor=clinic["doctor"], transcript="fever hai"
+    )
+    dead = FakeLLMProvider()
+    dead.fail_with = RuntimeError("vLLM is down")
+    mapper = dic.DictationMapper([dead])
+
+    with pytest.raises(dic.MappingUnavailable):
+        await dic.map_transcript(
+            session, dictation=dictation, doctor=clinic["doctor"], mapper=mapper
+        )
+    dictation = await dic.apply_corrections(
+        session,
+        dictation=dictation,
+        doctor=clinic["doctor"],
+        patch={"diagnosis": "Viral fever"},
+    )
+    with pytest.raises(dic.MappingUnavailable):
+        await dic.map_transcript(
+            session, dictation=dictation, doctor=clinic["doctor"], mapper=mapper
+        )
+
+    assert dictation.structured["fields"]["diagnosis"] == "Viral fever"
 
 
 # -- signing ------------------------------------------------------------------
@@ -591,6 +741,53 @@ async def test_the_full_flow_over_http(
         f"/dictation/{dictation_id}", json={"diagnosis": "something else"}, headers=headers
     )
     assert resp.status_code == 409
+
+
+async def test_a_prescription_with_no_speech_at_all_over_http(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """"Type note" end to end: no transcript, no `/map`, no model — and the same
+    signature, the same refusal, the same prescription at the end of it."""
+    clinic, visit = await _clinic_with_visit(session)
+    headers = _headers(settings, clinic["user"])
+
+    resp = await client.post(f"/dictation/visits/{visit.id}", json={}, headers=headers)
+    assert resp.status_code == 200
+    dictation_id = resp.json()["id"]
+
+    resp = await client.post(f"/dictation/{dictation_id}/compose", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["fields"] is not None
+    assert resp.json()["mapped"] is None
+
+    resp = await client.patch(
+        f"/dictation/{dictation_id}",
+        json={
+            "diagnosis": "Acute tonsillitis",
+            "meds": [{"name": "Tab Notarealdrug 10", "freq": "OD"}],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    # The typed path is not the soft path: the formulary still blocks it.
+    assert resp.json()["blocking_meds"] == ["Tab Notarealdrug 10"]
+    resp = await client.post(f"/dictation/{dictation_id}/sign", headers=headers)
+    assert resp.status_code == 400
+
+    resp = await client.patch(
+        f"/dictation/{dictation_id}",
+        json={"meds": [{"name": "Tab Augmentin 625", "freq": "BD", "duration": "5 days"}]},
+        headers=headers,
+    )
+    assert resp.json()["blocking_meds"] == []
+    assert resp.json()["fields"]["meds"][0]["unsaid"] is False
+
+    resp = await client.post(f"/dictation/{dictation_id}/sign", headers=headers)
+    assert resp.status_code == 200 and resp.json()["status"] == "signed"
+
+    resp = await client.get(f"/prescriptions/visits/{visit.id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["meds"][0]["name"] == "Tab Augmentin 625"
 
 
 async def test_a_dead_model_is_a_503_and_the_transcript_survives(

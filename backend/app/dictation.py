@@ -332,13 +332,24 @@ def _was_said(med: MedLine, transcript: str) -> bool:
     return key.split()[0] in spoken.split()
 
 
-def validate_meds(mapping: DictationMapping, *, transcript: str = "") -> DictationMapping:
+def validate_meds(
+    mapping: DictationMapping, *, transcript: str = "", check_unsaid: bool = True
+) -> DictationMapping:
     """Replace every drug verdict with this system's own (doc 03 §7).
 
     The model's `known` is discarded rather than trusted-and-checked: a flag that
     is right 95% of the time is worse than no flag, because the 5% arrives
     looking exactly like the 95%. `name` is untouched — that is the invariant
     `test_dictation.py` asserts on every fixture.
+
+    `check_unsaid=False` is for the typed note (plan §5.3a), where nothing was
+    said and no model has been near the text. `_was_said` asks "did a model
+    rename this drug on the way in?", and on a note the doctor typed themselves
+    the honest answer is that the question does not apply — the alternative is
+    every line on every typed note arriving flagged, which is a flag that means
+    nothing and trains people to clear flags without reading them. The formulary
+    check is untouched and still blocks the signature; that one is about the drug,
+    not about who wrote it down.
     """
     book = formulary_mod.get_formulary()
     checked = []
@@ -357,7 +368,7 @@ def validate_meds(mapping: DictationMapping, *, transcript: str = "") -> Dictati
                 drug_class=verdict.drug_class,
                 ambiguous=verdict.ambiguous,
                 suggestions=tuple(verdict.to_dict()["suggestions"]),
-                unsaid=not _was_said(med, transcript),
+                unsaid=check_unsaid and not _was_said(med, transcript),
                 acknowledged=med.acknowledged,
             )
         )
@@ -493,6 +504,32 @@ async def start(
     return dictation
 
 
+async def compose(session: AsyncSession, *, dictation: Dictation, doctor: Doctor) -> Dictation:
+    """Open the editable field set with no model in the loop (plan §5.3a).
+
+    This is what "Type note" is: the same `Dictation` row, the same `fields` /
+    `edits` history, the same signature boundary and the same `blocking_meds`
+    refusal — with `mapped` left null, because no model produced anything to diff
+    against. It is deliberately *not* a second way to make a prescription. A
+    parallel writer around the signature is how the drug-safety validation gets
+    bypassed two quarters from now, so the typed note joins the existing path at
+    the earliest possible point instead: an empty mapping that `apply_corrections`
+    can then patch, exactly like a mapped one.
+
+    Idempotent, and it never clears fields that already exist — a doctor who
+    presses "Type note" on a mapped draft is asking to edit it, not to lose it.
+    """
+    _assert_unsigned(dictation)
+    structured = dict(dictation.structured or empty_structured())
+    if isinstance(structured.get("fields"), Mapping):
+        return dictation
+    structured["fields"] = DictationMapping().to_dict()
+    structured["edits"] = list(structured.get("edits") or [])
+    dictation.structured = structured
+    await session.flush()
+    return dictation
+
+
 async def map_transcript(
     session: AsyncSession, *, dictation: Dictation, doctor: Doctor, mapper: DictationMapper
 ) -> Dictation:
@@ -518,7 +555,15 @@ async def map_transcript(
         # The transcript is the irreplaceable half — it is the doctor's voice and
         # they have moved on to the next patient. Record the failure on the draft
         # and let them retry; never drop the note because a vendor was down.
+        #
+        # And open the fields (plan §5.2): a failed mapping must be a recoverable
+        # state, not a dead end. The doctor keeps their recording *and* keeps a
+        # route to a signature — the model being down is not a reason a patient
+        # leaves without a prescription. Existing fields are never overwritten,
+        # so a retry that fails cannot wipe what the doctor has already typed.
         structured["mapping_error"] = str(exc)
+        if not isinstance(structured.get("fields"), Mapping):
+            structured["fields"] = DictationMapping().to_dict()
         dictation.structured = structured
         await session.flush()
         raise
@@ -567,8 +612,15 @@ async def apply_corrections(
         raise DictationError(f"not editable: {sorted(unknown)}")
 
     merged = {**before, **patch}
+    transcript = dictation.transcript or ""
     after = validate_meds(
-        DictationMapping.parse(merged), transcript=dictation.transcript or ""
+        DictationMapping.parse(merged),
+        transcript=transcript,
+        # Nothing was said, so there is nothing a model could have renamed. See
+        # `validate_meds`. Derived from the record rather than from a flag the
+        # client sets: a note with no transcript cannot have been mapped, because
+        # `map_transcript` refuses an empty one.
+        check_unsaid=bool(transcript.strip()),
     ).to_dict()
 
     edits = list(structured.get("edits") or [])
