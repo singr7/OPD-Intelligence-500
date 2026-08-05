@@ -1,95 +1,143 @@
-# HANDOFF — after SESSION-AR3
+# HANDOFF — after SESSION-B
 
-**Repo state:** branch `assign-rx-identity`, last commit `f49ba1e`.
-`make test-backend` 1335 passed, 1 xfailed. Migrations `c6e3681f5ce1` and
-`520d07f0b3e4` are applied **locally only** — still pending on Omen.
+**Repo state:** branch `assign-rx-identity`.
+`make test-backend` 1355 passed (the strict xfail AR2 left as Session B's gate is
+gone — its behaviour is covered by real tests now). Doctor E2E 11 passed,
+dictation E2E 6 passed, `npm run build` / `tsc` / `eslint` clean. Migrations
+`c6e3681f5ce1` and `520d07f0b3e4` are applied **locally only** — still pending on
+Omen, and `make deploy` does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open; see
 `sessions/SESSION-ANDROID1.md`.
 
-**Where the build stands:** Session A of `sessions/SESSION-ASSIGN-RX-PLAN.md` is
-now complete end to end — backend (AR1/AR2) *and* screens (AR3). A returning
-patient gives a phone and an optional hospital ID at the kiosk; the terminal
-discloses nothing; a coordinator unlocks a PIN-gated strip on the token screen and
-settles identity + department + doctor in one `Confirm`; a skipped or offline
-arrival is assigned from the coordinator console. All of it is driven by
-`web/e2e/assign.spec.ts` against a live stack. **What still does not exist is the
-doctor's side**: assignment currently changes nothing a doctor experiences,
-because the doctor console has no scoped worklists. That is Session B, and it is
-the next thing to build.
+**Where the build stands:** Sessions A **and** B of
+`sessions/SESSION-ASSIGN-RX-PLAN.md` are complete. Assignment now changes what a
+doctor sees: the worklist scopes to `mine | unassigned | department`, the
+`Unassigned` count is visible whether or not its tab is open, and any doctor in
+the department can take an unassigned patient or cover a colleague's in one tap.
+The console gained the context spine — sticky, never unmounting, carrying
+identity + token, diagnosis, allergies and red flags through every tab including
+the consult note — and four working tabs plus one feature-flagged "Coming soon"
+disclosure. **What is not built is Session C**: the consult and prescription
+paths of §5, which is the next thing to build.
 
-## Next session (Session B) — the doctor workspace
+## Next session (Session C) — the consult and prescription paths
 
-`sessions/SESSION-ASSIGN-RX-PLAN.md` §3 and §4. In priority order:
+`sessions/SESSION-ASSIGN-RX-PLAN.md` §5. Read it first; this session did not
+touch it, so nothing in §5 has moved.
 
-1. **`GET /doctor/day?scope=mine|unassigned|department`**, default `mine`, every
-   response carrying counts for all three so badges are truthful without a second
-   call. **The `Unassigned` count is the compensating control for every `Skip`
-   and every offline arrival** — it must be visible when its tab is not open, and
-   a non-zero count with waiting patients is an attention state, not a quiet
-   number. The console already surfaces the same idea as a "waiting, unassigned"
-   metric; make them agree.
-2. **"Take this patient"** on an unassigned or another doctor's row, audited.
-3. **The context spine** (§4.2) — sticky, never unmounts, carries exactly four
-   things: identity + token, diagnosis/stage, allergies, red flags.
+Two things from Session B that change how it should start:
 
-**Authorization stays at department scope.** `doctor.patient_card` and
-`dictation.assert_visit_scope` must not narrow to the assigned doctor — filtering
-a list is UX, narrowing access is a clinical-continuity decision this codebase
-already made the other way, on the record.
+1. **The consult note is a tab now, not a panel that takes the screen.** It
+   mounts under the context spine, which stays put. Anything §5 adds to the
+   prescribing flow inherits that: the allergy line and the red-flag strip are on
+   screen while a prescription is composed, which is the state the spine was
+   built for. Do not reintroduce a full-stage takeover.
+2. **`DictationPanel` only seeds the transcript when nobody has typed in it**
+   (`touched` ref). If §5 adds another server load into that panel, it must
+   respect the same rule — losing dictated words is the one failure that surface
+   exists to prevent.
 
 First commands:
 
 ```
 git checkout assign-rx-identity
-make test-backend                    # expect 1335 passed
+make test-backend                    # expect 1355 passed
 docs/04-UIUX-GUIDE.md + docs/14      # mandatory before any screen
-sed -n '/^## 3\./,/^## 5\./p' sessions/SESSION-ASSIGN-RX-PLAN.md
+sed -n '/^## 5\./,/^## 6\./p' sessions/SESSION-ASSIGN-RX-PLAN.md
+```
+
+To run the console locally (the E2E projects need this shape, not `make dev`):
+
+```
+cd backend && set -a && . ../.env && set +a && \
+  DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8123
+cd backend && DATABASE_URL=... .venv/bin/python -m scripts.seed_doctor_demo
+cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npx playwright test --project=doctor
 ```
 
 ## Watch out for
 
-- **Do not widen the `kiosk_staff` token.** Still accepted only by
-  `require_kiosk_staff`. The strip holds it in React state alone — never
-  localStorage — and drops it on lock, idle and relock. Keep it that way.
-- **The kiosk must never render the candidate outside the unlocked strip.**
-  `test_kiosk_strip.py` covers the server; `assign.spec.ts` now covers the screen
-  (it asserts no MRN in the DOM before the PIN, and none after relock).
-- **The arrival acknowledgement is unconditional by design.** If a future change
-  makes it appear only on a match, the kiosk becomes a way to test whether this
-  hospital holds a file on any phone number. See SESSION-AR3 decision 1.
+- **`GET /doctor/day` defaults to `scope=mine`.** Anything that reads it and
+  expects the whole department — a test, a script, a new screen — must ask for
+  `scope=department` explicitly. `dictation.spec.ts` does exactly this, and its
+  row indices depend on it.
+- **Do not narrow `patient_card` or `dictation.assert_visit_scope` to the
+  assigned doctor.** Filtering a list is UX; narrowing access is a
+  clinical-continuity decision made the other way, on the record, twice now. The
+  card names the assigned doctor instead, and
+  `test_the_card_is_not_narrowed_to_the_assigned_doctor` guards it.
+- **The `Unassigned` badge and the attention state are two different numbers.**
+  The badge is `counts.unassigned` (matches its list); the attention state is
+  `counts.unassigned_waiting` (matches the coordinator console's "Waiting,
+  unassigned" metric). Keeping the second definition in step with the coordinator
+  is deliberate — do not "simplify" them into one.
+- **The spine must never unmount.** It is above the tab row in `Console.tsx` and
+  outside the tab switch. A future panel that renders in its place, rather than
+  under it, silently undoes the whole session.
+- **Nothing captures an allergy.** The spine and History say so in words and must
+  keep saying so. Neither may be changed to "no known allergies" until something
+  actually records them — that is a clinical claim a doctor would act on.
 - `Queue` stays per-department with `doctor_id` NULL. Assignment is a visit
   attribute and a worklist filter, never a second queue.
-- `make deploy` does not run migrations. Two are pending for Omen.
-- `make lint` fails on **pre-existing** E501/I001 in the two AR1/AR2 autogenerated
-  migrations and `app/config.py:260`. Not AR3's, but somebody should clear it.
+- `make lint` still fails on **pre-existing** E501 in `app/config.py:260` and on
+  the two AR1/AR2 autogenerated migrations. Not this session's; still unclaimed.
 
 ## Decisions taken (do not re-litigate)
 
-1. **PIN issuance is seeded, not a screen.** `make seed` gives the seeded
-   coordinator PIN `4729` on local/test only (holder: Rekha Meena);
-   `make kiosk-pin` is the operator's set/rotate/clear/unlock path.
-2. **New kiosk copy ships English + Hindi.** AR3's strings live in `T2` /`tb()` in
-   `web/app/(kiosk)/kiosk/_lib/i18n.ts` and fall through to English for mr/te
-   rather than being machine-translated. **Still pending native review** (doc 07
-   §4) — logged in STATE.md → Stubs & fakes.
-3. **The console shows that a candidate exists, never who it is.**
+1. **Cover is allowed without a coordinator, and without a confirm dialog.**
+   "Take this patient" works on a colleague's row too. It is audited through the
+   `Clinical` `before_flush` hook, so the previous assignment is recoverable. A
+   confirm step on the one action that unblocks a stalled line teaches doctors to
+   click through dialogs.
+2. **The diagnosis line reads the latest *signed* note, across visits, with its
+   date.** A draft is a doctor thinking out loud; an unqualified line belonging
+   to a note from March is worse than no line.
+3. **No `stage` on the diagnosis line.** The plan's mock shows one; the schema
+   has no staging field, and inventing a vocabulary the record cannot support is
+   worse than the shorter line.
+4. **No confidence percentage.** The Overview ends with provenance instead — who
+   answered, in which language, on which tier, when it finished.
+5. **New kiosk copy ships English + Hindi** (AR3, reaffirmed by the operator this
+   session). mr/te fall through to English rather than being machine-translated.
+   Still pending native review (doc 07 §4); logged in STATE.md → Stubs & fakes.
+6. **PIN issuance is seeded, not a screen** (AR2). `make seed` gives the seeded
+   coordinator PIN `4729` on local/test only; `make kiosk-pin` is the operator's
+   set/rotate/clear/unlock path.
+7. **The console shows that a candidate exists, never who it is** (AR3).
 
 ## Decisions needed from the human
 
-- **Marathi + Telugu for the arrival screens.** A mr/te patient currently reads
-  the three arrival screens and the strip in English. Getting these reviewed by a
-  native speaker is a person-task, not a build-task — who does it, and when?
+- **Marathi + Telugu for the arrival screens.** Still open, and now explicitly
+  deferred rather than blocking: this session was told to proceed on English and
+  Hindi. Getting the AR3 strings reviewed by a native speaker is a person-task —
+  who does it, and when? The doctor console itself is staff-facing and
+  English-only, consistent with every other staff surface; that is not part of
+  this question.
+- **Do we want allergy capture, and where?** The spine has a permanent slot for
+  it and nothing to put in it. The honest options are a kiosk intake question, a
+  field on the patient record maintained at the desk, or an import from an
+  existing hospital record. This is a clinical-workflow decision, not a build
+  one.
 
 ## Backlog additions
 
-- Session C of `SESSION-ASSIGN-RX-PLAN.md` (consult/prescription paths) unstarted.
-- **The strip needs two unlocks to re-route *and* assign**: changing the
-  department reissues the token and relocks, so picking a doctor in the new
-  department is a second pass. Correct, but a coordinator will notice. Worth
-  re-reading the strip in place after a reissue instead.
+- **Session C** of `SESSION-ASSIGN-RX-PLAN.md` (consult/prescription paths) —
+  unstarted, and the next session.
+- **Vitals do not exist in the schema**, so plan §4.3's vitals treatment is
+  unbuilt. Needs a capture path before it can be a screen.
+- **The console forgets which notes it watched get signed** across a reload
+  (`signedNotes` is per-session state). Fixing it means the card model carrying
+  note status, which is one field on `PatientCard`.
+- **The strip needs two unlocks to re-route *and* assign** (AR3): changing the
+  department reissues the token and relocks. Correct, but a coordinator will
+  notice.
 - `app.kiosk._departments` is private while its sibling `department_by_code` is
   public. Harmonise on the next touch of that module.
-- Pre-existing E501 in `app/config.py:260`, left alone deliberately.
 - The kiosk `speak()` promise never resolves in headless Chromium; harmless, but
   it makes long Playwright runs on a stale dev server slow to tear down.
+- Running `npm run build` while `next dev` is up on 3210 breaks the dev server
+  until `.next` is removed. Bit this session; worth a note in the run docs.

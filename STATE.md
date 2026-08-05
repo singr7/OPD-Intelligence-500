@@ -6,6 +6,23 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-B):** Assignment finally changes what a doctor sees.
+`GET /doctor/day?scope=mine|unassigned|department` defaults to `mine` and returns
+counts for all three scopes on every response, so the `Unassigned` badge stays
+truthful while its tab is closed — the compensating control for every kiosk
+`Skip` and every offline arrival. Its `unassigned_waiting` figure uses the
+coordinator console's exact definition, so the desk and the consulting room
+cannot disagree. `POST /doctor/visits/{id}/take` lets any doctor in the
+department put their own name on an unassigned patient or cover a colleague's,
+audited through the existing `Clinical` hook; it delegates to
+`assignment.assign`, so there is one implementation of the write. Authorization
+stays at department scope — `patient_card` is not narrowed to the assigned
+doctor, it names them instead. The console gained a sticky context spine that
+never unmounts (identity + token, diagnosis from the latest *signed* note,
+allergies, red flags) and four working tabs plus one feature-flagged "Coming
+soon" disclosure with no mock clinical content. Gates: backend 1,355, doctor E2E
+11, dictation E2E, production build, typecheck, lint.
+
 **Built (SESSION-ANDROID1):** One Android application can select only the approved
 Omen or AWS HTTPS API, probes server identity/contract/clock skew, persists its
 choice, and clears auth/server state on a confirmed switch. Room schema v2 preserves
@@ -735,13 +752,15 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
-- **Assignment is inert until Session B** (AR2) — `doctor.day_list` is
-  department-scoped and ignores `Visit.doctor_id`, so a coordinator can assign a
-  doctor and no doctor's screen respects it. Shipping AR3's picker without B means
-  staff doing real work at the kiosk for no observable effect. Gate recorded in
-  `docs/06-BUILD-PLAN.md` (AR track) and enforced by an `xfail(strict=True)` in
-  `tests/test_doctor.py::test_session_b_the_worklist_scopes_to_the_assigned_doctor`,
-  which fails as XPASS the moment B lands.
+- **Nothing in this product captures an allergy** (Session B) — not the kiosk
+  intake, not the consult note, no field on `Patient` or `Visit`. The context
+  spine and the History tab therefore both say so in words. Neither says "no
+  known allergies", which is a clinical claim this record cannot make and a
+  doctor would act on. This is the largest remaining gap in the spine's four
+  elements (plan §4.2).
+- **There are no vitals in the schema** (Session B) — nothing records blood
+  pressure, SpO2, height or weight, so plan §4.3's vitals treatment (clinical
+  emphasis, out-of-range marked by text and shape) is unbuilt rather than mocked.
 - **The arrival screens ship English + Hindi only** (AR3) — the three arrival
   screens and the staff strip use `T2` / `tb()` in
   `web/app/(kiosk)/kiosk/_lib/i18n.ts`, which falls **mr/te through to English**
@@ -749,20 +768,20 @@ the only gate right now.**
   for a phone number and a health ID, so the gap is recorded rather than papered
   over. Pending native review (doc 07 §4); when it arrives the keys move into `T`
   and `tb` disappears — the type makes that a compile-time move, not a search.
-- **Assignment has screens but still no doctor-side effect** (AR3) — the kiosk
-  arrival pair, the PIN-gated staff strip and the console's assign control are
-  built and driven by `web/e2e/assign.spec.ts`. What is still missing is Session
-  B: `doctor.day_list` remains department-scoped and ignores `Visit.doctor_id`,
-  so a coordinator assigns a doctor and no doctor's screen respects it.
-  Migrations `c6e3681f5ce1` and `520d07f0b3e4` are applied **locally only**, and
-  `make deploy` does not run migrations.
+- **Migrations `c6e3681f5ce1` and `520d07f0b3e4` are applied locally only**
+  (AR1/AR2) — still pending on Omen, and `make deploy` does not run migrations.
+- **The console forgets which notes it watched get signed** (Session B) — the
+  card model carries no note status and asking per row would be a request per
+  patient, so `signedNotes` is per-session console state. The Consult tab shows
+  the real signed state when opened.
 - **The kiosk cannot assign while offline** (AR2/AR3, accepted pilot debt) — no
   roster and no server, so an offline arrival syncs with no doctor and is settled
   from the coordinator console. Since AR3 it *does* carry the patient's health ID
   through sync and gets its candidate lookup at sync time, so the console has a
-  prior file to offer. The doctor console's `Unassigned` count is the other
-  compensating control and is not built yet (Session B). Duplicate patient rows
-  are the expected outcome and must stay mergeable without data loss.
+  prior file to offer. The doctor console's `Unassigned` scope is the other
+  compensating control and is now built (Session B): the count is visible while
+  its tab is closed, and any doctor can take the patient in one tap. Duplicate
+  patient rows are the expected outcome and must stay mergeable without data loss.
 - **A kiosk PIN cannot be issued from any UI** (AR2) — `app.auth.kiosk_pin.set_pin`
   has no route, by decision: one pilot coordinator does not justify an admin
   screen. `make seed` gives the seeded coordinator (`+915550000002`) the
