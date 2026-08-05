@@ -115,15 +115,19 @@ export const CONSOLE_CSS = `
   padding: 3px 10px; border-radius: 999px; }
 
 /* assign panel (AR3) — opens under its row, inside the queue it is read against */
-.assign { grid-column: 1 / -1; margin-top: 10px; padding: 12px; border-radius: 7px;
+/* min-width:0 throughout: the doctor option text ("Dr. X · MD, DM · on duty
+   today") is long, and a select sized to its widest option will otherwise blow
+   the grid column — and with it the department card — wider than the page.
+   (No backticks in this file: the whole stylesheet is a JS template literal.) */
+.assign { grid-column: 1 / -1; min-width: 0; margin-top: 10px; padding: 12px; border-radius: 7px;
   background: var(--surface-subtle); border: 1px solid var(--line); display: grid; gap: 10px; }
 .assign-link { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
   font-size: 13px; color: var(--text-muted); }
 .assign-link-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.assign-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.assign-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; min-width: 0; }
 .assign-row label { display: grid; gap: 4px; font-size: 12px; font-weight: 700;
-  color: var(--text-muted); }
-.assign-row select { min-height: 40px; padding: 0 10px; font-size: 14px; color: var(--text);
+  color: var(--text-muted); min-width: 0; }
+.assign-row select { width: 100%; min-width: 0; min-height: 40px; padding: 0 10px; font-size: 14px; color: var(--text);
   border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff;
   font-family: inherit; }
 .assign-row select:disabled { background: #eef2f0; color: var(--text-faint); }

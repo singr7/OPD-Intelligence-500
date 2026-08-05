@@ -702,8 +702,35 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  padding: var(--sp-5);
+  padding: clamp(var(--sp-2), 3vh, var(--sp-5));
   text-align: center;
+  /* Never let the strip and the patient's actions land on top of each other.
+     With the rules below this rarely scrolls at all, but "rarely" is not a
+     guarantee, and two overlapping controls on a live kiosk is worse than a
+     scrollbar. */
+  overflow-y: auto;
+}
+
+/* While a coordinator has the strip open the screen is, briefly, theirs. The
+   token stays on it — the patient is standing right there and the number is
+   still the thing they came for — but it gives up the display size it holds
+   when the screen is only a token, and the "please have a seat" line steps
+   aside for the controls. It comes straight back on relock. */
+.tokenScreen:has(.staffStrip:not(.staffStripLocked)) .tokenNumber {
+  font-size: min(var(--fs-token), 18vh);
+}
+.tokenScreen:has(.staffStrip:not(.staffStripLocked)) .tokenWait {
+  display: none;
+}
+.tokenScreen:has(.staffStrip:not(.staffStripLocked)) .tokenDept {
+  font-size: 2rem;
+}
+/* The patient's two buttons step aside as well, and this one is safety rather
+   than layout: `Start over` resets the whole kiosk, and it sits a thumb's width
+   from a strip a coordinator is part-way through. Half-finished assignment,
+   token already printed, nothing recorded. They come back on relock. */
+.tokenScreen:has(.staffStrip:not(.staffStripLocked)) .tokenActions {
+  display: none;
 }
 .tokenLabel {
   text-transform: uppercase;
@@ -713,7 +740,12 @@
   color: #bfe3d8;
 }
 .tokenNumber {
-  font-size: var(--fs-token);
+  /* The numeral is the product's signature and stays enormous — but it is
+     capped against the *viewport height* as well as the width, because the
+     staff strip now shares this screen and a numeral that overflows would push
+     the print button underneath it. On the portrait kiosk 30vh is still ~570px:
+     the 8-metre read is unaffected. */
+  font-size: min(var(--fs-token), 30vh);
   font-weight: 800;
   line-height: 0.9;
   color: var(--accent);
@@ -1228,6 +1260,24 @@
   border-radius: var(--radius-md);
 }
 
+/* The keypad is the tallest thing this kiosk draws, and on a laptop-height
+   screen the stacked layout pushes the audio bar off the top — which costs the
+   patient the replay button and the "where am I" line, the two things doc 04
+   law 1 and law 2 put there. So on short screens the display moves *beside* the
+   keys instead of above them. The keys themselves never shrink below the 64px
+   target (law 3); the layout gives way, the hit areas do not. */
+@media (max-height: 820px) and (min-width: 1024px) {
+  .keypad {
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-4);
+    margin-top: 0;
+  }
+  .keypadDisplay { min-width: 260px; min-height: 72px; font-size: 2.5rem; }
+  .keypadKeys { gap: 12px; }
+}
+
 .arrivalIdField { max-width: 560px; }
 
 /* The reassurance line after a phone or an ID was given. Calm, not celebratory:
@@ -1247,19 +1297,32 @@
 }
 .arrivalAckIcon { width: 40px; height: 40px; flex: none; }
 
+/* The token screen on a laptop-height display — the staff tablet and the demo
+   machine, not the real portrait kiosk. The numeral keeps its size; the
+   supporting lines give way, so the strip fits under the actions instead of
+   pushing the label off the top. */
+@media (max-height: 820px) {
+  .tokenScreen { gap: var(--sp-1); }
+  .tokenDept { font-size: 2.5rem; }
+  .tokenActions { margin-top: var(--sp-2); }
+}
+
 /* --- AR3: the coordinator's strip on the token screen ---------------------
    A band along the bottom of the token screen. Locked by default; the patient's
    token keeps the room above it. Its colours are the token screen's, dimmed —
    it must read as *part of* this screen but plainly not addressed to the
    patient. */
 .tokenPatient {
-  flex: 1;
+  /* Grows to fill the screen when the strip is locked (the token centred, as it
+     always was), but never shrinks below its own content — `flex: 1` alone lets
+     the box get smaller than the numeral inside it, and the overflow lands on
+     top of the strip. */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  min-height: 0;
 }
 .staffStrip {
   flex: none;

@@ -57,6 +57,12 @@ async function walkOneOfflineIntake(page: Page): Promise<number> {
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
   await page.getByTestId("caregiver-self").click();
 
+  // The arrival pair is skipped: an offline kiosk cannot look anyone up, and
+  // this walk is the outage path (AR3 / plan §8 — those visits sync unassigned
+  // and are settled from the coordinator console).
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "returning");
+  await page.getByTestId("returning-no").click();
+
   await expect(page.locator("main")).toHaveAttribute("data-screen", "details");
   await page.getByTestId("patient-name").fill("सीमा देवी");
   await page.getByTestId("patient-age").fill("54");

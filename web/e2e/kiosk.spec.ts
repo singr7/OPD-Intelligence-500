@@ -63,15 +63,34 @@ test("full hindi kiosk intake, welcome → token", async ({ page }) => {
   await expect(page.locator("main")).toHaveAttribute("data-screen", "caregiver");
   await shot(page, "02-caregiver");
 
-  // 3. Registration details — name, age, gender, phone (S-UX.6).
+  // 3. Arrival identity — the returning-patient branch (AR3). A phone and a
+  //    hospital ID, both optional, neither of them a gate.
   await page.getByTestId("caregiver-self").click();
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "returning");
+  await shot(page, "02a-returning");
+
+  await page.getByTestId("returning-yes").click();
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "arrivalPhone");
+  for (const digit of "9876500011") await page.getByTestId(`arrival-phone-${digit}`).click();
+  await expect(page.getByTestId("arrival-phone-display")).toHaveText("9876500011");
+  await shot(page, "02b-arrival-phone");
+
+  await page.getByTestId("arrival-phone-next").click();
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "arrivalId");
+  await page.getByTestId("arrival-external-id").fill("UHC-2291");
+  await shot(page, "02c-arrival-id");
+  await page.getByTestId("arrival-id-next").click();
+
+  // 4. Registration details — name, age, gender, phone (S-UX.6). The phone
+  //    arrives pre-filled from the keypad, and the acknowledgement is here.
   await expect(page.locator("main")).toHaveAttribute("data-screen", "details");
+  await expect(page.getByTestId("arrival-ack")).toBeVisible();
+  await expect(page.getByTestId("patient-phone")).toHaveValue("9876500011");
   await page.getByTestId("patient-name").fill("सीमा देवी");
   await page.getByTestId("patient-age").fill("54");
   await page.getByTestId("patient-sex-female").click();
-  await page.getByTestId("patient-phone").fill("9876500011");
   await expect(page.getByTestId("summary-patient")).toHaveText("सीमा देवी");
-  await shot(page, "02b-details");
+  await shot(page, "02d-details");
   await page.getByTestId("details-next").click();
 
   // 4. Chief complaint (tap-to-type fallback in headless).
@@ -137,6 +156,8 @@ test("tablet matrix keeps name, summary and primary action inside the viewport",
       if (scale === 2) await page.addStyleTag({ content: "html { font-size: 200%; }" });
       await page.getByTestId("welcome-lang-te").click();
       await page.getByTestId("caregiver-self").click();
+      // First-time patients skip the arrival pair entirely.
+      await page.getByTestId("returning-no").click();
       await page.getByTestId("patient-name").fill("శ్రీమతి వెంకట లక్ష్మీ దేవి");
 
       const metrics = await page.evaluate(() => {

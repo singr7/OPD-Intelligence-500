@@ -97,6 +97,17 @@ export default defineConfig({
       testMatch: /people\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // Arrival identity + assignment (AR3, sessions/SESSION-ASSIGN-RX-PLAN.md).
+      // This project *is* the session AC: a returning patient is recognised
+      // without the kiosk disclosing anything, a coordinator unlocks the strip
+      // with a PIN and settles identity + doctor in one action, and the desk can
+      // do the same for an arrival the strip skipped. Live stack + `make seed`
+      // (it uses the seeded PIN holder). Run explicitly (`npm run e2e:assign`).
+      name: "assign",
+      testMatch: /assign\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   use: {
     // Headless chromium has no Web Speech — the kiosk falls back to tap-to-type,

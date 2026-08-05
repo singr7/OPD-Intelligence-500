@@ -14,6 +14,7 @@ for (const size of SIZES) {
     await page.goto("/kiosk");
     await page.getByTestId("welcome-lang-hi").click();
     await page.getByTestId("caregiver-self").click();
+    await page.getByTestId("returning-no").click();
     await page.getByTestId("patient-name").fill("सुनीता शर्मा");
     await page.getByTestId("patient-age").fill("34");
     await page.getByTestId("patient-sex-female").click();
