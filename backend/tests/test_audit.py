@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import Actor, acting_as, audited_models
 from app.models.audit import AuditLog
 from app.models.base import Clinical
-from app.models.enums import AuditAction, Role, VisitStatus
+from app.models.enums import AuditAction, DocumentKind, Role, VisitStatus
 from app.models.org import Department, Doctor, Hospital, User
 from tests import factories as f
 
@@ -194,7 +194,12 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
     await session.flush()
 
     # One representative instance per Clinical model.
-    from app.models.clinical import DoseEvent, Prescription
+    from app.models.clinical import (
+        DocumentExtraction,
+        DoseEvent,
+        MedicalDocument,
+        Prescription,
+    )
     from app.models.content import Checkin, CheckinPlan
     from app.models.enums import Channel, DoseStatus
     from app.models.patient import CaregiverLink
@@ -210,6 +215,16 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
 
     prescription = Prescription(visit_id=visit.id, dictation_id=dictation.id)
     session.add(prescription)
+    await session.flush()
+
+    document = MedicalDocument(
+        patient_id=clinic["patient"].id,
+        visit_id=visit.id,
+        kind=DocumentKind.LAB,
+        object_keys=["records/x/y/page-1.jpg"],
+        pages=1,
+    )
+    session.add(document)
     await session.flush()
 
     instances: dict[str, object] = {
@@ -228,6 +243,8 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         "checkin_plans": plan,
         "checkins": Checkin(plan_id=plan.id, due_at=datetime.now(UTC), channel=Channel.WHATSAPP),
         "caregiver_links": CaregiverLink(patient_id=clinic["patient"].id, phone="+915550000123"),
+        "medical_documents": document,
+        "document_extractions": DocumentExtraction(document_id=document.id),
         "dose_events": DoseEvent(
             patient_id=clinic["patient"].id,
             prescription_id=prescription.id,
@@ -275,6 +292,12 @@ async def test_clinical_marker_covers_the_expected_tables() -> None:
         # the one row that widens who can see a cancer diagnosis.
         "caregiver_links",
         "dose_events",
+        # SESSION-MRD1: a scanned report and the machine's reading of it. The
+        # reading especially — it is a clinical claim about a patient made by a
+        # model, and "which prompt version said her platelets were 40" has to be
+        # answerable from the log, not from whoever remembers the deploy.
+        "medical_documents",
+        "document_extractions",
     }
 
 

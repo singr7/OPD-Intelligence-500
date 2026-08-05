@@ -8,7 +8,15 @@ module must be imported here or it will be silently missing from migrations.
 from app.models.audit import AuditLog
 from app.models.auth import OtpCode, RefreshToken
 from app.models.base import Base, Clinical, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKey
-from app.models.clinical import Dictation, DoseEvent, Intake, Prescription, Visit
+from app.models.clinical import (
+    Dictation,
+    DocumentExtraction,
+    DoseEvent,
+    Intake,
+    MedicalDocument,
+    Prescription,
+    Visit,
+)
 from app.models.content import (
     ChannelConfigVersion,
     Checkin,
@@ -72,6 +80,8 @@ __all__ = [
     "Dictation",
     "Prescription",
     "DoseEvent",
+    "MedicalDocument",
+    "DocumentExtraction",
     "CaregiverLink",
     # scheduling
     "Appointment",

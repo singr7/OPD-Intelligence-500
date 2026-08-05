@@ -57,6 +57,12 @@ REDACTED_FIELDS = frozenset(
         "code_hash",
         "consent_audio_url",
         "audio_url",
+        # SESSION-MRD1: a document extraction's payload is a patient's lab values
+        # and a histopath impression; `summary_text` is prose about them. Same
+        # rule as `structured` — the log records that a reading happened and
+        # which prompt produced it, not a second copy of the findings.
+        "payload",
+        "summary_text",
     }
 )
 

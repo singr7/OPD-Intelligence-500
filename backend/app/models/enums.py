@@ -176,6 +176,69 @@ class RxMode(StrEnum):
     NONE = "none"
 
 
+class DocumentKind(StrEnum):
+    """What the coordinator said they were photographing (doc 21 §1.2).
+
+    A short list, chosen at capture with one tap, because a coordinator standing
+    beside a patient will not fill in a taxonomy. It steers the extraction prompt
+    and nothing clinical: a mislabelled document still stores, still extracts,
+    and still shows the doctor its original pages.
+    """
+
+    LAB = "lab"
+    HISTOPATH = "histopath"
+    IMAGING_REPORT = "imaging_report"
+    DISCHARGE = "discharge"
+    OUTSIDE_RX = "outside_rx"
+    OTHER = "other"
+
+
+class DocumentStatus(StrEnum):
+    """Where one scanned document is in the pipeline (doc 21 §1.1).
+
+    Every one of these is a state the doctor's Reports tab can render honestly.
+    There is deliberately no state meaning "we tried and will say nothing about
+    it": a document whose machine reading failed is `extraction_failed`, and its
+    original pages are still one tap away — the pipeline degrades to a photo
+    viewer, never to a blank.
+    """
+
+    #: Pages are being uploaded. Not yet a whole document.
+    CAPTURING = "capturing"
+    #: All pages in, waiting for the extractor to claim it.
+    CAPTURED = "captured"
+    #: Claimed by one worker. The claim is what stops two workers paying twice.
+    EXTRACTING = "extracting"
+    #: Values are out and flagged; the written summary may still be coming.
+    EXTRACTED = "extracted"
+    #: Values, flags and summary are all present. The terminal happy state.
+    SUMMARIZED = "summarized"
+    #: The model was unreachable, refused, or answered unusably, `attempts` times.
+    #: Retryable by a human; the pages are unaffected.
+    EXTRACTION_FAILED = "extraction_failed"
+
+
+class ValueFlag(StrEnum):
+    """Where one measured value sits against its reference range.
+
+    Computed in Python from the range on the report (`app.mrd.flags`), never
+    asked of the model — the extraction contract has no field for it. A model
+    may read a number off a page; deciding that the number is alarming is a
+    clinical judgement, and the invariant in CODEBASE_MEMORY is that those are
+    deterministic.
+    """
+
+    NORMAL = "normal"
+    LOW = "low"
+    HIGH = "high"
+    #: Past a critical threshold in the curated table. Still not an urgency
+    #: decision: it changes the order values are shown in, and nothing else.
+    CRITICAL_LOW = "critical_low"
+    CRITICAL_HIGH = "critical_high"
+    #: No usable range for this test — the value is shown plainly, unjudged.
+    UNKNOWN = "unknown"
+
+
 class CaregiverLinkStatus(StrEnum):
     """A family member's access to one patient's file (doc 03 §1c.6, S16).
 

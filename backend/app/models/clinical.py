@@ -37,6 +37,8 @@ from app.models.base import (
 from app.models.enums import (
     Channel,
     DictationStatus,
+    DocumentKind,
+    DocumentStatus,
     DoseStatus,
     IntakeTier,
     Lang,
@@ -173,6 +175,98 @@ class Prescription(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinic
     pdf_url: Mapped[str | None] = mapped_column(String(500))
     # delivered_via: {whatsapp: {at, status}, sms: {...}, print: {...}} — S11.
     delivered_via: Mapped[dict[str, Any]] = mapped_column(default=dict)
+
+
+class MedicalDocument(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """One scanned paper document: a batch of page images (doc 21 §1.3).
+
+    Hung off the **patient**, not the visit. A lab report brought to today's OPD
+    is part of this patient's record for good; `visit_id` records which arrival
+    it came in with, and is nullable so a record can be scanned outside a visit
+    without inventing one.
+
+    The page bytes are not here — `object_keys` points into the object store, in
+    page order. Postgres keeps the index; the disk keeps the JPEGs.
+    """
+
+    __tablename__ = "medical_documents"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), index=True)
+    visit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("visits.id"), index=True)
+    kind: Mapped[DocumentKind] = mapped_column(enum_type(DocumentKind, "document_kind"))
+    status: Mapped[DocumentStatus] = mapped_column(
+        enum_type(DocumentStatus, "document_status"),
+        default=DocumentStatus.CAPTURING,
+        index=True,
+    )
+
+    #: Object-store keys, page order significant. `pages` is len(object_keys),
+    #: denormalised so a list view does not have to unpack the JSONB.
+    object_keys: Mapped[list[Any]] = mapped_column(default=list)
+    pages: Mapped[int] = mapped_column(Integer, default=0)
+
+    #: Who stood there with the phone. A staff user, always — `/scan` is
+    #: authenticated, unlike the kiosk.
+    captured_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
+
+    #: The exact vision/summary providers and models this document was read by,
+    #: snapshotted at extraction (the VOICE1 pattern). Config moves; a stored
+    #: reading must stay attributable to what actually produced it.
+    provider_snapshot: Mapped[dict[str, Any]] = mapped_column(default=dict)
+
+    #: Extraction attempts so far, and why the last one failed. The counter is
+    #: what stops a vendor outage from re-billing the same document all day;
+    #: the reason is what the coordinator's retry screen shows.
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    #: Set when a worker claims the document. Also the staleness clock: a worker
+    #: killed mid-extraction leaves `extracting` behind, and the sweep reclaims
+    #: it after `app.mrd.CLAIM_TIMEOUT` rather than leaving it stuck forever.
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    extraction: Mapped[DocumentExtraction | None] = relationship(
+        back_populates="document", uselist=False
+    )
+
+
+class DocumentExtraction(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """What the machine read off one document, and what we computed from it.
+
+    Split from `MedicalDocument` because they have different lifetimes and
+    different authors: the pages are what the coordinator captured and are
+    immutable; this is what a model said about them, and it can be re-run,
+    superseded by a better prompt version, or corrected by a doctor. Keeping
+    them in one row would make "re-extract" a destructive edit of a capture.
+
+    `payload` holds the doc 21 §1.4 shape: `tests[]` as read, each carrying the
+    reference range *and where the range came from*, plus a computed `flag`.
+    """
+
+    __tablename__ = "document_extractions"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("medical_documents.id"), index=True, unique=True
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    summary_text: Mapped[str | None] = mapped_column(Text)
+
+    #: How many `tests[]` came out other than `normal`/`unknown`. Denormalised so
+    #: the doctor's spine can badge "4 values flagged" without opening the JSONB
+    #: for every patient on the worklist.
+    outlier_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    #: `id@vN` of every prompt that contributed — extract and summarise. Same
+    #: contract as `Dictation`: an output must be traceable to its exact prompt
+    #: version months later.
+    prompt_refs: Mapped[list[Any]] = mapped_column(default=list)
+
+    #: A doctor has read this against the original pages. Until then every
+    #: surface that shows it must say so (doc 21 §1.5) — an unverified machine
+    #: reading of a lab report is a draft, and drafts are labelled.
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("doctors.id"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    document: Mapped[MedicalDocument] = relationship(back_populates="extraction")
 
 
 class DoseEvent(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
