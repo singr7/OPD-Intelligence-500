@@ -1,7 +1,13 @@
 # 20 — Deploying Sessions A, B and C (assignment, identity, consult paths)
 
-Release commit: **`4c7f1fb1e50e2e490f3d30b224e9b4ba4636c857`** on `main`
-(23 commits: AR1–AR3, Session B, Session C).
+Release commit: **the head of `main`**. `4c7f1fb1e50e2e490f3d30b224e9b4ba4636c857`
+is the last *code* commit of this release (23 commits: AR1–AR3, Session B,
+Session C); anything after it on `main` is documentation only. Take the SHA from
+the remote rather than from this page, which cannot contain its own:
+
+```bash
+git fetch origin && git rev-parse origin/main
+```
 
 Unlike S-UX.6 (doc 19), this release **has migrations** — three of them, and none
 has ever run on either box:
