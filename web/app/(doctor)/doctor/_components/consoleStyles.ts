@@ -404,10 +404,10 @@ export const DICTATION_CSS = `
   50% { opacity: .45; transform: scale(1.35); } }
 
 /* Typing is equally legitimate and plainly styled — not a lesser path. */
-.dict-type, .dict-remap { min-height: 44px; border: 1.5px solid var(--line-strong);
+.dict-type, .dict-map { min-height: 44px; border: 1.5px solid var(--line-strong);
   background: var(--surface); color: var(--ink); font: inherit; font-size: 15px;
   font-weight: 700; padding: 11px 18px; border-radius: 12px; cursor: pointer; }
-.dict-type:disabled, .dict-remap:disabled, .dict-dictate:disabled { opacity: .5; cursor: default; }
+.dict-type:disabled, .dict-map:disabled, .dict-dictate:disabled { opacity: .5; cursor: default; }
 
 /* the escape hatch: reachable, never the loudest thing on the screen */
 .dict-more { position: relative; margin-left: auto; }

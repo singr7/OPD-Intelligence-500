@@ -189,6 +189,83 @@ test("signing locks the note", async ({ page, request }) => {
   await expect(page.locator(".dict-signed")).toBeVisible();
 });
 
+// -- Session C: the paths that do not go through a model ----------------------
+
+test("a prescription is produced with no speech at all", async ({ page, request }) => {
+  // Session C's acceptance criterion. "Type note" opens the same record with no
+  // model in the loop, and everything downstream — the formulary verdict, the
+  // signature, the prescription — is the path a dictated note takes.
+  //
+  // It works the row the first test only *opened*, because signing is terminal
+  // and every other row is spoken for. Re-seed (`python -m
+  // scripts.seed_doctor_demo`) before a second run of this file.
+  await openConsole(page, await loginToken(request), ROW.opens);
+  await page.keyboard.press("d");
+  await expect(page.locator(".dict h2")).toHaveText("Consult note");
+  await expect(
+    page.locator(".dict-signed"),
+    "this row is already signed from an earlier run — re-seed the demo first",
+  ).toHaveCount(0);
+
+  // The four steps are stated, and the doctor is at the first of them.
+  await expect(page.getByTestId("step-capture")).toHaveClass(/is-now/);
+
+  await page.getByTestId("type-note").click();
+
+  // No transcript, no model, and the fields are open anyway.
+  await expect(page.getByTestId("step-review")).toHaveClass(/is-now/);
+  await expect(page.locator(".dict-nomeds")).toBeVisible();
+
+  await page.getByTestId("add-med").click();
+  await page.getByTestId("add-med-name").fill("Tab Augmentin 625");
+  await page.getByLabel("Frequency").first().fill("BD");
+  await page.getByLabel("Duration").first().fill("5 days");
+  await page.getByTestId("add-med-save").click();
+  await expect(page.locator(".med-name").first()).toHaveText("Tab Augmentin 625");
+
+  await page.getByLabel("Impression").fill("Acute tonsillitis");
+  await page.locator(".dict-review").click(); // blur commits the field
+
+  // Print is unreachable before approval: there is no prescription to print,
+  // and the sign bar says so rather than showing a disabled button.
+  await expect(page.getByTestId("print-patient")).toHaveCount(0);
+  await expect(page.getByTestId("pre-print-note")).toContainText("produced by the signature");
+  await page.screenshot({ path: `${SHOTS}/06-typed-note.png`, fullPage: true });
+
+  await expect(page.getByTestId("sign-note")).toBeEnabled();
+  await page.getByTestId("sign-note").click();
+
+  await expect(page.getByTestId("prescription-issued")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".rx-name").first()).toContainText("Tab Augmentin 625");
+  await expect(page.getByTestId("print-patient")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: `${SHOTS}/07-typed-prescription.png`, fullPage: true });
+});
+
+test("a mapping failure keeps the transcript instead of eating it", async ({ page, request }) => {
+  // The server-side half of this — the fields opening on a recorded failure, and
+  // that state reaching a signature — is `test_dictation.py`'s
+  // `test_a_failed_mapping_still_reaches_a_signature_and_a_prescription`; a live
+  // stack with a working fake model cannot be made to fail honestly from here.
+  // What this proves is the part only a browser can: the doctor's words are
+  // still on screen after the request fails.
+  await openConsole(page, await loginToken(request), ROW.maps);
+  await page.route("**/dictation/*/map", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "the mapping model is unreachable" }),
+    }),
+  );
+
+  await page.keyboard.press("d");
+  await page.fill(".dict-transcript", NOTE);
+  await page.click(".dict-map");
+
+  await expect(page.locator(".dict-err")).toContainText("unreachable");
+  await expect(page.locator(".dict-transcript")).toHaveValue(NOTE);
+});
+
 test("a signed note cannot be re-dictated, even over the API", async ({ request }) => {
   const token = await loginToken(request);
   const day = await request.get(`${API}/doctor/day?scope=department`, {

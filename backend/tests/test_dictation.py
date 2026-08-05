@@ -530,6 +530,51 @@ async def test_a_typed_note_still_refuses_an_unacknowledged_flag(
     assert dictation.status is DictationStatus.DRAFT
 
 
+async def test_a_failed_mapping_still_reaches_a_signature_and_a_prescription(
+    session: AsyncSession,
+) -> None:
+    """The acceptance criterion for §5.2: the model being down is not a reason a
+    patient goes home without a prescription. The transcript survives, the
+    fields open, the doctor fills them, and the signature is the same one."""
+    clinic, visit = await _clinic_with_visit(session)
+    dictation = await dic.start(
+        session,
+        visit_id=visit.id,
+        doctor=clinic["doctor"],
+        transcript="tonsillitis hai, Tab Augmentin 625 BD five days",
+    )
+    dead = FakeLLMProvider()
+    dead.fail_with = RuntimeError("vLLM is down")
+
+    with pytest.raises(dic.MappingUnavailable):
+        await dic.map_transcript(
+            session,
+            dictation=dictation,
+            doctor=clinic["doctor"],
+            mapper=dic.DictationMapper([dead]),
+        )
+
+    dictation = await dic.apply_corrections(
+        session,
+        dictation=dictation,
+        doctor=clinic["doctor"],
+        patch={
+            "diagnosis": "Acute tonsillitis",
+            "meds": [{"name": "Tab Augmentin 625", "freq": "BD", "duration": "5 days"}],
+        },
+    )
+    signed = await dic.sign(session, dictation=dictation, doctor=clinic["doctor"])
+
+    assert signed.status is DictationStatus.SIGNED
+    assert signed.transcript == "tonsillitis hai, Tab Augmentin 625 BD five days"
+    # The failure stays on the record — this note was not model-mapped, and the
+    # diff screen must not imply it was.
+    assert signed.structured["mapped"] is None
+    assert signed.structured["mapping_error"]
+    rx = await prescription_svc.for_dictation(session, dictation_id=signed.id)
+    assert rx is not None and rx.meds[0]["name"] == "Tab Augmentin 625"
+
+
 async def test_a_second_failed_mapping_does_not_wipe_what_the_doctor_typed(
     session: AsyncSession,
 ) -> None:

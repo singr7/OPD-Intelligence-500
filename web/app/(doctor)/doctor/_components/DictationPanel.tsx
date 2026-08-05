@@ -122,6 +122,9 @@ export function DictationPanel({
   const signed = dictation?.status === "signed";
   const fields = dictation?.fields ?? null;
   const mappingFailed = !!dictation?.mapping_error && !dictation?.mapped;
+  // No transcript at all: this note was typed, and the provenance lines have to
+  // say so rather than reporting a missing transcript as a failure to trace.
+  const typedNote = !!dictation && !(dictation.transcript ?? "").trim();
 
   // True once the doctor has touched the transcript for this visit. The panel
   // renders immediately and loads the stored note a moment later, so without
@@ -466,7 +469,7 @@ export function DictationPanel({
 
             {fields && (
               <button
-                className="dict-remap"
+                className="dict-map"
                 onClick={onMap}
                 disabled={!!busy || !transcript.trim() || recording}
               >
@@ -474,7 +477,7 @@ export function DictationPanel({
               </button>
             )}
             {!fields && !recording && transcript.trim() && (
-              <button className="dict-remap" onClick={onMap} disabled={!!busy}>
+              <button className="dict-map" onClick={onMap} disabled={!!busy}>
                 {busy === "mapping" ? "Mapping…" : "Map to fields"}
               </button>
             )}
@@ -563,6 +566,7 @@ export function DictationPanel({
                   key={`${med.name}-${index}`}
                   med={med}
                   locked={signed}
+                  typed={typedNote}
                   onAcknowledge={() => acknowledge(index)}
                   onEdit={(key, value) => editMed(index, key, value)}
                   onDelete={() => removeMed(index)}
@@ -579,6 +583,7 @@ export function DictationPanel({
                   key={`${med.name}-${index}`}
                   med={med}
                   locked={signed}
+                  typed={typedNote}
                   onAcknowledge={() => acknowledge(index)}
                   onEdit={(key, value) => editMed(index, key, value)}
                   onDelete={() => removeMed(index)}
@@ -736,12 +741,17 @@ function clock(seconds: number): string {
 function MedRow({
   med,
   locked,
+  typed,
   onAcknowledge,
   onEdit,
   onDelete,
 }: {
   med: Med;
   locked: boolean;
+  /** Nothing was ever dictated on this note, so there is no transcript for a
+   *  line to be traceable *to*. Saying "not traceable" here would read as a
+   *  warning about a drug the doctor typed with their own hands. */
+  typed: boolean;
   onAcknowledge: () => void;
   onEdit: (key: keyof Med, value: string) => void;
   onDelete: () => void;
@@ -826,7 +836,11 @@ function MedRow({
       <div className="med-spoken">
         <span className="med-tick" aria-hidden="true" />
         <span className="med-heard">
-          {med.as_spoken ? `“${med.as_spoken}”` : "not traceable to anything in the transcript"}
+          {med.as_spoken
+            ? `“${med.as_spoken}”`
+            : typed
+              ? "typed by you — nothing was dictated on this note"
+              : "not traceable to anything in the transcript"}
         </span>
       </div>
 

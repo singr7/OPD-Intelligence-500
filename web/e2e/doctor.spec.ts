@@ -34,6 +34,28 @@ async function loginToken(request: import("@playwright/test").APIRequestContext)
   return cachedAccessToken;
 }
 
+/**
+ * Finish the consult on the stage.
+ *
+ * Completing is a *conclusion* now, not a bare queue transition (plan §5.3b): a
+ * visit that simply stops cannot be told apart from one the doctor was
+ * interrupted in the middle of. With a signed note it stays one tap; without
+ * one the dialog opens and has to be answered, which is the point of it.
+ */
+async function completeConsult(
+  page: import("@playwright/test").Page,
+  mode: "external_manual" | "none" = "none",
+) {
+  await page.click("[data-testid='complete-consult']");
+  const dialog = page.getByTestId("conclude-dialog");
+  await dialog.waitFor({ state: "visible", timeout: 2000 }).catch(() => {});
+  if (await dialog.count()) {
+    await page.getByTestId(`rx-mode-${mode}`).click();
+    await page.getByTestId("conclude-confirm").click();
+    await expect(dialog).toHaveCount(0);
+  }
+}
+
 async function signedIn(page: import("@playwright/test").Page, token: string) {
   await page.addInitScript((t) => localStorage.setItem("opd_staff_token", t), token);
   await page.goto("/doctor");
@@ -217,7 +239,7 @@ test("N calls the next patient, and the rail follows", async ({ page, request })
   await signedIn(page, token);
 
   // Finish the patient in the room so there is a next one to call.
-  await page.click("[data-testid='complete-consult']");
+  await completeConsult(page);
   await expect(page.locator(".station .stok").first()).not.toHaveText("12");
 
   await page.keyboard.press("n");
@@ -225,6 +247,56 @@ test("N calls the next patient, and the rail follows", async ({ page, request })
   const called = page.locator(".station.is-active .sname");
   await expect(called).toContainText("Ramesh Chand");
   await page.screenshot({ path: `${SHOTS}/05-called-next.png`, fullPage: true });
+});
+
+test("a paper prescription is written down rather than left as a blank visit", async ({
+  page,
+  request,
+}) => {
+  // Plan §5.3b. The doctor who writes on the OPD pad has finished the consult;
+  // until now that left a visit indistinguishable from an abandoned one.
+  const token = await loginToken(request);
+  await signedIn(page, token);
+
+  const called = page.locator(".station.called, .station.in_consult");
+  if ((await called.count()) === 0) await page.keyboard.press("n");
+  await expect(called.first()).toBeVisible();
+  const start = page.getByTestId("start-consult");
+  if (await start.count()) await start.click();
+
+  // Which visit this is, so the record can be read back afterwards.
+  const day = await request.get(`${API}/doctor/day?scope=department`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const row = (await day.json()).rows.find(
+    (r: { state: string }) => r.state === "in_consult" || r.state === "called",
+  );
+  expect(row).toBeTruthy();
+
+  await page.click("[data-testid='complete-consult']");
+  const dialog = page.getByTestId("conclude-dialog");
+  await expect(dialog).toBeVisible();
+
+  // The warning names what will not exist, rather than the prototype's vague
+  // "won't capture this visit findings". Vague warnings get clicked through.
+  await page.getByTestId("rx-mode-external_manual").click();
+  await expect(dialog).toContainText("No consult note and no digital prescription");
+  await expect(dialog).toContainText("The pharmacy will have no digital copy");
+  await expect(dialog).toContainText("Follow-up reminders cannot be generated");
+  await page.screenshot({ path: `${SHOTS}/10-conclude.png` });
+
+  await dialog.locator("textarea").fill("Written on the OPD pad.");
+  await page.getByTestId("conclude-confirm").click();
+  await expect(dialog).toHaveCount(0);
+
+  // The record says how it ended, and the queue entry is done.
+  const card = await request.get(`${API}/doctor/patients/${row.visit_id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await card.json();
+  expect(body.rx_mode).toBe("external_manual");
+  expect(body.conclusion_note).toBe("Written on the OPD pad.");
+  expect(body.entry_state).toBe("done");
 });
 
 test("D opens the consult note for the patient on the stage", async ({ page, request }) => {
@@ -249,8 +321,14 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
 
   // Send the patient in the room to the lab: they leave the front and rejoin
   // at the back of their priority (the S8 queue verb, not a console rule).
+  // The room may be empty — the test before this one concludes whoever was in
+  // it — so call someone in first rather than assuming the previous test's
+  // leftovers.
+  if ((await page.locator(".station.called, .station.in_consult").count()) === 0) {
+    await page.keyboard.press("n");
+    await expect(page.locator(".station.called, .station.in_consult")).not.toHaveCount(0);
+  }
   const firstName = await page.locator(".station").first().locator(".sname").textContent();
-  // Earlier tests in this file leave whoever they called sitting in `called`.
   // Lab re-queue is only legal from `in_consult`, so start the consult first —
   // the encounter bar offers exactly the transition the state machine allows.
   const start = page.getByTestId("start-consult");
@@ -270,7 +348,7 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
     } else {
       await page.click("[data-testid='start-consult']");
       await expect(page.locator(".station.in_consult")).not.toHaveCount(0);
-      await page.click("[data-testid='complete-consult']");
+      await completeConsult(page);
     }
     await expect(page.locator(".station.called, .station.in_consult")).toHaveCount(0);
   }
@@ -280,7 +358,7 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
   const atLab = page.locator(".station.lab_requeue");
   while ((await atLab.count()) > 0) {
     await atLab.first().locator("button").first().click();
-    await page.click("[data-testid='complete-consult']");
+    await completeConsult(page);
     await page.waitForTimeout(200);
   }
 
