@@ -1,143 +1,104 @@
-# HANDOFF — after SESSION-B
+# HANDOFF — after SESSION-C
 
 **Repo state:** branch `assign-rx-identity`.
-`make test-backend` 1355 passed (the strict xfail AR2 left as Session B's gate is
-gone — its behaviour is covered by real tests now). Doctor E2E 11 passed,
-dictation E2E 6 passed, `npm run build` / `tsc` / `eslint` clean. Migrations
-`c6e3681f5ce1` and `520d07f0b3e4` are applied **locally only** — still pending on
-Omen, and `make deploy` does not run migrations.
+`make test-backend` 1376 passed. Doctor E2E 12 passed, dictation E2E 8 passed,
+conformance 48 passed, `npm run build` / `tsc` / `eslint` clean. Migrations
+`c6e3681f5ce1`, `520d07f0b3e4` and **`c063fd91e198`** are applied **locally
+only** — still pending on Omen, and `make deploy` does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open; see
 `sessions/SESSION-ANDROID1.md`.
 
-**Where the build stands:** Sessions A **and** B of
-`sessions/SESSION-ASSIGN-RX-PLAN.md` are complete. Assignment now changes what a
-doctor sees: the worklist scopes to `mine | unassigned | department`, the
-`Unassigned` count is visible whether or not its tab is open, and any doctor in
-the department can take an unassigned patient or cover a colleague's in one tap.
-The console gained the context spine — sticky, never unmounting, carrying
-identity + token, diagnosis, allergies and red flags through every tab including
-the consult note — and four working tabs plus one feature-flagged "Coming soon"
-disclosure. **What is not built is Session C**: the consult and prescription
-paths of §5, which is the next thing to build.
+**Where the build stands:** Sessions A, B **and** C of
+`sessions/SESSION-ASSIGN-RX-PLAN.md` are complete — the plan is finished. A
+consult can now be written without speaking a word, a mapping failure is a state
+the doctor walks out of rather than a dead end, and a consult that ends on paper
+or with no prescription at all is written down instead of leaving a blank visit.
+Speech is an input method now, not a prerequisite for prescribing.
 
-## Next session (Session C) — the consult and prescription paths
+## Next session — no plan file yet
 
-`sessions/SESSION-ASSIGN-RX-PLAN.md` §5. Read it first; this session did not
-touch it, so nothing in §5 has moved.
+There is no §6 to build. The candidates, in the order I would take them:
 
-Two things from Session B that change how it should start:
-
-1. **The consult note is a tab now, not a panel that takes the screen.** It
-   mounts under the context spine, which stays put. Anything §5 adds to the
-   prescribing flow inherits that: the allergy line and the red-flag strip are on
-   screen while a prescription is composed, which is the state the spine was
-   built for. Do not reintroduce a full-stage takeover.
-2. **`DictationPanel` only seeds the transcript when nobody has typed in it**
-   (`touched` ref). If §5 adds another server load into that panel, it must
-   respect the same rule — losing dictated words is the one failure that surface
-   exists to prevent.
-
-First commands:
-
-```
-git checkout assign-rx-identity
-make test-backend                    # expect 1355 passed
-docs/04-UIUX-GUIDE.md + docs/14      # mandatory before any screen
-sed -n '/^## 5\./,/^## 6\./p' sessions/SESSION-ASSIGN-RX-PLAN.md
-```
-
-To run the console locally (the E2E projects need this shape, not `make dev`):
-
-```
-cd backend && set -a && . ../.env && set +a && \
-  DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
-  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8123
-cd backend && DATABASE_URL=... .venv/bin/python -m scripts.seed_doctor_demo
-cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8123 npx next dev -p 3210
-cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
-  npx playwright test --project=doctor
-```
+1. **Allergy capture** — the spine has had a permanent slot and nothing to put
+   in it since Session B, and it is still the largest hole in the four elements
+   it promises. Needs the human decision below before it is a build task.
+2. **Deploy the three pending migrations to Omen** and re-run the doctor and
+   dictation E2E against it. Nothing in Sessions A–C has run on the box.
+3. **Amending a signed note / undoing a conclusion.** Signing is terminal by
+   design and `conclude` now joins it. Neither has a correction path, and the
+   pilot will produce a wrong one in its first week.
 
 ## Watch out for
 
-- **`GET /doctor/day` defaults to `scope=mine`.** Anything that reads it and
-  expects the whole department — a test, a script, a new screen — must ask for
-  `scope=department` explicitly. `dictation.spec.ts` does exactly this, and its
-  row indices depend on it.
-- **Do not narrow `patient_card` or `dictation.assert_visit_scope` to the
-  assigned doctor.** Filtering a list is UX; narrowing access is a
-  clinical-continuity decision made the other way, on the record, twice now. The
-  card names the assigned doctor instead, and
-  `test_the_card_is_not_narrowed_to_the_assigned_doctor` guards it.
-- **The `Unassigned` badge and the attention state are two different numbers.**
-  The badge is `counts.unassigned` (matches its list); the attention state is
-  `counts.unassigned_waiting` (matches the coordinator console's "Waiting,
-  unassigned" metric). Keeping the second definition in step with the coordinator
-  is deliberate — do not "simplify" them into one.
-- **The spine must never unmount.** It is above the tab row in `Console.tsx` and
-  outside the tab switch. A future panel that renders in its place, rather than
-  under it, silently undoes the whole session.
-- **Nothing captures an allergy.** The spine and History say so in words and must
-  keep saying so. Neither may be changed to "no known allergies" until something
-  actually records them — that is a clinical claim a doctor would act on.
-- `Queue` stays per-department with `doctor_id` NULL. Assignment is a visit
-  attribute and a worklist filter, never a second queue.
+- **"Complete consult" is a conclusion now, not a bare `set_state`.** With a
+  signed note it concludes as `system` in one tap; without one it opens the
+  dialog. Any test or script that clicked `[data-testid=complete-consult]` and
+  expected an immediate transition must answer the dialog — `completeConsult()`
+  in `e2e/doctor.spec.ts` is the helper.
+- **Do not add a second prescription-creation path.** "Type note" deliberately
+  joins the dictated path at `compose` — an empty mapping in `fields` — so that
+  `sign` → `prescription.generate` stays the only writer. A parallel one around
+  the signature boundary is how the drug-safety validation gets bypassed.
+- **`unsaid` is off when there is no transcript, and that is load-bearing.** If
+  something later gives typed notes a transcript-shaped field, every typed drug
+  starts arriving pre-flagged. The formulary check is the one that must never be
+  relaxed; `unsaid` is about the *model*, not the drug.
+- **`conclude` lives inside the S8 transition table.** `waiting` is refused on
+  purpose (nobody called that patient in). Do not widen
+  `_ALLOWED_TRANSITIONS` to make the refusal go away — the guard is what stops
+  the board showing a patient who is both seen and waiting.
+- **The 30-second OTP resend cooldown makes back-to-back E2E projects fail.**
+  Both `doctor` and `dictation` log in as `+915550001001`; running one straight
+  after the other fails on the *first* test with a missing `otp-hint`. Wait ~35s
+  between projects. This bit twice this session and is not a regression.
+- **`GET /doctor/day` still defaults to `scope=mine`** (Session B) — ask for
+  `scope=department` explicitly.
+- **Do not narrow `patient_card` or `dictation.assert_visit_scope`** to the
+  assigned doctor. Decided the other way, on the record, three times now.
+- **The spine must never unmount**, and **nothing captures an allergy** — both
+  Session B rules, both unchanged.
 - `make lint` still fails on **pre-existing** E501 in `app/config.py:260` and on
-  the two AR1/AR2 autogenerated migrations. Not this session's; still unclaimed.
+  the two AR1/AR2 autogenerated migrations. Still unclaimed.
 
 ## Decisions taken (do not re-litigate)
 
-1. **Cover is allowed without a coordinator, and without a confirm dialog.**
-   "Take this patient" works on a colleague's row too. It is audited through the
-   `Clinical` `before_flush` hook, so the previous assignment is recoverable. A
-   confirm step on the one action that unblocks a stalled line teaches doctors to
-   click through dialogs.
-2. **The diagnosis line reads the latest *signed* note, across visits, with its
-   date.** A draft is a doctor thinking out loud; an unqualified line belonging
-   to a note from March is worse than no line.
-3. **No `stage` on the diagnosis line.** The plan's mock shows one; the schema
-   has no staging field, and inventing a vocabulary the record cannot support is
-   worse than the shorter line.
-4. **No confidence percentage.** The Overview ends with provenance instead — who
-   answered, in which language, on which tier, when it finished.
-5. **New kiosk copy ships English + Hindi** (AR3, reaffirmed by the operator this
-   session). mr/te fall through to English rather than being machine-translated.
-   Still pending native review (doc 07 §4); logged in STATE.md → Stubs & fakes.
-6. **PIN issuance is seeded, not a screen** (AR2). `make seed` gives the seeded
-   coordinator PIN `4729` on local/test only; `make kiosk-pin` is the operator's
-   set/rotate/clear/unlock path.
-7. **The console shows that a candidate exists, never who it is** (AR3).
+1. **Speech is an input method.** The typed note is the same record, the same
+   corrections trail, the same signature and the same formulary refusal.
+2. **`unsaid` does not apply to a note nobody dictated** — see above.
+3. **A mapping failure opens the fields by itself**, and never overwrites fields
+   that already have something in them.
+4. **`system` is refused without a signed note** (400), because that mode claims
+   a digital prescription exists.
+5. **The ordinary ending stays one tap.** The dialog is for the endings that
+   lose something; a confirmation on both would teach doctors to click through
+   the one that matters.
+6. **The conclusion dialog's confirm button is green, not red.** Red is clinical
+   danger and destruction. The marigold panel carries the loss.
+7. **No decorative waveform.** No analyser, no bars — timer and indicator only.
+8. **`PatientCard.note_signed`** replaced the console's per-session `signedNotes`
+   memory (Session B backlog item, closed).
 
 ## Decisions needed from the human
 
-- **Marathi + Telugu for the arrival screens.** Still open, and now explicitly
-  deferred rather than blocking: this session was told to proceed on English and
-  Hindi. Getting the AR3 strings reviewed by a native speaker is a person-task —
-  who does it, and when? The doctor console itself is staff-facing and
-  English-only, consistent with every other staff surface; that is not part of
-  this question.
-- **Do we want allergy capture, and where?** The spine has a permanent slot for
-  it and nothing to put in it. The honest options are a kiosk intake question, a
+- **Do we want allergy capture, and where?** Unchanged from Session B and now
+  the top of the backlog. The honest options are a kiosk intake question, a
   field on the patient record maintained at the desk, or an import from an
-  existing hospital record. This is a clinical-workflow decision, not a build
-  one.
+  existing hospital record. Clinical-workflow decision, not a build one.
+- **Marathi + Telugu for the arrival screens.** Still open, still a person-task:
+  who reviews the AR3 strings, and when? (The doctor console is staff-facing and
+  English-only, consistent with every other staff surface — not part of this.)
 
 ## Backlog additions
 
-- **Session C** of `SESSION-ASSIGN-RX-PLAN.md` (consult/prescription paths) —
-  unstarted, and the next session.
-- **Vitals do not exist in the schema**, so plan §4.3's vitals treatment is
-  unbuilt. Needs a capture path before it can be a screen.
-- **The console forgets which notes it watched get signed** across a reload
-  (`signedNotes` is per-session state). Fixing it means the card model carrying
-  note status, which is one field on `PatientCard`.
-- **The strip needs two unlocks to re-route *and* assign** (AR3): changing the
-  department reissues the token and relocks. Correct, but a coordinator will
-  notice.
-- `app.kiosk._departments` is private while its sibling `department_by_code` is
-  public. Harmonise on the next touch of that module.
-- The kiosk `speak()` promise never resolves in headless Chromium; harmless, but
-  it makes long Playwright runs on a stale dev server slow to tear down.
+- **The analyser meter has never run against a real microphone.** Headless
+  Chromium has none, so only the timer path is tested. Look at it on the Omen
+  with a headset before the pilot.
+- **No way to undo a conclusion** or amend a signed note. First wrong `rx_mode`
+  will be in week one.
+- **Vitals still do not exist in the schema**, so plan §4.3's vitals treatment
+  is still unbuilt.
+- **`app.kiosk._departments` is private while `department_by_code` is public** —
+  harmonise on the next touch.
 - Running `npm run build` while `next dev` is up on 3210 breaks the dev server
-  until `.next` is removed. Bit this session; worth a note in the run docs.
+  until `.next` is removed.

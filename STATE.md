@@ -6,6 +6,31 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-C):** The end of the consult (plan §5). **Speech is an input
+method, not a prerequisite for prescribing**: `POST /dictation/{id}/compose`
+opens the editable field set with no model in the loop, and the typed note is
+then the same record, the same `fields`/`edits` trail, the same signature and the
+same `blocking_meds` refusal as a dictated one — deliberately *not* a second
+prescription-creation path. A failed mapping now opens those same empty fields
+alongside `mapping_error`, so the model being down is a state the doctor walks
+out of rather than a dead end; the transcript is still never overwritten.
+`validate_meds(..., check_unsaid=)` suppresses the `unsaid` verdict when there is
+no transcript to check against — it asks whether a *model* renamed a drug, and on
+a typed note there was none; the formulary check is untouched and still refuses
+the signature. `POST /doctor/visits/{id}/conclude` records **how** a consult
+ended (`RxMode` = `system` / `external_manual` / `none`) on `Visit.rx_mode` +
+`conclusion_note` / `concluded_at` / `concluded_by`, audited through the existing
+`Clinical` hook, moving the queue through the S8 `set_state` and refusing
+`system` without a signed note. Console: the Consult tab is a visible four-step
+rail (Capture → Review → Sign → Prescription), Dictate and Type note are equals,
+the escape hatch is in an overflow rather than in marigold, the recording meter
+is real analyser samples or nothing at all, `Stop & transcribe` is green, the
+fields are fully editable (dose/route/frequency/duration, add, delete with
+confirmation), and nothing can be printed before the signature. Migration
+`c063fd91e198` (additive, nullable, no backfill). Gates: backend **1,376**,
+doctor E2E 12, dictation E2E 8, conformance 48, production build, typecheck,
+lint.
+
 **Built (SESSION-B):** Assignment finally changes what a doctor sees.
 `GET /doctor/day?scope=mine|unassigned|department` defaults to `mine` and returns
 counts for all three scopes on every response, so the `Unassigned` badge stays
@@ -768,12 +793,17 @@ the only gate right now.**
   for a phone number and a health ID, so the gap is recorded rather than papered
   over. Pending native review (doc 07 §4); when it arrives the keys move into `T`
   and `tb` disappears — the type makes that a compile-time move, not a search.
-- **Migrations `c6e3681f5ce1` and `520d07f0b3e4` are applied locally only**
-  (AR1/AR2) — still pending on Omen, and `make deploy` does not run migrations.
-- **The console forgets which notes it watched get signed** (Session B) — the
-  card model carries no note status and asking per row would be a request per
-  patient, so `signedNotes` is per-session console state. The Consult tab shows
-  the real signed state when opened.
+- **Migrations `c6e3681f5ce1`, `520d07f0b3e4` and `c063fd91e198` are applied
+  locally only** (AR1/AR2/Session C) — still pending on Omen, and `make deploy`
+  does not run migrations.
+- **The consult-note recording meter has never met a real microphone**
+  (Session C) — headless Chromium has none, so the E2E covers the elapsed-timer
+  path only. The bars are real analyser samples and there are deliberately none
+  when no analyser exists, but the live behaviour needs a look on the Omen with
+  a headset before the pilot.
+- **A conclusion cannot be undone and a signed note cannot be amended**
+  (Session C) — `rx_mode` picked wrongly is visible in the audit trail and on no
+  screen. The pilot will produce one in its first week.
 - **The kiosk cannot assign while offline** (AR2/AR3, accepted pilot debt) — no
   roster and no server, so an offline arrival syncs with no doctor and is settled
   from the coordinator console. Since AR3 it *does* carry the patient's health ID
