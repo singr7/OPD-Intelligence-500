@@ -1,10 +1,14 @@
-// S9 doctor console (doc 03 §4/§5), driven against a live stack.
+// The doctor console (doc 03 §4/§5, plan §3/§4), driven against a live stack.
 //
-// This is the session's acceptance criterion as a test: a doctor completes a
-// full morning on seed data — signs in, reads the urgent patient's card, calls
-// the next token, sends one to the lab, marks a no-show, and finishes a
-// consult — with every action going through the S8 queue verbs. Also captures
-// the screenshots for the doc 04 §5 self-critique.
+// This is the session's acceptance criterion as a test. Two mornings, really:
+//
+//   * S9's — a doctor signs in, reads the urgent patient, calls the next token,
+//     sends one to the lab, marks a no-show and finishes the line.
+//   * Session B's — the worklist is scoped, the unassigned arrival is impossible
+//     to miss, one tap takes her, and the context spine stays on screen through
+//     every tab including the consult note.
+//
+// Also captures the screenshots for the doc 04 §5 self-critique.
 //
 //   cd backend && .venv/bin/python -m scripts.seed_doctor_demo
 //   API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
@@ -61,6 +65,9 @@ test("the day rail lists the morning, urgent first, and opens the patient in the
 }) => {
   await signedIn(page, await loginToken(request));
 
+  // The default scope is `Mine`.
+  await expect(page.getByTestId("scope-mine")).toHaveAttribute("aria-selected", "true");
+
   // The queue's own order: the febrile-neutropenia walk-in is at the top
   // because the rule fired, not because the console re-sorted it.
   const tokens = await page.locator(".station .stok").allTextContents();
@@ -69,30 +76,101 @@ test("the day rail lists the morning, urgent first, and opens the patient in the
   await expect(page.locator(".station").first()).toHaveClass(/is-active/);
 
   // The card opened on whoever is already in the room.
-  await expect(page.locator("[data-testid=patient-card] .who h1")).toHaveText("Kamla Devi");
+  await expect(page.locator("[data-testid=context-spine] h1")).toHaveText("Kamla Devi");
   await page.screenshot({ path: `${SHOTS}/02-day-and-card.png`, fullPage: true });
 });
 
-test("the red-flag strip leads the card, above the concern", async ({ page, request }) => {
+test("the unassigned arrival is impossible to miss from the Mine tab", async ({ page, request }) => {
+  // Session B's whole safety net. The seed leaves Sita Kumari in the department
+  // pool the way an offline kiosk does — with no roster to pick from, nobody's
+  // name is on her. She is not in `Mine`, and the console still has to say so.
   await signedIn(page, await loginToken(request));
 
-  const strip = page.locator("[data-testid=red-flag-strip]");
-  await expect(strip).toBeVisible();
+  await expect(page.getByTestId("scope-mine")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".station .sname")).not.toContainText(["Sita Kumari"]);
+
+  // The count is visible while its tab is closed, and it is an attention state
+  // stated in words, not colour alone.
+  await expect(page.getByTestId("count-unassigned")).toHaveText("1");
+  await expect(page.getByTestId("unassigned-alert")).toContainText("1 waiting with no doctor");
+  await page.screenshot({ path: `${SHOTS}/07-unassigned-badge.png` });
+});
+
+test("Take this patient moves her onto the doctor's own list", async ({ page, request }) => {
+  await signedIn(page, await loginToken(request));
+
+  await page.getByTestId("scope-unassigned").click();
+  await expect(page.locator(".station")).toHaveCount(1);
+  await expect(page.locator(".station .sname")).toContainText("Sita Kumari");
+  await expect(page.locator(".station .swho")).toHaveText("No doctor assigned");
+  await page.screenshot({ path: `${SHOTS}/08-unassigned-scope.png`, fullPage: true });
+
+  await page.locator(".station .take").click();
+
+  // Taking her opens her: the doctor said "I'll see this one".
+  await expect(page.locator("[data-testid=context-spine] h1")).toHaveText("Sita Kumari");
+  // The pool is empty and the attention state is gone — no stale alarm.
+  await expect(page.getByTestId("count-unassigned")).toHaveText("0");
+  await expect(page.getByTestId("unassigned-alert")).toHaveCount(0);
+
+  await page.getByTestId("scope-mine").click();
+  await expect(page.locator(".station .sname")).toContainText(["Sita Kumari"]);
+});
+
+test("the department scope names a colleague's patient rather than leaving it blank", async ({
+  page,
+  request,
+}) => {
+  await signedIn(page, await loginToken(request));
+  await page.getByTestId("scope-department").click();
+
+  const counts = page.getByTestId("count-department");
+  await expect(counts).not.toHaveText("0");
+  // Every row in the department list is either this doctor's or labelled. An
+  // unlabelled row would be indistinguishable from an unassigned one.
+  const rows = page.locator(".station");
+  for (let i = 0; i < (await rows.count()); i += 1) {
+    const row = rows.nth(i);
+    const labelled = await row.locator(".swho").count();
+    const takeable = await row.locator(".take").count();
+    expect(labelled === takeable).toBe(true);
+  }
+});
+
+test("the context spine leads the stage and survives every tab", async ({ page, request }) => {
+  await signedIn(page, await loginToken(request));
+
+  const spine = page.getByTestId("context-spine");
+  await expect(spine).toBeVisible();
+
+  // Four things and no fifth: identity + token, diagnosis, allergies, red flags.
+  await expect(spine.locator(".cx-tok-n")).toHaveText("12");
+  await expect(page.getByTestId("spine-diagnosis")).toBeVisible();
+  await expect(page.getByTestId("spine-allergies")).toContainText("not captured");
+  const strip = page.getByTestId("red-flag-strip");
   await expect(strip.locator(".stamp").first()).toContainText(
     "Fever 38°C+ within 14 days of chemotherapy",
   );
   // The rule's own instruction rides along — the strip is not a bare label.
   await expect(strip.locator(".stamp").first()).toContainText("nurse");
 
-  // It is physically above the chief concern: the 20-second read starts here.
-  const stripBox = await strip.boundingBox();
-  const concernBox = await page.locator(".concern").boundingBox();
-  expect(stripBox!.y).toBeLessThan(concernBox!.y);
+  // It is physically above the tab row: the 20-second read starts here.
+  const spineBox = await spine.boundingBox();
+  const tabsBox = await page.locator(".worktabs").boundingBox();
+  expect(spineBox!.y).toBeLessThan(tabsBox!.y);
 
-  await page.screenshot({ path: `${SHOTS}/03-red-flag-strip.png` });
+  // And it is still mounted on every one of the four tabs — including the
+  // consult note, which used to replace the whole stage and take the red flags
+  // with it exactly when the doctor was composing a prescription.
+  for (const tab of ["answers", "history", "consult", "overview"]) {
+    await page.getByTestId(`tab-${tab}`).click();
+    await expect(page.getByTestId("context-spine")).toBeVisible();
+    await expect(page.getByTestId("red-flag-strip")).toBeVisible();
+  }
+  await page.screenshot({ path: `${SHOTS}/03-context-spine.png` });
 });
 
-test("the card carries the doc 03 §4 contract: symptoms, quote, trend, answers", async ({
+test("the tabs carry the doc 03 §4 contract, and provenance instead of a percentage", async ({
   page,
   request,
 }) => {
@@ -102,15 +180,36 @@ test("the card carries the doc 03 §4 contract: symptoms, quote, trend, answers"
   await expect(page.locator(".symptoms tbody tr").first()).toContainText("Fever");
   await expect(page.locator(".own-words")).toContainText("घबराहट");
 
-  // Everything else is collapsed until asked for (doc 04 §3).
-  await expect(page.locator(".answers")).toHaveCount(0);
-  await page.click(".fold-h:has-text('Intake answers')");
+  // No confidence percentage anywhere — four facts a doctor can weigh instead.
+  const provenance = page.getByTestId("provenance");
+  await expect(provenance).toContainText("Answered by");
+  await expect(provenance).toContainText("Hindi");
+  await expect(page.locator(".work")).not.toContainText("% confidence");
+
+  await page.getByTestId("tab-answers").click();
   await expect(page.locator(".answers li")).toHaveCount(12);
   await expect(page.locator(".answers li.flagged")).not.toHaveCount(0);
 
-  await page.click(".fold-h:has-text('Check-in trend')");
+  await page.getByTestId("tab-history").click();
+  await expect(page.getByTestId("history-allergies")).toContainText("ask");
   await expect(page.locator(".trends .spark")).toHaveCount(2);
-  await page.screenshot({ path: `${SHOTS}/04-card-expanded.png`, fullPage: true });
+  await page.screenshot({ path: `${SHOTS}/04-tabs.png`, fullPage: true });
+});
+
+test("Coming soon is one quiet entry with no mock clinical content", async ({ page, request }) => {
+  await signedIn(page, await loginToken(request));
+
+  // Four tabs, not eight. The unbuilt surfaces are not among them.
+  await expect(page.locator(".wtab")).toHaveCount(4);
+  await page.getByTestId("coming-soon").click();
+
+  const panel = page.getByTestId("coming-soon-panel");
+  await expect(panel).toContainText("Imaging");
+  await expect(panel).toContainText("NCCN Guidelines");
+  // Lab reports is the one a doctor could read as broken rather than absent —
+  // this system already has a lab_requeue state, so it says so in words.
+  await expect(panel).toContainText("Not live yet");
+  await page.screenshot({ path: `${SHOTS}/09-coming-soon.png` });
 });
 
 test("N calls the next patient, and the rail follows", async ({ page, request }) => {
@@ -129,13 +228,13 @@ test("N calls the next patient, and the rail follows", async ({ page, request })
 });
 
 test("D opens the consult note for the patient on the stage", async ({ page, request }) => {
-  // S10 shipped the real note, so this no longer asserts the old "not built yet"
-  // toast. What it still guards is the S-UX.6 rule that the note belongs to a
-  // visit: D does nothing until somebody is on the stage, and the panel it opens
-  // names that patient.
+  // S10 shipped the real note. What this still guards is the S-UX.6 rule that
+  // the note belongs to a visit — D does nothing until somebody is on the stage
+  // — and Session B's addition: it is now a tab, so the spine does not unmount.
   await signedIn(page, await loginToken(request));
   await page.keyboard.press("d");
   await expect(page.locator(".dict h2")).toHaveText("Consult note");
+  await expect(page.getByTestId("context-spine")).toBeVisible();
   await page.keyboard.press("d");
   await expect(page.locator(".dict")).toHaveCount(0);
 });
@@ -143,6 +242,10 @@ test("D opens the consult note for the patient on the stage", async ({ page, req
 test("a full morning: lab re-queue, no-show, and consults completed", async ({ page, request }) => {
   const token = await loginToken(request);
   await signedIn(page, token);
+
+  // Work the whole department, not just this doctor's slice — the point of the
+  // department scope is that one doctor can clear the room.
+  await page.getByTestId("scope-department").click();
 
   // Send the patient in the room to the lab: they leave the front and rejoin
   // at the back of their priority (the S8 queue verb, not a console rule).
@@ -176,7 +279,7 @@ test("a full morning: lab re-queue, no-show, and consults completed", async ({ p
   // them from where they are (lab_requeue → done is the legal exit).
   const atLab = page.locator(".station.lab_requeue");
   while ((await atLab.count()) > 0) {
-    await atLab.first().locator("button").click();
+    await atLab.first().locator("button").first().click();
     await page.click("[data-testid='complete-consult']");
     await page.waitForTimeout(200);
   }

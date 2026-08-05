@@ -90,6 +90,17 @@ export function DictationPanel({
   const signed = dictation?.status === "signed";
   const fields = dictation?.fields ?? null;
 
+  // True once the doctor has touched the transcript for this visit. The panel
+  // renders immediately and loads the stored note a moment later, so without
+  // this a doctor who starts typing the instant the note opens has the first
+  // sentence silently replaced when the fetch lands. Losing dictated words is
+  // the one failure this whole surface exists to prevent, so the server only
+  // seeds a field nobody has written in.
+  const touched = useRef(false);
+  useEffect(() => {
+    touched.current = false;
+  }, [visitId]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -97,7 +108,7 @@ export function DictationPanel({
         const existing = await fetchDictation(token, visitId);
         if (cancelled) return;
         setDictation(existing);
-        setTranscript(existing?.transcript ?? "");
+        if (!touched.current) setTranscript(existing?.transcript ?? "");
       } catch (err) {
         if (!(err instanceof AuthError)) setError("Could not open the consult note.");
       }
@@ -315,7 +326,10 @@ export function DictationPanel({
           <textarea
             className="dict-transcript"
             value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
+            onChange={(e) => {
+              touched.current = true;
+              setTranscript(e.target.value);
+            }}
             placeholder="Dictate, or type the note here. Hinglish is fine."
             rows={fields ? 2 : 5}
             aria-label="Dictation transcript"

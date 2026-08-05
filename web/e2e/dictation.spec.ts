@@ -52,18 +52,23 @@ async function openConsole(
   await page.addInitScript((t) => localStorage.setItem("opd_staff_token", t), token);
   await page.goto("/doctor");
   await expect(page.locator(".appbar strong")).toHaveText("Dr. Anil Gupta");
+  // These row indices are positions in the department's queue order, so this
+  // suite reads the `Department` scope rather than Session B's `Mine` default —
+  // the demo deliberately leaves one arrival in the pool, and `Mine` would shift
+  // every index below it.
+  await page.getByTestId("scope-department").click();
   const station = page.locator(".station").nth(row);
   await expect(station).toBeVisible();
-  // The rail renders "Name · 58y" with the age in an <em>; the card heading is
+  // The rail renders "Name · 58y" with the age in an <em>; the spine's heading is
   // the name alone, so compare against the name text node only.
   const name = await station
     .locator(".sname")
     .evaluate((el) => (el.childNodes[0]?.textContent ?? "").trim());
-  await station.click();
+  await station.locator(".srow").click();
   // Wait for the stage to be showing *this* patient rather than whoever the day
   // fetch auto-opened — otherwise a test can silently dictate onto the wrong
   // visit, which is the one mistake this whole session is about.
-  await expect(page.locator('[data-testid="patient-card"] .who h1')).toHaveText(name);
+  await expect(page.locator('[data-testid="context-spine"] h1')).toHaveText(name);
 }
 
 /** Open the note for the patient currently on the stage, typed not spoken. */
@@ -85,7 +90,11 @@ test("D opens the consult note for the patient on the stage", async ({ page, req
   await page.keyboard.press("d");
 
   await expect(page.locator(".dict")).toBeVisible();
+  // The note is a tab now, so the read tabs step aside — but the context spine
+  // stays mounted above it (Session B). Losing the red flags at the moment a
+  // prescription is being composed was the whole reason for the spine.
   await expect(page.locator('[data-testid="patient-card"]')).toHaveCount(0);
+  await expect(page.getByTestId("context-spine")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/01-capture.png`, fullPage: true });
 
   // And D closes it again — the same key, not a second one to remember.
@@ -174,14 +183,15 @@ test("signing locks the note", async ({ page, request }) => {
   // Reopening shows the signed note, still locked — the lock is the record's,
   // not this component's local state.
   await page.reload();
-  await page.locator(".station").nth(ROW.signs).click();
+  await page.getByTestId("scope-department").click();
+  await page.locator(".station").nth(ROW.signs).locator(".srow").click();
   await page.keyboard.press("d");
   await expect(page.locator(".dict-signed")).toBeVisible();
 });
 
 test("a signed note cannot be re-dictated, even over the API", async ({ request }) => {
   const token = await loginToken(request);
-  const day = await request.get(`${API}/doctor/day`, {
+  const day = await request.get(`${API}/doctor/day?scope=department`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   // The row the previous test signed.

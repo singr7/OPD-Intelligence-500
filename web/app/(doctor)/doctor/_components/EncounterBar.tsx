@@ -65,18 +65,12 @@ export function EncounterBar({
         <span className={`enc-dot ${roomIsEmpty ? "idle" : "live"}`} aria-hidden="true" />
         <div className="enc-text">
           <strong>{card ? HEADLINE[state ?? "waiting"] ?? "On the list" : "Room is free"}</strong>
+          {/* Who this is belongs to the context spine directly below, which never
+              unmounts. Saying it twice, 40 pixels apart, buys nothing — so the
+              bar states the one thing the spine cannot: the line still outside. */}
           <span>
-            {card ? (
-              <>
-                Token {card.token_no ?? "—"} · {card.name}
-                {card.age != null && ` · ${card.age}y`}
-              </>
-            ) : (
-              <>
-                {waiting} {waiting === 1 ? "patient" : "patients"} waiting in{" "}
-                {day?.department_name ?? "this department"}
-              </>
-            )}
+            {waiting} {waiting === 1 ? "patient" : "patients"} waiting in{" "}
+            {day?.department_name ?? "this department"}
           </span>
         </div>
       </div>

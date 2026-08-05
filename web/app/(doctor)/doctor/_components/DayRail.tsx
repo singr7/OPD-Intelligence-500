@@ -125,7 +125,11 @@ export function DayRail({
                   .filter(Boolean)
                   .join(" ")}
               >
-                <button onClick={() => onSelect(row)} data-testid={`station-${row.token_no}`}>
+                <button
+                  className="srow"
+                  onClick={() => onSelect(row)}
+                  data-testid={`station-${row.token_no}`}
+                >
                   <span className="node" aria-hidden="true" />
                   <span className="stok">{row.token_no}</span>
                   <span className="sbody">

@@ -85,6 +85,7 @@ export const CONSOLE_CSS = `
 .scope.is-open .scope-n { color: var(--primary-d); }
 .scope.is-attention { background: var(--accent-soft); border-color: #e8c583; color: #7a4d0a; }
 .scope.is-attention .scope-n { color: #7a4d0a; }
+.scope.is-open, .scope.is-attention.is-open { box-shadow: inset 0 -3px 0 currentColor; }
 .scope.is-attention.is-open { border-color: var(--accent); }
 .unassigned-alert { margin: 0 2px 12px; padding: 7px 11px; border-radius: 9px;
   background: var(--accent-soft); color: #7a4d0a; font-size: 13px; font-weight: 700;
@@ -102,11 +103,11 @@ export const CONSOLE_CSS = `
   width: 2px; background: var(--line); border-radius: 2px; }
 
 .station { position: relative; }
-.station > button { display: grid; grid-template-columns: 24px 42px 1fr; align-items: start;
+.station > .srow { display: grid; grid-template-columns: 24px 42px 1fr; align-items: start;
   gap: 8px; width: 100%; text-align: left; background: none; border: none; cursor: pointer;
   padding: 10px 8px; border-radius: 7px; font: inherit; color: inherit; }
-.station > button:hover { background: var(--bg); }
-.station.is-selected > button { background: var(--primary-soft); }
+.station > .srow:hover { background: var(--bg); }
+.station.is-selected > .srow { background: var(--primary-soft); }
 
 .station .node { grid-column: 1; margin: 4px auto 0; width: 13px; height: 13px; border-radius: 50%;
   background: var(--surface); border: 2px solid var(--line); box-shadow: 0 0 0 4px var(--surface);
@@ -135,8 +136,9 @@ export const CONSOLE_CSS = `
 /* whose patient this is — stated only when it is not the reading doctor's */
 .station .swho { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
 .station .swho.pool { color: #7a4d0a; font-weight: 700; }
-.station .take { margin: 0 8px 8px 74px; border: 1.5px solid var(--line); background: var(--surface);
-  color: var(--ink); font: 700 13px/1 var(--font-sans), sans-serif; padding: 8px 12px;
+.station .take { display: block; margin: 0 8px 10px 74px; white-space: nowrap;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+  font: 700 13px/1 var(--font-sans), sans-serif; padding: 9px 12px;
   border-radius: var(--radius-control); cursor: pointer; }
 .station .take:hover { border-color: var(--primary); color: var(--primary-d); }
 .station .take:disabled { opacity: .5; cursor: default; }

@@ -311,6 +311,11 @@ DEMO_PATIENTS: list[dict[str, Any]] = [
         },
         "history": False,
         "trend": False,
+        # The one arrival nobody assigned — an offline kiosk syncs with no roster
+        # to pick from, so she lands in the department pool. The doctor console's
+        # Unassigned scope exists for exactly this patient, and a demo where
+        # every token already has a doctor's name on it cannot show that.
+        "assigned": False,
     },
 ]
 
@@ -329,6 +334,39 @@ def _play(tree, scripted: dict[str, tuple[Any, str]]) -> Walk:
         value, said = scripted[node.id]
         walk.save(node.id, value, text=said, lang=Lang.HI)
     return walk
+
+
+async def _clear_todays_line(session, department_id: uuid.UUID) -> int:
+    """Close out anyone else already queued in this department today.
+
+    A shared dev database accumulates arrivals: the kiosk demo, the assign
+    spec, an afternoon of manual clicking. They are real rows and this does not
+    delete them — it marks their queue entries `done`, which is the state the
+    worklist already excludes. The demo then owns the department's day, and the
+    screenshots and E2E assertions about *which* token leads the rail mean what
+    they say instead of depending on what somebody did before lunch.
+
+    Only the queue entry moves. No visit, intake, note or patient is touched.
+    """
+    entries = (
+        (
+            await session.execute(
+                select(QueueEntry)
+                .join(Queue, QueueEntry.queue_id == Queue.id)
+                .where(
+                    Queue.department_id == department_id,
+                    Queue.date == q.today(),
+                    QueueEntry.state.not_in([QueueEntryState.DONE, QueueEntryState.NO_SHOW]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for entry in entries:
+        entry.state = QueueEntryState.DONE
+    await session.flush()
+    return len(entries)
 
 
 async def _reset(session, hospital_id: uuid.UUID) -> None:
@@ -466,6 +504,9 @@ async def main() -> None:
         assert dept is not None
 
         await _reset(session, dept.hospital_id)
+        closed = await _clear_todays_line(session, dept.id)
+        if closed:
+            print(f"closed {closed} queue entries left in {dept.code} by earlier demos")
 
         for spec in DEMO_PATIENTS:
             patient = Patient(
@@ -493,7 +534,7 @@ async def main() -> None:
             visit = Visit(
                 patient_id=patient.id,
                 department_id=dept.id,
-                doctor_id=doctor.id,
+                doctor_id=doctor.id if spec.get("assigned", True) else None,
                 date=q.today(),
                 status=VisitStatus.INTAKE_DONE,
                 channel=Channel.KIOSK,
@@ -535,7 +576,10 @@ async def main() -> None:
             await q.set_state(session, entry_id=called.id, state=QueueEntryState.IN_CONSULT)
 
         await session.commit()
+        pooled = [p["name"] for p in DEMO_PATIENTS if not p.get("assigned", True)]
         print(f"\nseeded {len(DEMO_PATIENTS)} walk-ins for {doctor.name} ({dept.code})")
+        if pooled:
+            print(f"  unassigned (department pool): {', '.join(pooled)}")
         print("login: +915550001001 — the OTP is echoed locally (OTP_DEBUG_ECHO=true)")
 
     await engine.dispose()
