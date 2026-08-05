@@ -17,7 +17,8 @@
     "e2e:admin": "playwright test --project=admin",
     "e2e:channels": "playwright test --project=channels",
     "e2e:people": "playwright test --project=people",
-    "e2e:assign": "playwright test --project=assign"
+    "e2e:assign": "playwright test --project=assign",
+    "e2e:scan": "playwright test --project=scan"
   },
   "dependencies": {
     "dexie": "^4.4.4",

@@ -476,9 +476,15 @@ def _extraction_out(record: DocumentExtraction) -> ExtractionOut:
 
 
 async def _todays_arrivals(session: AsyncSession, *, on: date_type | None) -> list[WorklistRowOut]:
-    from app.scheduling import hospital_tz
+    # `queue.today()` and not a fresh `datetime.now(...)`: the queue's definition
+    # of the operating day is the one the coordinator console and the board use,
+    # and the scanner has to agree with the screen standing next to it. Computing
+    # it independently here meant that between midnight and 05:30 IST the scanner
+    # looked at a different day than the queue and showed nobody — which is how
+    # this line got written twice.
+    from app.queue import today as queue_today
 
-    day = on or __import__("datetime").datetime.now(hospital_tz()).date()
+    day = on or queue_today()
     result = await session.execute(
         select(QueueEntry, Visit, Patient)
         .join(Queue, Queue.id == QueueEntry.queue_id)

@@ -1,0 +1,19 @@
+{
+  "name": "OPD Records Scanning",
+  "short_name": "OPD Scan",
+  "description": "Photograph a patient's reports so the doctor has them before the consult.",
+  "start_url": "/scan",
+  "scope": "/scan",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8faf9",
+  "theme_color": "#087f68",
+  "icons": [
+    {
+      "src": "/scan-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

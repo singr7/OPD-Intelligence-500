@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="OPD records scanning">
+  <rect width="192" height="192" rx="42" fill="#087f68"/>
+  <g fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 74V60a8 8 0 0 1 8-8h14M118 52h14a8 8 0 0 1 8 8v14M140 118v14a8 8 0 0 1-8 8h-14M74 140H60a8 8 0 0 1-8-8v-14"/>
+    <path d="M70 96h52" stroke-opacity="0.95"/>
+    <path d="M70 78h34M70 114h34" stroke-opacity="0.55"/>
+  </g>
+</svg>

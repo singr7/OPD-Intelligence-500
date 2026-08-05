@@ -98,6 +98,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // The MRD1 coordinator scanner (doc 21 §1.2). Live stack + `make seed`;
+      // this project *is* the session's frontend AC — a report is filed against
+      // the tapped patient, the page count is the server's, and a failed upload
+      // blocks the finish. Run explicitly (`npm run e2e:scan`); it files real
+      // documents on whatever database it points at.
+      name: "scan",
+      testMatch: /scan\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 414, height: 896 } },
+    },
+    {
       // Arrival identity + assignment (AR3, sessions/SESSION-ASSIGN-RX-PLAN.md).
       // This project *is* the session AC: a returning patient is recognised
       // without the kiosk disclosing anything, a coordinator unlocks the strip

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date
 
 import pytest
 from httpx import AsyncClient
@@ -282,7 +281,9 @@ async def test_the_worklist_is_todays_arrivals_in_token_order(
         patient = f.make_patient(clinic["hospital"])
         session.add(patient)
         await session.flush()
-        visit = f.make_visit(patient, clinic["department"], date=date.today(), token_no=token_no)
+        visit = f.make_visit(
+            patient, clinic["department"], date=queue_svc.today(), token_no=token_no
+        )
         session.add(visit)
         await session.flush()
         await queue_svc.enqueue(session, visit=visit)
@@ -293,6 +294,28 @@ async def test_the_worklist_is_todays_arrivals_in_token_order(
     rows = response.json()
     assert [r["token_no"] for r in rows] == [1, 2]
     assert all(r["patient_id"] for r in rows)
+
+
+async def test_the_worklist_uses_the_queues_own_definition_of_today(
+    client, session, clinic, staff_headers
+):
+    """The scanner and the coordinator console stand next to each other. When
+    this route computed its own "today" from the hospital timezone instead of
+    `queue.today()`, the two disagreed between midnight and 05:30 IST and the
+    scanner showed an empty list while the console showed a queue."""
+    from app import queue as queue_svc
+
+    visit = f.make_visit(
+        clinic["patient"], clinic["department"], date=queue_svc.today(), token_no=9
+    )
+    session.add(visit)
+    await session.flush()
+    await queue_svc.enqueue(session, visit=visit)
+    await session.flush()
+
+    rows = (await client.get("/records/scan/worklist", headers=staff_headers)).json()
+
+    assert [r["token_no"] for r in rows] == [9]
 
 
 async def test_the_worklist_searches_by_uhc_id_and_phone_but_never_by_name(
