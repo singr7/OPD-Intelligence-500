@@ -1,86 +1,95 @@
-# HANDOFF — after SESSION-AR2
+# HANDOFF — after SESSION-AR3
 
-**Repo state:** branch `assign-rx-identity`, last commit `d183f45`.
-`make test-backend` 1328 passed. Migrations `c6e3681f5ce1` and `520d07f0b3e4`
-are applied **locally only**.
+**Repo state:** branch `assign-rx-identity`, last commit `f49ba1e`.
+`make test-backend` 1335 passed, 1 xfailed. Migrations `c6e3681f5ce1` and
+`520d07f0b3e4` are applied **locally only** — still pending on Omen.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open; see
 `sessions/SESSION-ANDROID1.md`.
 
 **Where the build stands:** Session A of `sessions/SESSION-ASSIGN-RX-PLAN.md` is
-complete on the backend. A kiosk arrival can carry a phone and an optional UHC
-ID; a returning patient is matched and recorded as a candidate without the
-terminal disclosing anything; a coordinator unlocks a PIN-gated staff strip and
-settles identity + department + doctor in one action; a department change moves
-the queue entry and reissues the token; a skipped or offline arrival can be
-assigned later from the console. **None of it has a screen yet** — AR3 is the UI,
-and until it lands nothing a user touches has changed.
+now complete end to end — backend (AR1/AR2) *and* screens (AR3). A returning
+patient gives a phone and an optional hospital ID at the kiosk; the terminal
+discloses nothing; a coordinator unlocks a PIN-gated strip on the token screen and
+settles identity + department + doctor in one `Confirm`; a skipped or offline
+arrival is assigned from the coordinator console. All of it is driven by
+`web/e2e/assign.spec.ts` against a live stack. **What still does not exist is the
+doctor's side**: assignment currently changes nothing a doctor experiences,
+because the doctor console has no scoped worklists. That is Session B, and it is
+the next thing to build.
 
-## Next session (AR3) — the two screens
+## Next session (Session B) — the doctor workspace
 
-1. **Kiosk arrival**: "Have you visited us before?" → phone → optional UHC ID.
-   Doc 04 rural-first laws apply — audio-first, one decision per screen, ≥64px
-   targets, tap alternative always present. **English + Hindi only** (see below).
-   On a match the screen says only "we may already have your file; our staff
-   will confirm" — never the name, the MRN, or anything clinical.
-2. **Kiosk staff strip** on the token screen: locked by default, `Unlock` →
-   name picker (`GET /kiosk/staff/holders`) → numeric keypad → `POST
-   /kiosk/staff/unlock`. Unlocked, it shows the candidate, department, doctor
-   (pre-selected via `default_doctor_id`), `Skip` and `Confirm`. Idle relock.
-   On a token reissue the new number must be announced loudly — the patient is
-   holding a stale slip.
-3. **Coordinator console**: an assign control per entry, using
-   `/queue/entries/{id}/assignable` and `/queue/entries/{id}/assign`.
+`sessions/SESSION-ASSIGN-RX-PLAN.md` §3 and §4. In priority order:
 
-Wire shapes are in `app/routes/kiosk.py` (`StripOut`, `AssignIn`, `AssignOut`)
-and `app/routes/queue.py` (`EntryAssignIn/Out`).
+1. **`GET /doctor/day?scope=mine|unassigned|department`**, default `mine`, every
+   response carrying counts for all three so badges are truthful without a second
+   call. **The `Unassigned` count is the compensating control for every `Skip`
+   and every offline arrival** — it must be visible when its tab is not open, and
+   a non-zero count with waiting patients is an attention state, not a quiet
+   number. The console already surfaces the same idea as a "waiting, unassigned"
+   metric; make them agree.
+2. **"Take this patient"** on an unassigned or another doctor's row, audited.
+3. **The context spine** (§4.2) — sticky, never unmounts, carries exactly four
+   things: identity + token, diagnosis/stage, allergies, red flags.
+
+**Authorization stays at department scope.** `doctor.patient_card` and
+`dictation.assert_visit_scope` must not narrow to the assigned doctor — filtering
+a list is UX, narrowing access is a clinical-continuity decision this codebase
+already made the other way, on the record.
 
 First commands:
 
 ```
 git checkout assign-rx-identity
-make test-backend            # expect 1328 passed
-docs/04-UIUX-GUIDE.md        # mandatory before any screen
-sed -n '1,80p' sessions/SESSION-ASSIGN-RX-PLAN.md   # §1.2 sketches the strip
+make test-backend                    # expect 1335 passed
+docs/04-UIUX-GUIDE.md + docs/14      # mandatory before any screen
+sed -n '/^## 3\./,/^## 5\./p' sessions/SESSION-ASSIGN-RX-PLAN.md
 ```
 
 ## Watch out for
 
-- **Do not widen the `kiosk_staff` token.** It is deliberately accepted only by
-  `require_kiosk_staff`. A PIN typed in a public corridor must not reach the
-  coordinator console, the patient card or the audit trail.
-- **The kiosk must not render the candidate anywhere outside the unlocked strip.**
-  `test_kiosk_strip.py` asserts the unauthenticated response is clean; the screen
-  is the other half of that promise and has no test yet.
+- **Do not widen the `kiosk_staff` token.** Still accepted only by
+  `require_kiosk_staff`. The strip holds it in React state alone — never
+  localStorage — and drops it on lock, idle and relock. Keep it that way.
+- **The kiosk must never render the candidate outside the unlocked strip.**
+  `test_kiosk_strip.py` covers the server; `assign.spec.ts` now covers the screen
+  (it asserts no MRN in the DOM before the PIN, and none after relock).
+- **The arrival acknowledgement is unconditional by design.** If a future change
+  makes it appear only on a match, the kiosk becomes a way to test whether this
+  hospital holds a file on any phone number. See SESSION-AR3 decision 1.
 - `Queue` stays per-department with `doctor_id` NULL. Assignment is a visit
   attribute and a worklist filter, never a second queue.
 - `make deploy` does not run migrations. Two are pending for Omen.
-- The test suite still pins absolute 2026 dates in places; prefer
-  `tests/factories.generation_start()` / `a_weekday_ahead()` over a new pin.
+- `make lint` fails on **pre-existing** E501/I001 in the two AR1/AR2 autogenerated
+  migrations and `app/config.py:260`. Not AR3's, but somebody should clear it.
 
-## Decisions taken (do not re-litigate in AR3)
+## Decisions taken (do not re-litigate)
 
-1. **PIN issuance is seeded, not a screen.** Settled and built: `make seed` gives
-   the seeded coordinator PIN `4729` on local/test only; `make kiosk-pin` is the
-   operator's set/rotate/clear/unlock path. No admin UI for one coordinator.
-2. **New kiosk copy ships English + Hindi.** Marathi and Telugu are deferred and
-   must be logged as pending per doc 07 §4 — the arrival screens are
-   patient-facing, so the gap is recorded explicitly rather than left implied.
-   Do not machine-translate them into the other two.
+1. **PIN issuance is seeded, not a screen.** `make seed` gives the seeded
+   coordinator PIN `4729` on local/test only (holder: Rekha Meena);
+   `make kiosk-pin` is the operator's set/rotate/clear/unlock path.
+2. **New kiosk copy ships English + Hindi.** AR3's strings live in `T2` /`tb()` in
+   `web/app/(kiosk)/kiosk/_lib/i18n.ts` and fall through to English for mr/te
+   rather than being machine-translated. **Still pending native review** (doc 07
+   §4) — logged in STATE.md → Stubs & fakes.
+3. **The console shows that a candidate exists, never who it is.**
 
 ## Decisions needed from the human
 
-None blocking AR3.
+- **Marathi + Telugu for the arrival screens.** A mr/te patient currently reads
+  the three arrival screens and the strip in English. Getting these reviewed by a
+  native speaker is a person-task, not a build-task — who does it, and when?
 
 ## Backlog additions
 
-- Sessions B (doctor workspace IA, including the `Unassigned` count that is the
-  compensating control for every skipped assignment) and C (consult/prescription
-  paths) of `SESSION-ASSIGN-RX-PLAN.md` are unstarted. **Session B matters more
-  than it looks**: until the doctor console has scoped worklists, assignment
-  changes nothing a doctor experiences.
+- Session C of `SESSION-ASSIGN-RX-PLAN.md` (consult/prescription paths) unstarted.
+- **The strip needs two unlocks to re-route *and* assign**: changing the
+  department reissues the token and relocks, so picking a doctor in the new
+  department is a second pass. Correct, but a coordinator will notice. Worth
+  re-reading the strip in place after a reissue instead.
 - `app.kiosk._departments` is private while its sibling `department_by_code` is
   public. Harmonise on the next touch of that module.
 - Pre-existing E501 in `app/config.py:260`, left alone deliberately.
-- A sweep for remaining wall-clock coupling in the test suite; two real instances
-  were found and fixed in AR1.
+- The kiosk `speak()` promise never resolves in headless Chromium; harmless, but
+  it makes long Playwright runs on a stale dev server slow to tear down.

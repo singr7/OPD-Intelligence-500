@@ -398,6 +398,22 @@ public `instants_on` so generation and reconciliation cannot drift. Admin **Peop
 backend tests** + `web/e2e/people.spec.ts` (project `people`, `npm run e2e:people`, 5 tests — the
 session AC among them) + `web/screenshots/sgl2/`.
 
+**Built (AR1–AR3):** **Arrival identity and assignment** (`sessions/SESSION-ASSIGN-RX-PLAN.md`
+Session A) — who this patient is, and which doctor is going to see them, settled in one
+coordinator action. `app/assignment.py`: candidate matching on last-10-digit phone or
+`Patient.external_id` (never a merge — `find_candidate` cannot link anything by itself),
+roster-backed `assignable_doctors` with an honest `on_duty` flag, and `assign`, where a
+department change re-homes the queue entry and **reissues the token** because the series is
+per-department. AR3 gave it screens: three skippable kiosk arrival screens with a big numeric
+keypad, a **PIN-gated staff strip** on the token screen (locked at rest; the candidate is
+fetched only behind the PIN, held in component state, and dropped on relock), and the console's
+per-row assign control with a "waiting, unassigned" count. The kiosk tells the patient only
+"we may already have your file" — and tells it to everyone who gave a number, so a public
+terminal cannot be used to test whether this hospital holds a file on a phone number.
+Migrations `c6e3681f5ce1`, `520d07f0b3e4` (**local only**). 1212→**1335 backend tests** +
+`web/e2e/assign.spec.ts` (project `assign`, `npm run e2e:assign`, 3 tests — the session AC) +
+`web/screenshots/ar3/`.
+
 **Not built yet:** the real Exotel vendor WS + a live number (S14/S15 are proven against the
 fake client; `transfer_call`'s whisper applet is unproven against the vendor); the real Gemini
 Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointment **waitlist**
@@ -446,6 +462,10 @@ suite runs against a live stack: `cd web && npm run e2e` (needs `make dev` + a
 seeded dev DB; drives welcome→token, writes `web/screenshots/s6/`). The kiosk is a
 V3 client — the fake classifier always triages, so Q1 lands on the department
 chooser locally; pick a department to proceed.
+Arrival identity + assignment (AR3): `cd web && npm run e2e:assign` (needs `make dev` +
+`make seed`, which is what gives the seeded coordinator Rekha Meena the kiosk PIN `4729`).
+On the kiosk, the returning-patient path recognises seeded patient OPD000001 by the last ten
+digits of `+915551900001`.
 Local login: `POST /auth/otp/request {"phone": "+915550001001"}` (seeded doctor) returns
 `debug_code` when `OTP_DEBUG_ECHO=true`; POST it to `/auth/otp/verify` for a JWT.
 Provider status: `GET /providers/health` (unauthenticated; names + health only, never keys).
@@ -722,20 +742,27 @@ the only gate right now.**
   `docs/06-BUILD-PLAN.md` (AR track) and enforced by an `xfail(strict=True)` in
   `tests/test_doctor.py::test_session_b_the_worklist_scopes_to_the_assigned_doctor`,
   which fails as XPASS the moment B lands.
-- **Assignment and identity have no UI** (AR2) — the backend is complete and
-  tested: PIN-gated staff strip (`/kiosk/staff/*`, `/kiosk/{sid}/strip|assign`),
-  console assignment (`/queue/entries/{id}/assign|assignable`), returning-patient
-  matching on `/kiosk/start`, and department transfer with token reissue. No
-  screen calls any of it, so nothing a coordinator or patient can see has changed.
+- **The arrival screens ship English + Hindi only** (AR3) — the three arrival
+  screens and the staff strip use `T2` / `tb()` in
+  `web/app/(kiosk)/kiosk/_lib/i18n.ts`, which falls **mr/te through to English**
+  rather than machine-translating them. These are patient-facing screens asking
+  for a phone number and a health ID, so the gap is recorded rather than papered
+  over. Pending native review (doc 07 §4); when it arrives the keys move into `T`
+  and `tb` disappears — the type makes that a compile-time move, not a search.
+- **Assignment has screens but still no doctor-side effect** (AR3) — the kiosk
+  arrival pair, the PIN-gated staff strip and the console's assign control are
+  built and driven by `web/e2e/assign.spec.ts`. What is still missing is Session
+  B: `doctor.day_list` remains department-scoped and ignores `Visit.doctor_id`,
+  so a coordinator assigns a doctor and no doctor's screen respects it.
   Migrations `c6e3681f5ce1` and `520d07f0b3e4` are applied **locally only**, and
   `make deploy` does not run migrations.
-- **The kiosk cannot match or assign while offline** (AR2, accepted pilot debt) —
-  no roster and no server, so an offline arrival syncs as a new patient with
-  `patient_link_state = none` and no doctor. The coordinator console's assign
-  control and the doctor console's `Unassigned` count are the compensating
-  controls; neither is optional, and the doctor-side half is not built yet
-  (Session B). Duplicate patient rows are the expected outcome and must stay
-  mergeable without data loss.
+- **The kiosk cannot assign while offline** (AR2/AR3, accepted pilot debt) — no
+  roster and no server, so an offline arrival syncs with no doctor and is settled
+  from the coordinator console. Since AR3 it *does* carry the patient's health ID
+  through sync and gets its candidate lookup at sync time, so the console has a
+  prior file to offer. The doctor console's `Unassigned` count is the other
+  compensating control and is not built yet (Session B). Duplicate patient rows
+  are the expected outcome and must stay mergeable without data loss.
 - **A kiosk PIN cannot be issued from any UI** (AR2) — `app.auth.kiosk_pin.set_pin`
   has no route, by decision: one pilot coordinator does not justify an admin
   screen. `make seed` gives the seeded coordinator (`+915550000002`) the
