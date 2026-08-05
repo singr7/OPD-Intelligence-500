@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "status": "review_pending",
+  "note": [
+    "Fallback adult reference ranges, used ONLY when a report does not print its",
+    "own range (doc 21 §1.4). When the report prints one we compare against that,",
+    "in the report's own units, and never touch this file — a lab's own range is",
+    "the one its analyser was calibrated to.",
+    "",
+    "status=review_pending is load-bearing: until an oncologist signs this off,",
+    "every flag derived from it is shown as a weaker, grey signal in the doctor's",
+    "UI (ref_source='default'), not as an equal to a printed-range flag.",
+    "",
+    "Adults only. There are no paediatric ranges here and no pregnancy ranges;",
+    "a test whose range genuinely depends on those is better left unflagged than",
+    "flagged against the wrong population.",
+    "",
+    "'critical' thresholds change the ORDER values are shown in and nothing else.",
+    "They are not an urgency decision and they never page anyone: red flags and",
+    "escalation are deterministic clinical logic elsewhere (CODEBASE_MEMORY)."
+  ],
+  "tests": [
+    {
+      "key": "hemoglobin",
+      "display": "Hemoglobin",
+      "aliases": ["hb", "hgb", "haemoglobin", "hemoglobin (hb)"],
+      "unit": "g/dL",
+      "units": {"g/dl": "1", "g%": "1", "gm/dl": "1", "g/l": "0.1"},
+      "ranges": [
+        {"sex": "male", "low": "13.0", "high": "17.0"},
+        {"sex": "female", "low": "12.0", "high": "15.0"}
+      ],
+      "critical": {"low": "7.0", "high": "20.0"}
+    },
+    {
+      "key": "wbc",
+      "display": "Total leucocyte count",
+      "aliases": ["tlc", "wbc", "white blood cells", "total wbc count", "leucocyte count"],
+      "unit": "10^3/uL",
+      "units": {"10^3/ul": "1", "/ul": "0.001", "/cumm": "0.001", "cells/cumm": "0.001", "10^9/l": "1", "thou/ul": "1"},
+      "ranges": [{"sex": "any", "low": "4.0", "high": "11.0"}],
+      "critical": {"low": "1.0", "high": "50.0"}
+    },
+    {
+      "key": "anc",
+      "display": "Absolute neutrophil count",
+      "aliases": ["anc", "absolute neutrophil count", "neutrophil absolute count"],
+      "unit": "10^3/uL",
+      "units": {"10^3/ul": "1", "/ul": "0.001", "/cumm": "0.001", "cells/cumm": "0.001", "10^9/l": "1"},
+      "ranges": [{"sex": "any", "low": "2.0", "high": "7.0"}],
+      "critical": {"low": "0.5", "high": "30.0"}
+    },
+    {
+      "key": "platelets",
+      "display": "Platelet count",
+      "aliases": ["platelet count", "platelets", "plt", "platelet"],
+      "unit": "10^3/uL",
+      "units": {"10^3/ul": "1", "/ul": "0.001", "/cumm": "0.001", "lakh/cumm": "100", "10^9/l": "1"},
+      "ranges": [{"sex": "any", "low": "150", "high": "410"}],
+      "critical": {"low": "50", "high": "1000"}
+    },
+    {
+      "key": "creatinine",
+      "display": "Creatinine",
+      "aliases": ["creatinine", "serum creatinine", "s. creatinine", "creat"],
+      "unit": "mg/dL",
+      "units": {"mg/dl": "1", "umol/l": "0.0113"},
+      "ranges": [
+        {"sex": "male", "low": "0.7", "high": "1.3"},
+        {"sex": "female", "low": "0.6", "high": "1.1"}
+      ],
+      "critical": {"high": "3.0"}
+    },
+    {
+      "key": "urea",
+      "display": "Blood urea",
+      "aliases": ["urea", "blood urea", "b. urea"],
+      "unit": "mg/dL",
+      "units": {"mg/dl": "1"},
+      "ranges": [{"sex": "any", "low": "15", "high": "40"}],
+      "critical": {"high": "100"}
+    },
+    {
+      "key": "bilirubin_total",
+      "display": "Total bilirubin",
+      "aliases": ["total bilirubin", "bilirubin total", "s. bilirubin (total)", "t. bilirubin"],
+      "unit": "mg/dL",
+      "units": {"mg/dl": "1", "umol/l": "0.0585"},
+      "ranges": [{"sex": "any", "low": "0.2", "high": "1.2"}],
+      "critical": {"high": "5.0"}
+    },
+    {
+      "key": "alt",
+      "display": "ALT (SGPT)",
+      "aliases": ["alt", "sgpt", "alt (sgpt)", "sgpt (alt)", "alanine aminotransferase"],
+      "unit": "U/L",
+      "units": {"u/l": "1", "iu/l": "1"},
+      "ranges": [{"sex": "any", "low": "0", "high": "50"}],
+      "critical": {"high": "200"}
+    },
+    {
+      "key": "ast",
+      "display": "AST (SGOT)",
+      "aliases": ["ast", "sgot", "ast (sgot)", "sgot (ast)", "aspartate aminotransferase"],
+      "unit": "U/L",
+      "units": {"u/l": "1", "iu/l": "1"},
+      "ranges": [{"sex": "any", "low": "0", "high": "50"}],
+      "critical": {"high": "200"}
+    },
+    {
+      "key": "alp",
+      "display": "Alkaline phosphatase",
+      "aliases": ["alp", "alkaline phosphatase", "s. alkaline phosphatase"],
+      "unit": "U/L",
+      "units": {"u/l": "1", "iu/l": "1"},
+      "ranges": [{"sex": "any", "low": "40", "high": "130"}]
+    },
+    {
+      "key": "albumin",
+      "display": "Albumin",
+      "aliases": ["albumin", "s. albumin", "serum albumin"],
+      "unit": "g/dL",
+      "units": {"g/dl": "1", "g/l": "0.1"},
+      "ranges": [{"sex": "any", "low": "3.5", "high": "5.2"}]
+    },
+    {
+      "key": "sodium",
+      "display": "Sodium",
+      "aliases": ["sodium", "na", "na+", "s. sodium"],
+      "unit": "mmol/L",
+      "units": {"mmol/l": "1", "meq/l": "1"},
+      "ranges": [{"sex": "any", "low": "135", "high": "145"}],
+      "critical": {"low": "125", "high": "155"}
+    },
+    {
+      "key": "potassium",
+      "display": "Potassium",
+      "aliases": ["potassium", "k", "k+", "s. potassium"],
+      "unit": "mmol/L",
+      "units": {"mmol/l": "1", "meq/l": "1"},
+      "ranges": [{"sex": "any", "low": "3.5", "high": "5.1"}],
+      "critical": {"low": "2.5", "high": "6.5"}
+    },
+    {
+      "key": "calcium",
+      "display": "Calcium",
+      "aliases": ["calcium", "s. calcium", "total calcium"],
+      "unit": "mg/dL",
+      "units": {"mg/dl": "1", "mmol/l": "4.008"},
+      "ranges": [{"sex": "any", "low": "8.6", "high": "10.3"}],
+      "critical": {"low": "7.0", "high": "13.0"}
+    },
+    {
+      "key": "magnesium",
+      "display": "Magnesium",
+      "aliases": ["magnesium", "mg", "s. magnesium"],
+      "unit": "mg/dL",
+      "units": {"mg/dl": "1"},
+      "ranges": [{"sex": "any", "low": "1.7", "high": "2.4"}]
+    },
+    {
+      "key": "ldh",
+      "display": "LDH",
+      "aliases": ["ldh", "lactate dehydrogenase", "l.d.h."],
+      "unit": "U/L",
+      "units": {"u/l": "1", "iu/l": "1"},
+      "ranges": [{"sex": "any", "low": "140", "high": "280"}]
+    },
+    {
+      "key": "crp",
+      "display": "CRP",
+      "aliases": ["crp", "c-reactive protein", "c reactive protein"],
+      "unit": "mg/L",
+      "units": {"mg/l": "1", "mg/dl": "10"},
+      "ranges": [{"sex": "any", "low": "0", "high": "5"}]
+    },
+    {
+      "key": "inr",
+      "display": "INR",
+      "aliases": ["inr", "international normalised ratio", "international normalized ratio"],
+      "unit": "ratio",
+      "units": {"ratio": "1", "": "1"},
+      "ranges": [{"sex": "any", "low": "0.8", "high": "1.2"}],
+      "critical": {"high": "4.0"}
+    }
+  ]
+}
