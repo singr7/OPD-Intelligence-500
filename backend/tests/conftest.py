@@ -43,6 +43,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.main import create_app
 from app.providers.metering import UsageMeter, set_meter
+from app.providers.objectstore import FakeObjectStore
 from app.providers.pricing import PriceBookCache, set_price_book
 from app.providers.registry import reset_providers
 from app.providers.sms import FakeSMSProvider
@@ -86,6 +87,9 @@ def settings() -> Settings:
         # ≥32 chars: shorter keys weaken HS256 and make pyjwt warn on every decode.
         jwt_secret="test-secret-not-a-real-one-padded-to-32+",
         sms_provider="fake",
+        # In-memory pages: a test suite that writes JPEGs to a tmpdir is a test
+        # suite that leaves clinical-shaped files around after a failed run.
+        object_store="fake",
         otp_debug_echo=True,
         # Cooldown off by default: most tests request several OTPs in a row and
         # aren't testing the rate limiter. The test that is sets its own value.
@@ -156,6 +160,20 @@ def sms(providers: None, settings: Settings) -> FakeSMSProvider:
     provider = get_sms_provider(settings)
     assert isinstance(provider, FakeSMSProvider)
     return provider
+
+
+@pytest.fixture
+def object_store(providers: None, settings: Settings) -> FakeObjectStore:
+    """The fake object store this test's app is wired to (doc 21 §1.3).
+
+    Same rule as `sms`: taken *from* the registry rather than built alongside it,
+    so a test asserting on stored pages is asserting on the store the route used.
+    """
+    from app.providers.registry import get_object_store
+
+    store = get_object_store(settings)
+    assert isinstance(store, FakeObjectStore)
+    return store
 
 
 @pytest.fixture

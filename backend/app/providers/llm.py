@@ -138,8 +138,7 @@ class LLMProvider(Provider):
     ) -> LLMResult:
         if request.images and not self.supports_images:
             raise UnsupportedCapability(
-                f"{self.name} ({self.model}) cannot read images; "
-                f"{len(request.images)} attached"
+                f"{self.name} ({self.model}) cannot read images; {len(request.images)} attached"
             )
         return await self._invoke(
             purpose, lambda call: self._complete(request, call), model=self.model

@@ -236,3 +236,43 @@ async def test_health_surfaces_unpriced_usage(client, session, meter, prices):
 
     body = (await client.get("/providers/health")).json()
     assert any(u["provider"] == "vendor-nobody-priced" for u in body["unpriced"])
+
+
+# -- object store (doc 21 §1.3) ------------------------------------------------
+
+
+def test_object_store_is_a_config_only_swap(settings):
+    from app.providers.objectstore import FakeObjectStore, FilesystemObjectStore
+    from app.providers.registry import get_object_store, reset_providers
+
+    reset_providers()
+    assert isinstance(
+        get_object_store(settings.model_copy(update={"object_store": "fake"})), FakeObjectStore
+    )
+
+    reset_providers()
+    real = get_object_store(
+        settings.model_copy(update={"object_store": "filesystem", "object_store_dir": "/tmp/x"})
+    )
+    assert isinstance(real, FilesystemObjectStore)
+
+
+def test_an_unknown_object_store_fails_at_build_time(settings):
+    """Same rule as every other provider: never fall back to the fake. A typo'd
+    OBJECT_STORE that silently became in-memory would accept a coordinator's
+    scans all morning and lose every one of them on restart."""
+    from app.providers.registry import UnknownProvider, get_object_store, reset_providers
+
+    reset_providers()
+    with pytest.raises(UnknownProvider, match="OBJECT_STORE"):
+        get_object_store(settings.model_copy(update={"object_store": "s3"}))
+
+
+def test_the_object_store_is_not_in_the_vendor_health_list(settings):
+    """It meters nothing and prices nothing, so it must not appear among the
+    providers `/providers/health` reports — an entry there is a promise to the
+    S18 dashboard that there are usage rows to reconcile against."""
+    from app.providers.registry import all_providers, reset_providers
+
+    reset_providers()
+    assert all(p.kind != "objectstore" for p in all_providers(settings))

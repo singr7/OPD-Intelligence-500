@@ -783,8 +783,6 @@ async def test_unsupported_capability_falls_through_to_a_vision_provider(meter):
     vision = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
 
     request = LLMRequest(prompt="Extract", images=[ImagePart(data=b"page")])
-    result = await with_fallback(
-        [text_only, vision], lambda provider: provider.complete(request)
-    )
+    result = await with_fallback([text_only, vision], lambda provider: provider.complete(request))
 
     assert result.text == "read it"

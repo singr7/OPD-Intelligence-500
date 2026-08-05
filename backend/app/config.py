@@ -246,6 +246,30 @@ class Settings(BaseSettings):
     # dialling a patient into an applet that answers with silence.
     exotel_checkin_applet_url: str = ""
 
+    # --- Medical record digitisation (SESSION-MRD1, doc 21) -------------------
+    # Scanned report pages. `filesystem` is a directory on the box (the Omen
+    # primary; a Docker volume in Compose); `fake` is in-memory and exists for
+    # tests and the offline demo. There is no S3 impl yet — doc 21 §8.
+    object_store: str = "filesystem"  # filesystem | fake
+    object_store_dir: str = "/data/records"
+    # Extraction is off until an operator points it at a vision-capable model.
+    # With it off, pages are still captured, stored and shown — only the machine
+    # reading is absent, and the document says so (doc 21 §1.5). This is the
+    # difference between "we have no summary" and "we have a summary of nothing".
+    mrd_enabled: bool = True
+    # Per page, after the phone has already downscaled. A 12MP camera JPEG is
+    # ~4MB; anything past this is a client that skipped the downscale step.
+    mrd_max_page_bytes: int = 8 * 1024 * 1024
+    # A lab report is a handful of pages. The cap is what stops one stuck
+    # capture loop from posting a hundred pages at a per-page-priced vendor.
+    mrd_max_pages: int = 20
+    # Pages sent to the vision model in one extraction call. Above this the
+    # document is refused rather than silently half-read.
+    mrd_max_extract_pages: int = 12
+    # How many times the sweep retries a failed extraction before it stops and
+    # waits for a human. A vendor outage should not cost the daily budget.
+    mrd_max_extract_attempts: int = 3
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}
@@ -257,7 +281,9 @@ class Settings(BaseSettings):
         problems = []
         if self.environment_id not in {"omen", "aws"}:
             problems.append("ENVIRONMENT_ID must be 'omen' or 'aws'")
-        if len(self.release_sha) != 40 or any(c not in "0123456789abcdef" for c in self.release_sha):
+        if len(self.release_sha) != 40 or any(
+            c not in "0123456789abcdef" for c in self.release_sha
+        ):
             problems.append("RELEASE_SHA must be the deployed full Git SHA")
         if self.jwt_secret == Settings.model_fields["jwt_secret"].default:
             problems.append("JWT_SECRET is still the dev default")

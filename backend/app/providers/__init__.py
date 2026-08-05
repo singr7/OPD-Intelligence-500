@@ -60,6 +60,13 @@ from app.providers.metering import (
     current_context,
     usage_scope,
 )
+from app.providers.objectstore import (
+    FakeObjectStore,
+    FilesystemObjectStore,
+    ObjectNotFound,
+    ObjectStore,
+    ObjectStoreError,
+)
 from app.providers.pricing import PriceBookCache, get_price_book
 from app.providers.realtime import (
     FakeRealtimeProvider,
@@ -72,6 +79,7 @@ from app.providers.registry import (
     all_providers,
     get_llm_provider,
     get_messaging_provider,
+    get_object_store,
     get_realtime_provider,
     get_sms_provider,
     get_stt_provider,
@@ -131,7 +139,9 @@ __all__ = [
     "FakeSMSProvider",
     "FakeSTTProvider",
     "FakeTTSProvider",
+    "FakeObjectStore",
     "FakeTelephonyProvider",
+    "FilesystemObjectStore",
     "ImagePart",
     "LLMProvider",
     "LLMRequest",
@@ -144,6 +154,9 @@ __all__ = [
     "OpenAIProvider",
     "OpenAISTTProvider",
     "OpenAITTSProvider",
+    "ObjectNotFound",
+    "ObjectStore",
+    "ObjectStoreError",
     "OutboundMessage",
     "PriceBookCache",
     "Provider",
@@ -180,6 +193,7 @@ __all__ = [
     "downgrade",
     "get_guard",
     "get_llm_provider",
+    "get_object_store",
     "get_messaging_provider",
     "get_price_book",
     "get_realtime_provider",

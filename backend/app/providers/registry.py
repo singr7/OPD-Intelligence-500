@@ -42,6 +42,11 @@ from app.providers.messaging import (
     MessagingProvider,
     MetaWhatsAppProvider,
 )
+from app.providers.objectstore import (
+    FakeObjectStore,
+    FilesystemObjectStore,
+    ObjectStore,
+)
 from app.providers.realtime import FakeRealtimeProvider, RealtimeVoiceProvider
 from app.providers.sms import (
     ExotelSMSProvider,
@@ -457,10 +462,12 @@ def telephony_provider_dependency(settings: Settings = Depends(get_settings)) ->
 
 def reset_providers() -> None:
     """Drop cached providers. Test fixtures use this for isolation between tests."""
+    global _object_store
     _instances.clear()
     _fingerprints.clear()
     _pinned.clear()
     _profile_instances.clear()
+    _object_store = None
 
 
 def install(kind: str, provider: Provider, *, name: str | None = None) -> None:
@@ -469,3 +476,36 @@ def install(kind: str, provider: Provider, *, name: str | None = None) -> None:
     _instances[key] = provider
     _fingerprints[key] = ""
     _pinned.add(key)
+
+
+# -- object store --------------------------------------------------------------
+#
+# Separate from `_BUILDERS` because an ObjectStore is not a `Provider`: it meters
+# nothing and prices nothing (see `objectstore` module docstring), so it must not
+# appear in `all_providers()` and the health endpoint's vendor list.
+
+_object_store: ObjectStore | None = None
+
+
+def _build_object_store(name: str, settings: Settings) -> ObjectStore:
+    match name:
+        case "fake":
+            return FakeObjectStore()
+        case "filesystem":
+            return FilesystemObjectStore(settings.object_store_dir)
+    raise UnknownProvider(f"OBJECT_STORE={name!r}; expected filesystem|fake")
+
+
+def get_object_store(settings: Settings | None = None) -> ObjectStore:
+    global _object_store
+    settings = settings or get_settings()
+    if _object_store is None:
+        _object_store = _build_object_store(settings.object_store, settings)
+        logger.info("object store -> %s", _object_store.name)
+    return _object_store
+
+
+def install_object_store(store: ObjectStore) -> None:
+    """Force a specific store in — for fixtures that need a handle on the fake."""
+    global _object_store
+    _object_store = store
