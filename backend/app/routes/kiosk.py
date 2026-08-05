@@ -64,6 +64,7 @@ from app.channels import require_open, resolve_config
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.intake import IntakeEngine, Interpreter, SessionState, ToolError
+from app.languages import script_problem
 from app.models.clinical import Visit
 from app.models.enums import Channel, Lang, UsagePurpose
 from app.models.org import Doctor
@@ -735,6 +736,24 @@ async def stt(
         # The kiosk always has tap-to-type behind this (doc 04 law 8); a 503 tells
         # it to show that fallback rather than blame the patient.
         raise HTTPException(status_code=503, detail="speech recognition is unavailable") from exc
+
+    # The script guard (doc 03 §1, `app.languages`). A recogniser handed Hindi
+    # audio can return Urdu script — the same words, in an alphabet this patient
+    # very likely cannot read. We may not transliterate it: inventing characters
+    # over a clinical complaint is exactly what the rest of this system refuses
+    # to do with drug names. So the transcript is dropped and the kiosk falls
+    # back to tap-to-type, which is the deterministic floor doc 04 law 8 already
+    # requires to be present on this screen.
+    problem = script_problem(transcript.text, lang)
+    if problem:
+        logger.warning("kiosk STT rejected: %s (provider %s)", problem, transcript.provider)
+        return SttOut(
+            text="",
+            provider=transcript.provider,
+            lang=str(lang),
+            confidence=transcript.confidence,
+            uncertain=True,
+        )
 
     return SttOut(
         text=transcript.text,

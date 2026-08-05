@@ -791,7 +791,7 @@ async def test_the_full_flow_over_http(
 async def test_a_prescription_with_no_speech_at_all_over_http(
     client: AsyncClient, session: AsyncSession, settings: Settings
 ) -> None:
-    """"Type note" end to end: no transcript, no `/map`, no model — and the same
+    """ "Type note" end to end: no transcript, no `/map`, no model — and the same
     signature, the same refusal, the same prescription at the end of it."""
     clinic, visit = await _clinic_with_visit(session)
     headers = _headers(settings, clinic["user"])

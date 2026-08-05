@@ -12,13 +12,26 @@
 // handles revalidation. So this caches HTML/JS/CSS/fonts only.
 //
 // Strategy:
-//   navigation + static assets  cache-first, updated in the background
-//   /kiosk/* API calls          never touched — the app's own fetch handles
-//                               those and falls back to the local walker
+//   navigation (the HTML shell)  network-first, falling back to the cache
+//   hashed static assets         cache-first — their URL changes when they do
+//   /kiosk/* API calls           never touched — the app's own fetch handles
+//                                those and falls back to the local walker
 //
-// The cache name carries a version; bump it to force a refresh on deploy.
+// **Why navigation is network-first.** It used to be cache-first "updated in the
+// background", with a comment asking the next person to bump the cache name on
+// every deploy. Nobody ever did, and the first kiosk load after a release served
+// the *previous* shell — which is how a deploy that had landed correctly still
+// showed the old intake screens, once, convincingly, to the person checking
+// whether the deploy had worked.
+//
+// A shell is one small HTML request and this box is on the hospital LAN, so
+// asking the network first costs nothing worth counting, and the cache still
+// answers the moment a fetch fails — which is the actual offline requirement
+// (doc 01 §5), not "answer from cache even when the network is fine". The
+// hashed `/_next/` assets stay cache-first because their filenames change
+// whenever their contents do, so they can never be stale.
 
-const CACHE = "kiosk-shell-v1";
+const CACHE = "kiosk-shell-v2";
 
 // Precache the entry point. Next's hashed chunks are cached lazily as they are
 // first requested (their names are not known at build time here).
@@ -68,20 +81,29 @@ self.addEventListener("fetch", (event) => {
   if (isApi(url)) return; // let the app handle it
   if (!isShellAsset(request, url)) return;
 
+  const store = (response) => {
+    if (response && response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE).then((cache) => cache.put(request, copy));
+    }
+    return response;
+  };
+
+  // The shell: network first, cache only when the network cannot answer. A
+  // deployed change is visible on the very next load, and an offline kiosk
+  // still paints.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then(store)
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/kiosk")))
+    );
+    return;
+  }
+
+  // Everything else here is content-addressed by filename, so a cached copy can
+  // only be the right one.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      // Cache-first for a fast, offline-proof paint; revalidate in the
-      // background so a deploy is picked up on the next load.
-      return cached || network;
-    })
+    caches.match(request).then((cached) => cached || fetch(request).then(store))
   );
 });

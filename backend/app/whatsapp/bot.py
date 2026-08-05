@@ -43,6 +43,7 @@ from app.checkins import delivery as checkin_delivery
 from app.checkins import grading as checkin_grading
 from app.config import Settings
 from app.intake import IntakeEngine
+from app.languages import script_problem
 from app.models.clinical import Intake, Visit
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import (
@@ -886,6 +887,16 @@ class WhatsAppBot:
                 )
         except ProviderError as exc:
             logger.warning("whatsapp voice-note STT failed: %s", exc)
+            return ""
+        # The same script guard the kiosk and the engine run (`app.languages`): a
+        # recogniser handed Hindi audio can return Urdu script, and this text
+        # becomes the patient's chief complaint on the doctor's card and the
+        # coordinator's board. Heard-nothing is the honest reading — the bot
+        # already asks again when a voice note yields no text, and the patient
+        # can always type.
+        problem = script_problem(transcript.text, lang)
+        if problem:
+            logger.warning("whatsapp voice-note rejected: %s", problem)
             return ""
         return transcript.text.strip()
 

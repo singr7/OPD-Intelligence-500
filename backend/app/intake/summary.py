@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.intake.state import SessionState
+from app.languages import script_problem
 from app.models.enums import Lang, UsagePurpose
 from app.prompts import load
 from app.providers import LLMProvider, LLMRequest, with_fallback
@@ -49,6 +50,18 @@ LANG_NAMES: dict[str, str] = {
     Lang.TE: "Telugu",
 }
 
+#: The alphabet each language is read in here, named for the prompt (summarize
+#: v3). "Hindi" alone is not enough: Hindi and Urdu are one spoken language in two
+#: scripts, and a model told only "Hindi" answers in Perso-Arabic often enough
+#: that the pilot met it on day one. The prompt says it; `app.languages` enforces
+#: it, because a prompt is a request and a guard is a guarantee.
+SCRIPT_NAMES: dict[str, str] = {
+    Lang.EN: "Latin",
+    Lang.HI: "Devanagari",
+    Lang.MR: "Devanagari",
+    Lang.TE: "Telugu",
+}
+
 #: The template summarizer's read-back, per language — everyday words, no medical
 #: vocabulary, ending in a yes/no confirm (doc 03 §1: many patients cannot read,
 #: this is the only check they get). The LLM path writes a richer one; this is the
@@ -57,21 +70,13 @@ LANG_NAMES: dict[str, str] = {
 #: instruction) — this template never composes a clinical sentence of its own.
 _READBACK_TEMPLATE: dict[str, str] = {
     Lang.EN: (
-        "You told me: {concern}.\n{facts}{flags}"
-        "Is that right? Say yes, or tell me what to change."
+        "You told me: {concern}.\n{facts}{flags}Is that right? Say yes, or tell me what to change."
     ),
-    Lang.HI: (
-        "आपने बताया: {concern}।\n{facts}{flags}"
-        "क्या यह सही है? हाँ कहिए, या बताइए क्या बदलना है।"
-    ),
+    Lang.HI: ("आपने बताया: {concern}।\n{facts}{flags}क्या यह सही है? हाँ कहिए, या बताइए क्या बदलना है।"),
     Lang.MR: (
-        "तुम्ही सांगितलं: {concern}.\n{facts}{flags}"
-        "हे बरोबर आहे का? होय म्हणा, किंवा काय बदलायचं ते सांगा."
+        "तुम्ही सांगितलं: {concern}.\n{facts}{flags}हे बरोबर आहे का? होय म्हणा, किंवा काय बदलायचं ते सांगा."
     ),
-    Lang.TE: (
-        "మీరు చెప్పారు: {concern}.\n{facts}{flags}"
-        "ఇది సరైనదేనా? అవును అనండి, లేదా ఏం మార్చాలో చెప్పండి."
-    ),
+    Lang.TE: ("మీరు చెప్పారు: {concern}.\n{facts}{flags}ఇది సరైనదేనా? అవును అనండి, లేదా ఏం మార్చాలో చెప్పండి."),
 }
 
 #: "And you also said:" — introduces the patient's own closing words in the
@@ -272,13 +277,12 @@ def _value_text(node, value: Any, lang: Lang | str) -> str:
     spoken read-back did: it told a Hindi speaker "You told me: My periods are
     irregular", which is not a sentence she can confirm or correct.
     """
+
     def label(option) -> str:
         return option.text.get(str(lang)) or option.text.get(Lang.EN) or option.id
 
     if isinstance(value, list):
-        labels = [
-            label(opt) for item in value if (opt := node.option(item)) is not None
-        ]
+        labels = [label(opt) for item in value if (opt := node.option(item)) is not None]
         return ", ".join(labels) if labels else str(value)
     if isinstance(value, str) and (opt := node.option(value)) is not None:
         return label(opt)
@@ -297,6 +301,7 @@ class LLMSummarizer:
         rendered = self._prompt.render(
             lang=str(state.lang),
             lang_name=LANG_NAMES.get(str(state.lang), str(state.lang)),
+            script_name=SCRIPT_NAMES.get(str(state.lang), "the language's own"),
             patient=state.chief_complaint or "(walk-in, details in the answers)",
             answers=render_answers(tree, walk, state.lang),
             # Handed over separately as well as inside `answers`: it is the line a
@@ -322,7 +327,9 @@ class LLMSummarizer:
         summary = IntakeSummary.parse(result.json())
         # Trust the rules, not the model, for the flag list — even if the prompt
         # behaved, this makes the invariant true by construction (doc 02 §5).
-        return _with_rule_flags(summary, flags, state.lang)
+        summary = _with_rule_flags(summary, flags, state.lang)
+        # And trust the script check, not the prompt, for what the patient hears.
+        return _with_safe_script(summary, state, tree, walk)
 
 
 class TemplateSummarizer:
@@ -449,3 +456,54 @@ def _with_rule_flags(
     from dataclasses import replace
 
     return replace(summary, red_flags=tuple(flag.name(Lang.EN) for flag in flags))
+
+
+def _with_safe_script(
+    summary: IntakeSummary, state: SessionState, tree: Tree, walk: Walk
+) -> IntakeSummary:
+    """Refuse a read-back written in a script this patient's language does not use.
+
+    A model asked for Hindi can answer in Urdu script — the same language, a
+    different alphabet — and the Alwar pilot met it on its first day. The
+    read-back is *the* confirmation step for a patient who cannot read a form
+    (doc 03 §1); rendering it in an alphabet they cannot read turns the one check
+    they get into a shape on a screen, and they will tap yes.
+
+    So the model does not get to decide the script. When it gets it wrong the
+    authored template read-back stands in — the same deterministic string the V3
+    offline floor speaks, complete in all four languages by construction and
+    checked by `app.lang_qa`. Degrade where there is something honest to degrade
+    to; here there is.
+
+    The patient's quote is dropped rather than replaced, because a quote is
+    supposed to be the patient's own words and there is nothing honest to put in
+    its place. `chief_concern`, `hpi` and `symptoms` are the doctor's English
+    card and are left alone.
+    """
+    from dataclasses import replace
+
+    lang = state.lang if isinstance(state.lang, Lang) else Lang(str(state.lang))
+    fixed = summary
+
+    problem = script_problem(summary.readback, lang)
+    if problem:
+        logger.warning("summary read-back rejected: %s; using the template read-back", problem)
+        fixed = replace(
+            fixed,
+            readback=_template_readback(
+                _role_answer(answered_rows(tree, walk, lang), SummaryRole.PRIMARY_SYMPTOM)
+                or state.chief_complaint
+                or "",
+                answered_rows(tree, walk, lang),
+                final_free_text(tree, walk),
+                walk.red_flags(),
+                lang,
+            ),
+        )
+
+    quote = str(fixed.patient_words.get("quote") or "")
+    if quote and script_problem(quote, lang):
+        logger.warning("summary patient quote dropped: wrong script for %s", lang)
+        fixed = replace(fixed, patient_words={})
+
+    return fixed

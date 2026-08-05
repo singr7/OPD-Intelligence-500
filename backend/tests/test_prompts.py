@@ -175,6 +175,7 @@ def test_summarize_prompt_renders_and_carries_the_doc_03_contract():
     rendered = prompt.render(
         lang="hi",
         lang_name="Hindi",
+        script_name="Devanagari",
         patient="Ramesh, 54",
         answers="fever x2d",
         final_words="mujhe raat ko saans phoolti hai",
@@ -192,6 +193,10 @@ def test_summarize_prompt_renders_and_carries_the_doc_03_contract():
         assert section in system, f"summary contract lost {section}"
     assert "unclear" in system  # never silently guess (doc 03 §4)
     assert "closing free-text answer" in system  # S-UX.6: never dropped
+    # v3: the read-back's *script* is pinned, not just its language. "Hindi"
+    # alone lets a model answer in Urdu script, which is what the pilot met.
+    assert "{{ script_name }} script" in system
+    assert "Devanagari" in rendered
 
 
 def test_dictation_prompt_forbids_drug_substitution():

@@ -46,9 +46,8 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC
+from datetime import UTC, datetime
 from datetime import date as date_type
-from datetime import datetime
 from typing import Any, Literal
 
 from sqlalchemy import select
@@ -376,9 +375,7 @@ async def conclude_visit(
         # table for us: the table is what stops the board representing a patient
         # who is both seen and waiting, and `started_at` stays truthful this way.
         if entry.state is QueueEntryState.CALLED:
-            await queue_svc.set_state(
-                session, entry_id=entry.id, state=QueueEntryState.IN_CONSULT
-            )
+            await queue_svc.set_state(session, entry_id=entry.id, state=QueueEntryState.IN_CONSULT)
         entry = await queue_svc.set_state(session, entry_id=entry.id, state=QueueEntryState.DONE)
     await session.flush()
     return Conclusion(visit=visit, entry_state=str(entry.state) if entry else None)

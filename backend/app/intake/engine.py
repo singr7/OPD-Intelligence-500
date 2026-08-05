@@ -51,6 +51,7 @@ from app.intake.interpret import Interpreter, LLMInterpreter
 from app.intake.state import SessionState, SessionStatus, SessionStore
 from app.intake.summary import LANG_NAMES, LLMSummarizer, Summarizer, TemplateSummarizer
 from app.intake.voicepack import EMPTY_PACK, VoicePack
+from app.languages import script_problem
 from app.models.clinical import Intake
 from app.models.enums import Channel, IntakeTier, Lang, UsagePurpose, VisitStatus
 from app.models.metering import UsageEvent
@@ -465,6 +466,13 @@ class IntakeEngine:
             await dispatcher.save_answer(node.id, fallback, raw_text=patient_text, lang=state.lang)
 
         spoken = result.text.strip()
+        # A generated turn in the wrong script is not spoken and not recorded.
+        # Unlike a transcript there is an honest replacement to hand: the node's
+        # own authored text, which is what every tap-tier intake shows and is in
+        # the bank in all four languages by construction (`app.lang_qa`).
+        if spoken and (problem := script_problem(spoken, state.lang)):
+            logger.warning("intake turn rejected: %s; falling back to the node text", problem)
+            spoken = _describe_node(node, state.lang)
         if spoken:
             state.record_turn("assistant", spoken, lang=state.lang)
             await self._speak(spoken, state, on_audio)
@@ -476,6 +484,15 @@ class IntakeEngine:
             self._stt_chain(state),
             lambda p: p.transcribe(turn.audio, str(state.lang), purpose=UsagePurpose.INTAKE_TURN),
         )
+        # Same guard as the kiosk's `/stt` route: a recogniser that answers Hindi
+        # audio in Urdu script has produced text this patient cannot read back,
+        # and transliterating it would be inventing characters over a clinical
+        # complaint. Heard-nothing is the honest reading, and the turn loop
+        # already knows how to ask again (`app.languages`).
+        problem = script_problem(transcript.text, state.lang)
+        if problem:
+            logger.warning("intake STT rejected: %s (provider %s)", problem, transcript.provider)
+            return ""
         return transcript.text
 
     async def _llm_turn(self, state: SessionState, node, patient_text: str):
@@ -674,7 +691,6 @@ class IntakeEngine:
                 intake.visit.status = VisitStatus.INTAKE_DONE
 
 
-
 def _has_real_llm(chain: Sequence[LLMProvider]) -> bool:
     """True when some provider in the chain is a configured, non-fake vendor.
 
@@ -684,8 +700,7 @@ def _has_real_llm(chain: Sequence[LLMProvider]) -> bool:
     already knows.
     """
     return any(
-        provider.health.configured and not provider.name.startswith("fake")
-        for provider in chain
+        provider.health.configured and not provider.name.startswith("fake") for provider in chain
     )
 
 

@@ -38,6 +38,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.languages import script_problem
 from app.models.enums import Lang, UsagePurpose
 from app.prompts import load
 from app.providers import LLMProvider, LLMRequest, with_fallback
@@ -173,13 +174,26 @@ class LLMInterpreter:
             lambda provider: provider.complete(request, purpose=UsagePurpose.INTAKE_TURN),
         )
         try:
-            return _parse(result.json())
+            interpretation = _parse(result.json())
         except (ValueError, TypeError, ProviderBadRequest) as exc:
             # A malformed interpretation must never crash an intake — it degrades
             # to a clarify, and the patient can always tap (doc 11 §5). Logged so
             # the S18 telemetry sees a real mis-map rate, not a silent swallow.
             logger.warning("interpret_answer returned unparseable JSON: %s", exc)
             return Interpretation(clarify=None, confidence=0.0)
+
+        # The clarify is read aloud and put on the screen, so it goes through the
+        # same script guard as every other generated line (`app.languages`). A
+        # clarify in a script the patient does not read is worse than no clarify:
+        # dropping it falls straight to the tap options, which is where doc 11 §5
+        # sends an exhausted attempt anyway. The *value* is untouched — it is an
+        # option id or a number, not prose.
+        if interpretation.clarify and (problem := script_problem(interpretation.clarify, lang)):
+            logger.warning("interpret_answer clarify dropped: %s", problem)
+            from dataclasses import replace
+
+            return replace(interpretation, clarify=None)
+        return interpretation
 
 
 def _parse(payload: Any) -> Interpretation:
