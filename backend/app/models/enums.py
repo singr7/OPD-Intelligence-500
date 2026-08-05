@@ -156,6 +156,26 @@ class DictationStatus(StrEnum):
     SIGNED = "signed"
 
 
+class RxMode(StrEnum):
+    """How a consult ended, prescribing-wise (plan §5.3b).
+
+    Recorded because the alternative is a blank visit. A doctor who writes on a
+    paper pad has still concluded the consult, and a record that shows nothing
+    at all cannot be told apart from one where the doctor was interrupted — the
+    two need very different follow-ups. This is a clinical record in its own
+    right: written, audited, and never inferred from the absence of a note.
+    """
+
+    #: A signed consult note in this system. The prescription, if there is one,
+    #: hangs off the signature.
+    SYSTEM = "system"
+    #: A paper script, or one written in another system. Nothing digital exists
+    #: for the patient's app, the pharmacy or the follow-up reminders.
+    EXTERNAL_MANUAL = "external_manual"
+    #: No prescription was given at all — advice, reassurance, a follow-up date.
+    NONE = "none"
+
+
 class CaregiverLinkStatus(StrEnum):
     """A family member's access to one patient's file (doc 03 §1c.6, S16).
 

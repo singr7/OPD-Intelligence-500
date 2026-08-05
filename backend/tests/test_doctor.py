@@ -29,6 +29,7 @@ from app.models.enums import (
     DictationStatus,
     QueueEntryState,
     Role,
+    RxMode,
     VisitStatus,
 )
 
@@ -560,6 +561,189 @@ async def test_patient_card_trends_need_more_than_one_point(
     assert series == {"nausea": [2.0, 1.0], "pain": [6.0, 3.0]}  # non-numeric "note" skipped
 
 
+# -- concluding the consult (plan §5.3b) --------------------------------------
+#
+# The interesting cases are the two lossy ones. A paper prescription is a real
+# and common outcome, and today it leaves a visit that looks exactly like one the
+# doctor abandoned halfway — same status, same queue entry, same nothing.
+
+
+async def _in_the_room(session: AsyncSession, entry) -> None:
+    """Get an entry to where a consult is actually happening."""
+    await q.set_state(session, entry_id=entry.id, state=QueueEntryState.CALLED)
+    await q.set_state(session, entry_id=entry.id, state=QueueEntryState.IN_CONSULT)
+
+
+async def test_a_paper_prescription_is_recorded_rather_than_left_blank(
+    session: AsyncSession,
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=71)
+    await _in_the_room(session, entry)
+
+    result = await doc.conclude_visit(
+        session,
+        visit_id=visit.id,
+        doctor=clinic["doctor"],
+        rx_mode=RxMode.EXTERNAL_MANUAL,
+        note="Written on the OPD pad; patient taking it to the hospital pharmacy.",
+    )
+
+    assert visit.rx_mode is RxMode.EXTERNAL_MANUAL
+    assert visit.concluded_by == clinic["doctor"].id
+    assert visit.concluded_at is not None
+    assert visit.conclusion_note.startswith("Written on the OPD pad")
+    # …and the queue moved, through the S8 verb rather than a second machine.
+    assert entry.state is QueueEntryState.DONE
+    assert result.entry_state == "done"
+    assert visit.status is VisitStatus.DONE
+
+
+async def test_an_unconcluded_visit_is_not_the_same_as_one_that_prescribed_nothing(
+    session: AsyncSession,
+) -> None:
+    """Null `rx_mode` is "nobody has said yet". `none` is a doctor saying it."""
+    clinic = await f.build_clinic(session)
+    untouched, _, _ = await _seed_visit(session, clinic, token_no=72)
+    advice_only, _, entry = await _seed_visit(session, clinic, token_no=73)
+    await _in_the_room(session, entry)
+
+    await doc.conclude_visit(
+        session, visit_id=advice_only.id, doctor=clinic["doctor"], rx_mode=RxMode.NONE
+    )
+
+    assert untouched.rx_mode is None
+    assert advice_only.rx_mode is RxMode.NONE
+
+
+async def test_concluding_as_system_needs_a_signed_note(session: AsyncSession) -> None:
+    """The one mode this function can check, so it checks it: `system` claims a
+    digital prescription exists, and the pharmacy would go looking for it."""
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=74)
+    await _in_the_room(session, entry)
+
+    with pytest.raises(doc.ConclusionRefused, match="no signed consult note"):
+        await doc.conclude_visit(
+            session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.SYSTEM
+        )
+
+    assert visit.rx_mode is None
+    assert entry.state is not QueueEntryState.DONE
+
+    session.add(_signed_note(visit, clinic["doctor"], diagnosis="x", signed_at=datetime.now(UTC)))
+    await session.flush()
+    await doc.conclude_visit(
+        session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.SYSTEM
+    )
+    assert visit.rx_mode is RxMode.SYSTEM
+
+
+async def test_concluding_refuses_another_departments_visit(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    other_dept = f.make_department(clinic["hospital"])
+    session.add(other_dept)
+    await session.flush()
+    elsewhere, _, _ = await _seed_visit(session, clinic, token_no=75, department=other_dept)
+
+    with pytest.raises(doc.DoctorError, match="another department"):
+        await doc.conclude_visit(
+            session, visit_id=elsewhere.id, doctor=clinic["doctor"], rx_mode=RxMode.NONE
+        )
+
+    assert elsewhere.rx_mode is None
+
+
+async def test_concluding_does_not_drag_a_no_show_back_through_done(
+    session: AsyncSession,
+) -> None:
+    """Both terminal states stay put. The conclusion is still worth recording —
+    what must not happen is the queue rewriting what happened to that patient."""
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=76)
+    await q.set_state(session, entry_id=entry.id, state=QueueEntryState.NO_SHOW)
+
+    result = await doc.conclude_visit(
+        session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.NONE
+    )
+
+    assert entry.state is QueueEntryState.NO_SHOW
+    assert result.entry_state == "no_show"
+    assert visit.rx_mode is RxMode.NONE
+
+
+async def test_concluding_a_called_patient_walks_the_queue_rather_than_jumping_it(
+    session: AsyncSession,
+) -> None:
+    """A doctor who concludes a called patient has seen them. The entry takes
+    the path it would have taken anyway, inside the S8 table, so `started_at`
+    still means what it says."""
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=79)
+    await q.set_state(session, entry_id=entry.id, state=QueueEntryState.CALLED)
+
+    await doc.conclude_visit(
+        session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.EXTERNAL_MANUAL
+    )
+
+    assert entry.state is QueueEntryState.DONE
+    assert entry.started_at is not None and entry.ended_at is not None
+
+
+async def test_a_patient_nobody_called_cannot_be_concluded(session: AsyncSession) -> None:
+    """Waiting is not a consult. Marking them done would take them off the board
+    without anyone having seen them, so nothing is written at all."""
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=80)
+
+    with pytest.raises(doc.ConclusionRefused, match="not been called in"):
+        await doc.conclude_visit(
+            session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.EXTERNAL_MANUAL
+        )
+
+    assert visit.rx_mode is None
+    assert entry.state is QueueEntryState.WAITING
+
+
+async def test_a_conclusion_is_audited(session: AsyncSession) -> None:
+    """The whole value of `external_manual` is that it is on the record. A
+    conclusion nobody can reconstruct afterwards is not a clinical record."""
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=77)
+    await _in_the_room(session, entry)
+
+    await doc.conclude_visit(
+        session, visit_id=visit.id, doctor=clinic["doctor"], rx_mode=RxMode.EXTERNAL_MANUAL
+    )
+    await session.flush()
+
+    logs = (
+        await session.scalars(
+            select(AuditLog).where(AuditLog.entity == "visits", AuditLog.entity_id == visit.id)
+        )
+    ).all()
+    assert any("rx_mode" in (log.meta.get("changed") or {}) for log in logs)
+
+
+async def test_the_card_carries_the_conclusion(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=78)
+    await _in_the_room(session, entry)
+    await doc.conclude_visit(
+        session,
+        visit_id=visit.id,
+        doctor=clinic["doctor"],
+        rx_mode=RxMode.EXTERNAL_MANUAL,
+        note="paper script",
+    )
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+
+    assert card.rx_mode == "external_manual"
+    assert card.conclusion_note == "paper script"
+    assert card.concluded_at is not None
+
+
 # -- the diagnosis line on the context spine ----------------------------------
 
 
@@ -787,6 +971,77 @@ async def test_take_route_refuses_another_departments_visit(
 
     resp = await client.post(
         f"/doctor/visits/{visit.id}/take", headers=_headers(settings, clinic["user"])
+    )
+    assert resp.status_code == 403
+
+
+async def test_conclude_route_records_a_paper_script_and_closes_the_queue(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, entry = await _seed_visit(session, clinic, token_no=26)
+    await _in_the_room(session, entry)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/conclude",
+        json={"rx_mode": "external_manual", "note": "paper script"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["rx_mode"] == "external_manual"
+    assert body["conclusion_note"] == "paper script"
+    assert body["entry_state"] == "done"
+    assert body["concluded_at"]
+
+    # And the patient has left the worklist, like anyone else who is done.
+    day = await client.get(
+        "/doctor/day", params={"scope": "department"}, headers=_headers(settings, clinic["user"])
+    )
+    assert [row["token_no"] for row in day.json()["rows"]] == []
+
+
+async def test_conclude_route_refuses_system_without_a_signature(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """400, not 403 — the doctor has every right to be here, they just have not
+    signed anything, and a permission error would send them hunting for the
+    wrong problem."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=27)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/conclude",
+        json={"rx_mode": "system"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 400
+    assert "signed consult note" in resp.json()["detail"]
+
+
+async def test_conclude_route_requires_a_mode_and_refuses_a_coordinator(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=28)
+    coordinator = f.make_user(clinic["hospital"], role=Role.COORDINATOR)
+    session.add(coordinator)
+    await session.flush()
+
+    # No default for `rx_mode`: a default would be a guess about a clinical fact.
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/conclude",
+        json={"note": "…"},
+        headers=_headers(settings, clinic["user"]),
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/conclude",
+        json={"rx_mode": "none"},
+        headers=_headers(settings, coordinator),
     )
     assert resp.status_code == 403
 

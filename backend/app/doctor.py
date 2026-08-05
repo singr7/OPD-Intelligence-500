@@ -1,6 +1,6 @@
 """The doctor's console read models (doc 03 §5).
 
-Two reads and exactly one write. The doctor's *queue* actions — call next,
+Two reads and two writes. The doctor's *queue* actions — call next,
 no-show, send to lab and re-queue — are still the S8 verbs
 (`app.queue.call_next` / `set_state`) that the coordinator console already
 drives, so this module owns no copy of the queue state machine. A second
@@ -20,6 +20,10 @@ of truth that disagree the moment one of them is patched.
   stalled line. It delegates to `app.assignment.assign` rather than writing
   `Visit.doctor_id` itself, so there is one implementation of "point this visit
   at a doctor" and one set of rules about which doctors are eligible.
+* `conclude_visit` — the other write, and the reason it is here rather than on
+  the queue: a paper prescription is a clinical fact about the consult, not a
+  position in a line. It records *how* the consult ended and then moves the
+  queue entry through `queue.set_state` like everyone else.
 
 **The card never re-derives clinical judgement.** Red flags are read from
 `Intake.red_flags`, which the rule engine wrote (`app.trees.rules`); the summary
@@ -42,6 +46,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import UTC
 from datetime import date as date_type
 from datetime import datetime
 from typing import Any, Literal
@@ -52,7 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import queue as queue_svc
 from app.models.clinical import Dictation, Intake, Visit
 from app.models.content import Checkin, CheckinPlan
-from app.models.enums import Lang
+from app.models.enums import DictationStatus, Lang, QueueEntryState, RxMode
 from app.models.org import Department, Doctor
 from app.models.patient import Patient
 from app.trees import bank
@@ -61,6 +66,16 @@ from app.trees.schema import Tree, TreeError
 
 class DoctorError(Exception):
     """The caller is a doctor, but not one who may see this."""
+
+
+class ConclusionRefused(DoctorError):
+    """The conclusion contradicts the record — not a permission problem.
+
+    Split out because everything else in this module raises `DoctorError` for
+    "not your department", which the routes answer with a 403. A doctor being
+    told "you have not signed a note yet" through a permission error would go
+    looking for the wrong thing entirely.
+    """
 
 
 # -- day list -----------------------------------------------------------------
@@ -281,6 +296,106 @@ async def take_visit(session: AsyncSession, *, visit_id: uuid.UUID, doctor: Doct
     return visit
 
 
+@dataclass(slots=True)
+class Conclusion:
+    """What concluding did: the visit's own record, and where the queue landed."""
+
+    visit: Visit
+    entry_state: str | None
+
+
+async def conclude_visit(
+    session: AsyncSession,
+    *,
+    visit_id: uuid.UUID,
+    doctor: Doctor,
+    rx_mode: RxMode,
+    note: str | None = None,
+) -> Conclusion:
+    """Close the consult and record how it ended (plan §5.3b).
+
+    The lossy conclusions are the reason this exists. A doctor who writes a paper
+    script has finished the consult, but nothing in this system knows it: the
+    queue entry sits in `in_consult` until someone clears it, and the visit looks
+    identical to one that was abandoned halfway. So the conclusion is written
+    down — which mode, by whom, when, with whatever the doctor wants to add —
+    and it is audited like every other write to `Visit`.
+
+    `system` is refused without a signed note, because that is what `system`
+    claims. A conclusion that says "there is a digital prescription" when there
+    is not would send the pharmacy looking for a document nobody produced, and
+    it is the one of the three modes this function can actually check.
+
+    The queue moves through `queue.set_state`, not through an assignment here: a
+    second way to mark an entry `done` is a second state machine, and the board
+    and the coordinator would start disagreeing with the consulting room within a
+    session or two. Which means this verb lives inside the S8 transition table
+    rather than around it:
+
+    * `in_consult` / `lab_requeue` → `done`, directly.
+    * `called` → `in_consult` → `done`. Concluding a called patient is the
+      doctor stating the consult happened, so the entry walks the same path it
+      would have if they had pressed the button on the way in.
+    * `waiting` → refused. Nobody called this patient, so there is no consult to
+      conclude, and marking them done would take them off the board without
+      anyone having seen them.
+    * `done` / `no_show` → left alone. Both are terminal, and dragging a no-show
+      back through `done` would rewrite what happened to that patient. The
+      conclusion itself is still recorded.
+    """
+    visit = await session.get(Visit, visit_id)
+    if visit is None or visit.deleted_at is not None:
+        raise DoctorError(f"no such visit {visit_id}")
+    if visit.department_id != doctor.department_id:
+        raise DoctorError("that patient is in another department")
+
+    if rx_mode is RxMode.SYSTEM:
+        signed = await session.scalar(
+            select(Dictation).where(
+                Dictation.visit_id == visit_id,
+                Dictation.status == DictationStatus.SIGNED,
+                Dictation.deleted_at.is_(None),
+            )
+        )
+        if signed is None:
+            raise ConclusionRefused(
+                "this visit has no signed consult note, so it cannot be concluded "
+                "as a system prescription"
+            )
+
+    # Everything that can refuse, refuses before anything is written. A rejected
+    # conclusion that had already stamped `rx_mode` on the visit would leave the
+    # record saying a consult ended in a way it did not.
+    entry = await _entry_for_visit(session, visit_id=visit_id)
+    if entry is not None and entry.state is QueueEntryState.WAITING:
+        raise ConclusionRefused(
+            "this patient has not been called in yet, so there is no consult to conclude"
+        )
+
+    visit.rx_mode = rx_mode
+    visit.conclusion_note = (note or "").strip() or None
+    visit.concluded_at = datetime.now(UTC)
+    visit.concluded_by = doctor.id
+
+    if entry is not None and entry.state not in _ALREADY_GONE:
+        # A called patient who is being concluded was, demonstrably, seen. Walk
+        # the entry through `in_consult` rather than widening the S8 transition
+        # table for us: the table is what stops the board representing a patient
+        # who is both seen and waiting, and `started_at` stays truthful this way.
+        if entry.state is QueueEntryState.CALLED:
+            await queue_svc.set_state(
+                session, entry_id=entry.id, state=QueueEntryState.IN_CONSULT
+            )
+        entry = await queue_svc.set_state(session, entry_id=entry.id, state=QueueEntryState.DONE)
+    await session.flush()
+    return Conclusion(visit=visit, entry_state=str(entry.state) if entry else None)
+
+
+#: Queue states a conclusion does not move. Both are terminal, and dragging a
+#: no-show back through `done` would rewrite what happened to that patient.
+_ALREADY_GONE = frozenset({QueueEntryState.DONE, QueueEntryState.NO_SHOW})
+
+
 async def _patients_for_visits(
     session: AsyncSession, visit_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, Patient]:
@@ -422,6 +537,12 @@ class PatientCard:
     #: caregiver answered this, in Hindi, at 09:14, on the conversational tier"
     #: is four facts a doctor can actually weigh.
     caregiver_answered: bool = False
+    #: How this consult ended, once a doctor has said (plan §5.3b). Null means
+    #: it has not been concluded — which the console must not render as "nothing
+    #: was prescribed", because those are different facts.
+    rx_mode: str | None = None
+    concluded_at: datetime | None = None
+    conclusion_note: str | None = None
 
 
 async def patient_card(
@@ -479,6 +600,9 @@ async def patient_card(
         assigned_doctor_name=assigned.name if assigned else None,
         diagnosis=await _diagnosis(session, patient_id=patient.id, current_visit_id=visit.id),
         caregiver_answered=bool(intake.caregiver_answered) if intake else False,
+        rx_mode=str(visit.rx_mode) if visit.rx_mode else None,
+        concluded_at=visit.concluded_at,
+        conclusion_note=visit.conclusion_note,
     )
 
 

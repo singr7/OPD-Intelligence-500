@@ -41,6 +41,7 @@ from app.models.enums import (
     IntakeTier,
     Lang,
     PatientLinkState,
+    RxMode,
     VisitStatus,
 )
 
@@ -76,6 +77,14 @@ class Visit(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
         server_default=PatientLinkState.NONE.value,
         index=True,
     )
+
+    #: How the consult ended (plan §5.3b). Null until a doctor concludes it, so
+    #: "not concluded" and "concluded with nothing" stay distinguishable — they
+    #: are different clinical situations and only one of them needs chasing.
+    rx_mode: Mapped[RxMode | None] = mapped_column(enum_type(RxMode, "rx_mode"), index=True)
+    conclusion_note: Mapped[str | None] = mapped_column(Text)
+    concluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    concluded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("doctors.id"))
 
     intakes: Mapped[list[Intake]] = relationship(back_populates="visit")
     dictations: Mapped[list[Dictation]] = relationship(back_populates="visit")

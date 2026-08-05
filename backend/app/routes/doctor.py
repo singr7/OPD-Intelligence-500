@@ -1,18 +1,20 @@
 """The doctor console's HTTP surface (doc 03 §5).
 
-Two reads and one write. The console's *queue* actions are the S8 verbs it
+Two reads and two writes. The console's *queue* actions are the S8 verbs it
 already shares with the coordinator — `POST /queue/call-next` and
 `POST /queue/entries/{id}/state` — so there is no `/doctor/call-next` here. One
 implementation of the queue state machine, one audit trail, one order on the
 board; a doctor-flavoured copy would drift from the coordinator's within a
 session or two.
 
-The write is `POST /doctor/visits/{id}/take`, and it exists because the thing it
-does is not a queue transition at all: it changes who the visit belongs to, not
-where it sits in the line. Routing it through the coordinator's assign endpoint
-would mean handing every doctor `require_staff` and a department picker to do
-the one thing they actually need — put their own name on the patient in front of
-them.
+The writes are `POST /doctor/visits/{id}/take` and `POST
+/doctor/visits/{id}/conclude`, and both exist because what they do is not a queue
+transition. `take` changes who the visit belongs to, not where it sits in the
+line; routing it through the coordinator's assign endpoint would mean handing
+every doctor `require_staff` and a department picker to do the one thing they
+actually need — put their own name on the patient in front of them. `conclude`
+records *how* the consult ended, including the two ways that leave this system
+with no prescription in it, and then moves the queue through the S8 verb.
 
 Every route is `require_doctor` (doctor or admin), a tighter guard than the
 coordinator's `require_staff`: this is the one surface that returns a patient's
@@ -27,12 +29,13 @@ from datetime import date as date_type
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import doctor as doctor_svc
 from app.auth.rbac import Principal, require_doctor
 from app.db import get_session
+from app.models.enums import RxMode
 from app.queue_hub import QueueHub
 from app.routes.queue import get_hub
 
@@ -162,6 +165,9 @@ class CardOut(BaseModel):
     assigned_doctor_name: str | None = None
     diagnosis: DiagnosisOut | None = None
     caregiver_answered: bool = False
+    rx_mode: str | None = None
+    concluded_at: datetime | None = None
+    conclusion_note: str | None = None
 
 
 # -- routes -------------------------------------------------------------------
@@ -223,6 +229,65 @@ async def take_patient(
     await hub.notify_queue_changed()
     return TakeOut(
         visit_id=visit.id, assigned_doctor_id=doctor.id, assigned_doctor_name=doctor.name
+    )
+
+
+class ConcludeIn(BaseModel):
+    """How the consult ended, and anything the doctor wants on the record.
+
+    `rx_mode` is required and has no default. A default here would be a guess
+    about a clinical fact, and the whole point of this endpoint is that the two
+    lossy conclusions are stated rather than inferred from an empty visit.
+    """
+
+    rx_mode: RxMode
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ConcludeOut(BaseModel):
+    visit_id: uuid.UUID
+    rx_mode: str
+    concluded_at: datetime
+    conclusion_note: str | None = None
+    entry_state: str | None = None
+
+
+@router.post("/visits/{visit_id}/conclude", response_model=ConcludeOut)
+async def conclude_visit(
+    visit_id: uuid.UUID,
+    body: ConcludeIn,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+    hub: QueueHub = Depends(get_hub),
+) -> ConcludeOut:
+    """Close the consult, saying how it ended (plan §5.3b).
+
+    `external_manual` is the one that matters: it is the doctor telling the
+    record that a paper script exists and this system has no copy of it. That is
+    a worse outcome than a digital prescription and a much better one than a
+    visit that simply stops, which is what happens today.
+
+    The queue moves to `done` through the S8 verb, so the board, the coordinator
+    and the console still share one state machine.
+    """
+    try:
+        doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
+        result = await doctor_svc.conclude_visit(
+            session, visit_id=visit_id, doctor=doctor, rx_mode=body.rx_mode, note=body.note
+        )
+    except doctor_svc.ConclusionRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except doctor_svc.DoctorError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await session.commit()
+    await hub.notify_queue_changed()
+    visit = result.visit
+    return ConcludeOut(
+        visit_id=visit.id,
+        rx_mode=str(visit.rx_mode),
+        concluded_at=visit.concluded_at,  # type: ignore[arg-type]
+        conclusion_note=visit.conclusion_note,
+        entry_state=result.entry_state,
     )
 
 
