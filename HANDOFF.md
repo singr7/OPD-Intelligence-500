@@ -1,137 +1,70 @@
-# HANDOFF — after SESSION-C
+# HANDOFF — after SESSION-MRD1
 
-**Repo state:** branch `assign-rx-identity`.
-`make test-backend` 1376 passed. Doctor E2E 12 passed, dictation E2E 8 passed,
-conformance 48 passed, `npm run build` / `tsc` / `eslint` clean. Migrations
-`c6e3681f5ce1`, `520d07f0b3e4` and **`c063fd91e198`** are applied **locally
-only** — still pending on Omen, and `make deploy` does not run migrations.
+**Repo state:** branch `main`. `make test-backend` **1,553 passed**. Scan E2E 5
+passed against a live stack, `npm run build` / `tsc` / `eslint` clean. Migration
+**`efb79a43afb3`** is applied **locally only** — it joins `c6e3681f5ce1`,
+`520d07f0b3e4` and `c063fd91e198` in the set pending on Omen, and `make deploy`
+does not run migrations.
 
-The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open; see
-`sessions/SESSION-ANDROID1.md`.
+The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open.
 
-**Where the build stands:** Sessions A, B **and** C of
-`sessions/SESSION-ASSIGN-RX-PLAN.md` are complete — the plan is finished. A
-consult can now be written without speaking a word, a mapping failure is a state
-the doctor walks out of rather than a dead end, and a consult that ends on paper
-or with no prescription at all is written down instead of leaving a blank visit.
-Speech is an input method now, not a prerequisite for prescribing.
+**Where the build stands:** the first of the four Clinical Intelligence modules
+(`sessions/SESSION-CLINICAL-INTEL-PLAN.md`) is half built. A coordinator can
+photograph a patient's reports on a phone at `/scan`; the pipeline reads them,
+flags the values in Python, and writes a short summary. **No screen shows any of
+it to a doctor yet** — the read endpoints are built and tested, the Reports tab
+is M2. Design doc: `docs/21-MEDICAL-RECORD-DIGITISATION.md`.
 
-## Next session — no plan file yet
+## Next session — M2, and it has a plan
 
-There is no §6 to build. The candidates, in the order I would take them:
+`sessions/SESSION-CLINICAL-INTEL-PLAN.md` §6 "Session M2": the doctor's Reports
+tab and spine slot. Everything it needs from the backend exists:
 
-1. **Allergy capture** — the spine has had a permanent slot and nothing to put
-   in it since Session B, and it is still the largest hole in the four elements
-   it promises. Needs the human decision below before it is a build task.
-2. **Deploy the three pending migrations to Omen** and re-run the doctor and
-   dictation E2E against it. Nothing in Sessions A–C has run on the box.
-3. **Amending a signed note / undoing a conclusion.** Signing is terminal by
-   design and `conclude` now joins it. Neither has a correction path, and the
-   pilot will produce a wrong one in its first week.
+- `GET /records/patients/{id}/documents` — newest first, failed ones included
+- `GET /records/documents/{id}` — one document with its reading
+- `GET /records/documents/{id}/pages/{n}` — the original photograph
+- `POST /records/documents/{id}/verify` — "I have read this against the pages"
+
+The tab is what the feature-flagged "Coming soon" disclosure in
+`WorkTabs.tsx` was built to graduate. Also worth doing in M2: a coordinator-facing
+retry surface for `extraction_failed` (the endpoint exists, nothing calls it).
+
+The other candidates are unchanged from the last handoff: allergy capture,
+deploying the pending migrations to Omen, and a correction path for a signed
+note or a concluded consult.
 
 ## Watch out for
 
-- **"Complete consult" is a conclusion now, not a bare `set_state`.** With a
-  signed note it concludes as `system` in one tap; without one it opens the
-  dialog. Any test or script that clicked `[data-testid=complete-consult]` and
-  expected an immediate transition must answer the dialog — `completeConsult()`
-  in `e2e/doctor.spec.ts` is the helper.
-- **Do not add a second prescription-creation path.** "Type note" deliberately
-  joins the dictated path at `compose` — an empty mapping in `fields` — so that
-  `sign` → `prescription.generate` stays the only writer. A parallel one around
-  the signature boundary is how the drug-safety validation gets bypassed.
-- **`unsaid` is off when there is no transcript, and that is load-bearing.** If
-  something later gives typed notes a transcript-shaped field, every typed drug
-  starts arriving pre-flagged. The formulary check is the one that must never be
-  relaxed; `unsaid` is about the *model*, not the drug.
-- **`conclude` lives inside the S8 transition table.** `waiting` is refused on
-  purpose (nobody called that patient in). Do not widen
-  `_ALLOWED_TRANSITIONS` to make the refusal go away — the guard is what stops
-  the board showing a patient who is both seen and waiting.
-- **The 30-second OTP resend cooldown makes back-to-back E2E projects fail.**
-  Both `doctor` and `dictation` log in as `+915550001001`; running one straight
-  after the other fails on the *first* test with a missing `otp-hint`. Wait ~35s
-  between projects. This bit twice this session and is not a regression.
-- **`GET /doctor/day` still defaults to `scope=mine`** (Session B) — ask for
-  `scope=department` explicitly.
-- **Do not narrow `patient_card` or `dictation.assert_visit_scope`** to the
-  assigned doctor. Decided the other way, on the record, three times now.
-- **The spine must never unmount**, and **nothing captures an allergy** — both
-  Session B rules, both unchanged.
-- `make lint` still fails on **pre-existing** E501 in `app/config.py:260` and on
-  the two AR1/AR2 autogenerated migrations. Still unclaimed.
-
-## Decisions taken (do not re-litigate)
-
-1. **Speech is an input method.** The typed note is the same record, the same
-   corrections trail, the same signature and the same formulary refusal.
-2. **`unsaid` does not apply to a note nobody dictated** — see above.
-3. **A mapping failure opens the fields by itself**, and never overwrites fields
-   that already have something in them.
-4. **`system` is refused without a signed note** (400), because that mode claims
-   a digital prescription exists.
-5. **The ordinary ending stays one tap.** The dialog is for the endings that
-   lose something; a confirmation on both would teach doctors to click through
-   the one that matters.
-6. **The conclusion dialog's confirm button is green, not red.** Red is clinical
-   danger and destruction. The marigold panel carries the loss.
-7. **No decorative waveform.** No analyser, no bars — timer and indicator only.
-8. **`PatientCard.note_signed`** replaced the console's per-session `signedNotes`
-   memory (Session B backlog item, closed).
-
-## Decisions needed from the human
-
-- **Do we want allergy capture, and where?** Unchanged from Session B and now
-  the top of the backlog. The honest options are a kiosk intake question, a
-  field on the patient record maintained at the desk, or an import from an
-  existing hospital record. Clinical-workflow decision, not a build one.
-- **Marathi + Telugu for the arrival screens.** Still open, still a person-task:
-  who reviews the AR3 strings, and when? (The doctor console is staff-facing and
-  English-only, consistent with every other staff surface — not part of this.)
-
-## Backlog: the coordinator queue card (seen on AWS, 2026-08-05)
-
-From a live `Department queues` screenshot at a two-column card width. All layout
-— none of it blocks a deploy, and together they make the busiest staff screen
-hard to scan. `web/app/(coordinator)/coordinator/_components/Console.tsx` and its
-`consoleStyles.ts`.
-
-1. **The chips overflow their column and collide with the buttons.** `.entry` is
-   `grid-template-columns: auto 1fr auto`; `.mid` has `min-width: 0` but
-   `.chips` does not, so a wide chip cannot shrink and paints *under* the
-   action buttons. In the screenshot `Unassigned` is half-hidden behind `Call`.
-   Fix at the chips container, not by widening the card — the card is already
-   440px and the grid is `auto-fill`.
-2. **A long `priority_reason` sets the row height.** "Urgent · Coughing blood"
-   wraps to three lines and drags the whole row with it; the token numeral then
-   floats in the middle of a tall empty column. The reason wants truncation with
-   the full text in a `title`, the way the diagnosis line does on the doctor rail.
-3. **`.pname` / `.chief` need `dir="auto"`.** They are patient-entered text with
-   `text-overflow: ellipsis`. Any right-to-left content truncates from the wrong
-   end — the screenshot shows `…ب تشسبین`, three characters and an ellipsis on
-   the wrong side. The script guard now keeps Urdu out of the record, so this is
-   hygiene rather than a live bug, but it is one attribute.
-4. **"0 waiting" on a card with a patient in the room** reads as an empty
-   department. It is literally true (`waiting` excludes `called`), and it is the
-   same figure the doctor console shows — so the fix is wording, not arithmetic:
-   "0 waiting · 1 called".
-5. **Seeded doctors are named "Dr Pulmonology"** on that box, which looks like a
-   placeholder in a demo. Seed data, not code.
-
-## Backlog additions
-
-- **`tests/test_campaign.py::test_a_thirty_seventy_mix_produces_the_documented_split`
-  is flaky.** It draws 60 random patients and asserts a hash split within a
-  tolerance; it failed once in three full runs and passes in isolation. Pre-existing,
-  not caused by the script guard. Either seed the patients or widen the tolerance.
-- **The analyser meter has never run against a real microphone.** Headless
-  Chromium has none, so only the timer path is tested. Look at it on the Omen
-  with a headset before the pilot.
-- **No way to undo a conclusion** or amend a signed note. First wrong `rx_mode`
-  will be in week one.
-- **Vitals still do not exist in the schema**, so plan §4.3's vitals treatment
-  is still unbuilt.
-- **`app.kiosk._departments` is private while `department_by_code` is public** —
-  harmonise on the next touch.
-- Running `npm run build` while `next dev` is up on 3210 breaks the dev server
-  until `.next` is removed.
+- **The extraction contract has no flag field, and that is load-bearing.** A
+  model may read a number; deciding it is abnormal is `app/mrd/ranges.py`, in
+  Python, on `Decimal`. If anything ever starts parsing a `flag` out of a model
+  reply, the determinism invariant is gone.
+  `test_a_flag_in_the_models_reply_is_ignored_entirely` is the guard.
+- **`seeds/lab_reference_ranges.json` ships `status: review_pending`, and the UI
+  must key off it.** Flags derived from that table carry `ref_source: "default"`
+  and must be shown as a weaker signal than a flag from a range the lab printed.
+  Flipping `status` to `reviewed` without an oncologist actually reviewing it
+  silently promotes every grey row.
+- **The backup job still does not include `OBJECT_STORE_DIR`.** Postgres alone
+  is no longer a complete restore. A missing page answers 410 with a sentence,
+  so it fails visibly — but the operator work is unstarted and it is the largest
+  debt this module added.
+- **Extraction needs a vision-capable `LLM_PROVIDER`.** Sarvam and the local
+  vLLM declare `supports_images = False` and raise `UnsupportedCapability`
+  *before* being dialled. Do not "fix" that by stripping the images — a summary
+  of pages the model never saw reads exactly like a real one.
+- **The doctor's tab must label an unverified reading as a draft**, and
+  re-extraction clears a previous verification on purpose (`_store_extraction`).
+- **Tests default `MRD_ENABLED=false`** (conftest). The post-upload nudge builds
+  its own engine, so under ASGITransport it would dial the real DSN; drive the
+  pipeline directly, as `test_records_routes._extract_now` does.
+- **The 30-second OTP resend cooldown still bites.** `e2e/scan.spec.ts` takes one
+  token through the API in `beforeAll` and waits out a 429 rather than signing in
+  per test; the doctor and dictation projects still need ~35s between runs.
+- **`queue.today()` is the operating day** — UTC-based, and the scanner, board
+  and console must all use it. Computing a day independently is how the scanner
+  showed an empty list at 04:50 IST while the console showed a queue.
+- Everything from the previous handoff still holds: no second prescription
+  path, `unsaid` off without a transcript, `conclude` inside the S8 table,
+  `patient_card` not narrowed to the assigned doctor, the spine never unmounts,
+  and nothing captures an allergy.

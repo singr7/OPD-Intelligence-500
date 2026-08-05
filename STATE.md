@@ -6,6 +6,26 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-MRD1):** A coordinator photographs a patient's paper records on
+a phone and the doctor gets them read (doc 21). `/scan` is three screens — pick,
+photograph, done — behind the staff token, searching by token/phone/UHC and
+never by name. Pages are downscaled on the device, posted one at a time, and
+stored in a new `ObjectStore` (filesystem impl; a Compose volume, not a service)
+rather than in Postgres. A claim-based pipeline (`app/mrd/`) sends the pages to a
+vision model, and **the extraction contract has no flag field**: what a value
+means against its range is computed in Python on `Decimal`, preferring the range
+printed on the report over `seeds/lab_reference_ranges.json` (which ships
+`review_pending`). A second, text-only call writes ≤8 lines over that flagged
+structure — never over the images again — so the prose is provably about the
+numbers the table shows. Every failure leaves the pages viewable and a named
+status: a vendor outage, a text-only chain (`UnsupportedCapability`, refused
+before it is dialled), an unusable reply, a page missing after a partial restore
+(410, with a sentence). `UsagePurpose.DOCUMENT` prices it apart from intake
+summaries. Doctor read endpoints exist and are tested; **the console tab that
+renders them is M2 and is not built.** Gates: backend **1,553**, scan E2E 5
+against a live stack, production build, typecheck, lint. Migration
+`efb79a43afb3` (additive, two new tables, no backfill) — **applied locally only.**
+
 **Built (SESSION-C):** The end of the consult (plan §5). **Speech is an input
 method, not a prerequisite for prescribing**: `POST /dictation/{id}/compose`
 opens the editable field set with no model in the loop, and the typed note is
@@ -542,6 +562,13 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
 `config/tiers.yaml`, not env. **Offline kiosk (S7):** `KIOSK_OFFLINE_TOKEN_BASE` (default 500 —
 online tokens stay below it, offline blocks at/above) and `KIOSK_OFFLINE_BLOCK_SIZE` (default 50).
+**MRD (SESSION-MRD1, doc 21):** `OBJECT_STORE` (`filesystem|fake`) +
+`OBJECT_STORE_DIR` — **the backup job must include that directory; Postgres alone
+is no longer a complete restore** — plus `MRD_ENABLED` (off = pages still
+captured and shown, only the machine reading is absent), `MRD_MAX_PAGE_BYTES`,
+`MRD_MAX_PAGES`, `MRD_MAX_EXTRACT_PAGES`, `MRD_MAX_EXTRACT_ATTEMPTS`. Extraction
+needs a vision-capable `LLM_PROVIDER` (gemini/openai); sarvam and local vLLM are
+text-only and refuse rather than answer from pages they never saw.
 **Adaptive intake (S-ADAPT):** `INTAKE_ADAPTIVE` (backend gate; needs a real,
 non-fake `LLM_PROVIDER`) + `NEXT_PUBLIC_KIOSK_ADAPTIVE` (**build-time** — the web
 image must be rebuilt to change it). Both default `0` = today's pure-tap kiosk.
@@ -777,6 +804,26 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **There is no S3 object store** (MRD1) — `app/providers/objectstore.py` has the
+  interface, a filesystem impl (the Omen primary) and an in-memory fake. The
+  cloud shape needs the impl written; `OBJECT_STORE=s3` fails at boot rather
+  than falling back, which is deliberate.
+- **The pages directory is not in any backup job** (MRD1) — `OBJECT_STORE_DIR`
+  holds every scanned report. Restoring Postgres without it produces extractions
+  whose pages are gone; the page route answers 410 so it is visible rather than
+  a broken image. This is the largest operational debt this module added.
+- **`seeds/lab_reference_ranges.json` is unreviewed** (MRD1) — 18 tests, adult
+  only, shipping `status: review_pending`, used *only* where a report prints no
+  range of its own. Every flag carries `ref_source` so a fallback-derived flag
+  can be shown as the weaker signal it is. An oncologist has not seen it.
+- **Extracted lab values feed nothing but display** (MRD1) — they do not reach
+  prescription validation, check-in grading, or any trend across visits. The
+  doctor reads them; no rule consumes them.
+- **`/scan` has no offline capture queue** (MRD1) — a failed page upload is
+  retryable within the session only. Closing the tab loses the pending page, and
+  the screen says so rather than implying a queue that does not exist.
+- **The doctor's Reports tab does not exist yet** (MRD1) — the read endpoints are
+  built and tested, so documents are reachable by API but by no screen. M2.
 - **A model's script is guarded, not trusted** (2026-08-05) — `app.languages`
   rejects text containing a non-Latin script the patient's language does not use,
   at six boundaries: the kiosk `/stt` route, `IntakeEngine._hear`, the WhatsApp
