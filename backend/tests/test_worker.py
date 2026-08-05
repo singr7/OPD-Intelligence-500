@@ -29,6 +29,7 @@ async def test_every_scheduled_job_exists(settings):
         "opd.campaign.fallback",
         "opd.checkins.send",
         "opd.checkins.cycles",
+        "opd.mrd.extract",
     }
 
 
@@ -98,3 +99,26 @@ async def test_the_launch_job_queues_tomorrows_calls_when_enabled(session, setti
 async def test_an_unknown_job_name_is_an_error_not_a_silent_pass():
     with pytest.raises(KeyError):
         await worker.run_job("opd.campaign.does-not-exist")
+
+
+# -- medical record extraction (doc 21 §1.1) -----------------------------------
+
+
+async def test_the_extraction_sweep_is_a_no_op_when_nothing_is_waiting(session, settings):
+    """It runs every minute. A quiet tick must cost one indexed query, not a
+    provider call — otherwise the backstop is more expensive than the work."""
+    result = await worker.mrd_extract_job(
+        session, settings.model_copy(update={"mrd_enabled": True})
+    )
+
+    assert result == "nothing waiting"
+
+
+async def test_the_extraction_sweep_respects_the_operator_switch(session, settings):
+    """`MRD_ENABLED=false` means no vision model is configured. The sweep must
+    not claim documents it cannot read — a claim burns an attempt."""
+    result = await worker.mrd_extract_job(
+        session, settings.model_copy(update={"mrd_enabled": False})
+    )
+
+    assert result == "mrd disabled"

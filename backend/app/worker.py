@@ -34,6 +34,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
+from app.models.enums import DocumentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,45 @@ async def checkin_cycles_job(session: AsyncSession, settings: Settings) -> str:
     return f"reminded {len(reminded)} patients"
 
 
+async def mrd_extract_job(session: AsyncSession, settings: Settings) -> str:
+    """Read the scanned records nobody has read yet (doc 21 §1.1).
+
+    The backstop, not the main path: the API nudges extraction the moment a
+    coordinator closes a capture, and this catches what that missed — an api
+    process restarted mid-task, a vendor that was down on the first attempt, a
+    document claimed by a worker that then died.
+
+    Safe to run alongside the nudge because claiming is atomic
+    (`mrd.claim_documents`): whichever arrives second claims nothing. Safe to run
+    every minute because a tick with nothing waiting is one indexed query.
+    """
+    from app.mrd import claim_documents, process_document
+    from app.providers.registry import get_object_store, llm_chain
+
+    if not settings.mrd_enabled:
+        return "mrd disabled"
+
+    documents = await claim_documents(session, limit=10, settings=settings)
+    if not documents:
+        return "nothing waiting"
+    # Commit the claims before doing the slow part, so a crash during a vendor
+    # call leaves documents visibly `extracting` — reclaimed after CLAIM_TIMEOUT
+    # — rather than rolled back to `captured` with the attempt uncounted, which
+    # is how a poison document bills forever.
+    await session.commit()
+
+    store = get_object_store(settings)
+    providers = llm_chain(settings)
+    read = 0
+    for document in documents:
+        result = await process_document(
+            session, document, store=store, providers=providers, settings=settings
+        )
+        await session.commit()
+        read += result.status is not DocumentStatus.EXTRACTION_FAILED
+    return f"read {read} of {len(documents)} documents"
+
+
 #: Job name → coroutine. The Celery tasks and the CLI both dispatch through this,
 #: so there is exactly one list of what this worker can be asked to do.
 JOBS: dict[str, Callable[[AsyncSession, Settings], Awaitable[str]]] = {
@@ -137,6 +177,7 @@ JOBS: dict[str, Callable[[AsyncSession, Settings], Awaitable[str]]] = {
     "opd.campaign.fallback": campaign_fallback_job,
     "opd.checkins.send": checkins_send_job,
     "opd.checkins.cycles": checkin_cycles_job,
+    "opd.mrd.extract": mrd_extract_job,
 }
 
 #: name → (hour, minute) as crontab fields, in the hospital timezone (beat runs on
@@ -161,6 +202,11 @@ SCHEDULE: dict[str, tuple[str, str]] = {
     # Once an hour: a reminder is about a day, not a minute, and `rung_due` is
     # "on or after" so a missed tick still sends.
     "opd.checkins.cycles": ("*", "5"),
+    # Every minute. The API already nudges extraction when a capture closes, so
+    # this is the backstop — but a doctor is walking to the room while it runs,
+    # and a five-minute tick would mean a report that missed the nudge arrives
+    # after the consult it was scanned for.
+    "opd.mrd.extract": ("*", "*"),
 }
 
 

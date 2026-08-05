@@ -42,6 +42,7 @@ from app.routes.patient import router as patient_router
 from app.routes.prescription import router as prescription_router
 from app.routes.providers import router as providers_router
 from app.routes.queue import router as queue_router
+from app.routes.records import router as records_router
 from app.routes.whatsapp import router as whatsapp_router
 from app.whatsapp import build_conversation_store
 
@@ -157,6 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(patient_router)
     app.include_router(checkins_router)
+    app.include_router(records_router)
     return app
 
 

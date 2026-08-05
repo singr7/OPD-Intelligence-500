@@ -90,6 +90,12 @@ def settings() -> Settings:
         # In-memory pages: a test suite that writes JPEGs to a tmpdir is a test
         # suite that leaves clinical-shaped files around after a failed run.
         object_store="fake",
+        # Off, so completing a capture does not fire the post-upload nudge. That
+        # background task deliberately builds its *own* engine (it outlives the
+        # request), which under ASGITransport means dialling the real DSN from
+        # inside a test. Tests drive the pipeline directly instead; the one test
+        # that cares whether the nudge is scheduled turns this back on.
+        mrd_enabled=False,
         otp_debug_echo=True,
         # Cooldown off by default: most tests request several OTPs in a row and
         # aren't testing the rate limiter. The test that is sets its own value.
