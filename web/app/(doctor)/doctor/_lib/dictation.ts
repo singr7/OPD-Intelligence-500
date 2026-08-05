@@ -109,6 +109,22 @@ export async function startDictation(
   );
 }
 
+/**
+ * "Type note": open the editable fields with no model in the loop.
+ *
+ * The same record, the same corrections trail, the same signature and the same
+ * refusal on a drug the formulary does not know. Speech is an input method here,
+ * not a prerequisite for prescribing — which is what it was until now.
+ */
+export async function composeNote(token: string, dictationId: string): Promise<Dictation> {
+  return unwrap(
+    await fetch(`${API_BASE}/dictation/${dictationId}/compose`, {
+      method: "POST",
+      headers: authHeaders(token),
+    }),
+  );
+}
+
 export async function mapFields(token: string, dictationId: string): Promise<Dictation> {
   return unwrap(
     await fetch(`${API_BASE}/dictation/${dictationId}/map`, {

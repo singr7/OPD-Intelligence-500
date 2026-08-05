@@ -744,6 +744,23 @@ async def test_the_card_carries_the_conclusion(session: AsyncSession) -> None:
     assert card.concluded_at is not None
 
 
+async def test_the_card_says_whether_a_note_has_been_signed(session: AsyncSession) -> None:
+    """The console used to remember this per session, so a reload forgot it —
+    and it is what decides whether completing the consult is one tap or a
+    question about where the prescription went."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=81)
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+    assert card.note_signed is False
+
+    session.add(_signed_note(visit, clinic["doctor"], diagnosis="x", signed_at=datetime.now(UTC)))
+    await session.flush()
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+    assert card.note_signed is True
+
+
 # -- the diagnosis line on the context spine ----------------------------------
 
 

@@ -350,14 +350,7 @@ async def conclude_visit(
         raise DoctorError("that patient is in another department")
 
     if rx_mode is RxMode.SYSTEM:
-        signed = await session.scalar(
-            select(Dictation).where(
-                Dictation.visit_id == visit_id,
-                Dictation.status == DictationStatus.SIGNED,
-                Dictation.deleted_at.is_(None),
-            )
-        )
-        if signed is None:
+        if not await _has_signed_note(session, visit_id=visit_id):
             raise ConclusionRefused(
                 "this visit has no signed consult note, so it cannot be concluded "
                 "as a system prescription"
@@ -389,6 +382,18 @@ async def conclude_visit(
         entry = await queue_svc.set_state(session, entry_id=entry.id, state=QueueEntryState.DONE)
     await session.flush()
     return Conclusion(visit=visit, entry_state=str(entry.state) if entry else None)
+
+
+async def _has_signed_note(session: AsyncSession, *, visit_id: uuid.UUID) -> bool:
+    return (
+        await session.scalar(
+            select(Dictation.id).where(
+                Dictation.visit_id == visit_id,
+                Dictation.status == DictationStatus.SIGNED,
+                Dictation.deleted_at.is_(None),
+            )
+        )
+    ) is not None
 
 
 #: Queue states a conclusion does not move. Both are terminal, and dragging a
@@ -543,6 +548,12 @@ class PatientCard:
     rx_mode: str | None = None
     concluded_at: datetime | None = None
     conclusion_note: str | None = None
+    #: Whether this visit already has a signed consult note. The console used to
+    #: remember this per session, which meant a reload forgot which notes it had
+    #: watched get signed — and it is what decides whether completing the consult
+    #: is a one-tap `system` conclusion or a question about where the
+    #: prescription went.
+    note_signed: bool = False
 
 
 async def patient_card(
@@ -603,6 +614,7 @@ async def patient_card(
         rx_mode=str(visit.rx_mode) if visit.rx_mode else None,
         concluded_at=visit.concluded_at,
         conclusion_note=visit.conclusion_note,
+        note_signed=await _has_signed_note(session, visit_id=visit.id),
     )
 
 

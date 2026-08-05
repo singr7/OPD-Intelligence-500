@@ -29,9 +29,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
-import type { Day, DayRow, DayScope, PatientCard as Card } from "../_lib/doctor";
-import { fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
+import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib/doctor";
+import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
+import { ConcludeDialog } from "./ConcludeDialog";
 import { CONSOLE_CSS, DICTATION_CSS } from "./consoleStyles";
 import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
@@ -54,11 +55,14 @@ export function Console() {
   // a panel that replaces the screen: by the time the doctor dictates they have
   // finished reading, but they must not lose the red flags to do it.
   const [tab, setTab] = useState<WorkTab>("overview");
-  // Which visits got a signed note in this session. The card model does not carry
-  // note status, and asking the server per row would be a request per patient —
-  // so the console remembers what it watched happen, and says nothing about
-  // visits it did not (the Consult tab then shows the real signed state).
+  // Which visits got a signed note. Seeded from the card (`note_signed`), so a
+  // reload no longer forgets, and added to the moment this console watches a
+  // signature land — the card is not refetched at that instant.
   const [signedNotes, setSignedNotes] = useState<Set<string>>(new Set());
+  // The conclusion dialog. Open only for an ending that loses something, or
+  // when the console does not know a note was signed.
+  const [concluding, setConcluding] = useState(false);
+  const [concludeError, setConcludeError] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(null);
   const scopeRef = useRef<DayScope>("mine");
 
@@ -104,7 +108,10 @@ export function Console() {
     async (tok: string, visitId: string) => {
       setSelected(visitId);
       try {
-        setCard(await fetchPatient(tok, visitId));
+        const next = await fetchPatient(tok, visitId);
+        setCard(next);
+        // The record, not this session's memory, is what says a note is signed.
+        if (next.note_signed) setSignedNotes((prev) => new Set(prev).add(next.visit_id));
         setError(null);
       } catch (err) {
         if (err instanceof AuthError) signOut();
@@ -183,25 +190,72 @@ export function Console() {
     }
   }, [token, day, busy, loadDay, openPatient, signOut]);
 
+  // After anything that may have moved this patient out of the worklist: fall
+  // through to whoever is now in the room, or clear the stage.
+  const resettle = useCallback(
+    async (tok: string, visitId: string) => {
+      const next = await loadDay(tok);
+      const still = next?.rows.some((r) => r.visit_id === visitId);
+      if (still) {
+        await openPatient(tok, visitId);
+        return;
+      }
+      const inRoom = next?.rows.find((r) => r.state === "in_consult" || r.state === "called");
+      if (inRoom) await openPatient(tok, inRoom.visit_id);
+      else {
+        setCard(null);
+        setSelected(null);
+      }
+    },
+    [loadDay, openPatient],
+  );
+
+  /**
+   * Ending the consult, on the record (plan §5.3b).
+   *
+   * With a signed note this is one tap and nothing is lost, so it does not ask:
+   * a confirmation on the ordinary ending would train doctors to click through
+   * the dialog that exists for the endings that *do* lose something. Without
+   * one, the dialog opens and names what will not exist afterwards.
+   */
+  const onConclude = useCallback(
+    async (mode: RxMode, note: string) => {
+      if (!token || !card || busy) return;
+      setBusy(true);
+      setConcludeError(null);
+      try {
+        await concludeVisit(token, card.visit_id, mode, note);
+        setConcluding(false);
+        await resettle(token, card.visit_id);
+      } catch (err) {
+        if (err instanceof AuthError) signOut();
+        else setConcludeError(err instanceof Error ? err.message : "That was refused.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [token, card, busy, resettle, signOut],
+  );
+
   const onAction = useCallback(
     async (action: Action) => {
       if (!token || !card?.entry_id || busy) return;
+      // Completing a consult is now a conclusion, not a bare queue transition:
+      // a visit that simply stops cannot be told apart from one the doctor was
+      // interrupted in the middle of.
+      if (action === "done") {
+        if (signedNotes.has(card.visit_id)) {
+          await onConclude("system", "");
+        } else {
+          setConcludeError(null);
+          setConcluding(true);
+        }
+        return;
+      }
       setBusy(true);
       try {
         await setEntryState(token, card.entry_id, action);
-        const next = await loadDay(token);
-        // A patient who has left the worklist should not stay on screen: fall
-        // through to whoever is now in the room, or clear the card.
-        const still = next?.rows.some((r) => r.visit_id === card.visit_id);
-        if (still) await openPatient(token, card.visit_id);
-        else {
-          const inRoom = next?.rows.find((r) => r.state === "in_consult" || r.state === "called");
-          if (inRoom) await openPatient(token, inRoom.visit_id);
-          else {
-            setCard(null);
-            setSelected(null);
-          }
-        }
+        await resettle(token, card.visit_id);
       } catch (err) {
         if (err instanceof AuthError) signOut();
         else setError(err instanceof Error ? err.message : "That action was refused.");
@@ -209,7 +263,7 @@ export function Console() {
         setBusy(false);
       }
     },
-    [token, card, busy, loadDay, openPatient, signOut],
+    [token, card, busy, signedNotes, onConclude, resettle, signOut],
   );
 
   // Keyboard shortcuts (doc 04 §3: N = next patient, D = dictate). Ignored while
@@ -338,6 +392,10 @@ export function Console() {
                   departmentName={card.department_name}
                   onClose={() => setTab("overview")}
                   onSigned={() => setSignedNotes((prev) => new Set(prev).add(card.visit_id))}
+                  onConclude={() => {
+                    setConcludeError(null);
+                    setConcluding(true);
+                  }}
                 />
               ) : (
                 <PatientCard card={card} tab={tab} />
@@ -352,6 +410,17 @@ export function Console() {
           )}
         </section>
       </main>
+
+      {concluding && card && (
+        <ConcludeDialog
+          patientName={card.name}
+          noteSigned={signedNotes.has(card.visit_id) || card.note_signed}
+          busy={busy}
+          error={concludeError}
+          onConfirm={onConclude}
+          onCancel={() => setConcluding(false)}
+        />
+      )}
     </div>
   );
 }

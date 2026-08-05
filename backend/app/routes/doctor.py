@@ -168,6 +168,7 @@ class CardOut(BaseModel):
     rx_mode: str | None = None
     concluded_at: datetime | None = None
     conclusion_note: str | None = None
+    note_signed: bool = False
 
 
 # -- routes -------------------------------------------------------------------

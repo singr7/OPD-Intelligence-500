@@ -1,12 +1,14 @@
 // Typed client for the doctor surface (backend app/routes/doctor.py).
 //
-// Two reads and one write. The console's *queue* actions are still the S8 verbs
+// Two reads and two writes. The console's *queue* actions are still the S8 verbs
 // — `callNext` and `setEntryState` are imported from the shared queue client,
 // not reimplemented here, because there are no doctor-flavoured copies of the
 // queue state machine (backend app/doctor.py explains why).
 //
-// `takePatient` is the one write, and it is not a queue transition: it changes
-// who the visit belongs to, not where it sits in the line.
+// Neither write is a queue transition. `takePatient` changes who the visit
+// belongs to, not where it sits in the line; `concludeVisit` records how the
+// consult ended — including the two endings that leave this system with no
+// prescription in it — and lets the queue verb do the queue's part.
 
 import { API_BASE, AuthError } from "@/app/_lib/queue";
 
@@ -133,6 +135,27 @@ export type PatientCard = {
   /** Whether a family member answered instead of the patient. Part of the
    *  provenance line that replaced the old confidence percentage. */
   caregiver_answered: boolean;
+  /** How the consult ended, once a doctor has said. Null is "not concluded",
+   *  which is not the same fact as "nothing was prescribed" and must not be
+   *  rendered as one. */
+  rx_mode: RxMode | null;
+  concluded_at: string | null;
+  conclusion_note: string | null;
+  /** Whether this visit already has a signed note — read from the record rather
+   *  than remembered per session, so a reload does not forget it. */
+  note_signed: boolean;
+};
+
+/** How a consult ended, prescribing-wise. Two of the three leave this system
+ *  with no prescription in it, which is exactly why they are stated. */
+export type RxMode = "system" | "external_manual" | "none";
+
+export type Conclusion = {
+  visit_id: string;
+  rx_mode: RxMode;
+  concluded_at: string;
+  conclusion_note: string | null;
+  entry_state: string | null;
 };
 
 /** The working diagnosis and where it came from. `on` is the date of the visit
@@ -174,6 +197,32 @@ export async function takePatient(token: string, visitId: string): Promise<void>
     const detail = await res.json().catch(() => null);
     throw new Error(detail?.detail ?? `take ${res.status}`);
   }
+}
+
+/**
+ * Close the consult, saying how it ended.
+ *
+ * `external_manual` and `none` are the two that leave nothing digital behind,
+ * and recording them is the whole point: a visit that simply stops is
+ * indistinguishable from one the doctor was interrupted in the middle of.
+ */
+export async function concludeVisit(
+  token: string,
+  visitId: string,
+  rxMode: RxMode,
+  note?: string,
+): Promise<Conclusion> {
+  const res = await fetch(`${API_BASE}/doctor/visits/${visitId}/conclude`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ rx_mode: rxMode, note: note?.trim() || null }),
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(typeof detail?.detail === "string" ? detail.detail : `conclude ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function fetchPatient(

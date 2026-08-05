@@ -372,20 +372,79 @@ export const DICTATION_CSS = `
 .dict-signed { margin: 14px 22px 0; background: var(--primary-soft); color: var(--primary-d);
   border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 700; }
 
+/* the four steps, stated rather than implied — an indicator, not navigation */
+.dict-steps { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px;
+  list-style: none; margin: 0; padding: 12px 22px; border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle); }
+.dstep { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.dstep-n { display: grid; place-items: center; width: 21px; height: 21px; flex: none;
+  border-radius: 50%; border: 1.5px solid var(--line-strong); color: var(--ink-soft);
+  font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dstep-l { color: var(--ink-soft); font-weight: 650; }
+.dstep-l em { font-style: normal; font-weight: 500; opacity: .8; }
+.dstep.is-now .dstep-n { border-color: var(--primary); background: var(--primary); color: #fff; }
+.dstep.is-now .dstep-l { color: var(--ink); font-weight: 800; }
+.dstep.is-done .dstep-n { border-color: var(--primary); color: var(--primary-d); }
+.dstep.is-done .dstep-l { color: var(--ink); }
+
 /* capture — loud before the note exists, a quiet strip afterwards */
 .dict-capture { padding: 16px 22px 0; }
 .dict-caprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.dict-mic { display: inline-flex; align-items: center; gap: 9px; border: 1.5px solid var(--line);
-  background: var(--surface); color: var(--ink); font: inherit; font-size: 15px; font-weight: 700;
-  padding: 11px 18px; border-radius: 12px; cursor: pointer; }
-.dict-mic .dict-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--ink-soft); }
-.dict-mic.is-rec { border-color: var(--danger); color: var(--danger); }
-.dict-mic.is-rec .dict-dot { background: var(--danger); animation: dictpulse 1.4s var(--ease) infinite; }
+
+/* Dictate is the primary. Stopping in order to transcribe is safe expected
+   progress, so it stays green — the red belongs to the indicator dot, which is
+   a status, not the forward action. */
+.dict-dictate { display: inline-flex; align-items: center; gap: 9px; min-height: 44px;
+  border: none; background: var(--primary); color: #fff; font: inherit; font-size: 15px;
+  font-weight: 800; padding: 11px 20px; border-radius: 12px; cursor: pointer; }
+.dict-dictate .dict-dot { width: 11px; height: 11px; border-radius: 50%; background: #fff; opacity: .8; }
+.dict-dictate.is-rec .dict-dot { background: var(--danger); opacity: 1;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.65); animation: dictpulse 1.4s var(--ease) infinite; }
 @keyframes dictpulse { 0%,100% { opacity: 1; transform: scale(1); }
   50% { opacity: .45; transform: scale(1.35); } }
-.dict-map { border: none; background: var(--primary); color: #fff; font: inherit; font-size: 15px;
-  font-weight: 700; padding: 12px 20px; border-radius: 12px; cursor: pointer; }
-.dict-map:disabled, .dict-mic:disabled { opacity: .5; cursor: default; }
+
+/* Typing is equally legitimate and plainly styled — not a lesser path. */
+.dict-type, .dict-remap { min-height: 44px; border: 1.5px solid var(--line-strong);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 15px;
+  font-weight: 700; padding: 11px 18px; border-radius: 12px; cursor: pointer; }
+.dict-type:disabled, .dict-remap:disabled, .dict-dictate:disabled { opacity: .5; cursor: default; }
+
+/* the escape hatch: reachable, never the loudest thing on the screen */
+.dict-more { position: relative; margin-left: auto; }
+.dict-more-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 40px;
+  border: none; background: none; color: var(--ink-soft); font: inherit; font-size: 14px;
+  font-weight: 650; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.dict-more-btn:hover { background: var(--bg); color: var(--ink); }
+.dict-more-btn svg { width: 15px; height: 15px; }
+.dict-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: 290px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel); box-shadow: var(--shadow-popover); padding: 6px; }
+.dict-menu button { display: block; width: 100%; text-align: left; border: none; background: none;
+  font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); padding: 10px 12px;
+  border-radius: 8px; cursor: pointer; }
+.dict-menu button:hover { background: var(--bg); }
+.dict-menu small { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500;
+  color: var(--ink-soft); line-height: 1.45; }
+
+/* Recording: an elapsed time that is simply true, and bars that are real
+   samples off the analyser. No analyser, no bars — an evenly spaced pattern
+   would be a claim that audio is being captured. */
+.dict-rec { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.dict-rec-live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px;
+  font-weight: 800; color: var(--danger); text-transform: uppercase; letter-spacing: .07em; }
+.dict-rec-live::before { content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--danger); animation: dictpulse 1.4s var(--ease) infinite; }
+.dict-rec-time { font-size: 15px; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; }
+.dict-meter { display: flex; align-items: flex-end; gap: 2px; height: 26px; flex: 1; min-width: 0; }
+.dict-meter i { flex: 1; min-width: 2px; max-width: 6px; background: var(--primary);
+  border-radius: 2px; opacity: .85; }
+.dict-meter-off { font-size: 13px; color: var(--ink-soft); }
+
+/* a mapping failure the doctor can walk out of */
+.dict-recover { margin: 14px 22px 0; background: var(--accent-soft); color: #7a4d0a;
+  border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; padding: 11px 14px;
+  font-size: 14px; line-height: 1.55; }
 .dict-busy { font-size: 14px; color: var(--ink-soft); }
 .dict-transcript { display: block; width: 100%; margin-top: 12px; padding: 12px 14px;
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);
@@ -412,6 +471,51 @@ export const DICTATION_CSS = `
   min-width: 220px; }
 .med-sig { font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .med-generic { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+/* The signature line, editable. The medicine name stays the strongest text on
+   the row (doc 14 §7.2) — these are quiet fields under it, not competitors. */
+.med-sig-edit { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.med-sigin { width: 92px; min-height: 32px; padding: 5px 8px; font: inherit; font-size: 13px;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; font-variant-numeric: tabular-nums; }
+.med-sigin:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-focus); }
+
+/* Removing a line is the one edit that cannot be seen afterwards by reading
+   the note, so it is named, tooltipped and confirmed. */
+.med-del { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none;
+  border: none; background: none; color: var(--ink-soft); border-radius: 8px; cursor: pointer; }
+.med-del:hover { background: var(--danger-soft); color: var(--danger); }
+.med-del svg { width: 16px; height: 16px; }
+.med-delconfirm { display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
+  font-weight: 700; color: var(--danger); }
+.med-delconfirm button { border: 1.5px solid var(--danger); background: var(--surface);
+  color: var(--danger); font: inherit; font-size: 13px; font-weight: 700; min-height: 32px;
+  padding: 4px 12px; border-radius: 8px; cursor: pointer; }
+.med-delconfirm button:last-child { border-color: var(--line-strong); color: var(--ink); }
+
+/* Adding a line by hand — what "Type note" needs in order to mean anything. */
+.med-add { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; margin-top: 12px;
+  border: 1.5px dashed var(--line-strong); background: none; color: var(--ink); font: inherit;
+  font-size: 14px; font-weight: 700; padding: 9px 16px; border-radius: 11px; cursor: pointer; }
+.med-add:hover { border-color: var(--primary); color: var(--primary-d); }
+.med-add svg { width: 16px; height: 16px; }
+.med-addform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px;
+  padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.med-addform input { min-height: 38px; padding: 8px 10px; font: inherit; font-size: 14px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
+  color: var(--ink); width: 118px; }
+.med-addform input:first-child { width: 230px; font-weight: 700; }
+.med-addform button { min-height: 38px; border: none; background: var(--primary); color: #fff;
+  font: inherit; font-size: 14px; font-weight: 700; padding: 8px 18px; border-radius: 9px;
+  cursor: pointer; }
+.med-addform button:disabled { opacity: .5; cursor: default; }
+.med-addform button.is-quiet { background: none; color: var(--ink-soft); font-weight: 650; }
+
+/* an editable value, with its provenance line still hanging underneath */
+.prov-in { width: 100%; min-height: 38px; padding: 8px 10px; font: inherit; font-size: 15px;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; line-height: 1.45; resize: vertical; }
+.prov-in:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-focus); }
 
 /* the provenance line: what was said, hanging under what was written */
 .med-spoken { display: flex; align-items: flex-start; gap: 8px; margin-top: 5px; }
@@ -463,6 +567,50 @@ export const DICTATION_CSS = `
   font-weight: 800; padding: 14px 26px; border-radius: 12px; cursor: pointer; }
 .dict-sign:disabled { background: var(--line); color: var(--ink-soft); cursor: default; }
 .dict-block { margin: 0; font-size: 14px; font-weight: 600; color: var(--danger); line-height: 1.5; }
+/* Why there is nothing to print yet. Stated, so its absence reads as a rule
+   rather than as a missing button. */
+.dict-preprint { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--ink-soft);
+  line-height: 1.5; }
+
+/* the conclusion dialog — the two endings that leave nothing digital behind */
+.cdlg-scrim { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  padding: 24px; background: rgba(23, 33, 31, .48); }
+.cdlg { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--surface);
+  border-radius: var(--radius-dialog); box-shadow: var(--shadow-popover); padding: 24px; }
+.cdlg:focus { outline: none; }
+.cdlg h2 { margin: 0; font-size: 21px; line-height: 1.25; color: var(--ink); }
+.cdlg-lead { margin: 6px 0 16px; font-size: 14px; color: var(--ink-soft); }
+.cdlg-choices { display: grid; gap: 8px; }
+.cdlg-choice { display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px;
+  border: 1.5px solid var(--line); border-radius: 10px; cursor: pointer; }
+.cdlg-choice.is-on { border-color: var(--primary); background: var(--primary-soft); }
+.cdlg-choice input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--primary); }
+.cdlg-choice strong { display: block; font-size: 15px; color: var(--ink); }
+.cdlg-choice small { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-soft);
+  line-height: 1.45; }
+/* Fixed slot: the confirm button must not move under the cursor when the
+   doctor changes their mind (doc 14 principle 9). */
+.cdlg-conseq { min-height: 118px; margin: 16px 0; padding: 13px 15px; border-radius: 10px;
+  background: var(--bg); }
+.cdlg-conseq[data-lossy="true"] { background: var(--accent-soft); }
+.cdlg-conseq-h { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 14px;
+  font-weight: 800; color: #7a4d0a; line-height: 1.5; }
+.cdlg-conseq-h.is-ok { color: var(--primary-d); font-weight: 650; }
+.cdlg-conseq-h svg { width: 17px; height: 17px; flex: none; margin-top: 2px; }
+.cdlg-conseq ul { margin: 8px 0 0; padding-left: 26px; }
+.cdlg-conseq li { font-size: 13.5px; color: #7a4d0a; line-height: 1.55; margin-bottom: 3px; }
+.cdlg-note { display: block; }
+.cdlg-note span { display: block; margin-bottom: 5px; font-size: 13px; color: var(--ink-soft); }
+.cdlg-note textarea { width: 100%; padding: 9px 11px; font: inherit; font-size: 14px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
+  color: var(--ink); line-height: 1.5; resize: vertical; }
+.cdlg-err { margin: 12px 0 0; font-size: 14px; font-weight: 700; color: var(--danger); }
+.cdlg-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.cdlg-cancel, .cdlg-go { min-height: 44px; font: inherit; font-size: 15px; font-weight: 800;
+  padding: 11px 22px; border-radius: 11px; cursor: pointer; }
+.cdlg-cancel { border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+.cdlg-go { border: none; background: var(--primary); color: #fff; }
+.cdlg-cancel:disabled, .cdlg-go:disabled { opacity: .55; cursor: default; }
 
 /* The prescription is the signed note's primary output, not a quiet receipt. */
 .rx { margin: 18px 22px 4px; border: 1px solid var(--line-strong);
