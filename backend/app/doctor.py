@@ -1,19 +1,25 @@
 """The doctor's console read models (doc 03 §5).
 
-Two reads, no writes. That is the whole design: the doctor's *actions* — call
-next, no-show, send to lab and re-queue — are the S8 queue verbs
+Two reads and exactly one write. The doctor's *queue* actions — call next,
+no-show, send to lab and re-queue — are still the S8 verbs
 (`app.queue.call_next` / `set_state`) that the coordinator console already
-drives, so this module deliberately owns no mutation. A second implementation of
-"call the next token" is how a queue ends up with two sources of truth that
-disagree the moment one of them is patched.
+drives, so this module owns no copy of the queue state machine. A second
+implementation of "call the next token" is how a queue ends up with two sources
+of truth that disagree the moment one of them is patched.
 
-* `day_list` — the doctor's worklist for a day: their department's queue, with
-  the patient behind each token. The coordinator's `department_queue` already
-  orders the line (urgent first, by construction); this adds identity and the
-  red-flag count, and refuses to leave the doctor's own department.
+* `day_list` — the doctor's worklist for a day, in one of three scopes: their
+  own patients, their department's unassigned pool, or the whole department.
+  The coordinator's `department_queue` already orders the line (urgent first, by
+  construction); this adds identity, the red-flag count and who the visit is
+  assigned to, and refuses to leave the doctor's own department.
 * `patient_card` — one patient's story, assembled for a 20-second read (doc 04
   §3): the §4 summary, the red-flag strip, the answers as asked, the visit
   timeline and the check-in trendline.
+* `take_visit` — the one write. Cover is routine in an OPD, and making a doctor
+  find a coordinator to pick up an unassigned patient turns one absence into a
+  stalled line. It delegates to `app.assignment.assign` rather than writing
+  `Visit.doctor_id` itself, so there is one implementation of "point this visit
+  at a doctor" and one set of rules about which doctors are eligible.
 
 **The card never re-derives clinical judgement.** Red flags are read from
 `Intake.red_flags`, which the rule engine wrote (`app.trees.rules`); the summary
@@ -21,6 +27,14 @@ is read from `Intake.summary_lang_versions[...]["structured"]`, which the
 summarizer wrote under the doc 03 §4 contract. Nothing here recomputes either —
 a doctor screen that re-decided a flag would show a different clinical picture
 than the kiosk told the patient, and than the queue prioritised on.
+
+**Authorization stays at department scope.** `day_list`'s `scope` filters a
+*list*; it does not narrow *access*, and `patient_card` is deliberately not
+scoped to the assigned doctor. A covering colleague, a lab re-queue picked up by
+whoever is free and a second opinion all have to be able to open the card. That
+is a clinical-continuity decision, not an oversight — a console that hid a
+colleague's patient would leave a red flag visible to exactly one person who may
+be in theatre.
 """
 
 from __future__ import annotations
@@ -30,13 +44,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import queue as queue_svc
-from app.models.clinical import Intake, Visit
+from app.models.clinical import Dictation, Intake, Visit
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import Lang
 from app.models.org import Department, Doctor
@@ -50,6 +64,14 @@ class DoctorError(Exception):
 
 
 # -- day list -----------------------------------------------------------------
+
+
+#: The three worklists a doctor works from. `mine` is the default because the
+#: kiosk now assigns essentially every arrival (AR3), which is what makes
+#: "assigned to me" a reliable list rather than a guess.
+DayScope = Literal["mine", "unassigned", "department"]
+
+DAY_SCOPES: tuple[DayScope, ...] = ("mine", "unassigned", "department")
 
 
 @dataclass(slots=True)
@@ -68,6 +90,37 @@ class DayRow:
     chief_complaint: str | None
     red_flag_count: int
     called_at: datetime | None
+    #: Who is going to see them. `None` is the department pool — a `Skip` at the
+    #: kiosk strip, or an offline arrival that synced with no roster to pick
+    #: from. It is a legitimate state, and the one `take_visit` resolves.
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    #: True when this row is the reading doctor's own patient. Computed here
+    #: rather than compared in the UI so "mine" means one thing on every screen.
+    is_mine: bool = False
+
+
+@dataclass(slots=True)
+class DayCounts:
+    """How many patients sit in each scope, for badges that do not lie.
+
+    Returned on *every* response, whichever scope was asked for, so the console
+    can render all three tabs truthfully without a second round trip. That is
+    the whole reason the counts live here: a badge fetched separately from the
+    list it describes is a badge that goes stale between two requests, and the
+    one it would go stale on is `unassigned`.
+    """
+
+    mine: int
+    unassigned: int
+    department: int
+    #: Unassigned *and still waiting* — the same definition the coordinator
+    #: console's "Waiting, unassigned" metric uses, deliberately, so the desk and
+    #: the consulting room never quote different numbers at each other. This is
+    #: what drives the console's attention state; `unassigned` is what the tab's
+    #: badge shows, because a badge that disagrees with the list under it is
+    #: worse than a badge that disagrees with a metric on another screen.
+    unassigned_waiting: int
 
 
 @dataclass(slots=True)
@@ -79,6 +132,9 @@ class DayList:
     department_name: str
     date: date_type
     rows: list[DayRow]
+    scope: DayScope
+    counts: DayCounts
+    doctor_id: uuid.UUID
 
 
 async def resolve_doctor(session: AsyncSession, *, user_id: uuid.UUID) -> Doctor:
@@ -98,16 +154,33 @@ async def resolve_doctor(session: AsyncSession, *, user_id: uuid.UUID) -> Doctor
 
 
 async def day_list(
-    session: AsyncSession, *, doctor: Doctor, on: date_type | None = None
+    session: AsyncSession,
+    *,
+    doctor: Doctor,
+    on: date_type | None = None,
+    scope: DayScope = "mine",
 ) -> DayList:
-    """The doctor's department queue for a day, with the patient behind each token.
+    """The doctor's worklist for a day, in one scope, with counts for all three.
 
     Order is the queue's, not ours (`department_queue`): now-serving first, then
     the waiting line sorted `(priority_rank, position, token_no)`, then the lab
     round-trips. An urgent red-flag intake is already at the top by construction
     — the doctor sees the same order the board and the coordinator do.
+
+    **Scoping filters rows; it never reorders them.** Two doctors comparing
+    screens, or a doctor comparing theirs against the board, must be reading the
+    same line in the same order — otherwise "who is next" becomes a question with
+    a per-screen answer.
+
+    The counts are always computed over the *whole* department worklist, whatever
+    scope was asked for. `unassigned` in particular has to be visible while its
+    tab is closed: it is the compensating control for every kiosk `Skip` and
+    every offline arrival, and a number nobody is shown is a number nobody acts
+    on.
     """
     on = on or queue_svc.today()
+    if scope not in DAY_SCOPES:
+        raise DoctorError(f"no such worklist scope {scope!r}")
     dept = await session.get(Department, doctor.department_id)
     if dept is None:  # pragma: no cover - FK guarantees it
         raise DoctorError("this doctor has no department")
@@ -132,16 +205,73 @@ async def day_list(
                 chief_complaint=view.chief_complaint,
                 red_flag_count=view.red_flag_count,
                 called_at=view.called_at,
+                assigned_doctor_id=view.assigned_doctor_id,
+                assigned_doctor_name=view.assigned_doctor_name,
+                is_mine=view.assigned_doctor_id == doctor.id,
             )
         )
+
+    counts = DayCounts(
+        mine=sum(1 for row in rows if row.is_mine),
+        unassigned=sum(1 for row in rows if row.assigned_doctor_id is None),
+        department=len(rows),
+        unassigned_waiting=sum(
+            1 for row in rows if row.assigned_doctor_id is None and row.state == "waiting"
+        ),
+    )
 
     return DayList(
         doctor_name=doctor.name,
         department_key=dept.code,
         department_name=dept.name,
         date=on,
-        rows=rows,
+        rows=[row for row in rows if _in_scope(row, scope)],
+        scope=scope,
+        counts=counts,
+        doctor_id=doctor.id,
     )
+
+
+def _in_scope(row: DayRow, scope: DayScope) -> bool:
+    if scope == "mine":
+        return row.is_mine
+    if scope == "unassigned":
+        return row.assigned_doctor_id is None
+    return True
+
+
+async def take_visit(session: AsyncSession, *, visit_id: uuid.UUID, doctor: Doctor) -> Visit:
+    """Take this patient: the doctor puts their own name on a visit.
+
+    Legal on an unassigned patient *and* on a colleague's: cover is routine in an
+    OPD, and a doctor who has to find a coordinator to pick up the patient in
+    front of them will simply see them without the record following. Taking a
+    colleague's patient is not silently benign, so it is neither hidden nor
+    blocked — it lands in the audit trail like every other write to `Visit`
+    (`app.audit`'s `before_flush` hook), where the previous assignment is
+    recoverable.
+
+    The department check comes first and is worded from the doctor's side.
+    `assignment.assign` would also refuse — it will not put a doctor on a visit
+    outside their department — but its message is about the doctor being wrong
+    for the department, and here it is the *visit* that is in the wrong room.
+    """
+    visit = await session.get(Visit, visit_id)
+    if visit is None or visit.deleted_at is not None:
+        raise DoctorError(f"no such visit {visit_id}")
+    if visit.department_id != doctor.department_id:
+        raise DoctorError("that patient is in another department")
+
+    # Imported here rather than at module scope: `app.assignment` reaches into
+    # `app.queue` for department transfers, and `app.queue` imports this module's
+    # neighbours in turn.
+    from app import assignment as assignment_svc
+
+    try:
+        await assignment_svc.assign(session, visit=visit, doctor_id=doctor.id)
+    except assignment_svc.AssignmentError as exc:
+        raise DoctorError(str(exc)) from exc
+    return visit
 
 
 async def _patients_for_visits(
@@ -225,6 +355,28 @@ class SummaryView:
 
 
 @dataclass(slots=True)
+class DiagnosisView:
+    """The working diagnosis, and where it came from.
+
+    Read off the most recent **signed** consult note for this patient, across
+    visits — a diagnosis made last month is the one that makes today's
+    presentation legible, and a card that only ever showed today's would be blank
+    for exactly the patients whose history matters most.
+
+    So the provenance rides along and the spine states it: an unqualified
+    diagnosis line that silently belongs to a note from March is worse than no
+    line at all. There is no `stage` field in this schema yet — the spine renders
+    the diagnosis alone rather than inventing a staging vocabulary the record
+    cannot support.
+    """
+
+    text: str
+    #: The date of the visit the signed note belongs to.
+    on: date_type
+    is_current_visit: bool
+
+
+@dataclass(slots=True)
 class PatientCard:
     patient_id: uuid.UUID
     visit_id: uuid.UUID
@@ -252,6 +404,11 @@ class PatientCard:
     tier: str | None
     intake_lang: str | None
     completed_at: datetime | None
+    #: Who this visit is assigned to. The spine states it so a doctor reading a
+    #: colleague's patient knows that is what they are doing before they write.
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    diagnosis: DiagnosisView | None = None
 
 
 async def patient_card(
@@ -276,6 +433,7 @@ async def patient_card(
 
     intake = await _latest_intake(session, visit_id=visit.id)
     entry = await _entry_for_visit(session, visit_id=visit.id)
+    assigned = await session.get(Doctor, visit.doctor_id) if visit.doctor_id else None
 
     return PatientCard(
         patient_id=patient.id,
@@ -304,7 +462,41 @@ async def patient_card(
         tier=str(intake.tier) if intake else None,
         intake_lang=str(intake.lang) if intake else None,
         completed_at=intake.completed_at if intake else None,
+        assigned_doctor_id=assigned.id if assigned else None,
+        assigned_doctor_name=assigned.name if assigned else None,
+        diagnosis=await _diagnosis(session, patient_id=patient.id, current_visit_id=visit.id),
     )
+
+
+async def _diagnosis(
+    session: AsyncSession, *, patient_id: uuid.UUID, current_visit_id: uuid.UUID
+) -> DiagnosisView | None:
+    """The latest signed note's diagnosis for this patient, or None.
+
+    Only *signed* notes count. A draft dictation is a doctor thinking out loud
+    mid-consult, and promoting one to the permanent line at the top of every
+    later screen would put an unreviewed machine transcription where a clinician
+    reads a diagnosis. Nothing is re-derived: this reads the field
+    `app.dictation` already wrote under the doc 03 §7 contract.
+    """
+    result = await session.execute(
+        select(Dictation.structured, Visit.date, Visit.id)
+        .join(Visit, Dictation.visit_id == Visit.id)
+        .where(
+            Visit.patient_id == patient_id,
+            Dictation.signed_at.is_not(None),
+            Dictation.deleted_at.is_(None),
+            Visit.deleted_at.is_(None),
+        )
+        .order_by(Dictation.signed_at.desc())
+        .limit(5)
+    )
+    for structured, on, visit_id in result.all():
+        text = (structured or {}).get("diagnosis") if isinstance(structured, dict) else None
+        if not text:
+            continue
+        return DiagnosisView(text=str(text), on=on, is_current_visit=visit_id == current_visit_id)
+    return None
 
 
 async def _latest_intake(session: AsyncSession, *, visit_id: uuid.UUID) -> Intake | None:

@@ -22,8 +22,15 @@ from app import queue as q
 from app.auth.tokens import create_access_token
 from app.config import Settings
 from app.models.audit import AuditLog
+from app.models.clinical import Dictation
 from app.models.content import Checkin, CheckinPlan
-from app.models.enums import Channel, QueueEntryState, Role, VisitStatus
+from app.models.enums import (
+    Channel,
+    DictationStatus,
+    QueueEntryState,
+    Role,
+    VisitStatus,
+)
 
 TODAY = q.today()
 
@@ -92,6 +99,17 @@ async def _seed_visit(
     return visit, intake, entry
 
 
+async def _colleague(session: AsyncSession, clinic: dict):
+    """A second doctor in the same department, for cover and handover."""
+    user = f.make_user(clinic["hospital"], role=Role.DOCTOR)
+    session.add(user)
+    await session.flush()
+    doctor = f.make_doctor(user, clinic["department"])
+    session.add(doctor)
+    await session.flush()
+    return doctor
+
+
 # -- day list -----------------------------------------------------------------
 
 
@@ -101,7 +119,7 @@ async def test_day_list_shows_the_department_queue_with_the_patient(
     clinic = await f.build_clinic(session)
     visit, _, entry = await _seed_visit(session, clinic, token_no=7)
 
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
 
     assert day.doctor_name == clinic["doctor"].name
     assert day.department_key == clinic["department"].code
@@ -115,27 +133,11 @@ async def test_day_list_shows_the_department_queue_with_the_patient(
     assert row.state == "waiting"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Session B (sessions/SESSION-ASSIGN-RX-PLAN.md §3). AR2 made a coordinator "
-        "able to assign a doctor to every arrival; day_list still ignores "
-        "Visit.doctor_id, so that assignment is data nobody reads. This is strict "
-        "on purpose: when Session B lands, pytest reports XPASS as a failure and "
-        "whoever ships it has to delete this marker rather than leave a stale "
-        "xfail sitting on a behaviour that now works."
-    ),
-)
-async def test_session_b_the_worklist_scopes_to_the_assigned_doctor(
-    session: AsyncSession,
-) -> None:
-    """The gate that keeps Session B behind AR3.
-
-    Two patients in one department: one assigned to this doctor, one left in the
-    pool. `scope="mine"` must show only the first, and the unassigned one must
-    still be reachable and *countable* — an unassigned waiting patient that no
-    console surfaces is worse than the over-broad list it replaced.
-    """
+async def test_the_worklist_scopes_to_the_assigned_doctor(session: AsyncSession) -> None:
+    """Two patients in one department: one assigned to this doctor, one left in
+    the pool. `scope="mine"` shows only the first, and the unassigned one is
+    still reachable and *countable* — an unassigned waiting patient that no
+    console surfaces is worse than the over-broad list it replaced."""
     clinic = await f.build_clinic(session)
     mine, _, _ = await _seed_visit(session, clinic, token_no=1)
     mine.doctor_id = clinic["doctor"].id
@@ -150,12 +152,101 @@ async def test_session_b_the_worklist_scopes_to_the_assigned_doctor(
     day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="mine")
 
     assert [r.visit_id for r in day.rows] == [mine.id]
-    assert day.counts["unassigned"] == 1
+    assert day.rows[0].is_mine is True
+    assert day.rows[0].assigned_doctor_name == clinic["doctor"].name
+    assert day.counts.unassigned == 1
+
+
+async def test_the_unassigned_scope_is_the_department_pool(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    mine, _, _ = await _seed_visit(session, clinic, token_no=1)
+    mine.doctor_id = clinic["doctor"].id
+    other = f.make_patient(clinic["hospital"])
+    session.add(other)
+    await session.flush()
+    pooled, _, _ = await _seed_visit(session, clinic, token_no=2, patient=other)
+    await session.flush()
+
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="unassigned")
+
+    assert [r.visit_id for r in day.rows] == [pooled.id]
+    assert day.rows[0].is_mine is False
+    assert day.rows[0].assigned_doctor_id is None
+
+
+async def test_the_department_scope_shows_a_colleagues_patient_too(
+    session: AsyncSession,
+) -> None:
+    """Cover and handover: the whole room, with the colleague named. Naming them
+    is the point — an unlabelled row in the department list is indistinguishable
+    from an unassigned one, which is exactly the confusion the pool exists to
+    resolve."""
+    clinic = await f.build_clinic(session)
+    colleague = await _colleague(session, clinic)
+    theirs, _, _ = await _seed_visit(session, clinic, token_no=3)
+    theirs.doctor_id = colleague.id
+    await session.flush()
+
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
+
+    assert [r.visit_id for r in day.rows] == [theirs.id]
+    assert day.rows[0].assigned_doctor_name == colleague.name
+    assert day.rows[0].is_mine is False
+    assert day.counts.mine == 0
+    assert day.counts.unassigned == 0
+    assert day.counts.department == 1
+
+
+async def test_counts_are_returned_whatever_scope_was_asked_for(
+    session: AsyncSession,
+) -> None:
+    """The `Unassigned` badge has to be truthful while its tab is closed — that
+    is the whole reason the counts ride on every response."""
+    clinic = await f.build_clinic(session)
+    mine, _, _ = await _seed_visit(session, clinic, token_no=1)
+    mine.doctor_id = clinic["doctor"].id
+    for token_no in (2, 3):
+        patient = f.make_patient(clinic["hospital"])
+        session.add(patient)
+        await session.flush()
+        await _seed_visit(session, clinic, token_no=token_no, patient=patient)
+    await session.flush()
+
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="mine")
+
+    assert len(day.rows) == 1
+    assert day.counts.mine == 1
+    assert day.counts.unassigned == 2
+    assert day.counts.department == 3
+    assert day.counts.unassigned_waiting == 2
+
+
+async def test_unassigned_waiting_matches_the_coordinators_metric(
+    session: AsyncSession,
+) -> None:
+    """A called patient is no longer *waiting*, so the attention count drops even
+    though the pool has not. The coordinator console counts it the same way; the
+    desk and the consulting room must not quote different numbers."""
+    clinic = await f.build_clinic(session)
+    pooled, _, entry = await _seed_visit(session, clinic, token_no=1)
+    await q.set_state(session, entry_id=entry.id, state=QueueEntryState.CALLED)
+
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
+
+    assert day.counts.unassigned == 1
+    assert day.counts.unassigned_waiting == 0
+
+
+async def test_day_list_refuses_a_scope_it_does_not_have(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    with pytest.raises(doc.DoctorError):
+        await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="everybody")  # type: ignore[arg-type]
 
 
 async def test_day_list_keeps_the_queues_urgent_first_order(session: AsyncSession) -> None:
     """The doctor sees the same order as the board — severity is not re-decided
-    here, it arrives already sorted by `department_queue`."""
+    here, it arrives already sorted by `department_queue`. Scoping filters rows;
+    it never reorders them, so the urgent token leads every scope it appears in."""
     clinic = await f.build_clinic(session)
     await _seed_visit(session, clinic, token_no=1)
     other = f.make_patient(clinic["hospital"])
@@ -163,18 +254,20 @@ async def test_day_list_keeps_the_queues_urgent_first_order(session: AsyncSessio
     await session.flush()
     await _seed_visit(session, clinic, token_no=2, red_flags=[URGENT_FLAG], patient=other)
 
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    for scope in ("department", "unassigned"):
+        day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope=scope)
 
-    assert [row.token_no for row in day.rows] == [2, 1]
-    assert day.rows[0].priority == "urgent"
-    assert day.rows[0].priority_reason == "Non-healing ulcer"
-    assert day.rows[0].red_flag_count == 1
+        assert [row.token_no for row in day.rows] == [2, 1]
+        assert day.rows[0].priority == "urgent"
+        assert day.rows[0].priority_reason == "Non-healing ulcer"
+        assert day.rows[0].red_flag_count == 1
 
 
 async def test_day_list_is_empty_when_nothing_is_queued(session: AsyncSession) -> None:
     clinic = await f.build_clinic(session)
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
     assert day.rows == []
+    assert day.counts.department == 0
 
 
 async def test_day_list_excludes_another_departments_queue(session: AsyncSession) -> None:
@@ -184,9 +277,72 @@ async def test_day_list_excludes_another_departments_queue(session: AsyncSession
     await session.flush()
     await _seed_visit(session, clinic, token_no=11, department=other_dept)
 
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
 
     assert day.rows == []
+
+
+# -- take this patient --------------------------------------------------------
+
+
+async def test_take_visit_puts_the_doctors_name_on_an_unassigned_patient(
+    session: AsyncSession,
+) -> None:
+    clinic = await f.build_clinic(session)
+    pooled, _, _ = await _seed_visit(session, clinic, token_no=1)
+    assert pooled.doctor_id is None
+
+    await doc.take_visit(session, visit_id=pooled.id, doctor=clinic["doctor"])
+
+    assert pooled.doctor_id == clinic["doctor"].id
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="mine")
+    assert [r.visit_id for r in day.rows] == [pooled.id]
+    assert day.counts.unassigned == 0
+
+
+async def test_take_visit_covers_a_colleagues_patient(session: AsyncSession) -> None:
+    """Cover is routine in an OPD. Making it need a coordinator turns one
+    doctor's absence into a stalled line, so this is allowed, not refused."""
+    clinic = await f.build_clinic(session)
+    colleague = await _colleague(session, clinic)
+    theirs, _, _ = await _seed_visit(session, clinic, token_no=1)
+    theirs.doctor_id = colleague.id
+    await session.flush()
+
+    await doc.take_visit(session, visit_id=theirs.id, doctor=clinic["doctor"])
+
+    assert theirs.doctor_id == clinic["doctor"].id
+
+
+async def test_take_visit_refuses_another_departments_patient(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    other_dept = f.make_department(clinic["hospital"])
+    session.add(other_dept)
+    await session.flush()
+    elsewhere, _, _ = await _seed_visit(session, clinic, token_no=1, department=other_dept)
+
+    with pytest.raises(doc.DoctorError, match="another department"):
+        await doc.take_visit(session, visit_id=elsewhere.id, doctor=clinic["doctor"])
+
+    assert elsewhere.doctor_id is None
+
+
+async def test_take_visit_is_audited(session: AsyncSession) -> None:
+    """`Visit` is a `Clinical` model, so the change lands in the audit trail via
+    the `before_flush` hook — no route-level call anyone can forget to add. Taking
+    a colleague's patient must be reconstructible afterwards."""
+    clinic = await f.build_clinic(session)
+    pooled, _, _ = await _seed_visit(session, clinic, token_no=1)
+
+    await doc.take_visit(session, visit_id=pooled.id, doctor=clinic["doctor"])
+    await session.flush()
+
+    logs = (
+        await session.scalars(
+            select(AuditLog).where(AuditLog.entity == "visits", AuditLog.entity_id == pooled.id)
+        )
+    ).all()
+    assert any("doctor_id" in (log.meta.get("changed") or {}) for log in logs)
 
 
 async def test_resolve_doctor_refuses_a_login_with_no_doctor_record(
@@ -404,6 +560,89 @@ async def test_patient_card_trends_need_more_than_one_point(
     assert series == {"nausea": [2.0, 1.0], "pain": [6.0, 3.0]}  # non-numeric "note" skipped
 
 
+# -- the diagnosis line on the context spine ----------------------------------
+
+
+def _signed_note(visit, doctor, *, diagnosis: str | None, signed_at: datetime) -> Dictation:
+    return Dictation(
+        visit_id=visit.id,
+        doctor_id=doctor.id,
+        transcript="…",
+        structured={"diagnosis": diagnosis} if diagnosis else {},
+        status=DictationStatus.SIGNED,
+        signed_at=signed_at,
+        signed_by=doctor.id,
+    )
+
+
+async def test_the_spine_carries_the_latest_signed_diagnosis(session: AsyncSession) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=61)
+    session.add(
+        _signed_note(
+            visit,
+            clinic["doctor"],
+            diagnosis="Stage IIIA breast carcinoma",
+            signed_at=datetime.now(UTC),
+        )
+    )
+    await session.flush()
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+
+    assert card.diagnosis is not None
+    assert card.diagnosis.text == "Stage IIIA breast carcinoma"
+    assert card.diagnosis.is_current_visit is True
+
+
+async def test_the_diagnosis_survives_from_an_earlier_visit_and_says_so(
+    session: AsyncSession,
+) -> None:
+    """A diagnosis made last month is what makes today's presentation legible.
+    The spine renders it — with its date, so it is never read as today's."""
+    clinic = await f.build_clinic(session)
+    past, _, _ = await _seed_visit(session, clinic, token_no=60, date=TODAY - timedelta(days=30))
+    session.add(
+        _signed_note(
+            past,
+            clinic["doctor"],
+            diagnosis="Invasive ductal carcinoma",
+            signed_at=datetime.now(UTC) - timedelta(days=30),
+        )
+    )
+    today_visit, _, _ = await _seed_visit(session, clinic, token_no=61)
+    await session.flush()
+
+    card = await doc.patient_card(session, visit_id=today_visit.id, doctor=clinic["doctor"])
+
+    assert card.diagnosis is not None
+    assert card.diagnosis.text == "Invasive ductal carcinoma"
+    assert card.diagnosis.on == past.date
+    assert card.diagnosis.is_current_visit is False
+
+
+async def test_an_unsigned_note_never_becomes_the_diagnosis(session: AsyncSession) -> None:
+    """A draft is a doctor thinking out loud mid-consult. Promoting one to the
+    permanent line at the top of every later screen would put an unreviewed
+    machine transcription where a clinician reads a diagnosis."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=62)
+    session.add(
+        Dictation(
+            visit_id=visit.id,
+            doctor_id=clinic["doctor"].id,
+            transcript="…",
+            structured={"diagnosis": "probably TB"},
+            status=DictationStatus.DRAFT,
+        )
+    )
+    await session.flush()
+
+    card = await doc.patient_card(session, visit_id=visit.id, doctor=clinic["doctor"])
+
+    assert card.diagnosis is None
+
+
 # -- routes -------------------------------------------------------------------
 
 
@@ -440,16 +679,135 @@ async def test_day_route_returns_the_doctors_worklist(
     client: AsyncClient, session: AsyncSession, settings: Settings
 ) -> None:
     clinic = await f.build_clinic(session)
-    await _seed_visit(session, clinic, token_no=21, red_flags=[URGENT_FLAG])
+    visit, _, _ = await _seed_visit(session, clinic, token_no=21, red_flags=[URGENT_FLAG])
+    visit.doctor_id = clinic["doctor"].id
+    await session.flush()
 
     resp = await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["department_key"] == clinic["department"].code
+    assert body["scope"] == "mine"
     assert body["rows"][0]["token_no"] == 21
     assert body["rows"][0]["priority"] == "urgent"
     assert body["rows"][0]["red_flag_count"] == 1
+    assert body["rows"][0]["is_mine"] is True
+
+
+async def test_day_route_defaults_to_mine_and_still_counts_the_pool(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The unassigned patient is not in the default list, but the caller is told
+    they exist. That is the compensating control for a kiosk `Skip`."""
+    clinic = await f.build_clinic(session)
+    await _seed_visit(session, clinic, token_no=21)
+
+    resp = await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))
+
+    body = resp.json()
+    assert body["rows"] == []
+    assert body["counts"] == {
+        "mine": 0,
+        "unassigned": 1,
+        "department": 1,
+        "unassigned_waiting": 1,
+    }
+
+
+async def test_day_route_serves_the_unassigned_scope(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    await _seed_visit(session, clinic, token_no=21)
+
+    resp = await client.get(
+        "/doctor/day", params={"scope": "unassigned"}, headers=_headers(settings, clinic["user"])
+    )
+
+    body = resp.json()
+    assert body["scope"] == "unassigned"
+    assert [row["token_no"] for row in body["rows"]] == [21]
+    assert body["rows"][0]["assigned_doctor_name"] is None
+
+
+async def test_day_route_refuses_a_scope_that_does_not_exist(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    resp = await client.get(
+        "/doctor/day", params={"scope": "everybody"}, headers=_headers(settings, clinic["user"])
+    )
+    assert resp.status_code == 422
+
+
+async def test_take_route_assigns_the_visit_to_the_caller(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=23)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/take", headers=_headers(settings, clinic["user"])
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["assigned_doctor_name"] == clinic["doctor"].name
+
+    day = await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))
+    body = day.json()
+    assert [row["token_no"] for row in body["rows"]] == [23]
+    assert body["counts"]["unassigned"] == 0
+
+
+async def test_take_route_refuses_a_coordinator(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=24)
+    coordinator = f.make_user(clinic["hospital"], role=Role.COORDINATOR)
+    session.add(coordinator)
+    await session.flush()
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/take", headers=_headers(settings, coordinator)
+    )
+    assert resp.status_code == 403
+
+
+async def test_take_route_refuses_another_departments_visit(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    other_dept = f.make_department(clinic["hospital"])
+    session.add(other_dept)
+    await session.flush()
+    visit, _, _ = await _seed_visit(session, clinic, token_no=25, department=other_dept)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/take", headers=_headers(settings, clinic["user"])
+    )
+    assert resp.status_code == 403
+
+
+async def test_the_card_is_not_narrowed_to_the_assigned_doctor(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """Filtering a list is UX; narrowing access is a clinical-continuity
+    decision this codebase made the other way, on the record. A colleague's
+    patient opens, and the card says whose patient it is."""
+    clinic = await f.build_clinic(session)
+    colleague = await _colleague(session, clinic)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=26)
+    visit.doctor_id = colleague.id
+    await session.flush()
+
+    resp = await client.get(
+        f"/doctor/patients/{visit.id}", headers=_headers(settings, clinic["user"])
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["assigned_doctor_name"] == colleague.name
 
 
 async def test_patient_route_returns_the_card(
@@ -537,7 +895,7 @@ async def test_lab_requeue_sends_the_patient_to_the_back(session: AsyncSession) 
     await q.set_state(session, entry_id=first.id, state=QueueEntryState.LAB_REQUEUE)
     await q.set_state(session, entry_id=first.id, state=QueueEntryState.WAITING)
 
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
     assert [row.token_no for row in day.rows] == [42, 41]
 
 
@@ -548,6 +906,6 @@ async def test_no_show_drops_off_the_worklist(session: AsyncSession) -> None:
 
     await q.set_state(session, entry_id=entry.id, state=QueueEntryState.NO_SHOW)
 
-    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY)
+    day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
     assert day.rows == []
     assert visit.status is VisitStatus.NO_SHOW

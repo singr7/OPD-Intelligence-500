@@ -1,13 +1,20 @@
 """The doctor console's HTTP surface (doc 03 §5).
 
-Read-only, on purpose. The console's *actions* are the S8 queue verbs it already
-shares with the coordinator — `POST /queue/call-next` and
+Two reads and one write. The console's *queue* actions are the S8 verbs it
+already shares with the coordinator — `POST /queue/call-next` and
 `POST /queue/entries/{id}/state` — so there is no `/doctor/call-next` here. One
 implementation of the queue state machine, one audit trail, one order on the
 board; a doctor-flavoured copy would drift from the coordinator's within a
 session or two.
 
-Both routes are `require_doctor` (doctor or admin), a tighter guard than the
+The write is `POST /doctor/visits/{id}/take`, and it exists because the thing it
+does is not a queue transition at all: it changes who the visit belongs to, not
+where it sits in the line. Routing it through the coordinator's assign endpoint
+would mean handing every doctor `require_staff` and a department picker to do
+the one thing they actually need — put their own name on the patient in front of
+them.
+
+Every route is `require_doctor` (doctor or admin), a tighter guard than the
 coordinator's `require_staff`: this is the one surface that returns a patient's
 name, phone, answers and history together, which is more than a queue
 coordinator needs to move a line.
@@ -26,6 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import doctor as doctor_svc
 from app.auth.rbac import Principal, require_doctor
 from app.db import get_session
+from app.queue_hub import QueueHub
+from app.routes.queue import get_hub
 
 router = APIRouter(prefix="/doctor", tags=["doctor"])
 
@@ -46,13 +55,26 @@ class DayRowOut(BaseModel):
     chief_complaint: str | None = None
     red_flag_count: int
     called_at: datetime | None = None
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    is_mine: bool = False
+
+
+class DayCountsOut(BaseModel):
+    mine: int
+    unassigned: int
+    department: int
+    unassigned_waiting: int
 
 
 class DayOut(BaseModel):
     doctor_name: str
+    doctor_id: uuid.UUID
     department_key: str
     department_name: str
     date: date_type
+    scope: str
+    counts: DayCountsOut
     rows: list[DayRowOut]
 
 
@@ -102,6 +124,12 @@ class SummaryOut(BaseModel):
     unclear: list[str] = []
 
 
+class DiagnosisOut(BaseModel):
+    text: str
+    on: date_type
+    is_current_visit: bool
+
+
 class CardOut(BaseModel):
     patient_id: uuid.UUID
     visit_id: uuid.UUID
@@ -129,6 +157,9 @@ class CardOut(BaseModel):
     tier: str | None = None
     intake_lang: str | None = None
     completed_at: datetime | None = None
+    assigned_doctor_id: uuid.UUID | None = None
+    assigned_doctor_name: str | None = None
+    diagnosis: DiagnosisOut | None = None
 
 
 # -- routes -------------------------------------------------------------------
@@ -137,16 +168,60 @@ class CardOut(BaseModel):
 @router.get("/day", response_model=DayOut)
 async def get_day(
     on: date_type | None = Query(default=None, description="defaults to today"),
+    scope: str = Query(default="mine", description="mine | unassigned | department"),
     principal: Principal = Depends(require_doctor),
     session: AsyncSession = Depends(get_session),
 ) -> DayOut:
-    """The doctor's worklist for a day, in the queue's own order."""
+    """The doctor's worklist for a day, in one scope, in the queue's own order.
+
+    The response always carries counts for all three scopes, so the console can
+    keep the `Unassigned` badge honest while its tab is closed without asking a
+    second time.
+    """
+    if scope not in doctor_svc.DAY_SCOPES:
+        raise HTTPException(status_code=422, detail=f"no such scope {scope!r}")
     try:
         doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
-        day = await doctor_svc.day_list(session, doctor=doctor, on=on)
+        day = await doctor_svc.day_list(session, doctor=doctor, on=on, scope=scope)  # type: ignore[arg-type]
     except doctor_svc.DoctorError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return DayOut.model_validate(day, from_attributes=True)
+
+
+class TakeOut(BaseModel):
+    visit_id: uuid.UUID
+    assigned_doctor_id: uuid.UUID
+    assigned_doctor_name: str
+
+
+@router.post("/visits/{visit_id}/take", response_model=TakeOut)
+async def take_patient(
+    visit_id: uuid.UUID,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+    hub: QueueHub = Depends(get_hub),
+) -> TakeOut:
+    """Take this patient: points the visit at the calling doctor.
+
+    Deliberately not behind a confirm dialog. Taking a patient is cheap to undo —
+    the coordinator's assign control, or another doctor doing the same thing —
+    and a confirmation step on the one action that unblocks a stalled line
+    teaches doctors to click through dialogs.
+
+    It notifies the queue hub because the *coordinator's* screen shows the
+    assignment too: a desk still displaying "unassigned" for a patient a doctor
+    has already taken is how the same patient gets assigned twice.
+    """
+    try:
+        doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
+        visit = await doctor_svc.take_visit(session, visit_id=visit_id, doctor=doctor)
+    except doctor_svc.DoctorError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await session.commit()
+    await hub.notify_queue_changed()
+    return TakeOut(
+        visit_id=visit.id, assigned_doctor_id=doctor.id, assigned_doctor_name=doctor.name
+    )
 
 
 @router.get("/patients/{visit_id}", response_model=CardOut)
