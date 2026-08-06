@@ -166,6 +166,38 @@ export function NoteDock({
     void fileIt(text);
   }, [capture.recording, capture.transcribing, transcript, busy, open, fileIt]);
 
+  /**
+   * Open a draft for review, opening its fields first if it has none.
+   *
+   * A note can reach this screen with `fields` still null — the tab was closed
+   * between `start` and `map`, or the browser went away mid-capture. Rendering
+   * the textareas anyway would offer the doctor an edit that `PATCH` refuses
+   * ("this note has not been mapped yet"), so they would type a paragraph and
+   * watch it fail to save. `compose` is the same verb the failed-mapping path
+   * already calls; calling it here makes the two arrivals at this screen
+   * identical.
+   */
+  const openNote = useCallback(
+    async (note: ClinicalNote | null) => {
+      if (!note) return;
+      if (note.fields) {
+        setOpen(note);
+        return;
+      }
+      setBusy("opening");
+      try {
+        setOpen(await composeNote(token, note.id));
+      } catch (err) {
+        if (!(err instanceof AuthError)) {
+          setError(err instanceof Error ? err.message : "Could not open that note.");
+        }
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token],
+  );
+
   const patch = useCallback(
     async (next: Partial<NoteFields>) => {
       if (!open) return;
@@ -197,6 +229,44 @@ export function NoteDock({
       setBusy(null);
     }
   }, [token, open, reload]);
+
+  /**
+   * Keep the spine on screen while the drawer is up.
+   *
+   * The first screenshot of this surface showed the drawer sitting over the
+   * diagnosis, the allergies and the red flags — which is precisely the failure
+   * this module is shaped to avoid, and the reason it is a drawer and not a tab.
+   * Being in the DOM is not the claim; being *readable* is.
+   *
+   * Two halves: the body flag gives the console bottom padding so there is room
+   * to scroll (see `NOTE_CSS`), and this scrolls the spine up to its sticky
+   * offset so it pins under the app bar rather than sitting behind the drawer.
+   * Computed against `.appbar` rather than a hard-coded 64, because a wrapped
+   * app bar on a narrow window is taller and the spine's `top` follows it.
+   */
+  useEffect(() => {
+    if (!open) {
+      delete document.body.dataset.noteOpen;
+      return;
+    }
+    document.body.dataset.noteOpen = "1";
+    // Next frame, not this one. The flag above is what gives the console its
+    // bottom padding, and until the browser has laid that out the page is still
+    // its old height — so a `scrollTo` here is clamped to the old maximum and
+    // silently does nothing. That is exactly how the first version of this
+    // failed, with the spine left sitting behind the drawer.
+    const frame = requestAnimationFrame(() => {
+      const spine = document.querySelector<HTMLElement>('[data-testid="context-spine"]');
+      const bar = document.querySelector<HTMLElement>(".appbar");
+      if (!spine || !bar) return;
+      const target = window.scrollY + spine.getBoundingClientRect().top - bar.offsetHeight;
+      if (target > window.scrollY) window.scrollTo({ top: target });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      delete document.body.dataset.noteOpen;
+    };
+  }, [open]);
 
   const drafts = draftCount(notes);
   const confirmed = notes.length - drafts;
@@ -240,17 +310,27 @@ export function NoteDock({
 
         {!capture.recording && !open && (
           <p className="nd-fab-l">
+            {/* Always names what it records, before it says how many there are.
+                The Consult tab puts a second microphone on screen — its own
+                `Dictate`, which is the prescription path — and the first
+                screenshot of this surface had the two distinguishable only by
+                position, with this one labelled "20 notes to review". Which mic
+                a doctor is about to speak a drug into should never be a thing
+                they work out from a count. */}
+            <span className="nd-fab-what">Observation</span>
             {drafts > 0 ? (
-              <button className="nd-resume" onClick={() => setOpen(lastDraft(notes))}>
-                {drafts} note{drafts > 1 ? "s" : ""} to review
+              <button
+                className="nd-resume"
+                data-testid="note-resume"
+                onClick={() => void openNote(lastDraft(notes))}
+              >
+                {drafts} to review
               </button>
             ) : confirmed > 0 ? (
               <span data-testid="note-count">
                 {confirmed} note{confirmed > 1 ? "s" : ""} this visit
               </span>
-            ) : (
-              <span>Note</span>
-            )}
+            ) : null}
           </p>
         )}
       </div>
@@ -349,13 +429,22 @@ function NoteReview({
         <div className="nd-head-l">
           <h2>Observation</h2>
           <span className="nd-who">{patientName}</span>
+          {/* Three states, because there are three, and the middle one used to
+              lie. The badge said "AI-drafted" on a note that reached this screen
+              with no mapping at all — the doctor had typed every word of it and
+              the screen credited a model. `mapped` is the only thing that makes
+              the AI claim true, so it is what the claim is keyed on. */}
           {failed ? (
             <span className="nd-badge warn" data-testid="note-degraded">
               not structured — your words are saved
             </span>
-          ) : (
+          ) : mapped ? (
             <span className="nd-badge" data-testid="note-badge">
               AI-drafted, unconfirmed
+            </span>
+          ) : (
+            <span className="nd-badge plain" data-testid="note-badge">
+              yours, unconfirmed
             </span>
           )}
         </div>
@@ -383,6 +472,14 @@ function NoteReview({
               {note.prompt_ref ? ` · ${note.prompt_ref}` : ""}
             </p>
           )}
+
+          {/* The tags live under the transcript rather than under the four
+              fields, and the first screenshot is why. On the right they sat
+              below the fold — the one genuinely new thing on this screen,
+              needing a scroll to find — while this column held two lines of
+              speech and a column of empty space. They belong beside the words
+              they were drawn from anyway. */}
+          <TagStrip tags={fields.tags} onPatch={(tags) => onPatch({ tags })} />
         </div>
 
         {/* what the machine made of it */}
@@ -397,8 +494,6 @@ function NoteReview({
               onCommit={(next) => next !== fields[key] && onPatch({ [key]: next })}
             />
           ))}
-
-          <TagStrip tags={fields.tags} onPatch={(tags) => onPatch({ tags })} />
         </div>
       </div>
 

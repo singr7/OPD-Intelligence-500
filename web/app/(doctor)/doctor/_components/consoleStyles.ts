@@ -916,7 +916,12 @@ export const NOTE_CSS = `
   background: var(--accent); color: #4a2c05; font: 800 12px/1 var(--font-sans), sans-serif;
   font-variant-numeric: tabular-nums; border: 2px solid var(--canvas); }
 
-.nd-fab-l { margin: 0; font-size: 12px; color: var(--text-muted); text-align: right; }
+.nd-fab-l { margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-size: 12px; color: var(--text-muted); text-align: right;
+  /* It sits over the work area, so it needs its own ground to be legible on. */
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 5px 9px; box-shadow: 0 3px 10px rgba(16,48,42,.07); }
+.nd-fab-what { font-weight: 700; color: var(--ink-soft); }
 .nd-resume { background: none; border: none; padding: 0; cursor: pointer; font: inherit;
   color: #7a4d0a; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 
@@ -934,10 +939,19 @@ export const NOTE_CSS = `
   background: var(--accent-soft); color: #7a4d0a; border: 1px solid #e8c583; }
 
 /* ---- the drawer -------------------------------------------------------- */
+/* Height, and the padding below, are one decision made twice.
+   The first screenshot of this surface had the drawer at 62vh and it ate the
+   spine — diagnosis, allergies and red flags all gone behind it, which is the
+   exact failure Session B built the spine to fix and the reason this is a
+   drawer rather than a tab. So: the drawer takes the bottom 52vh, the console
+   gets matching padding underneath while it is open (so there is somewhere to
+   scroll), and the sticky spine pins under the app bar in the 48vh that is
+   left. The two numbers must move together. */
 .nd-drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
-  max-height: 62vh; display: flex; flex-direction: column;
+  max-height: 52vh; display: flex; flex-direction: column;
   background: var(--surface); border-top: 1px solid var(--line);
   box-shadow: 0 -12px 34px rgba(16,48,42,.16); }
+body[data-note-open="1"] .console { padding-bottom: 54vh; }
 
 .nd-head { flex: none; display: flex; align-items: center; justify-content: space-between;
   gap: 14px; padding: 13px 24px; border-bottom: 1px solid var(--line); }
@@ -949,6 +963,8 @@ export const NOTE_CSS = `
   background: var(--accent-soft); color: #7a4d0a; }
 .nd-badge.warn { background: var(--danger-soft); color: var(--danger); text-transform: none;
   letter-spacing: 0; font-weight: 600; font-size: 12px; }
+/* Nothing was model-drafted, so it does not wear the amber that means it was. */
+.nd-badge.plain { background: var(--canvas); color: var(--text-muted); }
 .nd-x { border: none; background: none; cursor: pointer; color: var(--text-muted);
   display: grid; place-items: center; padding: 5px; border-radius: 6px; }
 .nd-x:hover { background: var(--canvas); color: var(--ink); }
@@ -966,6 +982,8 @@ export const NOTE_CSS = `
   font-size: 15px; line-height: 1.6; color: var(--ink); }
 .nd-said-none { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-muted); }
 .nd-prov { margin: 12px 0 0; font-size: 11px; color: var(--text-muted); }
+.nd-said .nd-tags, .nd-said .nd-tags-none { margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--line); }
 
 /* the fields */
 .nd-fields { display: flex; flex-direction: column; gap: 11px; }

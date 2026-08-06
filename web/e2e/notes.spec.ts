@@ -160,17 +160,45 @@ test.describe("the doctor thinks aloud", () => {
 
     // The dock counts what is waiting, and the count is the way in.
     await expect(page.getByTestId("note-drafts")).toBeVisible();
-    await page.getByRole("button", { name: /note.* to review/ }).click();
+    await page.getByTestId("note-resume").click();
 
     const drawer = page.getByTestId("note-drawer");
     await expect(drawer).toBeVisible();
 
-    // 2. The whole reason this is a drawer and not a tab.
-    await expect(
-      page.getByTestId("context-spine"),
-      "the drawer covered the spine — an observation is captured while reading",
-    ).toBeVisible();
-    await expect(page.getByTestId("spine-allergies")).toBeVisible();
+    // 2. The whole reason this is a drawer and not a tab — and it is checked by
+    // geometry, not by `toBeVisible`.
+    //
+    // The first version of this test asserted `toBeVisible` on the spine and
+    // passed while the drawer sat squarely on top of it: Playwright's
+    // visibility means "in the DOM with a non-zero box", which a covered
+    // element still has. The screenshot is what caught it. So the assertion is
+    // now the thing actually claimed — the whole spine, down to the red flags,
+    // sits above the top edge of the drawer.
+    const spineBox = await page.getByTestId("context-spine").boundingBox();
+    const drawerBox = await drawer.boundingBox();
+    expect(spineBox, "no spine on screen").not.toBeNull();
+    expect(drawerBox, "no drawer on screen").not.toBeNull();
+    expect(
+      spineBox!.y + spineBox!.height,
+      "the drawer covered the spine — an observation is captured *while* reading",
+    ).toBeLessThanOrEqual(drawerBox!.y + 1);
+    expect(spineBox!.y, "the spine was scrolled off the top instead").toBeGreaterThanOrEqual(0);
+
+    // And the parts of it that matter most are among what stayed.
+    //
+    // `count()` first, deliberately: `boundingBox()` on a locator that matches
+    // nothing waits for the element with no timeout, so an absent id hangs the
+    // test rather than failing it. Both red-flag ids are listed because exactly
+    // one of them is ever rendered — the strip when flags fired, the calm line
+    // when none did, and which one depends on the seeded patient.
+    for (const part of ["spine-diagnosis", "spine-allergies", "red-flag-strip", "no-red-flags"]) {
+      const el = page.getByTestId(part);
+      if ((await el.count()) === 0) continue;
+      const box = await el.boundingBox();
+      expect(box!.y + box!.height, `${part} was covered by the drawer`).toBeLessThanOrEqual(
+        drawerBox!.y + 1,
+      );
+    }
 
     // 3. What was said, beside what the machine made of it.
     await expect(page.getByTestId("note-transcript")).toContainText("grade 1 mucositis");
@@ -190,19 +218,32 @@ test.describe("the doctor thinks aloud", () => {
     await request.dispose();
 
     await openConsole(page, doctorToken, patient.tokenNo);
-    await page.getByRole("button", { name: /note.* to review/ }).click();
+    await page.getByTestId("note-resume").click();
     const drawer = page.getByTestId("note-drawer");
     await expect(drawer).toBeVisible();
 
-    // 4. The AC, as a property of the rendered surface. Nothing in this drawer
-    // asks for a drug, a dose, a route or a frequency — a doctor cannot fill in
-    // a prescription here even by trying.
+    // 4. The AC, as a property of the rendered surface.
+    //
+    // Asserted on the *inputs*, not on the words. An earlier version of this
+    // test banned the string "formulary" anywhere in the drawer and failed on
+    // the rule sentence itself — which is the one place the word belongs, since
+    // it is what tells the doctor where prescribing actually happens. What must
+    // not exist is somewhere to type a drug order.
     await expect(drawer).toContainText(/never prescribes/i);
     await expect(drawer).toContainText(/Consult/);
-    for (const forbidden of [/dose/i, /\bfrequency\b/i, /\bformulary\b/i, /\bprint\b/i]) {
-      await expect(drawer).not.toContainText(forbidden);
+
+    // Exactly four fields, and they are the four the contract has. A fifth is
+    // how this surface would grow a medication row.
+    const boxes = drawer.getByRole("textbox");
+    await expect(boxes).toHaveCount(4);
+    for (const field of ["subjective", "objective", "assessment", "plan"]) {
+      await expect(page.getByTestId(`note-${field}`)).toBeVisible();
     }
-    expect(await drawer.getByRole("textbox").count()).toBe(4);
+    // And nothing asks for the parts of a prescription.
+    for (const drugField of [/dose/i, /frequency/i, /route/i, /duration/i, /medicine/i]) {
+      await expect(drawer.getByLabel(drugField)).toHaveCount(0);
+      await expect(drawer.getByPlaceholder(drugField)).toHaveCount(0);
+    }
 
     await shot(page, "03-the-rule");
   });
@@ -213,7 +254,12 @@ test.describe("the doctor thinks aloud", () => {
     await request.dispose();
 
     await openConsole(page, doctorToken, patient.tokenNo);
-    await page.getByRole("button", { name: /note.* to review/ }).click();
+
+    // How many are waiting before this one is dealt with. Read rather than
+    // assumed: this project runs serially against one patient, so the earlier
+    // tests have left drafts of their own on the same visit.
+    const before = Number(await page.getByTestId("note-drafts").innerText());
+    await page.getByTestId("note-resume").click();
 
     const assessment = page.getByTestId("note-assessment");
     await assessment.fill("Tolerating AC-T; mucositis settling on rinses.");
@@ -226,8 +272,13 @@ test.describe("the doctor thinks aloud", () => {
     await page.getByTestId("note-confirm").click();
     await expect(page.getByTestId("note-drawer")).toBeHidden();
 
-    // Confirmed notes leave the draft count and join the visit's tally.
-    await expect(page.getByTestId("note-count")).toContainText(/note/);
+    // A confirmed note stops being one of the things waiting for the doctor.
+    if (before > 1) {
+      await expect(page.getByTestId("note-drafts")).toHaveText(String(before - 1));
+    } else {
+      await expect(page.getByTestId("note-drafts")).toBeHidden();
+      await expect(page.getByTestId("note-count")).toContainText(/note/);
+    }
 
     // And the edit is on the record, not just on the screen.
     const check = await page.request.get(`${API}/notes/visits/${patient.visitId}`, {
@@ -248,20 +299,26 @@ test.describe("the doctor thinks aloud", () => {
     page,
     playwright,
   }) => {
-    // The degraded state, produced honestly: the note is stored without a
-    // mapping, exactly as it is left when the model is down.
+    // The degraded state, produced the way the model being down produces it:
+    // the words are stored and the mapping never happens. The dock opens the
+    // fields itself on the way in, which is the same `compose` the live
+    // failure path calls — so this is the state a doctor actually meets, not a
+    // convenient approximation of it.
     const request = await playwright.request.newContext();
     await speak(request, doctorToken, patient.visitId, SPOKEN, { map: false });
     await request.dispose();
 
     await openConsole(page, doctorToken, patient.tokenNo);
-    await page.getByRole("button", { name: /note.* to review/ }).click();
+    await page.getByTestId("note-resume").click();
     const drawer = page.getByTestId("note-drawer");
     await expect(drawer).toBeVisible();
 
     // 5. The words are on screen; the fields are open and empty.
     await expect(page.getByTestId("note-transcript")).toContainText("grade 1 mucositis");
     await expect(page.getByTestId("note-assessment")).toBeEmpty();
+    // And nothing on screen credits a model with a note no model touched — the
+    // first screenshot of this state badged it "AI-drafted".
+    await expect(page.getByTestId("note-badge")).not.toContainText(/AI/i);
 
     // Confirming is refused while it says nothing — that would be a note
     // indistinguishable from one tapped through.

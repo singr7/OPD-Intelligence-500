@@ -169,6 +169,26 @@ def _fail(exc: notes_svc.NoteError) -> HTTPException:
     return HTTPException(status_code=400, detail=str(exc))
 
 
+async def _settle(session: AsyncSession) -> None:
+    """Commit before the response goes out, so 200 means "it is on the record".
+
+    `get_session` commits too, but a FastAPI dependency with `yield` tears down
+    **after** the response has been sent (the behaviour since 0.106; this repo
+    runs 0.139). Everywhere else in this codebase that is harmless, because no
+    client uses the id from one write to make another without a round trip in
+    between. This module is the first that does: the dock captures an
+    observation and immediately asks for it to be mapped, and against a live
+    stack that second call arrives before the first request's commit has landed
+    and 404s on a row that is about to exist.
+
+    Committing here rather than making the client retry a 404, because a
+    404-that-resolves-itself is a contract no caller can be written against —
+    and for a clinical write, "the server said 200" should already mean the
+    words are safe.
+    """
+    await session.commit()
+
+
 # -- routes -------------------------------------------------------------------
 
 
@@ -202,6 +222,7 @@ async def start(
         )
     except notes_svc.NoteError as exc:
         raise _fail(exc) from exc
+    await _settle(session)
     return _out(note)
 
 
@@ -223,6 +244,7 @@ async def map_fields(
             note = await notes_svc.map_transcript(session, note=note, doctor=doctor, mapper=mapper)
     except notes_svc.NoteError as exc:
         raise _fail(exc) from exc
+    await _settle(session)
     return _out(note)
 
 
@@ -239,6 +261,7 @@ async def compose(
         note = await notes_svc.compose(session, note=note, doctor=doctor)
     except notes_svc.NoteError as exc:
         raise _fail(exc) from exc
+    await _settle(session)
     return _out(note)
 
 
@@ -258,6 +281,7 @@ async def correct(
         )
     except notes_svc.NoteError as exc:
         raise _fail(exc) from exc
+    await _settle(session)
     return _out(note)
 
 
@@ -274,6 +298,7 @@ async def confirm(
         note = await notes_svc.confirm(session, note=note, doctor=doctor)
     except notes_svc.NoteError as exc:
         raise _fail(exc) from exc
+    await _settle(session)
     return _out(note)
 
 
