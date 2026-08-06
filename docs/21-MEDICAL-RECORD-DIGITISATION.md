@@ -201,12 +201,14 @@ because a list that only grows stops being read.
    table-derived flags as the weaker signal. Eighteen tests, adult only, no
    paediatric or pregnancy ranges.
 2. **No S3 object store.** The seam exists; the cloud shape needs the impl.
-3. **The backup job does not yet include the pages directory.** Recorded in
-   STATE → Stubs & fakes, in `.env.example` beside the setting, and in doc 22
-   §2 with a sketch of the tar step. M2 gave the directory a real volume on both
-   compose files — before that it had none at all, so pages did not survive a
-   container recreate and the worker could not see them — but backing it up is
-   still unstarted, and the restore side has never been exercised.
+3. **The pages are in the backup now, but it has never run for real.** M2 gave
+   the directory a real volume on both compose files (before that it had none at
+   all — pages did not survive a container recreate and the worker could not see
+   them), taught both backup scripts to sync it, taught `restore.sh` to bring it
+   back, and made the daily drill fail if a restored document's pages are not in
+   the bucket. Doc 22 §2 is the whole argument. What is still owed is running it
+   against a real bucket on a real box, and a lifecycle policy for the `pages/`
+   prefix.
 4. **Extracted values feed nothing but display.** They do not reach prescription
    validation, check-in grading, or trends across visits. That is future work
    behind its own clinical review.

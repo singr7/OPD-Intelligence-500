@@ -9,8 +9,8 @@ rollback — are **doc 20 §1–§4** and are not repeated here. This note is on
 what is different about this release, and there are four things:
 
 1. it needs a **persistent, shared volume** that no previous release had;
-2. that volume is **not covered by the database backup**, which changes what a
-   restore means;
+2. the backup and restore scripts changed to carry that volume — the database
+   dump alone stopped being a complete restore the moment MRD1 shipped;
 3. it has **four pending migrations**, none of which has run on either box;
 4. extraction needs a **vision-capable LLM**, and refuses rather than guessing
    when it does not have one.
@@ -49,28 +49,73 @@ docker compose exec worker sh -c 'ls -la /data/records/.probe'   # the same file
 If the second command cannot see the file the first created, the volume is not
 shared and extraction will fail on every document — stop and fix that first.
 
-## 2. The backup is no longer complete, and this is the largest debt in the release
+## 2. The pages are in the backup, and the drill proves it
 
-The 15-minute Postgres backup does **not** include the pages. A restore from
-database alone brings back every `MedicalDocument` row and every extraction,
-pointing at page bytes that are gone.
+Until this release the 15-minute backup was `pg_dump` and nothing else, so a
+restore brought back every `MedicalDocument` row and every extraction pointing
+at page bytes that were gone. That failed *visibly* — the page route answers
+`410` and the Reports tab renders it as its own state — but a visibly missing
+biopsy report is still a missing biopsy report.
 
-That failure is at least *visible* — the page route answers `410` with a
-sentence rather than a broken image, and the doctor's tab says the page is no
-longer stored and that an operator needs to know. But visible is not the same as
-survivable, and **the operator work is unstarted.**
+Both backup scripts (`deploy/aws/backup.sh`, `deploy/omen/cloud-backup.sh`) now
+sync the pages to `s3://$BACKUP_BUCKET/pages/`, `restore.sh` syncs them back,
+and the daily drill checks they are really there.
 
-Until the backup job includes the volume, be explicit with the hospital that a
-restore recovers the readings and not the photographs. Adding it is roughly:
+**Why a sync and not a tarball.** Page keys are deterministic — one per
+(patient, document, page), built in exactly one place (`mrd.page_key`) — nothing
+rewrites a key, and no code path deletes one. The store is append-only in
+practice, so `aws s3 sync` uploads only what is new. A 15-minute tar of a
+directory growing by gigabytes a week would be unusable inside a month, and a
+per-backup copy would multiply those gigabytes for bytes that never change.
 
-```bash
-# alongside the existing pg_dump, per the doc 17/18 backup runbook
-docker run --rm -v opd-intelligence-alwar_recordsdata:/src:ro -v "$BACKUP_DIR":/out \
-  alpine tar czf /out/records-$(date -u +%Y%m%dT%H%M%SZ).tar.gz -C /src .
+There is deliberately **no `--delete`**, on either direction. A restore of an
+older database must still find its pages, and nothing should be able to remove a
+patient's scanned report from the backup as a side effect of a sync.
+
+**The ordering is the correctness argument.** The database is dumped *first* and
+the pages synced *second*. Because pages are append-only, every page the dump
+references already existed when the dump was taken, so a sync that runs
+afterwards is guaranteed to contain it. The reverse order loses exactly the
+report a coordinator scanned during the backup — the most likely to matter and
+the least likely to be noticed. `deploy/aws/test-contract.sh` asserts the line
+order in both scripts, because a comment saying so is not a test.
+
+Pages uploaded *between* the dump and the sync are harmless: they are orphans no
+restored row references, and the next dump adopts them.
+
+**What the daily drill now checks.** `verify-restore.sh` already restored each
+backup into an isolated database. It now also reads the object keys of the most
+recent documents out of that restored database and confirms each one is present
+in the bucket:
+
+```
+pages checked: 50 (all present)
 ```
 
-That is a sketch, not a tested runbook step. It has not been run on either box,
-and the restore side has not been exercised at all.
+The manifest records `pages_checked`, so "verified" on a backup holding scanned
+documents cannot be confused with "verified" on one that holds none. If any
+sampled page is missing the drill **fails** with the key it could not find —
+that is the check whose absence made the old drill able to pass on a box whose
+scanned reports were gone. It samples the newest keys
+(`RECORDS_VERIFY_SAMPLE`, default 50) rather than all of them: the store grows
+without limit, the drill runs daily, and an ordering bug shows up in the newest
+page first.
+
+**The manual failover drill** (`drill-report.py`) now requires
+`known_document_id` and refuses to finalize unless
+`document_pages_readable_on_target` is true. A `MedicalDocument` row restores
+from the dump whether or not its photographs came with it, so asserting the row
+proves nothing — the drill has to *open the pages* on the target.
+
+### Still owed
+
+The scripts are written and unit-asserted, and **neither has run against a real
+bucket on either box.** The first real backup after this deploy is the test;
+watch it, then run `verify-restore.sh` by hand and confirm the `pages checked`
+line is non-zero before trusting the schedule.
+
+Bucket growth is also still unmanaged — `pages/` has no lifecycle policy, and
+doc 21 §8.7 (storage growth) applies to the backup copy as much as to the disk.
 
 ## 3. Migrations
 
@@ -137,6 +182,19 @@ Then, from the desk phone and the console:
    not, check §1 before anything else.
 5. Back on `/scan`, the **Could not be read** section lists anything the model
    refused, with a re-read. On a healthy box it should be empty.
+
+Then prove the backup, once, by hand — this is the first release where that is
+not the same thing as proving the database backup:
+
+```bash
+/opt/opd/current/deploy/aws/backup.sh                 # note the BACKUP_ID
+aws s3 ls "s3://$BACKUP_BUCKET/pages/" --recursive --summarize | tail -3
+/opt/opd/current/deploy/aws/verify-restore.sh         # expect: pages checked: N (all present)
+```
+
+`N` must be **non-zero** after step 1 has scanned something. A zero there means
+the drill is passing without checking anything, which is the state this release
+exists to end.
 
 ## 6. Rolling back
 

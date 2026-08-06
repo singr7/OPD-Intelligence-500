@@ -23,6 +23,13 @@ REQUIRED_TEXT = {
     "public_health_passed_at",
     "failback_completed_at",
     "post_cutoff_intake_id",
+    # A scanned document that existed before the cutoff, named so the drill has
+    # to open it on the target. An intake surviving a failover says the database
+    # moved; it says nothing about the page images, which live outside Postgres
+    # entirely (doc 21 §1.3) and were not in any backup until doc 22 §2. This is
+    # the field that stops a drill passing on a box whose scanned reports are
+    # gone.
+    "known_document_id",
 }
 
 
@@ -38,6 +45,14 @@ def finalize(record: dict[str, object]) -> dict[str, object]:
         raise ValueError("concurrent-writer exclusion was not affirmed")
     if record.get("post_cutoff_intake_absent_on_target") is not True:
         raise ValueError("post-cutoff intake boundary was not verified")
+    # Not "the row is there" — the *pages* opened. A `MedicalDocument` restores
+    # from the database dump whether or not its photographs came with it, so
+    # asserting the row proves nothing about the object store.
+    if record.get("document_pages_readable_on_target") is not True:
+        raise ValueError(
+            "scanned pages were not opened on the target: a restored document whose "
+            "images are gone is not a restored medical record"
+        )
     quiesced = instant(str(record["quiesced_at"]))
     cutoff = instant(str(record["backup_cutoff_at"]))
     healthy = instant(str(record["public_health_passed_at"]))

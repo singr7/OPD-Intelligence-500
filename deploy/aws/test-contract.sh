@@ -89,6 +89,39 @@ grep -q 'OnCalendar=\*:0/15' "$SCRIPT_DIR/systemd/opd-backup.timer"
 grep -q 'OnCalendar=\*-\*-\* 04:15:00' "$SCRIPT_DIR/systemd/opd-restore-verify.timer"
 python3 "$SCRIPT_DIR/test_secret_to_env.py"
 python3 "$SCRIPT_DIR/test_drill_report.py"
+
+# --- scanned pages are part of the backup (doc 22 §2) -----------------------
+# Both backup scripts must sync the pages, or a restore brings back readings
+# whose photographs are gone.
+grep -q 's3 sync' "$SCRIPT_DIR/backup.sh"
+grep -q 's3 sync' "$REPO_ROOT/deploy/omen/cloud-backup.sh"
+# …and restore must bring them back, which is the half that is easy to forget.
+grep -q 's3 sync' "$SCRIPT_DIR/restore.sh"
+# The daily drill must prove the pages are really there, not just that the
+# database restored. Without this check a backup containing no scanned reports
+# at all still reports "verified".
+grep -q 'head-object' "$SCRIPT_DIR/verify-restore.sh"
+
+# **Dump before sync.** Pages are append-only, so a sync taken after the dump
+# necessarily contains every page the dump references. The reverse order drops
+# precisely the report scanned during the backup. Asserted by line order,
+# because a comment saying so is not a test.
+for script in "$SCRIPT_DIR/backup.sh" "$REPO_ROOT/deploy/omen/cloud-backup.sh"; do
+  dump_line="$(grep -n 'pg_dump' "$script" | head -n1 | cut -d: -f1)"
+  sync_line="$(grep -n 's3 sync' "$script" | head -n1 | cut -d: -f1)"
+  if [[ -z "$dump_line" || -z "$sync_line" || "$dump_line" -ge "$sync_line" ]]; then
+    echo "$script must dump the database before syncing pages (doc 22 §2)" >&2
+    exit 1
+  fi
+done
+
+# No --delete on either side: a restore of an older database must still find its
+# pages, and nothing is entitled to remove a scanned report as a sync artefact.
+if grep -E 's3 sync' "$SCRIPT_DIR/backup.sh" "$SCRIPT_DIR/restore.sh" \
+  "$REPO_ROOT/deploy/omen/cloud-backup.sh" | grep -q -- '--delete'; then
+  echo "page sync must never use --delete (doc 22 §2)" >&2
+  exit 1
+fi
 grep -q 'OnCalendar=\*:0/15' "$REPO_ROOT/deploy/omen/opd-cloud-backup.timer"
 grep -q 'application/vnd.android.package-archive' "$SCRIPT_DIR/nginx/opd-tls.conf"
 grep -q 'max-age=31536000, immutable' "$SCRIPT_DIR/nginx/opd-tls.conf"

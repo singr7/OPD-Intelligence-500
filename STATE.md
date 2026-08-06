@@ -849,13 +849,15 @@ the only gate right now.**
   interface, a filesystem impl (the Omen primary) and an in-memory fake. The
   cloud shape needs the impl written; `OBJECT_STORE=s3` fails at boot rather
   than falling back, which is deliberate.
-- **The pages directory is not in any backup job** (MRD1) — `OBJECT_STORE_DIR`
-  holds every scanned report. Restoring Postgres without it produces extractions
-  whose pages are gone; the page route answers 410 and the Reports tab renders
-  that as its own state, so it is visible rather than a broken image. MRD2 gave
-  the directory a real volume on both compose files (M1 had mounted nothing
-  there at all), but backing it up is doc 22 §2, is unstarted, and the restore
-  side has never been exercised. Still the largest operational debt here.
+- **The page backup has never run against a real bucket** (MRD2) — the code is
+  there: both backup scripts sync `OBJECT_STORE_DIR` to `s3://$BACKUP_BUCKET/pages/`
+  **after** the `pg_dump` (pages are append-only, so a sync taken after the dump
+  necessarily holds every page the dump references — `test-contract.sh` asserts
+  that line order in both scripts), `restore.sh` syncs them back, and
+  `verify-restore.sh` fails the daily drill if a restored document's pages are
+  not in the bucket. `drill-report.py` now refuses a failover drill that did not
+  open a scanned page on the target. None of it has run on Omen or AWS, and the
+  `pages/` prefix has no lifecycle policy. Doc 22 §2.
 - **`seeds/lab_reference_ranges.json` is unreviewed** (MRD1) — 18 tests, adult
   only, shipping `status: review_pending`, used *only* where a report prints no
   range of its own. Every flag carries `ref_source`, and the MRD2 Reports tab

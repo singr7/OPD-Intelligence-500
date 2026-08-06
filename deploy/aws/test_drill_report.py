@@ -19,6 +19,7 @@ def valid_record() -> dict[str, object]:
         "source_commit": "a" * 40,
         "target_commit": "b" * 40,
         "known_intake_id": "non-phi-1",
+        "known_document_id": "non-phi-doc-1",
         "backup_id": "20260728T010000Z",
         "backup_cutoff_at": "2026-07-28T01:00:00Z",
         "quiesced_at": "2026-07-28T01:10:00Z",
@@ -29,10 +30,30 @@ def valid_record() -> dict[str, object]:
         "post_cutoff_intake_id": "non-phi-2",
         "post_cutoff_intake_absent_on_target": True,
         "source_and_target_never_concurrent_writers": True,
+        "document_pages_readable_on_target": True,
     }
 
 
 class DrillReportTests(unittest.TestCase):
+    def test_a_drill_that_never_opened_a_scanned_page_is_not_a_drill(self) -> None:
+        """The database dump restores a `MedicalDocument` row whether or not its
+        photographs came with it — the pages live outside Postgres. Asserting
+        the row would let a failover pass on a box whose scanned reports are
+        gone, which is the exact gap doc 22 §2 closed."""
+        record = valid_record()
+        record["document_pages_readable_on_target"] = False
+        with self.assertRaises(ValueError) as caught:
+            drill_report.finalize(record)
+        self.assertIn("scanned pages", str(caught.exception))
+
+    def test_a_drill_must_name_the_document_it_opened(self) -> None:
+        record = valid_record()
+        record["known_document_id"] = ""
+        with self.assertRaises(ValueError) as caught:
+            drill_report.finalize(record)
+        self.assertIn("known_document_id", str(caught.exception))
+
+
     def test_computes_measured_rpo_and_rto(self) -> None:
         report = drill_report.finalize(valid_record())
         self.assertEqual(report["rpo_seconds"], 600)

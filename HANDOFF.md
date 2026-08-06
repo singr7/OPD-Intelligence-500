@@ -44,12 +44,18 @@ consult.
 
 ## Watch out for
 
-- **The pages directory is still not backed up, and it now definitely holds
-  data.** M2 gave `/data/records` a real volume on both compose files (M1 had
-  mounted *nothing* there — pages did not survive a container recreate and the
-  worker could not see them at all). Postgres alone is not a complete restore.
-  `docs/22-MRD-DEPLOY.md` §2 has the sketch; it has never been run, and the
-  restore side has never been exercised.
+- **The page backup is written but has never run for real.** M2 gave
+  `/data/records` a real volume on both compose files (M1 had mounted *nothing*
+  there), then taught the backup, restore and drill scripts to carry it. The
+  first backup after the next deploy is the test — doc 22 §5 has the three
+  commands, and `pages checked: N` must be **non-zero** once something has been
+  scanned. A zero means the drill is passing without checking anything.
+- **Dump before sync, and never `--delete`.** Pages are append-only, so a page
+  sync taken *after* the `pg_dump` necessarily contains every page the dump
+  references; the reverse order drops precisely the report scanned during the
+  backup. `deploy/aws/test-contract.sh` asserts the line order in both backup
+  scripts and refuses a `--delete` on any of the three syncs. If you touch those
+  scripts, that test is the thing that will tell you why.
 - **The extraction contract has no flag field, and that is load-bearing.** A
   model may read a number; deciding it is abnormal is `app/mrd/ranges.py`, in
   Python, on `Decimal`. Two guards now:

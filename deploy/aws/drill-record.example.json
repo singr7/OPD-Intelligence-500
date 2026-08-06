@@ -5,6 +5,7 @@
   "source_commit": "",
   "target_commit": "",
   "known_intake_id": "",
+  "known_document_id": "",
   "backup_id": "",
   "quiesced_at": "",
   "backup_cutoff_at": "",
@@ -15,5 +16,6 @@
   "post_cutoff_intake_id": "",
   "post_cutoff_intake_absent_on_target": false,
   "source_and_target_never_concurrent_writers": false,
+  "document_pages_readable_on_target": false,
   "notes": ""
 }

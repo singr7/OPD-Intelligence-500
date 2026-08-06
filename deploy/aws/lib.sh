@@ -14,6 +14,39 @@ compose() {
     --env-file "$OPD_RUNTIME/release.env" -f "$COMPOSE_FILE" "$@"
 }
 
+# Where the scanned page images actually live on this host (doc 22 §2).
+#
+# Asked of Docker rather than hardcoded, because the two compose files mount
+# /data/records differently — AWS binds the host directory, the local/Omen file
+# uses a named volume whose real path is under /var/lib/docker/volumes. Reading
+# it off the running container is correct for both and survives a rename.
+#
+# `$OPD_DATA/records` is the fallback for the case that matters most: a host
+# where the stack is down and we are restoring onto it.
+records_dir() {
+  local cid src=""
+  cid="$(compose ps -q api 2>/dev/null | head -n1 || true)"
+  if [[ -n "$cid" ]]; then
+    src="$(docker inspect \
+      -f '{{range .Mounts}}{{if eq .Destination "/data/records"}}{{.Source}}{{end}}{{end}}' \
+      "$cid" 2>/dev/null || true)"
+  fi
+  [[ -n "$src" ]] || src="${RECORDS_DIR:-$OPD_DATA/records}"
+  printf '%s\n' "$src"
+}
+
+# Scanned pages are **append-only**: `page_key()` builds one deterministic key
+# per (patient, document, page), nothing rewrites a key, and no code path
+# deletes one. So the pages are backed up as an incremental sync into a single
+# shared prefix rather than a tarball per backup — a 15-minute tar of a
+# directory growing by gigabytes a week would be unusable within a month, and
+# per-backup copies would multiply those gigabytes for bytes that never change.
+#
+# Deliberately no `--delete`. A restore of an older database must still find its
+# pages, and nothing on the box is entitled to remove a patient's scanned report
+# from the backup as a side effect of a sync.
+RECORDS_PREFIX="pages"
+
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "run as root" >&2
