@@ -34,9 +34,8 @@
 // belongs to the deterministic red-flag lane in the spine. A flagged lab value
 // is amber at its loudest.
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  documentTally,
   FLAG_LABELS,
   isOutlier,
   KIND_LABELS,
@@ -73,7 +72,6 @@ export function ReportsTab({
   // patient just handed over at the desk. The rest are one tap away rather than
   // a wall.
   const [open, setOpen] = useState<string | null>(null);
-  const tally = useMemo(() => documentTally(documents), [documents]);
   const openId = open ?? documents[0]?.id ?? null;
 
   if (loading) return <p className="work-empty">Looking for scanned reports…</p>;
@@ -99,19 +97,10 @@ export function ReportsTab({
 
   return (
     <section className="reports" data-testid="reports-tab">
-      <p className="rp-tally" data-testid="reports-tally">
-        <strong>{tally.onFile}</strong> {tally.onFile === 1 ? "document" : "documents"} on file
-        {tally.flagged > 0 && (
-          <>
-            {" · "}
-            <span className="rp-tally-flag">
-              {tally.flagged} {tally.flagged === 1 ? "value" : "values"} flagged
-            </span>
-          </>
-        )}
-        {tally.awaitingReview > 0 && <> · {tally.awaitingReview} awaiting your review</>}
-      </p>
-
+      {/* No tally line here. The spine states exactly these counts, forty
+          pixels above, and never unmounts — printing them again at the top of
+          the tab was the screen saying the same sentence twice. Caught in the
+          doc 04 §5 screenshot critique. */}
       {documents.map((doc) => (
         <DocumentBlock
           key={doc.id}
@@ -281,9 +270,12 @@ function Unread({ doc }: { doc: MedicalDocument }) {
   return (
     <div className="rp-unread" data-testid="unread-banner">
       <p>
-        <strong>The machine could not read these pages.</strong>{" "}
-        {doc.failure_reason ?? "No reason was recorded."}
+        <strong>The machine could not read these pages.</strong>
       </p>
+      {/* On its own line: the stored reason is a phrase written for an operator
+          ("could not be read by the model: gemini http 503"), and running it on
+          after the sentence above made the screen say the same thing twice. */}
+      <p className="rp-unread-reason">{doc.failure_reason ?? "No reason was recorded."}</p>
       <p className="rp-unread-note">
         The photographs are below and are the record. Ask the desk to re-scan if they are not
         legible — a re-read is started from the coordinator&rsquo;s scan screen.

@@ -18,7 +18,8 @@
     "e2e:channels": "playwright test --project=channels",
     "e2e:people": "playwright test --project=people",
     "e2e:assign": "playwright test --project=assign",
-    "e2e:scan": "playwright test --project=scan"
+    "e2e:scan": "playwright test --project=scan",
+    "e2e:reports": "playwright test --project=reports"
   },
   "dependencies": {
     "dexie": "^4.4.4",

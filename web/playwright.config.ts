@@ -108,6 +108,17 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 414, height: 896 } },
     },
     {
+      // The MRD2 doctor surface (doc 21 §1.5). Live stack with `MRD_ENABLED=true`
+      // + `seed_doctor_demo`; this project *is* the session AC — the spine says
+      // what is on file before the doctor opens anything, the reading is a draft
+      // until it is reviewed, and the original page is one tap from the number.
+      // Run explicitly (`npm run e2e:reports`); it files real documents and
+      // records a real verification on whatever database it points at.
+      name: "reports",
+      testMatch: /reports\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // Arrival identity + assignment (AR3, sessions/SESSION-ASSIGN-RX-PLAN.md).
       // This project *is* the session AC: a returning patient is recognised
       // without the kiosk disclosing anything, a coordinator unlocks the strip

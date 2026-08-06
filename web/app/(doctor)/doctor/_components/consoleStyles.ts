@@ -784,6 +784,8 @@ export const REPORTS_CSS = `
 .rp-unread { padding: 12px 14px; margin-bottom: 14px; background: var(--bg);
   border-left: 3px solid var(--border-strong); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
 .rp-unread p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink); }
+.rp-unread-reason { margin-top: 5px !important; font-size: 13px !important;
+  color: var(--ink-soft) !important; font-variant-numeric: tabular-nums; }
 .rp-unread-note { margin-top: 6px !important; color: var(--ink-soft) !important; font-size: 13px !important; }
 
 .rp-sec { margin-top: 18px; }
