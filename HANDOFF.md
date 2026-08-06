@@ -1,69 +1,89 @@
-# HANDOFF — after SESSION-MRD1
+# HANDOFF — after SESSION-MRD2
 
-**Repo state:** branch `main`. `make test-backend` **1,553 passed**. Scan E2E 5
-passed against a live stack, `npm run build` / `tsc` / `eslint` clean. Migration
-**`efb79a43afb3`** is applied **locally only** — it joins `c6e3681f5ce1`,
-`520d07f0b3e4` and `c063fd91e198` in the set pending on Omen, and `make deploy`
-does not run migrations.
+**Repo state:** branch `main`. `make test-backend` **1,560 passed**. Reports E2E
+7 passed against a live stack, `npm run build` / `tsc` / `eslint` clean. **M2
+added no migration.** The four pending on Omen are unchanged —
+`c6e3681f5ce1`, `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3` — all applied
+locally only, and `make deploy` does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open.
 
 **Where the build stands:** the first of the four Clinical Intelligence modules
-(`sessions/SESSION-CLINICAL-INTEL-PLAN.md`) is half built. A coordinator can
-photograph a patient's reports on a phone at `/scan`; the pipeline reads them,
-flags the values in Python, and writes a short summary. **No screen shows any of
-it to a doctor yet** — the read endpoints are built and tested, the Reports tab
-is M2. Design doc: `docs/21-MEDICAL-RECORD-DIGITISATION.md`.
+(`sessions/SESSION-CLINICAL-INTEL-PLAN.md`) is **complete**. A coordinator
+photographs a patient's reports at the desk; the pipeline reads them, flags the
+values in Python and writes a short summary; the doctor's console states what is
+on file before they open anything, shows the reading as a draft until they
+review it, and puts the original photograph one tap from every number. The desk
+is told what failed to read and can ask for a re-read. Design doc:
+`docs/21-MEDICAL-RECORD-DIGITISATION.md`. **Deploying it is `docs/22-MRD-DEPLOY.md`
+— read that before touching a box, it is not a normal release.**
 
-## Next session — M2, and it has a plan
+## Next session — M3 (PACS stub), and it has a plan
 
-`sessions/SESSION-CLINICAL-INTEL-PLAN.md` §6 "Session M2": the doctor's Reports
-tab and spine slot. Everything it needs from the backend exists:
+`sessions/SESSION-CLINICAL-INTEL-PLAN.md` §2 + §6 "Session M3": config, one
+proxy endpoint, a fake DICOMweb server, a spine `Images (n)` slot and a viewer
+popup handoff. It needs nothing from M1/M2.
 
-- `GET /records/patients/{id}/documents` — newest first, failed ones included
-- `GET /records/documents/{id}` — one document with its reading
-- `GET /records/documents/{id}/pages/{n}` — the original photograph
-- `POST /records/documents/{id}/verify` — "I have read this against the pages"
+**It has an external gate that is worth resolving first** (plan §8.1): the
+imaging centre must register studies under the UHC ID (`Patient.external_id`) as
+the DICOM `PatientID`. Until that operational agreement exists, study lookup
+returns empty for every patient and the module cannot be acceptance-tested
+against the real `RAD-RENVA-PACS`. If it is unresolved, **M4 (ambient notes,
+plan §3) is the better next session** — it builds on the Session C dictation
+stack that already ships and has no external dependency.
 
-The tab is what the feature-flagged "Coming soon" disclosure in
-`WorkTabs.tsx` was built to graduate. Also worth doing in M2: a coordinator-facing
-retry surface for `extraction_failed` (the endpoint exists, nothing calls it).
+Note for M3: the spine now has five slots and the sixth is `Images (n)`. Read
+the argument in `ContextSpine.tsx`'s header before adding it — the case for the
+Reports line was that the doctor must know *before* the patient is in the room,
+and Images has the same claim, but that is now two exceptions to a rule with
+four items in it. Consider whether Reports and Images should share one line.
 
-The other candidates are unchanged from the last handoff: allergy capture,
-deploying the pending migrations to Omen, and a correction path for a signed
-note or a concluded consult.
+The other candidates are unchanged: allergy capture, deploying the pending
+migrations to Omen, and a correction path for a signed note or a concluded
+consult.
 
 ## Watch out for
 
+- **The pages directory is still not backed up, and it now definitely holds
+  data.** M2 gave `/data/records` a real volume on both compose files (M1 had
+  mounted *nothing* there — pages did not survive a container recreate and the
+  worker could not see them at all). Postgres alone is not a complete restore.
+  `docs/22-MRD-DEPLOY.md` §2 has the sketch; it has never been run, and the
+  restore side has never been exercised.
 - **The extraction contract has no flag field, and that is load-bearing.** A
   model may read a number; deciding it is abnormal is `app/mrd/ranges.py`, in
-  Python, on `Decimal`. If anything ever starts parsing a `flag` out of a model
-  reply, the determinism invariant is gone.
-  `test_a_flag_in_the_models_reply_is_ignored_entirely` is the guard.
-- **`seeds/lab_reference_ranges.json` ships `status: review_pending`, and the UI
-  must key off it.** Flags derived from that table carry `ref_source: "default"`
-  and must be shown as a weaker signal than a flag from a range the lab printed.
-  Flipping `status` to `reviewed` without an oncologist actually reviewing it
-  silently promotes every grey row.
-- **The backup job still does not include `OBJECT_STORE_DIR`.** Postgres alone
-  is no longer a complete restore. A missing page answers 410 with a sentence,
-  so it fails visibly — but the operator work is unstarted and it is the largest
-  debt this module added.
+  Python, on `Decimal`. Two guards now:
+  `test_a_flag_in_the_models_reply_is_ignored_entirely` and
+  `test_the_demo_fixture_parses_and_volunteers_no_flag` — the fake's canned
+  reply is an input to the contract and is pinned like one.
+- **`seeds/lab_reference_ranges.json` ships `review_pending`, and the UI now
+  keys off it.** Rows flagged from that table read `our range` and carry a note;
+  rows from a range the lab printed read `printed on report`. Flipping `status`
+  to `reviewed` without an oncologist actually reviewing it silently promotes
+  every one of them.
+- **`/records/scan/failures` must never grow an `extraction` field.** A
+  coordinator is not `require_clinical`; being told the machine failed must not
+  become a way to browse the reading. Pinned by
+  `test_the_failure_list_carries_no_reading_at_all`.
+- **Page images are fetched, not `src`-ed.** The route is guarded and the token
+  is in `localStorage`. Do not "simplify" `PageViewer` into an `<img src>` — it
+  would need a signed URL, which doc 21 §1.3 refuses on purpose. And keep the
+  `revokeObjectURL` on unmount.
 - **Extraction needs a vision-capable `LLM_PROVIDER`.** Sarvam and the local
   vLLM declare `supports_images = False` and raise `UnsupportedCapability`
   *before* being dialled. Do not "fix" that by stripping the images — a summary
-  of pages the model never saw reads exactly like a real one.
-- **The doctor's tab must label an unverified reading as a draft**, and
-  re-extraction clears a previous verification on purpose (`_store_extraction`).
+  of pages the model never saw reads exactly like a real one. A fallback chain
+  walks past a text-only primary, so `local_vllm` + `gemini` fallback works.
+- **The doctor console's token key is `opd_staff_token`**, shared with the
+  coordinator console — not a doctor-specific key. Cost half an E2E run.
 - **Tests default `MRD_ENABLED=false`** (conftest). The post-upload nudge builds
   its own engine, so under ASGITransport it would dial the real DSN; drive the
   pipeline directly, as `test_records_routes._extract_now` does.
-- **The 30-second OTP resend cooldown still bites.** `e2e/scan.spec.ts` takes one
-  token through the API in `beforeAll` and waits out a 429 rather than signing in
-  per test; the doctor and dictation projects still need ~35s between runs.
+- **The 30-second OTP resend cooldown still bites.** `e2e/reports.spec.ts` takes
+  one token per phone through the API in `beforeAll` and waits out a 429; the
+  doctor and dictation projects still need ~35s between runs.
 - **`queue.today()` is the operating day** — UTC-based, and the scanner, board
-  and console must all use it. Computing a day independently is how the scanner
-  showed an empty list at 04:50 IST while the console showed a queue.
+  and console must all use it.
 - Everything from the previous handoff still holds: no second prescription
   path, `unsaid` off without a transcript, `conclude` inside the S8 table,
   `patient_card` not narrowed to the assigned doctor, the spine never unmounts,

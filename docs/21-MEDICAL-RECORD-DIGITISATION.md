@@ -1,6 +1,8 @@
 # 21 — Medical Record Digitisation (MRD)
 
-The module built in SESSION-MRD1. Planned in
+The module built in SESSION-MRD1 (capture and pipeline) and SESSION-MRD2 (the
+doctor's Reports tab and the desk's retry surface). Deploying it is doc 22.
+Planned in
 `sessions/SESSION-CLINICAL-INTEL-PLAN.md` §1, which also holds the three modules
 not yet built (PACS viewing, ambient notes, research assistant).
 
@@ -121,16 +123,57 @@ first and nothing would say which one the summary described.
 
 ### 1.5 Doctor surface
 
-Built in **M2**, not M1. The read endpoints exist and are tested
-(`GET /records/patients/{id}/documents`, `GET /records/documents/{id}`,
-`POST /records/documents/{id}/verify`); the console tab that renders them is the
-next session.
+Built in **M2**. The console gained a fifth tab, **Reports**, and the context
+spine a fifth line.
 
-The rule that surface must keep: an unverified machine reading of a lab report
-is a **draft**, and every screen showing one says so until a doctor taps *Mark
+The rule that surface keeps: an unverified machine reading of a lab report is a
+**draft**, and every screen showing one says so until a doctor taps *Mark
 reviewed*. Re-extraction clears a previous verification — a re-run is a new
 reading, and carrying the old signature onto it would put a doctor's name on
 numbers they never saw.
+
+Three things, in this order, and nothing else competes with them:
+
+1. **The summary, stamped.** Dashed border and an `Unverified` chip until it is
+   reviewed; afterwards, who checked it and when.
+2. **The values, weakest signal marked.** Out-of-range rows first, the rest
+   behind *Show n within range*. Every row states which range decided it —
+   `printed on report` or `our range` — because a flag from
+   `seeds/lab_reference_ranges.json` is the weaker claim until an oncologist
+   signs that file off (§8.1), and burying that in a footnote would make the two
+   look alike. `UNKNOWN` is shown plainly and never folded into "normal".
+3. **The original pages**, and every value's page number is a button that opens
+   that photograph. The original is one tap from any number, which is the whole
+   basis for trusting the table above it.
+
+**The spine's fifth line.** The spine's own rule is that a fifth permanent slot
+means it has stopped being readable, and this is the exception, argued: the
+module's stated intent is that the doctor knows before the patient is in the
+room, which a badge on a tab nobody has opened does not achieve. So it is one
+line that never wraps, a link into the tab rather than content in its own right,
+and amber at its loudest — red on that console stays reserved for the
+deterministic red-flag lane. A sixth slot should still be refused.
+
+**Page bytes and the browser.** `<img src>` cannot fetch them: the route is
+guarded and the staff token is in `localStorage`, so the only thing that would
+make the tag work is a signed URL, which §1.3 refuses. `PageViewer` fetches the
+bytes with the bearer token and revokes the object URL on unmount — a console
+left open on a ward machine all morning must not accumulate every page of every
+patient it has shown. A 410 is rendered as its own state, not a broken image,
+because it means Postgres was restored without the pages directory and an
+operator needs to hear about it.
+
+### 1.6 The desk finds out what did not read
+
+`GET /records/scan/failures` and a *Could not be read* section at the foot of
+`/scan`. M1 shipped `retry` with nothing calling it: a failed document was
+honest on the doctor's screen, but the person who can re-photograph it was never
+told.
+
+It is deliberately **not** a `DocumentOut` — no `extraction` field, and it must
+never grow one. A coordinator is not `require_clinical`; being told "these pages
+did not read" must not become a way to browse the reading. Bounded to a week,
+because a list that only grows stops being read.
 
 ---
 
@@ -159,7 +202,11 @@ numbers they never saw.
    paediatric or pregnancy ranges.
 2. **No S3 object store.** The seam exists; the cloud shape needs the impl.
 3. **The backup job does not yet include the pages directory.** Recorded in
-   STATE → Stubs & fakes and in `.env.example` beside the setting.
+   STATE → Stubs & fakes, in `.env.example` beside the setting, and in doc 22
+   §2 with a sketch of the tar step. M2 gave the directory a real volume on both
+   compose files — before that it had none at all, so pages did not survive a
+   container recreate and the worker could not see them — but backing it up is
+   still unstarted, and the restore side has never been exercised.
 4. **Extracted values feed nothing but display.** They do not reach prescription
    validation, check-in grading, or trends across visits. That is future work
    behind its own clinical review.

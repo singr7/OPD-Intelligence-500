@@ -6,6 +6,30 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-MRD2):** The doctor's half of MRD, which completes the module
+(doc 21 §1.5/§1.6; deploying it is **doc 22** and it is not a normal release).
+The console has a fifth tab, **Reports**: the summary stamped **unverified**
+until a doctor taps *Mark reviewed*, the flagged values with **which range
+decided each one** on the row (`printed on report` vs `our range`, because
+`seeds/lab_reference_ranges.json` still ships `review_pending`), and the original
+photographs — where every value's page number is a button that opens it. Page
+bytes are fetched with the bearer token and the object URL is revoked on
+unmount: `<img src>` cannot reach a guarded route, and the signed URL that would
+make it work is what doc 21 §1.3 refuses. The context spine gained a fifth line
+stating what is on file **before any tab is opened**, which is the module's whole
+intent; the argument for breaking the spine's own four-slot rule is written into
+`ContextSpine.tsx`. `/scan` gained **Could not be read** over a new
+`GET /records/scan/failures` — deliberately not a `DocumentOut`, with no
+`extraction` field ever, because a coordinator is not `require_clinical` — which
+finally gives M1's `retry` endpoint a caller. The fake LLM gained canned MRD
+replies (no `flag` field, and a test for that) so the module is demonstrable
+without a vendor key. **M1's pages had no volume on either compose file** — the
+api wrote them where the worker could not read them, and a container recreate
+destroyed them; both files now mount `/data/records`, `infra/user_data.sh`
+creates it, and `deploy/aws/test-contract.sh` fails without it. Gates: backend
+**1,560**, reports E2E 7 against a live stack, production build, typecheck, lint.
+**No migration.**
+
 **Built (SESSION-MRD1):** A coordinator photographs a patient's paper records on
 a phone and the doctor gets them read (doc 21). `/scan` is three screens — pick,
 photograph, done — behind the staff token, searching by token/phone/UHC and
@@ -21,10 +45,10 @@ numbers the table shows. Every failure leaves the pages viewable and a named
 status: a vendor outage, a text-only chain (`UnsupportedCapability`, refused
 before it is dialled), an unusable reply, a page missing after a partial restore
 (410, with a sentence). `UsagePurpose.DOCUMENT` prices it apart from intake
-summaries. Doctor read endpoints exist and are tested; **the console tab that
-renders them is M2 and is not built.** Gates: backend **1,553**, scan E2E 5
-against a live stack, production build, typecheck, lint. Migration
-`efb79a43afb3` (additive, two new tables, no backfill) — **applied locally only.**
+summaries. Doctor read endpoints exist and are tested; the console tab that renders them is
+SESSION-MRD2, above. Gates: backend **1,553**, scan E2E 5 against a live stack,
+production build, typecheck, lint. Migration `efb79a43afb3` (additive, two new
+tables, no backfill) — **applied locally only.**
 
 **Built (SESSION-C):** The end of the consult (plan §5). **Speech is an input
 method, not a prerequisite for prescribing**: `POST /dictation/{id}/compose`
@@ -528,6 +552,21 @@ Arrival identity + assignment (AR3): `cd web && npm run e2e:assign` (needs `make
 `make seed`, which is what gives the seeded coordinator Rekha Meena the kiosk PIN `4729`).
 On the kiosk, the returning-patient path recognises seeded patient OPD000001 by the last ten
 digits of `+915551900001`.
+MRD Reports tab (MRD2): needs an api with `MRD_ENABLED=true` and a writable
+`OBJECT_STORE_DIR`. The LLM may stay `fake` — it declares `supports_images` and
+has canned replies for both MRD prompts, so the whole pipeline runs with no
+vendor key:
+```
+cd backend && DATABASE_URL=postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd \
+  OTP_DEBUG_ECHO=true OTP_RESEND_COOLDOWN_SECONDS=0 \
+  JWT_SECRET=local-dev-secret-padded-to-32-chars-plus \
+  MRD_ENABLED=true OBJECT_STORE=filesystem OBJECT_STORE_DIR=/tmp/opd-records \
+  .venv/bin/python -m uvicorn app.main:app --port 8123
+cd backend && DATABASE_URL=... .venv/bin/python -m scripts.seed_doctor_demo
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:reports      # the MRD2 AC + screenshots -> web/screenshots/mrd2/
+```
+It files real documents and records a real verification. Dev boxes only.
 Local login: `POST /auth/otp/request {"phone": "+915550001001"}` (seeded doctor) returns
 `debug_code` when `OTP_DEBUG_ECHO=true`; POST it to `/auth/otp/verify` for a JWT.
 Provider status: `GET /providers/health` (unauthenticated; names + health only, never keys).
@@ -562,9 +601,11 @@ interface (`fake` by default), optional `*_FALLBACK_PROVIDER` chains, vendor cre
 provider needs to count as configured — no key); per-channel ladder + `max_oss_sessions` live in
 `config/tiers.yaml`, not env. **Offline kiosk (S7):** `KIOSK_OFFLINE_TOKEN_BASE` (default 500 —
 online tokens stay below it, offline blocks at/above) and `KIOSK_OFFLINE_BLOCK_SIZE` (default 50).
-**MRD (SESSION-MRD1, doc 21):** `OBJECT_STORE` (`filesystem|fake`) +
-`OBJECT_STORE_DIR` — **the backup job must include that directory; Postgres alone
-is no longer a complete restore** — plus `MRD_ENABLED` (off = pages still
+**MRD (SESSION-MRD1/MRD2, doc 21; deploy note doc 22):** `OBJECT_STORE`
+(`filesystem|fake`) + `OBJECT_STORE_DIR` — mounted as a shared volume on api,
+worker and beat since MRD2, because the api writes the pages and the *worker*
+reads them, and **the backup job must include that directory; Postgres alone is
+no longer a complete restore** — plus `MRD_ENABLED` (off = pages still
 captured and shown, only the machine reading is absent), `MRD_MAX_PAGE_BYTES`,
 `MRD_MAX_PAGES`, `MRD_MAX_EXTRACT_PAGES`, `MRD_MAX_EXTRACT_ATTEMPTS`. Extraction
 needs a vision-capable `LLM_PROVIDER` (gemini/openai); sarvam and local vLLM are
@@ -810,12 +851,23 @@ the only gate right now.**
   than falling back, which is deliberate.
 - **The pages directory is not in any backup job** (MRD1) — `OBJECT_STORE_DIR`
   holds every scanned report. Restoring Postgres without it produces extractions
-  whose pages are gone; the page route answers 410 so it is visible rather than
-  a broken image. This is the largest operational debt this module added.
+  whose pages are gone; the page route answers 410 and the Reports tab renders
+  that as its own state, so it is visible rather than a broken image. MRD2 gave
+  the directory a real volume on both compose files (M1 had mounted nothing
+  there at all), but backing it up is doc 22 §2, is unstarted, and the restore
+  side has never been exercised. Still the largest operational debt here.
 - **`seeds/lab_reference_ranges.json` is unreviewed** (MRD1) — 18 tests, adult
   only, shipping `status: review_pending`, used *only* where a report prints no
-  range of its own. Every flag carries `ref_source` so a fallback-derived flag
-  can be shown as the weaker signal it is. An oncologist has not seen it.
+  range of its own. Every flag carries `ref_source`, and the MRD2 Reports tab
+  renders those rows as `our range` with a note beside the table while a range
+  the lab printed reads `printed on report`. An oncologist has not seen it.
+- **A verification is per-reading, not per-doctor** (MRD2) — `verified_by` names
+  who checked the numbers against the pages, and a second doctor opening the
+  same patient sees it reviewed rather than being asked again. Deliberate; if it
+  ever needs to be per-doctor, the spine's counts change meaning too.
+- **A doctor cannot ask for a re-read** (MRD2) — `retry` is `require_staff` and
+  the surface for it is the desk's `/scan`, where the person who can re-photograph
+  the report is standing. The doctor's failed-document copy says to ask them.
 - **Extracted lab values feed nothing but display** (MRD1) — they do not reach
   prescription validation, check-in grading, or any trend across visits. The
   doctor reads them; no rule consumes them.
