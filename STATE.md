@@ -848,7 +848,12 @@ the only gate right now.**
 - **There is no S3 object store** (MRD1) — `app/providers/objectstore.py` has the
   interface, a filesystem impl (the Omen primary) and an in-memory fake. The
   cloud shape needs the impl written; `OBJECT_STORE=s3` fails at boot rather
-  than falling back, which is deliberate.
+  than falling back, which is deliberate. **Parked as Session M6** in
+  `sessions/SESSION-CLINICAL-INTEL-PLAN.md` §6, to be scheduled when an AWS
+  deployment is dated — the on-premise box ships first and does not need it
+  (decision 9: local disk is the store there, S3 is only the offsite backup).
+  That entry also records the trap: the page-backup drill is written for the
+  filesystem mode and would fail every key in the S3 mode.
 - **The page backup has never run against a real bucket** (MRD2) — the code is
   there: both backup scripts sync `OBJECT_STORE_DIR` to `s3://$BACKUP_BUCKET/pages/`
   **after** the `pg_dump` (pages are append-only, so a sync taken after the dump

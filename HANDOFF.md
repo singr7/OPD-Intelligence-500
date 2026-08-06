@@ -38,6 +38,13 @@ Reports line was that the doctor must know *before* the patient is in the room,
 and Images has the same claim, but that is now two exceptions to a rule with
 four items in it. Consider whether Reports and Images should share one line.
 
+**Not a candidate yet, on purpose:** the S3 object store is now **Session M6**
+in the same plan (§6), parked until an AWS deployment is actually dated. The
+on-premise box is the first deployment and keeps its pages on local disk —
+lowest read latency on the LAN, no per-GET cost, and no dependence on a WAN link
+during a consult. Plan decision 9 has the full argument, including why the page
+sync stays at 15 minutes rather than nightly.
+
 The other candidates are unchanged: allergy capture, deploying the pending
 migrations to Omen, and a correction path for a signed note or a concluded
 consult.

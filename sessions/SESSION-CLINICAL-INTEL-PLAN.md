@@ -58,6 +58,22 @@ produce).
 8. **PHI minimization for every cloud call.** Name, phone, MRN, UHC ID never
    leave the box in an LLM payload. Age band, sex, diagnosis, values, units do.
    Same posture the `openai_cloud` voice profile already established.
+9. **Two storage modes, and `OBJECT_STORE` is the seam** (settled 2026-08-06,
+   after MRD2). The on-premise box is the *first* deployment and its pages live
+   on **local disk**: reads are sub-millisecond to every terminal on the LAN,
+   they cost nothing per GET, and a doctor opening a lab report never depends on
+   a WAN link a rural OPD cannot promise. S3 is that mode's **offsite backup,
+   not its store** — synced every 15 minutes, which was chosen over nightly
+   deliberately: `s3 sync` is incremental, so both cadences upload identical
+   bytes for identical money and S3 ingress is free, while nightly would put a
+   day of irreplaceable scans at risk (the paper originals go home with the
+   patient). Disk failure itself is answered by **mirrored disks on the box**,
+   which backup cadence cannot substitute for. The AWS deployment is the second
+   mode and inverts this: **S3 is the object store**, EBS holds Postgres and its
+   extracted JSON, and the page-sync backup does not run at all because the
+   store is already durable. Migration between the modes is cheap by
+   construction — `mrd.page_key` builds identical keys in both, so it is one
+   `aws s3 sync` and a changed setting, with no rows rewritten.
 
 ---
 
@@ -358,9 +374,17 @@ pre-grounded and stays interactive:
 1. **Vision in the provider contract** (§1.4): `ImagePart`, OpenAI + Gemini
    mapping, fake support, `UnsupportedCapability`, conformance with metering
    and cost guard.
-2. **Object storage adapter + MinIO service** in compose; S3 config in the
-   AWS shape; backup job includes the bucket (the 15-minute backup rule
-   already governs Postgres — documents join it).
+2. **Object storage adapter.** ✅ *Delivered in M1/M2, but not as written here.*
+   There is **no MinIO service**: M1 shipped `app/providers/objectstore.py` with
+   a filesystem impl on a Compose volume, because a whole extra container to
+   serve bytes off the same disk buys nothing on a single box. M2 gave that
+   volume a real mount on both compose files (M1 had mounted *nothing* at
+   `/data/records`, so pages died on container recreate and the worker could not
+   see them at all) and put it in the backup: dump first, sync second, with the
+   daily drill failing if a restored document's pages are not in the bucket.
+   **What remains is the S3 impl — now Session M6 (§6), not cross-cutting
+   work**, because it belongs to the AWS deployment mode rather than to any of
+   the four modules, and none of them is blocked on it.
 3. **PHI-minimization helper**: one function that builds the "cloud-safe
    patient context" dict, used by MRD summarize and the research assistant,
    unit-tested to reject identifier keys. One implementation of the rule.
@@ -410,8 +434,40 @@ UI, storage/audit, cost guard, provider-down state. *Gates:* backend tests
 (context minimizer property tests, thread persistence, guard limits), doctor
 E2E happy path + provider-down, full frontend gates.
 
+**Session M6 — the S3 object store, and the AWS storage mode.**
+Parked deliberately (decision 9): the on-premise box ships first and does not
+need it, and nothing in M3–M5 is blocked on it. **Schedule it when an AWS
+deployment is actually dated, not before** — an unused storage backend that has
+never run against a real bucket is a liability, not readiness.
+
+Scope, and the decisions already taken so the session does not re-open them:
+
+- **`S3ObjectStore`** against the existing four-method ABC (`put` / `get` /
+  `delete` / `exists`). Keys are unchanged — `mrd.page_key` is the only place
+  one is built, and it stays the only place. Needs an S3 SDK in
+  `backend/requirements.txt`; there is none today.
+- **No presigned URLs, in either mode.** S3 makes them a one-liner, which is
+  exactly why this is written down: doc 21 §1.3 refuses them because a URL that
+  outlives the session that minted it leaks a patient's biopsy report into a
+  browser history, a chat, a screenshot. Pages keep streaming through the
+  authenticated route.
+- **The backup becomes mode-aware, and this is a real bug if it is skipped.**
+  `verify-restore.sh` samples object keys out of the restored database and heads
+  them under `$BACKUP_BUCKET/pages/`. In the S3 mode the pages live in the
+  *records* bucket, so every sampled key would report missing and fail the
+  drill. `backup.sh` must skip the page sync entirely (the store is already
+  durable), and the drill must either check the records bucket or state plainly
+  that durability is the bucket's job — never pass silently.
+- **Terraform gains a records bucket**: private, encrypted, versioned, no public
+  access, with a lifecycle policy (§8.7). CLOUD1 defines only the backup bucket.
+- *Gates:* the objectstore suite green against both impls (a fake keeps parity),
+  a test that no code path mints a signed URL, `test-contract.sh` extended for
+  the mode-aware backup, and one real round trip against a live bucket recorded
+  in the session log — the thing that makes it readiness rather than code.
+
 Rough order of dependency, not just preference: M3 needs nothing from M1/M2
-and can swap earlier if the imaging-centre contract (§8.1) resolves first.
+and can swap earlier if the imaging-centre contract (§8.1) resolves first. M6 is
+ordered by the *deployment* calendar rather than by this list.
 
 ---
 
@@ -447,3 +503,11 @@ writes.
    doc-17/18 territory, not backend code.
 7. **Storage growth**: page images at 500 patients/day ≈ low single-digit
    GB/week; fine for the pilot disk, needs a lifecycle policy before year one.
+   Since MRD2 there are **two** copies growing at that rate — the box's own
+   volume and the `pages/` prefix in the backup bucket — and neither has a
+   policy. The store is append-only by design (nothing deletes a key), so this
+   only ever grows; whatever policy is written has to answer a clinical
+   retention question, not a storage one.
+8. **Mirrored disks on the on-premise box** (decision 9). A single disk is the
+   pilot's most likely total-loss event and the 15-minute backup bounds it at
+   fifteen minutes, not at zero. Hardware/ops, not code, and not yet specified.
