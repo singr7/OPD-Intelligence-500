@@ -233,3 +233,35 @@ def test_an_unjudged_value_is_labelled_as_unassessed_for_the_summariser():
     )
 
     assert "not assessed" in text
+
+
+def test_the_demo_fixture_parses_and_volunteers_no_flag():
+    """The fake's canned `mrd_extract` reply is what `make dev` and the
+    Playwright runs read a lab report with, so it is a real input to this
+    contract and is pinned like one.
+
+    Two things it must never do: fail to parse (which would leave the demo
+    stuck on `extraction_failed`, the state it was added to get past), and
+    carry a `flag` on any row. There is no flag field in the schema or the
+    prompt — whether 8.9 is low is decided here, in Python, on `Decimal` — and
+    a demo fixture that volunteered one would teach the wrong shape to
+    everyone who reads it.
+    """
+    import json
+
+    from app.providers.llm import _CANNED_JSON
+
+    raw = json.loads(_CANNED_JSON["mrd_extract"])
+
+    assert all("flag" not in row for row in raw["tests"])
+
+    extraction = Extraction.parse(raw).flag_all(sex=Sex.FEMALE)
+    by_name = {test.name: test for test in extraction.tests}
+
+    # Decided by this module, from the range the report printed.
+    assert by_name["Hemoglobin"].flag == "low"
+    assert by_name["Hemoglobin"].ref_source == "printed"
+    # No printed range, so the fallback table decides and says that it did —
+    # which is what the doctor's table renders as the weaker signal.
+    assert by_name["Absolute Neutrophil Count"].ref_source == "default"
+    assert by_name["Platelet Count"].flag == "normal"

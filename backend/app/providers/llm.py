@@ -171,7 +171,70 @@ class FakeLLMScript:
 #:
 #: These are demo fixtures, not test fixtures: tests that assert on content
 #: queue their own `FakeLLMScript`, which always wins over this.
+#:
+#: Mostly JSON, but not exclusively — `mrd_summarize` is the one prose contract
+#: in here, and it is present for the same reason as the rest: a demo whose
+#: clinical summary reads "ok" demonstrates nothing.
 _CANNED_JSON: dict[str, str] = {
+    # A three-line CBC off a scanned lab report (MRD, doc 21 §1.4). Without
+    # this the fake answers "ok" to a strict-JSON prompt, the reply fails to
+    # parse, and `make dev` can only ever demonstrate `extraction_failed` — the
+    # Reports tab was undemonstrable without a vendor key.
+    #
+    # Note what is *not* here: a `flag` on any row. The contract has no such
+    # field, in the schema or the prompt, and whether 8.9 is low is decided in
+    # `app/mrd/ranges.py` on `Decimal`. A demo fixture that volunteered one
+    # would be teaching the wrong shape to every reader of this file.
+    #
+    # The three rows are chosen to exercise the three things the doctor's table
+    # must distinguish: a range the lab printed, a value with no printed range
+    # (so the fallback table decides, and the row says so), and one that is
+    # simply normal.
+    "mrd_extract": json.dumps(
+        {
+            "document_kind_guess": "lab",
+            "report_date": "2026-08-04",
+            "lab_name_present": True,
+            "tests": [
+                {
+                    "name": "Hemoglobin",
+                    "value": 8.9,
+                    "unit": "g/dL",
+                    "ref_low": 12.0,
+                    "ref_high": 15.0,
+                    "page": 1,
+                    "confidence": "high",
+                },
+                {
+                    "name": "Absolute Neutrophil Count",
+                    "value": 1.1,
+                    "unit": "10^3/uL",
+                    "page": 1,
+                    "confidence": "high",
+                },
+                {
+                    "name": "Platelet Count",
+                    "value": 240,
+                    "unit": "10^3/uL",
+                    "ref_low": 150,
+                    "ref_high": 410,
+                    "page": 1,
+                    "confidence": "medium",
+                },
+            ],
+            "narrative_findings": [],
+            "illegible_regions": ["page 1, printer band across the differential count"],
+        }
+    ),
+    # Prose, not JSON, and written to the summariser's own brief: out-of-range
+    # values first with direction, no advice and no urgency language beyond the
+    # computed flags.
+    "mrd_summarize": (
+        "Hb 8.9 g/dL — below the printed range of 12–15.\n"
+        "ANC 1.1 ×10³/µL — below the reference range used.\n"
+        "Platelets 240 ×10³/µL — within range.\n"
+        "A printer band across the differential count on page 1 was not read."
+    ),
     "dictation_map": json.dumps(
         {
             "diagnosis": "Carcinoma breast, post chemotherapy cycle 3, febrile neutropenia",
