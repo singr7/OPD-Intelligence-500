@@ -147,6 +147,9 @@ being captured, which it cannot know.
   `scripts.seed_doctor_demo`).
 - `--project=dictation` → **8 passed**, unchanged after the recorder extraction.
   `--project=conformance` → **48 passed**.
+- The rest of `make test`, unaffected but checked rather than assumed:
+  `make test-voicegw` **25 passed**, `make test-web` (typecheck + lint +
+  conformance) green, `make android-test` BUILD SUCCESSFUL.
 - `npm run build` / `tsc --noEmit` / `eslint` clean. `/doctor` is 35.7 kB
   (30.9 → 35.7).
 - `/admin/analytics/note-tags` checked against the live stack: 2 counted, 2
