@@ -461,6 +461,101 @@ async def test_verifying_a_document_with_no_reading_is_refused(
     assert response.status_code == 409
 
 
+# -- the coordinator's failure list --------------------------------------------
+
+
+async def _fail(session: AsyncSession, document_id: str, reason: str) -> MedicalDocument:
+    document = await session.get(MedicalDocument, uuid.UUID(document_id))
+    document.status = DocumentStatus.EXTRACTION_FAILED
+    document.failure_reason = reason
+    await session.flush()
+    return document
+
+
+async def test_the_failure_list_tells_a_coordinator_what_did_not_read(
+    client, session, clinic, staff_headers, object_store
+):
+    """`retry` existed with nothing calling it. The person who can fix a bad
+    photograph is the coordinator holding the folder, and until this list they
+    were never told it had happened."""
+    document_id = await _scan_one(client, staff_headers, clinic["patient"].id, pages=2)
+    await _fail(session, document_id, "could not be read by the model: gemini http 503")
+
+    rows = (await client.get("/records/scan/failures", headers=staff_headers)).json()
+
+    assert len(rows) == 1
+    assert rows[0]["id"] == document_id
+    assert rows[0]["patient_name"] == clinic["patient"].name
+    assert rows[0]["pages"] == 2
+    assert "503" in rows[0]["failure_reason"]
+
+
+async def test_the_failure_list_carries_no_reading_at_all(
+    client, session, clinic, staff_headers, llm_fake, object_store
+):
+    """The line `require_clinical` draws on the read routes has to hold here
+    too. A coordinator may be told the machine failed; they may not be handed
+    the values it managed to read on the way."""
+    llm_fake.queue(FakeLLMScript(text=json.dumps(EXTRACT_REPLY)), FakeLLMScript(text="Hb 8.9 low."))
+    document_id = await _scan_one(client, staff_headers, clinic["patient"].id)
+    await _extract_now(session, uuid.UUID(document_id), object_store, llm_fake)
+    await _fail(session, document_id, "vendor refused on the retry")
+
+    rows = (await client.get("/records/scan/failures", headers=staff_headers)).json()
+
+    assert "extraction" not in rows[0]
+    assert "Hemoglobin" not in json.dumps(rows)
+
+
+async def test_only_failures_appear_in_the_failure_list(
+    client, session, clinic, staff_headers, object_store
+):
+    """A document waiting its turn is not work sitting in front of anybody."""
+    await _scan_one(client, staff_headers, clinic["patient"].id)
+    failed = await _scan_one(client, staff_headers, clinic["patient"].id)
+    await _fail(session, failed, "unreadable")
+
+    rows = (await client.get("/records/scan/failures", headers=staff_headers)).json()
+
+    assert [row["id"] for row in rows] == [failed]
+
+
+async def test_a_retried_document_leaves_the_failure_list(
+    client, session, clinic, staff_headers, object_store
+):
+    """The list is a worklist: acting on a row takes it off."""
+    document_id = await _scan_one(client, staff_headers, clinic["patient"].id)
+    await _fail(session, document_id, "unreadable")
+
+    retried = await client.post(f"/records/documents/{document_id}/retry", headers=staff_headers)
+
+    assert retried.status_code == 200
+    assert retried.json()["status"] == "captured"
+    assert retried.json()["failure_reason"] is None
+    assert (await client.get("/records/scan/failures", headers=staff_headers)).json() == []
+
+
+async def test_an_old_failure_falls_out_of_the_window(
+    client, session, clinic, staff_headers, object_store
+):
+    """A list that only grows stops being read at all."""
+    from datetime import UTC, datetime, timedelta
+
+    document_id = await _scan_one(client, staff_headers, clinic["patient"].id)
+    document = await _fail(session, document_id, "unreadable")
+    document.created_at = datetime.now(UTC) - timedelta(days=30)
+    await session.flush()
+
+    assert (await client.get("/records/scan/failures", headers=staff_headers)).json() == []
+    # …but it is still there for anyone who asks for a wider window.
+    wide = await client.get("/records/scan/failures?days=60", headers=staff_headers)
+    assert len(wide.json()) == 1
+
+
+async def test_the_failure_list_needs_a_login(client):
+    assert (await client.get("/records/scan/failures")).status_code == 401
+
+
 # -- page bytes ----------------------------------------------------------------
 
 

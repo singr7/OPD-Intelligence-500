@@ -7,6 +7,7 @@ Two audiences, one resource:
       POST /records/documents              open a document
       POST /records/documents/{id}/pages   one photograph
       POST /records/documents/{id}/complete  close it; extraction starts
+      GET  /records/scan/failures          what did not read, and can be retried
       POST /records/documents/{id}/retry   after a failure
 
     doctor, in the room
@@ -127,6 +128,26 @@ class ExtractionOut(BaseModel):
     uses_fallback_ranges: bool = False
 
 
+class FailedDocumentOut(BaseModel):
+    """A document whose machine reading failed, as the *coordinator* may see it.
+
+    Deliberately not a `DocumentOut`: there is no `extraction` field here and
+    there never should be. A coordinator can be told that the machine could not
+    read the pages they photographed — that is their work, and they are the one
+    standing near the patient who can re-shoot it — without that becoming a way
+    to browse a clinical reading `require_clinical` keeps from them.
+    """
+
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    patient_name: str
+    token_no: int | None = None
+    kind: str
+    pages: int
+    created_at: str
+    failure_reason: str | None = None
+
+
 class StartDocumentIn(BaseModel):
     patient_id: uuid.UUID
     visit_id: uuid.UUID | None = None
@@ -239,6 +260,59 @@ async def complete_document(
         # misses, and the claim makes running both safe.
         background.add_task(run_pending_extractions)
     return _document_out(document, None)
+
+
+@router.get("/scan/failures", response_model=list[FailedDocumentOut])
+async def scan_failures(
+    days: int = 7,
+    session: AsyncSession = Depends(get_session),
+    _: Principal = Depends(require_staff),
+) -> list[FailedDocumentOut]:
+    """Everything the machine could not read, newest first.
+
+    This exists because `retry` had no caller. A document that fails extraction
+    is already honest on the doctor's screen — the pages are there and a sentence
+    says why they were not read — but the person who can actually do something
+    about it is the coordinator, and until now nothing told them it had happened.
+    A bad photograph is fixed by taking another one, at the desk, by the person
+    holding the folder.
+
+    Bounded by a window rather than unbounded: an extraction that failed a month
+    ago is not work sitting in front of anybody, and a list that only grows stops
+    being read at all.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    since = datetime.now(UTC) - timedelta(days=max(days, 1))
+    result = await session.execute(
+        select(MedicalDocument, Patient, QueueEntry.token_no)
+        .join(Patient, Patient.id == MedicalDocument.patient_id)
+        .outerjoin(
+            QueueEntry,
+            (QueueEntry.visit_id == MedicalDocument.visit_id)
+            & (QueueEntry.deleted_at.is_(None)),
+        )
+        .where(
+            MedicalDocument.status == DocumentStatus.EXTRACTION_FAILED,
+            MedicalDocument.deleted_at.is_(None),
+            MedicalDocument.created_at >= since,
+        )
+        .order_by(MedicalDocument.created_at.desc())
+        .limit(50)
+    )
+    return [
+        FailedDocumentOut(
+            id=document.id,
+            patient_id=patient.id,
+            patient_name=patient.name,
+            token_no=token_no,
+            kind=document.kind.value,
+            pages=document.pages,
+            created_at=document.created_at.isoformat(),
+            failure_reason=document.failure_reason,
+        )
+        for document, patient, token_no in result.all()
+    ]
 
 
 @router.post("/documents/{document_id}/retry", response_model=DocumentOut)
