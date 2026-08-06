@@ -883,3 +883,142 @@ export const REPORTS_CSS = `
   .vt-track { width: 92px; }
 }
 `;
+
+export const NOTE_CSS = `
+/* ---- the ambient note dock (M4) ---------------------------------------- */
+/* A button over the stage and a drawer under it. Neither covers the context
+   spine: an observation is captured *while* reading, so the thing being read
+   has to stay on screen. */
+
+.nd-fab-wrap { position: fixed; right: 26px; bottom: 24px; z-index: 40;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.nd-fab { position: relative; width: 56px; height: 56px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--brand); color: #fff; border: none;
+  box-shadow: 0 6px 20px rgba(16,48,42,.22); transition: background .12s, transform .12s; }
+.nd-fab:hover:not(:disabled) { transform: translateY(-1px); }
+.nd-fab:disabled { opacity: .6; cursor: default; }
+.nd-fab.is-rec { background: var(--danger); }
+.nd-fab svg { position: relative; z-index: 1; }
+.nd-spin { animation: nd-rot 1s linear infinite; }
+@keyframes nd-rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .nd-spin { animation: none; } }
+
+/* the level ring — real readings only (see NoteDock's header) */
+.nd-ring { position: absolute; inset: -2px; width: 60px; height: 60px; transform: rotate(-90deg); }
+.nd-ring-bg { fill: none; stroke: rgba(255,255,255,.22); stroke-width: 4; }
+.nd-ring-fg { fill: none; stroke: #fff; stroke-width: 4; stroke-linecap: round;
+  transition: stroke-dasharray .07s linear; }
+
+.nd-fab-n { position: absolute; top: -2px; right: -2px; z-index: 2; min-width: 20px; height: 20px;
+  padding: 0 5px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent); color: #4a2c05; font: 800 12px/1 var(--font-sans), sans-serif;
+  font-variant-numeric: tabular-nums; border: 2px solid var(--canvas); }
+
+.nd-fab-l { margin: 0; font-size: 12px; color: var(--text-muted); text-align: right; }
+.nd-resume { background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  color: #7a4d0a; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+
+/* the live strip, while recording */
+.nd-live { max-width: 340px; padding: 9px 12px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 6px 18px rgba(16,48,42,.10); }
+.nd-live-t { display: block; font: 800 13px/1 var(--font-sans), monospace;
+  font-variant-numeric: tabular-nums; color: var(--danger); }
+.nd-live-x { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-soft);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.nd-err { position: fixed; right: 26px; bottom: 96px; z-index: 40; max-width: 340px;
+  margin: 0; padding: 10px 13px; border-radius: var(--radius-md); font-size: 13px;
+  background: var(--accent-soft); color: #7a4d0a; border: 1px solid #e8c583; }
+
+/* ---- the drawer -------------------------------------------------------- */
+.nd-drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+  max-height: 62vh; display: flex; flex-direction: column;
+  background: var(--surface); border-top: 1px solid var(--line);
+  box-shadow: 0 -12px 34px rgba(16,48,42,.16); }
+
+.nd-head { flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 13px 24px; border-bottom: 1px solid var(--line); }
+.nd-head-l { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.nd-head h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); }
+.nd-who { font-size: 14px; color: var(--ink-soft); }
+.nd-badge { font: 700 11px/1 var(--font-sans), sans-serif; text-transform: uppercase;
+  letter-spacing: .06em; padding: 5px 8px; border-radius: 6px;
+  background: var(--accent-soft); color: #7a4d0a; }
+.nd-badge.warn { background: var(--danger-soft); color: var(--danger); text-transform: none;
+  letter-spacing: 0; font-weight: 600; font-size: 12px; }
+.nd-x { border: none; background: none; cursor: pointer; color: var(--text-muted);
+  display: grid; place-items: center; padding: 5px; border-radius: 6px; }
+.nd-x:hover { background: var(--canvas); color: var(--ink); }
+
+.nd-drawer-err { flex: none; margin: 0; padding: 9px 24px; font-size: 13px;
+  background: var(--accent-soft); color: #7a4d0a; border-bottom: 1px solid #e8c583; }
+
+.nd-body { flex: 1; min-height: 0; overflow-y: auto; display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr); gap: 26px; padding: 16px 24px; }
+
+/* what they said */
+.nd-said h3 { margin: 0 0 8px; font: 800 11px/1 var(--font-sans), sans-serif;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); }
+.nd-said blockquote { margin: 0; padding: 0 0 0 13px; border-left: 3px solid var(--brand-soft);
+  font-size: 15px; line-height: 1.6; color: var(--ink); }
+.nd-said-none { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-muted); }
+.nd-prov { margin: 12px 0 0; font-size: 11px; color: var(--text-muted); }
+
+/* the fields */
+.nd-fields { display: flex; flex-direction: column; gap: 11px; }
+.nd-f { display: block; }
+.nd-f-l { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px;
+  font: 800 11px/1 var(--font-sans), sans-serif; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); }
+.nd-f-l em { font: 600 10px/1 var(--font-sans), sans-serif; font-style: normal;
+  text-transform: none; letter-spacing: 0; color: var(--brand); }
+.nd-f textarea { width: 100%; resize: vertical; padding: 8px 10px; font: inherit; font-size: 14px;
+  line-height: 1.5; color: var(--ink); background: var(--canvas);
+  border: 1px solid var(--line); border-radius: var(--radius-md); }
+.nd-f textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px;
+  background: var(--surface); }
+.nd-f.is-edited textarea { background: var(--surface); border-color: var(--brand); }
+
+/* tags */
+.nd-tags { display: flex; flex-direction: column; gap: 7px; margin-top: 3px; }
+.nd-tags-none { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+.nd-tagrow { display: flex; align-items: baseline; gap: 10px; }
+.nd-tagrow-l { flex: none; width: 108px; font: 800 11px/1.3 var(--font-sans), sans-serif;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.nd-tagrow-c { display: flex; flex-wrap: wrap; gap: 6px; }
+.nd-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 5px 4px 9px;
+  border-radius: 999px; background: var(--brand-soft); color: var(--brand-ink, #0A5A4A);
+  font-size: 13px; font-weight: 600; }
+.nd-chip-g { font: 800 11px/1 var(--font-sans), sans-serif; padding: 3px 5px; border-radius: 4px;
+  background: rgba(255,255,255,.7); color: #0A5A4A; }
+.nd-chip button { border: none; background: none; cursor: pointer; padding: 2px;
+  display: grid; place-items: center; color: currentColor; opacity: .55; border-radius: 50%; }
+.nd-chip button:hover { opacity: 1; background: rgba(255,255,255,.6); }
+
+/* the footer, and the rule */
+.nd-foot { flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--canvas); }
+.nd-rule { margin: 0; max-width: 62ch; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.nd-rule strong { color: var(--ink-soft); font-weight: 700; }
+.nd-foot-act { flex: none; display: flex; align-items: center; gap: 9px; }
+.nd-later { border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  border-radius: var(--radius-md); padding: 9px 14px; font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; }
+.nd-later:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+/* Green, not red: confirming a note you have read is safe expected progress.
+   The same argument that kept the conclusion dialog's confirm green. */
+.nd-confirm { border: none; background: var(--brand); color: #fff; border-radius: var(--radius-md);
+  padding: 9px 18px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.nd-confirm:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 900px) {
+  .nd-body { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .nd-drawer { max-height: 72vh; }
+  .nd-foot { flex-wrap: wrap; }
+  .nd-tagrow { flex-direction: column; gap: 4px; }
+  .nd-tagrow-l { width: auto; }
+}
+`;

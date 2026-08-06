@@ -143,6 +143,24 @@ export const fetchUnitEconomics = (t: string) =>
   get<UnitEconomics>(t, "/admin/analytics/unit-economics");
 export const fetchAnomalies = (t: string) => get<Anomaly[]>(t, "/admin/analytics/anomalies");
 export const fetchOps = (t: string) => get<Ops>(t, "/admin/analytics/ops");
+
+export type TagCount = { label: string; notes: number };
+export type SymptomCount = TagCount & {
+  /** Notes where the doctor **said** a grade. Not a count of graded symptoms —
+   *  nothing in this system grades one. */
+  with_grade: number;
+};
+export type NoteTags = {
+  notes_counted: number;
+  drafts_excluded: number;
+  problems: TagCount[];
+  symptoms: SymptomCount[];
+  followups: TagCount[];
+  /** Server-supplied. Rendered verbatim rather than restated here, so the
+   *  caveat cannot drift from the query that earned it. */
+  basis: string;
+};
+export const fetchNoteTags = (t: string) => get<NoteTags>(t, "/admin/analytics/note-tags");
 export const fetchCostGuard = (t: string) => get<CostGuard>(t, "/admin/costguard");
 export const clearCostGuard = (t: string, channel: string) =>
   post<{ cleared: boolean }>(t, `/admin/costguard/${channel}/clear`, {});

@@ -240,6 +240,15 @@ export const ADMIN_CSS = `
   .admin main { padding: 22px 18px 54px; }
 }
 
+/* Two short lists side by side (M4's note tags). Problems and follow-up debt
+   are both a handful of rows; stacking them would put a page of whitespace
+   between two things an operations lead reads together. */
+.admin .split-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+@media (max-width: 900px) {
+  .admin .split-tables { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 560px) {
   .admin-topbar { padding: 10px 14px; }
   .admin main { padding: 18px 12px 48px; }

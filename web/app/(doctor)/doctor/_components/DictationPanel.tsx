@@ -52,8 +52,8 @@ import {
   mapFields,
   signDictation,
   startDictation,
-  transcribeAudio,
 } from "../_lib/dictation";
+import { clock, useVoiceCapture } from "../_lib/useVoiceCapture";
 
 type Props = {
   token: string;
@@ -69,30 +69,6 @@ type Props = {
    *  the encounter and moves the queue — it is not a note-level act. */
   onConclude: () => void;
 };
-
-// Chrome ships this prefixed; Firefox does not ship it at all. Typed here
-// rather than pulled from a DOM lib because it is not in the standard one.
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-};
-
-type SpeechCtor = new () => SpeechRecognitionLike;
-
-function speechCtor(): SpeechCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-/** How many past samples the meter shows. Each bar is a real reading. */
-const METER_BARS = 28;
 
 export function DictationPanel({
   token,
@@ -110,14 +86,7 @@ export function DictationPanel({
   const [transcript, setTranscript] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [levels, setLevels] = useState<number[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const speechRef = useRef<SpeechRecognitionLike | null>(null);
-  const startedAt = useRef<number>(0);
-  const audioRef = useRef<{ ctx: AudioContext; raf: number } | null>(null);
 
   const signed = dictation?.status === "signed";
   const fields = dictation?.fields ?? null;
@@ -170,133 +139,27 @@ export function DictationPanel({
 
   // -- capture ---------------------------------------------------------------
 
-  const stopMeter = useCallback(() => {
-    if (!audioRef.current) return;
-    cancelAnimationFrame(audioRef.current.raf);
-    void audioRef.current.ctx.close().catch(() => {});
-    audioRef.current = null;
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    speechRef.current?.stop();
-    speechRef.current = null;
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    stopMeter();
-    setLevels([]);
-    setRecording(false);
-  }, [stopMeter]);
-
-  /** The meter, driven by the real stream. No stream, no bars. */
-  const startMeter = useCallback((stream: MediaStream) => {
-    const Ctx =
-      typeof window !== "undefined"
-        ? window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-        : null;
-    if (!Ctx) return;
-    try {
-      const ctx = new Ctx();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      const buf = new Uint8Array(analyser.fftSize);
-      let last = 0;
-      const tick = (now: number) => {
-        analyser.getByteTimeDomainData(buf);
-        // RMS around the 128 midpoint: how loud the room actually is, not a
-        // shape chosen in CSS.
-        let sum = 0;
-        for (let i = 0; i < buf.length; i += 1) {
-          const v = (buf[i] - 128) / 128;
-          sum += v * v;
-        }
-        const level = Math.min(1, Math.sqrt(sum / buf.length) * 3.2);
-        if (now - last > 70) {
-          last = now;
-          setLevels((prev) => [...prev, level].slice(-METER_BARS));
-        }
-        if (audioRef.current) audioRef.current.raf = requestAnimationFrame(tick);
-      };
-      audioRef.current = { ctx, raf: requestAnimationFrame(tick) };
-    } catch {
-      // No analyser is a state, not a failure: the timer and the indicator
-      // still tell the truth, and inventing bars would not.
-    }
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    setError(null);
-    startedAt.current = Date.now();
-    setElapsed(0);
-    setLevels([]);
-
-    // Web Speech is the fast path: text appears as the doctor talks. It is also
-    // the one that ships their voice to a cloud recogniser, so the recording
-    // below runs alongside it — on a V-OSS box the server pass is local Whisper
-    // and strictly better, and it is the only path at all in Firefox.
-    const Ctor = speechCtor();
-    if (Ctor) {
-      const rec = new Ctor();
-      rec.lang = "en-IN";
-      rec.continuous = true;
-      rec.interimResults = false;
-      rec.onresult = (e) => {
-        let text = "";
-        for (let i = 0; i < e.results.length; i += 1) text += `${e.results[i][0].transcript} `;
-        touched.current = true;
-        setTranscript(text.trim());
-      };
-      rec.onerror = () => setError("Live transcription stopped — the recording is still running.");
-      rec.onend = () => setRecording(false);
-      speechRef.current = rec;
-      rec.start();
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const chunks: Blob[] = [];
-      const recorder = new MediaRecorder(stream);
-      recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const seconds = (Date.now() - startedAt.current) / 1000;
-        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        // Only fall back to the server when Web Speech produced nothing: no
-        // point paying for a second transcription of the same audio.
-        if (!Ctor || !transcript.trim()) {
-          setBusy("transcribing");
-          try {
-            const out = await transcribeAudio(token, blob, seconds);
-            touched.current = true;
-            setTranscript(out.text);
-            if (out.uncertain) setError("That recording was hard to hear — please read it through.");
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Could not transcribe that.");
-          } finally {
-            setBusy(null);
-          }
-        }
-      };
-      recorderRef.current = recorder;
-      recorder.start();
-      startMeter(stream);
-      setRecording(true);
-    } catch {
-      if (!Ctor) setError("No microphone available — type the note instead.");
-      else setRecording(true);
-    }
-  }, [token, transcript, startMeter]);
-
-  // The honest half of the recording state: a timer that is simply true, and is
-  // the whole of it on a browser that gives us no analyser.
-  useEffect(() => {
-    if (!recording) return;
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt.current) / 1000)), 250);
-    return () => clearInterval(id);
-  }, [recording]);
-
-  useEffect(() => () => stopRecording(), [stopRecording]);
+  // The recorder itself moved to `useVoiceCapture` in M4, when the ambient note
+  // became the second surface with one. Same Web Speech fast path, same
+  // `MediaRecorder` alongside it, same analyser-driven meter, and the same rule:
+  // no bars without an analyser.
+  const {
+    recording,
+    elapsed,
+    levels,
+    transcribing,
+    start: startRecording,
+    stop: stopRecording,
+  } = useVoiceCapture({
+    token,
+    endpoint: "/dictation/stt",
+    currentTranscript: transcript,
+    onTranscript: (text) => {
+      touched.current = true;
+      setTranscript(text);
+    },
+    onError: setError,
+  });
 
   // -- verbs -----------------------------------------------------------------
 
@@ -482,7 +345,7 @@ export function DictationPanel({
               </button>
             )}
 
-            {busy === "transcribing" && <span className="dict-busy">Transcribing…</span>}
+            {transcribing && <span className="dict-busy">Transcribing…</span>}
 
             {/* The escape hatch lives in the overflow, not in marigold at the
                 top of the screen. It is legitimate and it is not the default. */}
@@ -727,12 +590,6 @@ function StepRail({ step, signed }: { step: Step; signed: boolean }) {
       })}
     </ol>
   );
-}
-
-function clock(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // -- one drug -----------------------------------------------------------------

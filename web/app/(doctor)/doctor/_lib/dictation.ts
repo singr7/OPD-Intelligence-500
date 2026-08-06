@@ -157,22 +157,6 @@ export async function signDictation(token: string, dictationId: string): Promise
   );
 }
 
-/** The accuracy pass behind Web Speech — and the only path on a browser without it. */
-export async function transcribeAudio(
-  token: string,
-  blob: Blob,
-  seconds: number,
-): Promise<{ text: string; provider: string; uncertain: boolean }> {
-  const form = new FormData();
-  form.append("file", blob, "consult.webm");
-  form.append("lang", "en");
-  form.append("duration_seconds", String(Math.max(0, Math.round(seconds))));
-  const res = await fetch(`${API_BASE}/dictation/stt`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (res.status === 401) throw new AuthError();
-  if (!res.ok) throw new Error("Speech recognition is unavailable — type the note instead.");
-  return res.json();
-}
+// The STT call moved to `useVoiceCapture` in M4, where the recorder that makes
+// the recording now lives. Both doctor surfaces post to it; they differ only in
+// which endpoint, and therefore which meter, receives the clip.

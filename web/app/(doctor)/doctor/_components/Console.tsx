@@ -34,12 +34,13 @@ import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib
 import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
 import { ConcludeDialog } from "./ConcludeDialog";
-import { CONSOLE_CSS, DICTATION_CSS, REPORTS_CSS } from "./consoleStyles";
+import { CONSOLE_CSS, DICTATION_CSS, NOTE_CSS, REPORTS_CSS } from "./consoleStyles";
 import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
 import { EncounterBar, type Action } from "./EncounterBar";
 import { Login } from "./Login";
+import { NoteDock } from "./NoteDock";
 import { PatientCard } from "./PatientCard";
 import { ReportsTab } from "./ReportsTab";
 import { WorkTabs, type WorkTab } from "./WorkTabs";
@@ -386,7 +387,9 @@ export function Console() {
 
   return (
     <div className="console">
-      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS }} />
+      <style
+        dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS }}
+      />
 
       {/* The app bar carries identity only. Every verb that moves the queue
           lives on the encounter bar, next to the patient it acts on. */}
@@ -493,6 +496,13 @@ export function Console() {
           )}
         </section>
       </main>
+
+      {/* The ambient note (M4). Outside `.split` and mounted for every tab, so
+          the mic is reachable while the doctor reads any of them — that is the
+          module's whole claim, and a recorder that lived inside a tab would not
+          make it. Keyed on the visit so a patient switch cannot leave one
+          patient's half-finished observation open over another's record. */}
+      {card && <NoteDock key={card.visit_id} token={token} visitId={card.visit_id} patientName={card.name} />}
 
       {concluding && card && (
         <ConcludeDialog
