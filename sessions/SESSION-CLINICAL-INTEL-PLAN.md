@@ -421,12 +421,18 @@ truthful empty/error states. *Gates:* backend tests against the fake, doctor
 E2E with mocked study list, manual acceptance checklist against the real
 `RAD-RENVA-PACS` recorded in the session log (external gate if unreachable).
 
-**Session M4 — Ambient notes.**
-Floating recorder, `ClinicalNote` + migration, `note_map` prompts, review
-panel, confirm flow, mapping-failure state, tags, one analytics query surfaced
-in admin as proof of the EMR mapping's value. *Gates:* backend + dictation E2E
-extended; an explicit test that no prescription artifact can originate from a
-note; full frontend gates.
+**Session M4 — Ambient notes.** ✅ *Delivered 2026-08-06
+(`sessions/SESSION-M4.md`), built ahead of M3 because M3's external gate (§8.1)
+is still open.* Floating recorder, `ClinicalNote` + migration `02571a5c1871`,
+`note_map` prompts, review panel, confirm flow, mapping-failure state, tags, and
+`analytics.note_tags` on the admin Ops tab. Two things differ from this
+paragraph. The recorder was **extracted** into `useVoiceCapture` and shared with
+`DictationPanel` rather than written twice — the no-bars-without-an-analyser
+rule must live in one place. And the surface is a **dock, not a tab**: a tab
+would replace what the doctor was reading, which is the failure the context
+spine exists to prevent. *Gates met:* backend 1,604, notes E2E 5, dictation E2E
+8 unchanged, full frontend gates; the prescription-origination test is
+structural (`app.notes` may not import the prescription path at all).
 
 **Session M5 — Research assistant.**
 Context assembly + view/edit, thread models + migration, prompt family, panel
@@ -468,6 +474,11 @@ Scope, and the decisions already taken so the session does not re-open them:
 Rough order of dependency, not just preference: M3 needs nothing from M1/M2
 and can swap earlier if the imaging-centre contract (§8.1) resolves first. M6 is
 ordered by the *deployment* calendar rather than by this list.
+
+**Where this actually went** (2026-08-06): M1 → M2 → **M4**, with M3 skipped on
+its open gate. M5 is now the natural next one rather than merely the next
+numbered: its context assembly (§4.1) reads the spine's signed-note diagnosis,
+M1's computed lab flags and M4's confirmed note tags, and all three now exist.
 
 ---
 

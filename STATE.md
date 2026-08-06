@@ -883,6 +883,26 @@ the only gate right now.**
   the screen says so rather than implying a queue that does not exist.
 - **The doctor's Reports tab does not exist yet** (MRD1) — the read endpoints are
   built and tested, so documents are reachable by API but by no screen. M2.
+- **The note recorder's level ring is unverified on real hardware** (M4) —
+  headless Chromium has no microphone and no Web Speech, so the notes E2E seeds
+  captures through the API and exercises neither the ring nor the elapsed timer.
+  It joins Session C's dictation meter, which has the same gap for the same
+  reason: both need a look on the Omen with a real headset before the pilot.
+- **A confirmed note cannot be amended or deleted** (M4) — the same shape as a
+  signed dictation, and this system still has no amendment path anywhere. A
+  doctor who confirms a wrong mapping can only record a second observation.
+- **Ambient notes reach no surface but their own** (M4) — not the research
+  assistant (M5, deliberately), not printed sheets, not the patient app, and no
+  summary anywhere else. A colleague sees them only by opening the same visit.
+  `tags` are counted clinic-wide in admin and nowhere else.
+- **The note tag counts have no department or doctor filter** (M4) — one
+  clinic-wide number over seven days. Anything finer wants the filter machinery
+  the cost tab already has.
+- **Every router except `/notes` can 404 a client that chains two writes** (M4)
+  — FastAPI tears down `yield` dependencies after sending the response, so
+  `get_session`'s commit lands after the caller has its 200. Only `/notes` has a
+  client that uses an id from one write in the very next request, and only
+  `/notes` commits before responding (`_settle`). Latent everywhere else.
 - **A model's script is guarded, not trusted** (2026-08-05) — `app.languages`
   rejects text containing a non-Latin script the patient's language does not use,
   at six boundaries: the kiosk `/stt` route, `IntakeEngine._hear`, the WhatsApp
