@@ -156,6 +156,20 @@ class DictationStatus(StrEnum):
     SIGNED = "signed"
 
 
+class NoteStatus(StrEnum):
+    """Where one ambient consult note is (plan §3.1).
+
+    Two states, on purpose. `draft` is a capture the doctor has not read back;
+    `confirmed` is one they have. Nothing here is `signed`, and the word is
+    avoided deliberately: signing is the prescription boundary in
+    `app.dictation`, and a note that looked like it had crossed a signature
+    would be the first step toward a second prescription writer.
+    """
+
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+
+
 class RxMode(StrEnum):
     """How a consult ended, prescribing-wise (plan §5.3b).
 
@@ -308,6 +322,14 @@ class UsagePurpose(StrEnum):
     #: fiction. The column is a plain varchar(11) with no check constraint, so
     #: this needed no migration; a value longer than that would.
     DOCUMENT = "document"
+    #: An ambient consult note (SESSION-M4) — its transcription and its mapping.
+    #: Its own purpose rather than `dictation` for the reason `document` is its
+    #: own: `analytics._per_dictation` divides DICTATION spend by the number of
+    #: *signed dictations*, and notes produce no dictation to divide by. Sharing
+    #: the purpose would inflate cost-per-prescription by however many
+    #: observations a doctor happened to mutter that day, which is a number
+    #: nobody could reconcile against an invoice.
+    NOTE = "note"
     OTHER = "other"
 
 

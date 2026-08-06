@@ -42,6 +42,7 @@ from app.models.enums import (
     DoseStatus,
     IntakeTier,
     Lang,
+    NoteStatus,
     PatientLinkState,
     RxMode,
     VisitStatus,
@@ -164,6 +165,51 @@ class Dictation(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical)
     signed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("doctors.id"))
 
     visit: Mapped[Visit] = relationship(back_populates="dictations")
+
+
+class ClinicalNote(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """One ambient observation a doctor spoke while working (plan §3.1).
+
+    Deliberately a **second, lighter use** of the Session-C dictation stack and
+    not an extension of it. `Dictation` is the prescription path: it maps drug
+    lines, validates them against the formulary, and its signature is what
+    generates a prescription. This table maps prose into an S/O/A/P shape and
+    generates nothing. There is no `meds` column here and there must never be
+    one — the moment a note can carry a drug order, the formulary check and the
+    signature boundary have a way around them.
+
+    Unlike `Dictation` there may be **several per visit**: the mic is on the
+    console for the whole consult, and a doctor who says something at minute two
+    and something else at minute nine has made two observations, not revised one.
+    Merging them would mean the second capture silently rewriting the first.
+    """
+
+    __tablename__ = "clinical_notes"
+
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), index=True)
+    doctor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("doctors.id"), index=True)
+
+    #: The doctor's own words. Written once at capture and never overwritten —
+    #: the Session-C rule, and for the same reason: the recording is the half
+    #: that cannot be recreated once they have moved to the next patient.
+    transcript: Mapped[str | None] = mapped_column(Text)
+
+    #: {version, mapped, fields, edits, model, prompt_ref, mapping_error,
+    #: mapped_at} — `app.notes` owns the shape, mirroring `Dictation.structured`
+    #: so the two review surfaces can stay the same shape for a reader.
+    structured: Mapped[dict[str, Any]] = mapped_column(default=dict)
+
+    status: Mapped[NoteStatus] = mapped_column(
+        enum_type(NoteStatus, "note_status"), default=NoteStatus.DRAFT, index=True
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("doctors.id"))
+
+    #: The exact STT/LLM providers and models this note passed through, the
+    #: VOICE1 pattern. Config moves; a stored mapping stays attributable.
+    provider_snapshot: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    #: `id@vN` of every prompt that contributed.
+    prompt_refs: Mapped[list[Any]] = mapped_column(default=list)
 
 
 class Prescription(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
