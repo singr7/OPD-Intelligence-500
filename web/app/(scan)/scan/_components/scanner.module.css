@@ -388,3 +388,41 @@
     transform: rotate(360deg);
   }
 }
+
+/* -- what did not read (MRD2) ---------------------------------------------
+   A second worklist under the queue, quiet by construction: these pages are
+   already stored and already visible to the doctor, so this is unfinished
+   machine work, not a clinical alarm. It is only rendered when there is
+   something in it — but "we could not check" is an error above it, because
+   that is not the same news as "nothing failed". */
+
+.failures {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line, #e3ebe8);
+}
+
+.failuresHeading {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.failRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line, #e3ebe8);
+  border-left: 3px solid var(--attention, #d88a18);
+  border-radius: var(--radius-card, 12px);
+}
+
+.failRow .rowMeta {
+  white-space: normal;
+  line-height: 1.45;
+}

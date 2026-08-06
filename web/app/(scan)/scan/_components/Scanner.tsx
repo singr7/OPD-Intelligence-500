@@ -27,10 +27,13 @@ import {
   KIND_LABELS,
   completeDocument,
   downscale,
+  retryDocument,
+  scanFailures,
   scanWorklist,
   startDocument,
   uploadPage,
   type DocumentKind,
+  type FailedDocument,
   type WorklistRow,
 } from "@/app/_lib/records";
 import styles from "./scanner.module.css";
@@ -64,6 +67,9 @@ export function Scanner({
   const [rows, setRows] = useState<WorklistRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [failures, setFailures] = useState<FailedDocument[]>([]);
+  const [failuresError, setFailuresError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const [patient, setPatient] = useState<WorklistRow | null>(null);
   const [kind, setKind] = useState<DocumentKind>("lab");
@@ -86,15 +92,52 @@ export function Scanner({
     [token],
   );
 
+  // What the machine could not read. This is the second half of the scanning
+  // job and it had no screen until now: the doctor's console shows a failed
+  // document honestly, but the only person who can fix a bad photograph is
+  // standing here, and nothing told them.
+  const loadFailures = useCallback(async () => {
+    try {
+      setFailures(await scanFailures(token));
+      setFailuresError(null);
+    } catch {
+      // Kept apart from an empty list on purpose: "nothing failed" is good news
+      // and "we could not check" is not, and they must not render alike.
+      setFailures([]);
+      setFailuresError("Could not check for unread scans.");
+    }
+  }, [token]);
+
   useEffect(() => {
-    if (step === "pick") void load(query);
+    if (step === "pick") {
+      void load(query);
+      void loadFailures();
+    }
     // Re-runs on an explicit search only; typing does not fire a request per key.
-  }, [step, load]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, load, loadFailures]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Object URLs are revoked when the batch is dropped, not on every render —
   // a strip of five previews left unrevoked is five full-size bitmaps held.
   const dropPreviews = (list: Page[]) =>
     list.forEach((page) => URL.revokeObjectURL(page.preview));
+
+  /** Ask for another go at the pages already stored. Restores the attempt
+   *  budget the automatic sweep deliberately cannot restore for itself — which
+   *  is the whole difference between this and waiting. */
+  async function reread(row: FailedDocument) {
+    if (retrying) return;
+    setRetrying(row.id);
+    try {
+      await retryDocument(token, row.id);
+      // Off the list the moment it is queued: this is a worklist, and a row
+      // that stays after being acted on gets tapped twice.
+      setFailures((prev) => prev.filter((f) => f.id !== row.id));
+    } catch (err) {
+      setFailuresError(err instanceof Error ? err.message : "Could not start a re-read.");
+    } finally {
+      setRetrying(null);
+    }
+  }
 
   async function choose(row: WorklistRow) {
     setPatient(row);
@@ -273,6 +316,54 @@ export function Scanner({
               </li>
             ))}
           </ul>
+
+          {/* The second half of the job: what did not read. Below the queue,
+              because the patient standing at the desk comes first. */}
+          {failuresError && (
+            <p className={styles.error} role="alert">
+              {failuresError}
+            </p>
+          )}
+
+          {failures.length > 0 && (
+            <section className={styles.failures} data-testid="scan-failures">
+              <h2 className={styles.failuresHeading}>
+                Could not be read ({failures.length})
+              </h2>
+              <p className={styles.quiet}>
+                The pages are stored and the doctor can see them. Only the automatic reading
+                failed — re-read tries again, and re-scanning is for when the photograph itself is
+                bad.
+              </p>
+              <ul className={styles.list}>
+                {failures.map((row) => (
+                  <li key={row.id} className={styles.failRow} data-testid="scan-failure">
+                    <span className={styles.rowBody}>
+                      <span className={styles.rowName}>
+                        {row.patient_name}
+                        {row.token_no !== null && ` · token ${row.token_no}`}
+                      </span>
+                      <span className={styles.rowMeta}>
+                        {KIND_LABELS[row.kind]} · {row.pages}{" "}
+                        {row.pages === 1 ? "page" : "pages"}
+                        {row.failure_reason ? ` · ${row.failure_reason}` : ""}
+                      </span>
+                    </span>
+                    <Button
+                      tone="secondary"
+                      type="button"
+                      icon={retrying === row.id ? <Loader2 /> : <RotateCcw />}
+                      onClick={() => void reread(row)}
+                      disabled={retrying !== null}
+                      data-testid="scan-reread"
+                    >
+                      {retrying === row.id ? "Starting…" : "Re-read"}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </section>
       )}
 
