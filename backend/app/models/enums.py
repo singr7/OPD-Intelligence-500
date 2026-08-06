@@ -330,6 +330,14 @@ class UsagePurpose(StrEnum):
     #: observations a doctor happened to mutter that day, which is a number
     #: nobody could reconcile against an invoice.
     NOTE = "note"
+    #: A research-assistant turn (SESSION-M5). Its own purpose for the reason
+    #: `note` and `document` are: this is the only prose-output pathway in the
+    #: system and the only one whose cost scales with how curious a doctor is
+    #: rather than with how many patients came through the door. Folded into
+    #: `summary` it would make cost-per-intake move when nobody's intake
+    #: changed. Eight characters, so the varchar(11) column still needs no
+    #: migration — `research_assist` would have needed one.
+    RESEARCH = "research"
     OTHER = "other"
 
 

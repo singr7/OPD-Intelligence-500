@@ -270,6 +270,24 @@ class Settings(BaseSettings):
     # waits for a human. A vendor outage should not cost the daily budget.
     mrd_max_extract_attempts: int = 3
 
+    # -- research assistant (SESSION-M5, plan §4) --
+    research_enabled: bool = True
+    # Turns one doctor may ask in one day, across every patient. A *count*, not
+    # a rupee budget, and `app.research.assistant` explains why at length: the
+    # cost of a turn is not knowable at the moment the guard has to decide,
+    # because metering is deliberately async and batched so it can never block a
+    # patient-facing call. Forty is roughly "a question on every third patient
+    # of a 120-patient day" — generous for the use, and a hard ceiling on what a
+    # stuck client can spend.
+    research_daily_turns: int = 40
+    # One question. Long enough to paste a presentation into, short enough that
+    # a runaway paste cannot become the context.
+    research_max_question: int = 2_000
+    # Prior turns replayed as history. Six exchanges is the useful depth of a
+    # question asked between two patients; beyond that every turn re-bills the
+    # whole conversation for context nobody is still referring to.
+    research_history_turns: int = 6
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}

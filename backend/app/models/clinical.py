@@ -352,3 +352,81 @@ class DoseEvent(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical)
     #: When the caregiver was actually pinged about a miss. Null on a taken dose,
     #: and on a missed one whose patient has no active caregiver link.
     caregiver_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchThread(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """One doctor's research conversation about one visit (plan §4.1).
+
+    `Clinical`, and it is worth saying why a table that treats no patient is
+    audited like one that does. Every turn here was asked *about* a named
+    patient while their consult was open, and "what did the doctor look up
+    before they changed the plan" is exactly the question a medico-legal review
+    asks. The plan says so plainly: stored "both for medico-legal traceability
+    and because 'what doctors ask' is itself the analytics."
+
+    One thread per (visit, doctor), so a doctor returning to the tab mid-consult
+    continues the conversation rather than starting a fresh one — and a
+    colleague covering the room gets their own, because a research thread is a
+    line of reasoning and merging two of them would attribute one doctor's
+    question to another. That is what the unique constraint enforces.
+
+    There is **no signature, no status and no `applied` column**, and there must
+    never be one. A thread cannot be adopted into the record: the moment this
+    table can be marked "accepted", a model's prose has become a clinical
+    decision with a doctor's name on it, which is precisely what decision 7
+    refuses. What a doctor takes from here they write themselves, on the consult
+    note, in their own words.
+    """
+
+    __tablename__ = "research_threads"
+    __table_args__ = (
+        UniqueConstraint("visit_id", "doctor_id", name="uq_research_threads_visit_id_doctor_id"),
+    )
+
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), index=True)
+    doctor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("doctors.id"), index=True)
+
+    #: The context item ids the doctor last chose to send — `["diagnosis",
+    #: "labs"]`. Ids, never text: `app.research.context` re-derives the words on
+    #: every turn, so this records a *decision* rather than a payload, and it
+    #: stays readable after the wording of an item changes.
+    context_include: Mapped[list[Any]] = mapped_column(default=list)
+
+    turns: Mapped[list[ResearchTurn]] = relationship(
+        back_populates="thread", order_by="ResearchTurn.created_at"
+    )
+
+
+class ResearchTurn(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin, Clinical):
+    """One question and the answer it got.
+
+    The question and the answer are stored together rather than as two rows: a
+    reply without its prompt is unreadable months later, and there is no state
+    in which one exists without the other — a failed call writes no turn at all
+    (see `app.research.assistant`), so a stored turn is always a completed
+    exchange.
+
+    `context_sent` is the **rendered lines**, frozen. The ids on the thread say
+    what the doctor chose; this says what those ids meant at the time, which is
+    the only way to read the answer back honestly after a lab value has been
+    re-flagged or a diagnosis re-signed.
+    """
+
+    __tablename__ = "research_turns"
+
+    thread_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("research_threads.id"), index=True)
+
+    question: Mapped[str] = mapped_column(Text)
+    #: Prose. Nothing parses this — there is no schema for a research answer and
+    #: adding one would be the first step towards a field on a clinical record.
+    answer: Mapped[str] = mapped_column(Text)
+
+    #: The exact context lines that left the box with this question.
+    context_sent: Mapped[list[Any]] = mapped_column(default=list)
+
+    #: The provider/model that answered, snapshotted (the VOICE1 pattern).
+    provider_snapshot: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    #: `id@vN` of the prompt that produced it.
+    prompt_refs: Mapped[list[Any]] = mapped_column(default=list)
+
+    thread: Mapped[ResearchThread] = relationship(back_populates="turns")
