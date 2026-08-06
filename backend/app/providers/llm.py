@@ -287,6 +287,42 @@ _CANNED_JSON: dict[str, str] = {
             "unclear": [],
         }
     ),
+    # An ambient consult note (M4). Here for the reason `mrd_extract` is: without
+    # it the fake answers "ok" to a strict-JSON prompt and `make dev` can only
+    # ever demonstrate the mapping-failure state.
+    #
+    # Note what is *not* here, and what it is an input to: there is **no
+    # medication field**, because `NoteMapping` has none. The drug in this
+    # fixture sits inside `plan_narrative` as prose, exactly where a dictated one
+    # must land — a canned reply that volunteered a `meds` list would be teaching
+    # the wrong shape to every future reader, and `app.notes` would discard it
+    # anyway. Pinned by `test_the_demo_note_fixture_carries_no_drug_order`.
+    #
+    # `grade_mentioned` is populated on one symptom and null on the other, on
+    # purpose: the field records that the doctor said a grade out loud, and a
+    # demo where every symptom carries one reads as though the system grades.
+    "note_map": json.dumps(
+        {
+            "subjective": (
+                "Feels much better than after the last cycle. Mouth soreness for three days, "
+                "eating soft food. No fever at home."
+            ),
+            "objective": "Comfortable, ambulant. Grade 1 oral mucositis. No pallor on examination.",
+            "assessment": "Tolerating AC-T well through cycle 3. Mucositis is manageable.",
+            "plan_narrative": (
+                "Continue current supportive care and salt-water rinses. Repeat CBC before the "
+                "next cycle and review the counts at that visit."
+            ),
+            "tags": {
+                "problems": ["carcinoma breast"],
+                "symptoms": [
+                    {"name": "mucositis", "grade_mentioned": "1"},
+                    {"name": "mouth soreness", "grade_mentioned": None},
+                ],
+                "followups": ["CBC before next cycle"],
+            },
+        }
+    ),
     # The inbound receptionist's intent classifier (S15). "book" so a local demo
     # call with LLM_PROVIDER=fake reaches the slot offer instead of a coordinator.
     "receptionist": json.dumps(
