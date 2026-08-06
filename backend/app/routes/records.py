@@ -289,8 +289,7 @@ async def scan_failures(
         .join(Patient, Patient.id == MedicalDocument.patient_id)
         .outerjoin(
             QueueEntry,
-            (QueueEntry.visit_id == MedicalDocument.visit_id)
-            & (QueueEntry.deleted_at.is_(None)),
+            (QueueEntry.visit_id == MedicalDocument.visit_id) & (QueueEntry.deleted_at.is_(None)),
         )
         .where(
             MedicalDocument.status == DocumentStatus.EXTRACTION_FAILED,

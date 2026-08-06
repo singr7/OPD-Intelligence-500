@@ -285,9 +285,7 @@ async def print_sheet(
     doctor = await _doctor(session, principal)
     prescription = await _load(session, prescription_id, doctor)
     ctx = await _context(session, prescription, doctor)
-    html, _resolved_lang = _render_sheet(
-        prescription, ctx, copy=copy, lang=lang, settings=settings
-    )
+    html, _resolved_lang = _render_sheet(prescription, ctx, copy=copy, lang=lang, settings=settings)
     rx_svc.record_delivery(prescription, channel="print", status="rendered", detail=copy)
     return HTMLResponse(content=html)
 
@@ -305,9 +303,7 @@ async def pdf_sheet(
     doctor = await _doctor(session, principal)
     prescription = await _load(session, prescription_id, doctor)
     ctx = await _context(session, prescription, doctor)
-    html, resolved_lang = _render_sheet(
-        prescription, ctx, copy=copy, lang=lang, settings=settings
-    )
+    html, resolved_lang = _render_sheet(prescription, ctx, copy=copy, lang=lang, settings=settings)
     pdf = await run_in_threadpool(rx_sheets.render_pdf, html)
     filename = f"prescription-{prescription.id}-{copy}-{resolved_lang}.pdf"
     return Response(

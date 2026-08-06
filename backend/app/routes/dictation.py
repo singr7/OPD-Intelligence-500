@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -40,16 +39,11 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.models.clinical import Dictation
 from app.models.enums import Lang, UsagePurpose
-from app.providers import AudioClip, ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import usage_scope
-from app.providers.registry import llm_chain, stt_chain
+from app.providers.registry import llm_chain
+from app.routes._stt import SttOut, transcribe_upload
 
 router = APIRouter(prefix="/dictation", tags=["dictation"])
-
-#: A consult note is a minute or two of speech, not a lecture. Generous enough
-#: for a long oncology plan, small enough that a stuck recorder cannot post a
-#: gigabyte at the box's Whisper.
-_MAX_STT_BYTES = 24 * 1024 * 1024
 
 
 # -- wire models --------------------------------------------------------------
@@ -145,14 +139,6 @@ class PatchIn(BaseModel):
 
     def patch(self) -> dict[str, Any]:
         return self.model_dump(exclude_unset=True)
-
-
-class SttOut(BaseModel):
-    text: str
-    provider: str
-    lang: str
-    confidence: float | None = None
-    uncertain: bool = False
 
 
 # -- serialisation ------------------------------------------------------------
@@ -344,36 +330,15 @@ async def stt(
     doctor's voice to a cloud recogniser and it is poor at Hinglish drug names.
     This route is the fallback and, on a V-OSS box, the better one: the
     configured chain is local Whisper, so the consult never leaves the premises.
+
+    The body moved to `app.routes._stt` in M4 so the ambient-note recorder could
+    share it. What stays here is the purpose it is metered under: this clip
+    belongs to a prescription, and `/notes/stt`'s does not.
     """
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=422, detail="empty audio upload")
-    if len(data) > _MAX_STT_BYTES:
-        raise HTTPException(status_code=413, detail="recording too large")
-
-    duration: Decimal | None = None
-    if duration_seconds:
-        try:
-            duration = Decimal(duration_seconds)
-        except (InvalidOperation, ValueError):
-            duration = None
-
-    clip = AudioClip(data=data, mime=file.content_type or "audio/webm", duration_seconds=duration)
-    try:
-        with usage_scope():
-            transcript = await with_fallback(
-                stt_chain(settings),
-                lambda p: p.transcribe(clip, str(lang), purpose=UsagePurpose.DICTATION),
-            )
-    except ProviderBadRequest as exc:
-        raise HTTPException(status_code=422, detail=f"could not read that audio: {exc}") from exc
-    except ProviderError as exc:
-        raise HTTPException(status_code=503, detail="speech recognition is unavailable") from exc
-
-    return SttOut(
-        text=transcript.text,
-        provider=transcript.provider,
-        lang=transcript.lang,
-        confidence=transcript.confidence,
-        uncertain=transcript.is_uncertain,
+    return await transcribe_upload(
+        file,
+        lang=lang,
+        duration_seconds=duration_seconds,
+        settings=settings,
+        purpose=UsagePurpose.DICTATION,
     )

@@ -38,6 +38,7 @@ from app.routes.dictation import router as dictation_router
 from app.routes.doctor import router as doctor_router
 from app.routes.health import router as health_router
 from app.routes.kiosk import router as kiosk_router
+from app.routes.notes import router as notes_router
 from app.routes.patient import router as patient_router
 from app.routes.prescription import router as prescription_router
 from app.routes.providers import router as providers_router
@@ -152,6 +153,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(queue_router)
     app.include_router(doctor_router)
     app.include_router(dictation_router)
+    app.include_router(notes_router)
     app.include_router(prescription_router)
     app.include_router(whatsapp_router)
     app.include_router(appointments_router)
