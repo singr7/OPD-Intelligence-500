@@ -28,6 +28,9 @@ grep -q 'host_ip: 127.0.0.1' "$CONFIG"
 grep -q 'opd-api:0123456789abcdef0123456789abcdef01234567' "$CONFIG"
 grep -q '/data/postgres' "$CONFIG"
 grep -q '/data/redis' "$CONFIG"
+# Scanned pages must reach the worker too, not just the api: extraction runs in
+# a different container from the upload (doc 22 §1).
+grep -q '/data/records' "$CONFIG"
 
 for script in "$SCRIPT_DIR"/*.sh "$REPO_ROOT/infra/user_data.sh"; do
   bash -n "$script"

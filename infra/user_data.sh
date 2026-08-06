@@ -46,7 +46,10 @@ mount -a
 
 # --- Stable runtime layout ----------------------------------------------------
 install -d -m 0750 -o root -g docker /opt/opd /opt/opd/releases /opt/opd/runtime
-install -d -m 0750 -o root -g docker /data/postgres /data/redis /data/releases /data/backups
+# /data/records holds scanned page images (MRD, doc 22 §1). It is bind-mounted
+# into every backend container because the api writes pages the worker reads,
+# and it is deliberately outside the Postgres backup — see doc 22 §2.
+install -d -m 0750 -o root -g docker /data/postgres /data/redis /data/records /data/releases /data/backups
 install -d -m 0755 /var/log/opd
 
 cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'JSON'
