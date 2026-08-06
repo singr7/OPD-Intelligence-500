@@ -195,6 +195,7 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
 
     # One representative instance per Clinical model.
     from app.models.clinical import (
+        ClinicalNote,
         DocumentExtraction,
         DoseEvent,
         MedicalDocument,
@@ -245,6 +246,7 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         "caregiver_links": CaregiverLink(patient_id=clinic["patient"].id, phone="+915550000123"),
         "medical_documents": document,
         "document_extractions": DocumentExtraction(document_id=document.id),
+        "clinical_notes": ClinicalNote(visit_id=visit.id, doctor_id=clinic["doctor"].id),
         "dose_events": DoseEvent(
             patient_id=clinic["patient"].id,
             prescription_id=prescription.id,
@@ -298,6 +300,11 @@ async def test_clinical_marker_covers_the_expected_tables() -> None:
         # answerable from the log, not from whoever remembers the deploy.
         "medical_documents",
         "document_extractions",
+        # M4: what a doctor observed out loud, and what a model made of it. It
+        # prescribes nothing, which is precisely why it is audited — an
+        # un-auditable record of a clinical observation is the kind of thing that
+        # gets treated as informal until somebody needs it in a dispute.
+        "clinical_notes",
     }
 
 

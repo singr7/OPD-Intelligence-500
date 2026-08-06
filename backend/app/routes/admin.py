@@ -384,6 +384,66 @@ async def analytics_ops(
     )
 
 
+# -- analytics: ambient note tags (M4) ----------------------------------------
+
+
+class TagCountOut(BaseModel):
+    label: str
+    notes: int
+
+
+class SymptomCountOut(BaseModel):
+    label: str
+    notes: int
+    #: Notes where the doctor **said** a grade. Not "notes where it was graded" —
+    #: nothing in this system grades a symptom.
+    with_grade: int
+
+
+class NoteTagsOut(BaseModel):
+    notes_counted: int
+    drafts_excluded: int
+    problems: list[TagCountOut]
+    symptoms: list[SymptomCountOut]
+    followups: list[TagCountOut]
+    #: Carried on the payload rather than left to each client to remember. These
+    #: counts come from tags a model suggested and a doctor accepted, and every
+    #: surface that renders them has to say so (plan §3.2).
+    basis: str = (
+        "Model-assisted: tags are suggested by a model and accepted by the doctor "
+        "at confirm time. Confirmed notes only."
+    )
+
+
+@router.get("/analytics/note-tags", response_model=NoteTagsOut)
+async def analytics_note_tags(
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = 10,
+    session: AsyncSession = Depends(get_session),
+) -> NoteTagsOut:
+    """What the clinic's ambient notes were about (M4, plan §3.2).
+
+    The proof that mapping a spoken observation into a small shape buys something
+    a transcript does not: symptom burden, follow-up debt and problem prevalence
+    over a period, from notes a doctor confirmed.
+    """
+    lo, hi = _default_window()
+    tags = await analytics.note_tags(
+        session, start=start or lo, end=end or hi, limit=max(1, min(limit, 50))
+    )
+    return NoteTagsOut(
+        notes_counted=tags.notes_counted,
+        drafts_excluded=tags.drafts_excluded,
+        problems=[TagCountOut(label=t.label, notes=t.notes) for t in tags.problems],
+        symptoms=[
+            SymptomCountOut(label=s.label, notes=s.notes, with_grade=s.with_grade)
+            for s in tags.symptoms
+        ],
+        followups=[TagCountOut(label=t.label, notes=t.notes) for t in tags.followups],
+    )
+
+
 # -- editor: trees ------------------------------------------------------------
 
 

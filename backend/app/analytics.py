@@ -27,16 +27,18 @@ cost.
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.clinical import Dictation, Intake, Visit
-from app.models.enums import Channel, DictationStatus, IntakeTier, UsagePurpose
+from app.models.clinical import ClinicalNote, Dictation, Intake, Visit
+from app.models.enums import Channel, DictationStatus, IntakeTier, NoteStatus, UsagePurpose
 from app.models.metering import PriceBook, UsageEvent
 
 # The cost column's scale — every rupee sum quantizes to this, so a reconciliation
@@ -146,6 +148,49 @@ class OpsMetrics:
     funnel: list[FunnelRow]
     tier_downgrades: int
     intakes_by_lang: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class TagCount:
+    """One tag and how many confirmed notes carried it."""
+
+    label: str
+    notes: int
+
+
+@dataclass(frozen=True, slots=True)
+class SymptomCount:
+    """One symptom, and how often a doctor said a grade for it out loud.
+
+    `with_grade` is not "how many were graded" — nothing in this system grades.
+    It counts the notes where the doctor spoke a grade, which is why the field
+    on the note is called `grade_mentioned`. Surfaced separately because the two
+    numbers answer different questions: how often the symptom comes up, and how
+    often anyone was specific about it.
+    """
+
+    label: str
+    notes: int
+    with_grade: int
+
+
+@dataclass(frozen=True, slots=True)
+class NoteTags:
+    """What the ambient notes of a period were about (M4, plan §3.2).
+
+    Every count here is over **confirmed** notes. Drafts are excluded because a
+    draft is a machine reading nobody has looked at, and counting one would put
+    a model's guess into a clinic-level number with no human in between.
+    `drafts_excluded` is reported rather than hidden: a period where most notes
+    were never confirmed is a fact about the workflow, and it is exactly the
+    thing that would otherwise make these counts quietly unrepresentative.
+    """
+
+    notes_counted: int
+    drafts_excluded: int
+    problems: list[TagCount]
+    symptoms: list[SymptomCount]
+    followups: list[TagCount]
 
 
 # -- windowing ----------------------------------------------------------------
@@ -775,6 +820,108 @@ async def _funnel(session: AsyncSession, *, start: datetime, end: datetime) -> l
         )
         for r in rows
     ]
+
+
+# -- ambient note tags (M4) ---------------------------------------------------
+
+
+async def note_tags(
+    session: AsyncSession,
+    *,
+    start: datetime,
+    end: datetime,
+    limit: int = 10,
+) -> NoteTags:
+    """What the clinic's ambient notes were about over a period (plan §3.2).
+
+    This is the query that makes the S/O/A/P mapping worth having: four prose
+    fields are a better note, but `tags` is the part a clinic can count. Symptom
+    burden, follow-up debt and problem prevalence all fall out of one pass.
+
+    Three things about how it counts, each a decision rather than a detail:
+
+    * **Confirmed notes only.** A draft is a machine reading nobody has checked;
+      counting one would put a model's guess into a clinic-level number with no
+      doctor in between. The excluded count is returned so a caller can say how
+      much was left out rather than silently reporting a partial picture.
+    * **One note counts a tag once.** A doctor who says "mucositis" three times
+      in one observation has one patient with mucositis, and the model may or may
+      not repeat the tag. Deduplicating per note makes the number mean "notes
+      mentioning this", which is a claim the data supports.
+    * **Tags are compared lowercased and stripped, and reported in the casing
+      they were first seen in.** These are model-suggested free text: "Mucositis"
+      and "mucositis" are the same symptom and must not be two rows, but
+      normalising further (stemming, synonyms) would be this module deciding that
+      "oral mucositis" and "mucositis" are the same thing, which is a clinical
+      judgement it has no business making. It is a real limit on these numbers,
+      and it is why every surface showing them says model-assisted.
+
+    Read in Python rather than as a JSONB aggregate: the shape is nested three
+    deep, the row count is one per confirmed note per period, and a readable pass
+    here is worth more than a clever query nobody can modify. If this ever runs
+    over a year of a 500-patient/day clinic it wants a rollup table, not a
+    smarter select.
+    """
+    rows = (
+        await session.scalars(
+            select(ClinicalNote).where(
+                ClinicalNote.created_at >= start,
+                ClinicalNote.created_at < end,
+                ClinicalNote.deleted_at.is_(None),
+            )
+        )
+    ).all()
+
+    confirmed = [n for n in rows if n.status is NoteStatus.CONFIRMED]
+
+    problems: Counter[str] = Counter()
+    followups: Counter[str] = Counter()
+    symptoms: Counter[str] = Counter()
+    graded: Counter[str] = Counter()
+    #: First-seen casing per normalised key, so the display reads like a doctor
+    #: wrote it rather than like a database key.
+    labels: dict[str, str] = {}
+
+    def _key(raw: Any) -> str | None:
+        """Normalised counting key, remembering the casing it first arrived in."""
+        text = str(raw or "").strip()
+        if not text:
+            return None
+        key = text.lower()
+        labels.setdefault(key, text)
+        return key
+
+    for note in confirmed:
+        fields = (note.structured or {}).get("fields") or {}
+        tags = fields.get("tags") if isinstance(fields, dict) else None
+        if not isinstance(tags, dict):
+            continue
+
+        # One note is one vote per tag, hence the sets.
+        problems.update({k for p in tags.get("problems") or [] if (k := _key(p))})
+        followups.update({k for f in tags.get("followups") or [] if (k := _key(f))})
+
+        #: symptom key -> did the doctor say a grade for it anywhere in this note
+        in_this_note: dict[str, bool] = {}
+        for row in tags.get("symptoms") or []:
+            if not isinstance(row, dict) or (key := _key(row.get("name"))) is None:
+                continue
+            in_this_note[key] = in_this_note.get(key, False) or bool(row.get("grade_mentioned"))
+        # `.keys()`, not the dict: `Counter.update` on a mapping adds its
+        # *values*, which would score an ungraded symptom as zero.
+        symptoms.update(in_this_note.keys())
+        graded.update({k for k, had_grade in in_this_note.items() if had_grade})
+
+    return NoteTags(
+        notes_counted=len(confirmed),
+        drafts_excluded=len(rows) - len(confirmed),
+        problems=[TagCount(label=labels[k], notes=n) for k, n in problems.most_common(limit)],
+        symptoms=[
+            SymptomCount(label=labels[k], notes=n, with_grade=graded[k])
+            for k, n in symptoms.most_common(limit)
+        ],
+        followups=[TagCount(label=labels[k], notes=n) for k, n in followups.most_common(limit)],
+    )
 
 
 # -- price book (editor read side) --------------------------------------------

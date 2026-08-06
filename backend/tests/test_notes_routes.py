@@ -392,3 +392,54 @@ async def test_an_empty_upload_is_refused(
         headers=_headers(settings, clinic["user"]),
     )
     assert resp.status_code == 422
+
+
+# =============================================================================
+# The admin read side — what the mapping bought
+# =============================================================================
+
+
+async def test_the_tag_report_counts_a_confirmed_note_and_labels_its_basis(
+    client: AsyncClient, session: AsyncSession, settings: Settings, monkeypatch
+) -> None:
+    """`/admin/analytics/note-tags` end to end, and the label it must carry.
+
+    The counts come from tags a model suggested and a doctor accepted, so the
+    payload states that itself rather than trusting each client to remember
+    (plan §3.2: "analytics over them is labelled model-assisted wherever
+    surfaced").
+    """
+    clinic, visit = await _clinic_with_visit(session)
+    headers = _headers(settings, clinic["user"])
+    _use_model(monkeypatch, MAPPED)
+
+    resp = await client.post(
+        f"/notes/visits/{visit.id}", json={"transcript": "grade 1 mucositis"}, headers=headers
+    )
+    note_id = resp.json()["id"]
+    await client.post(f"/notes/{note_id}/map", headers=headers)
+    await client.post(f"/notes/{note_id}/confirm", headers=headers)
+
+    admin = f.make_user(clinic["hospital"], role=Role.ADMIN)
+    session.add(admin)
+    await session.flush()
+
+    resp = await client.get("/admin/analytics/note-tags", headers=_headers(settings, admin))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["notes_counted"] == 1
+    assert body["drafts_excluded"] == 0
+    assert body["problems"][0] == {"label": "carcinoma breast", "notes": 1}
+    assert body["symptoms"][0] == {"label": "mucositis", "notes": 1, "with_grade": 1}
+    assert body["followups"][0]["label"] == "CBC before next cycle"
+    assert "Model-assisted" in body["basis"]
+
+
+async def test_the_tag_report_is_admin_only(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic, _ = await _clinic_with_visit(session)
+    resp = await client.get(
+        "/admin/analytics/note-tags", headers=_headers(settings, clinic["user"])
+    )
+    assert resp.status_code == 403

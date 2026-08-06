@@ -15,7 +15,8 @@ from decimal import Decimal
 import pytest
 
 from app import analytics
-from app.models.enums import Channel, IntakeTier, UsagePurpose, VisitStatus
+from app.models.clinical import ClinicalNote
+from app.models.enums import Channel, IntakeTier, NoteStatus, UsagePurpose, VisitStatus
 from app.models.metering import UsageEvent
 from tests.factories import build_clinic, make_intake, make_visit
 
@@ -327,3 +328,167 @@ async def test_tier_mix_refuses_rather_than_modelling_an_unobserved_tier(session
     assert "no measured cost to re-price against" in mix.basis
     # Unknown means unchanged, never zero: the panel shows no saving, not a saving.
     assert mix.delta_inr == Decimal("0.00")
+
+
+# =============================================================================
+# Ambient note tags (M4)
+# =============================================================================
+
+
+async def _note(session, clinic, *, status, tags: dict, at: datetime | None = None):
+    """One clinical note carrying the given tags, in the given state."""
+    visit = make_visit(clinic["patient"], clinic["department"], channel=Channel.KIOSK)
+    session.add(visit)
+    await session.flush()
+    note = ClinicalNote(
+        visit_id=visit.id,
+        doctor_id=clinic["doctor"].id,
+        transcript="…",
+        structured={
+            "version": 1,
+            "mapped": None,
+            "fields": {
+                "subjective": "",
+                "objective": "",
+                "assessment": "tolerating",
+                "plan_narrative": "",
+                "tags": tags,
+            },
+            "edits": [],
+        },
+        status=status,
+    )
+    session.add(note)
+    await session.flush()
+    if at is not None:
+        note.created_at = at
+        await session.flush()
+    return note
+
+
+def _week() -> tuple[datetime, datetime]:
+    now = datetime.now(UTC)
+    return now - timedelta(days=7), now + timedelta(days=1)
+
+
+async def test_note_tags_count_symptoms_problems_and_follow_up_debt(session) -> None:
+    """The query that makes the S/O/A/P mapping worth having (plan §3.2)."""
+    clinic = await build_clinic(session)
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.CONFIRMED,
+        tags={
+            "problems": ["carcinoma breast"],
+            "symptoms": [{"name": "mucositis", "grade_mentioned": "1"}],
+            "followups": ["CBC before next cycle"],
+        },
+    )
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.CONFIRMED,
+        tags={
+            "problems": ["carcinoma breast"],
+            "symptoms": [{"name": "mucositis", "grade_mentioned": None}, {"name": "fatigue"}],
+            "followups": [],
+        },
+    )
+
+    lo, hi = _week()
+    tags = await analytics.note_tags(session, start=lo, end=hi)
+
+    assert tags.notes_counted == 2
+    assert tags.drafts_excluded == 0
+    assert tags.problems[0].label == "carcinoma breast"
+    assert tags.problems[0].notes == 2
+    mucositis = next(s for s in tags.symptoms if s.label == "mucositis")
+    assert mucositis.notes == 2
+    # Only one doctor said a grade out loud. The field counts that, not grading.
+    assert mucositis.with_grade == 1
+    fatigue = next(s for s in tags.symptoms if s.label == "fatigue")
+    assert (fatigue.notes, fatigue.with_grade) == (1, 0)
+    assert [f.label for f in tags.followups] == ["CBC before next cycle"]
+
+
+async def test_a_draft_note_is_not_counted(session) -> None:
+    """A draft is a machine reading nobody has checked. Counting one would put a
+    model's guess into a clinic-level number with no doctor in between."""
+    clinic = await build_clinic(session)
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.DRAFT,
+        tags={"problems": ["carcinoma lung"], "symptoms": [], "followups": []},
+    )
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.CONFIRMED,
+        tags={"problems": ["carcinoma breast"], "symptoms": [], "followups": []},
+    )
+
+    lo, hi = _week()
+    tags = await analytics.note_tags(session, start=lo, end=hi)
+
+    assert tags.notes_counted == 1
+    # Reported rather than hidden: a period where most notes were never confirmed
+    # is a fact about the workflow, and it is what would otherwise make these
+    # counts quietly unrepresentative.
+    assert tags.drafts_excluded == 1
+    assert [p.label for p in tags.problems] == ["carcinoma breast"]
+
+
+async def test_one_note_counts_a_tag_once_however_often_it_repeats(session) -> None:
+    """A doctor who says "mucositis" three times in one observation still has one
+    patient with mucositis."""
+    clinic = await build_clinic(session)
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.CONFIRMED,
+        tags={
+            "problems": ["carcinoma breast", "carcinoma breast"],
+            "symptoms": [{"name": "mucositis"}, {"name": "Mucositis", "grade_mentioned": "1"}],
+            "followups": ["CBC", "CBC"],
+        },
+    )
+
+    lo, hi = _week()
+    tags = await analytics.note_tags(session, start=lo, end=hi)
+
+    assert tags.problems[0].notes == 1
+    assert tags.followups[0].notes == 1
+    # Case-folded to one row, displayed in the casing it first arrived in — and a
+    # grade said anywhere in the note counts for the note.
+    assert [(s.label, s.notes, s.with_grade) for s in tags.symptoms] == [("mucositis", 1, 1)]
+
+
+async def test_note_tags_outside_the_window_are_not_counted(session) -> None:
+    clinic = await build_clinic(session)
+    await _note(
+        session,
+        clinic,
+        status=NoteStatus.CONFIRMED,
+        tags={"problems": ["last month's problem"], "symptoms": [], "followups": []},
+        at=datetime.now(UTC) - timedelta(days=40),
+    )
+
+    lo, hi = _week()
+    tags = await analytics.note_tags(session, start=lo, end=hi)
+
+    assert tags.notes_counted == 0
+    assert tags.problems == []
+
+
+async def test_a_note_with_no_tags_at_all_does_not_break_the_count(session) -> None:
+    """A doctor can confirm a note whose mapping failed and which they typed prose
+    into. It counts as a note and contributes no tags."""
+    clinic = await build_clinic(session)
+    await _note(session, clinic, status=NoteStatus.CONFIRMED, tags={})
+
+    lo, hi = _week()
+    tags = await analytics.note_tags(session, start=lo, end=hi)
+
+    assert tags.notes_counted == 1
+    assert tags.problems == [] and tags.symptoms == [] and tags.followups == []
