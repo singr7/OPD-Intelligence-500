@@ -119,6 +119,21 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // The M4 ambient note (plan §3). Live stack + `seed_doctor_demo`; this
+      // project *is* the session's frontend AC — the mic survives every tab, the
+      // review leaves the spine on screen, an edit sticks, and there is nowhere
+      // in the drawer to write a prescription. Run explicitly
+      // (`npm run e2e:notes`); it writes real clinical notes on whatever
+      // database it points at.
+      name: "notes",
+      testMatch: /notes\.spec\.ts/,
+      // Longer than the file default: every test here re-opens the console, and
+      // against a dev server the first compile of `/doctor` alone can eat the
+      // 60s budget before a single assertion runs.
+      timeout: 120_000,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // Arrival identity + assignment (AR3, sessions/SESSION-ASSIGN-RX-PLAN.md).
       // This project *is* the session AC: a returning patient is recognised
       // without the kiosk disclosing anything, a coordinator unlocks the strip
