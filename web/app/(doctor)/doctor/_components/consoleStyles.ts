@@ -1040,3 +1040,114 @@ body[data-note-open="1"] .console { padding-bottom: 54vh; }
   .nd-tagrow-l { width: auto; }
 }
 `;
+
+export const RESEARCH_CSS = `
+/* ---- the research tab (M5) --------------------------------------------- */
+/* A tab, not a dock — reading an evidence summary *is* the thing the doctor is
+   doing, it wants the width, and the note dock already owns the bottom of the
+   screen. See ResearchTab's header for the argument. */
+
+.rsx { display: flex; flex-direction: column; gap: 16px; padding: 4px 0 8px; }
+
+/* ---- what will be sent (first on the screen, deliberately) -------------- */
+.rsx-ctx { border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface); padding: 14px 16px; }
+.rsx-ctx-h { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; }
+.rsx-ctx-h h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--ink);
+  letter-spacing: .01em; }
+.rsx-ctx-n { margin: 0; font-size: 12px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums; }
+.rsx-ctx-phi { margin: 5px 0 11px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+
+.rsx-items { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 9px; }
+.rsx-items > li { padding-left: 1px; }
+.rsx-items label { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; }
+.rsx-items input { margin: 3px 0 0; flex: none; width: 15px; height: 15px;
+  accent-color: var(--brand); cursor: pointer; }
+.rsx-item-t { font-size: 14px; line-height: 1.5; color: var(--ink); }
+.rsx-item-src { margin: 2px 0 0 24px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.rsx-item-caveat { color: #7a4d0a; font-weight: 600; }
+
+/* The deliberate risk: a line the doctor turns off is struck, not removed.
+   A withheld line and a line this patient never had must not look identical —
+   the same rule the spine's "No red flags fired" follows. */
+.rsx-items > li.off .rsx-item-t { text-decoration: line-through;
+  text-decoration-thickness: 1px; color: var(--text-muted); }
+.rsx-items > li.off .rsx-item-src { opacity: .55; }
+
+.rsx-absent { list-style: none; margin: 12px 0 0; padding: 10px 0 0;
+  border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
+.rsx-absent li { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.rsx-absent-l { font-weight: 700; color: var(--ink-soft); }
+
+/* ---- the framing ------------------------------------------------------- */
+/* Above the conversation, not under it in small print. It is the most
+   important sentence on this screen. Amber, never red: red on this console
+   belongs to the deterministic red-flag lane in the spine. */
+.rsx-frame { margin: 0; padding: 10px 14px; border-radius: var(--radius-md);
+  background: var(--accent-soft); border: 1px solid #e8c583; color: #7a4d0a;
+  font-size: 13px; line-height: 1.55; }
+.rsx-frame strong { font-weight: 800; }
+
+/* ---- the conversation -------------------------------------------------- */
+.rsx-thread { display: flex; flex-direction: column; gap: 16px; }
+
+.rsx-empty { margin: 0; padding: 18px 2px; font-size: 14px; color: var(--text-muted); }
+
+.rsx-suggest { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.rsx-suggest-l { margin: 0 0 1px; font-size: 12px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; }
+.rsx-suggest button { text-align: left; font: inherit; font-size: 13px; cursor: pointer;
+  padding: 8px 13px; border-radius: var(--radius-md); color: var(--ink-soft);
+  background: var(--surface); border: 1px solid var(--line); }
+.rsx-suggest button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+.rsx-suggest button:disabled { opacity: .5; cursor: default; }
+
+.rsx-turn { border-left: 2px solid var(--line); padding-left: 15px; }
+.rsx-q { margin: 0 0 9px; font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5; }
+.rsx-a p { margin: 0 0 9px; font-size: 14px; line-height: 1.62; color: var(--ink-soft); }
+.rsx-a p:last-child { margin-bottom: 0; }
+
+.rsx-turn-f { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 9px; }
+.rsx-model { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rsx-sent-toggle { background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  font-size: 12px; color: var(--text-muted); text-decoration: underline;
+  text-underline-offset: 2px; }
+.rsx-sent-toggle:hover { color: var(--ink-soft); }
+
+.rsx-sent { list-style: none; margin: 8px 0 0; padding: 9px 12px; border-radius: var(--radius-md);
+  background: var(--canvas); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 4px; }
+.rsx-sent li { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+
+.rsx-thinking { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+/* ---- the halt states --------------------------------------------------- */
+/* Both close the composer. Neither queues anything. */
+.rsx-halt { margin: 0; padding: 11px 14px; border-radius: var(--radius-md);
+  font-size: 13px; line-height: 1.55;
+  background: var(--accent-soft); border: 1px solid #e8c583; color: #7a4d0a; }
+.rsx-halt strong { font-weight: 800; }
+
+.rsx-err { margin: 0; font-size: 13px; color: var(--danger); }
+
+/* ---- the question box -------------------------------------------------- */
+.rsx-composer { display: flex; flex-direction: column; gap: 9px; }
+.rsx-composer textarea { width: 100%; resize: vertical; font: inherit; font-size: 14px;
+  line-height: 1.5; padding: 11px 13px; border-radius: var(--radius-md);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.rsx-composer textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px;
+  border-color: transparent; }
+.rsx-composer-r { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rsx-budget { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rsx-budget.low { color: #7a4d0a; font-weight: 700; }
+.rsx-ask { border: none; background: var(--brand); color: #fff; border-radius: var(--radius-md);
+  padding: 9px 20px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.rsx-ask:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 900px) {
+  .rsx-ctx-h { flex-direction: column; gap: 2px; }
+}
+`;

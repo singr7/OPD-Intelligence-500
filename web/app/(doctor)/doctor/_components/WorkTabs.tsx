@@ -32,16 +32,34 @@
 // live, and results delivered electronically from the hospital lab still are
 // not — collapsing those two into one graduated feature would tell a doctor
 // their lab orders come back here, and they do not.
+//
+// **Session M5 graduated the sixth**, the same way: "AI Research" leaves the
+// list and becomes Research. "NCCN Guidelines" stays on it and was rewritten
+// for the same reason "Lab reports" was. The assistant answers from a model's
+// own knowledge, dated and uncited; looking a guideline up against a retrieved
+// source is a different feature with a different failure mode (plan §8.4 —
+// "a wrong-but-cited answer needs real retrieval engineering"). Letting the
+// graduated tab absorb that line would tell a doctor their NCCN lookup is live.
+//
+// Six is the ceiling this row can carry, and the next module to graduate should
+// have to argue for a seventh rather than assume it.
 
 import { useState } from "react";
 
-export type WorkTab = "overview" | "answers" | "history" | "reports" | "consult";
+export type WorkTab =
+  | "overview"
+  | "answers"
+  | "history"
+  | "reports"
+  | "research"
+  | "consult";
 
 const TABS: { id: WorkTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "answers", label: "Intake answers" },
   { id: "history", label: "History" },
   { id: "reports", label: "Reports" },
+  { id: "research", label: "Research" },
   { id: "consult", label: "Consult" },
 ];
 
@@ -51,8 +69,10 @@ const SOON: { name: string; line: string }[] = [
     name: "Lab reports ordered here",
     line: "Results delivered electronically from the hospital lab. Not live yet — lab work ordered here still comes back on paper, and that paper is scanned into the Reports tab at the desk.",
   },
-  { name: "AI Research", line: "Evidence lookup for this patient's presentation." },
-  { name: "NCCN Guidelines", line: "Guideline reference at the point of decision." },
+  {
+    name: "NCCN Guidelines",
+    line: "Guideline reference looked up against the published source, with citations. Not live yet — the Research tab answers from a model's own knowledge and says where that is thin, which is a different thing from a guideline lookup.",
+  },
 ];
 
 /** Off hides the entry entirely — a pilot build should be able to show a doctor

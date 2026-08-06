@@ -34,7 +34,7 @@ import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib
 import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
 import { ConcludeDialog } from "./ConcludeDialog";
-import { CONSOLE_CSS, DICTATION_CSS, NOTE_CSS, REPORTS_CSS } from "./consoleStyles";
+import { CONSOLE_CSS, DICTATION_CSS, NOTE_CSS, REPORTS_CSS, RESEARCH_CSS } from "./consoleStyles";
 import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
@@ -43,6 +43,7 @@ import { Login } from "./Login";
 import { NoteDock } from "./NoteDock";
 import { PatientCard } from "./PatientCard";
 import { ReportsTab } from "./ReportsTab";
+import { ResearchTab } from "./ResearchTab";
 import { WorkTabs, type WorkTab } from "./WorkTabs";
 
 export function Console() {
@@ -388,7 +389,7 @@ export function Console() {
   return (
     <div className="console">
       <style
-        dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS }}
+        dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS + RESEARCH_CSS }}
       />
 
       {/* The app bar carries identity only. Every verb that moves the queue
@@ -466,6 +467,16 @@ export function Console() {
                   error={documentsError}
                   verifying={verifying}
                   onVerify={onVerify}
+                />
+              ) : tab === "research" ? (
+                /* Keyed on the visit: a patient switch must not leave one
+                   patient's conversation open over another's record. The same
+                   rule the note dock follows, and for the same reason. */
+                <ResearchTab
+                  key={card.visit_id}
+                  token={token}
+                  visitId={card.visit_id}
+                  onAuthError={signOut}
                 />
               ) : tab === "consult" ? (
                 <DictationPanel
