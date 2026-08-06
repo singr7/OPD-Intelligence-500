@@ -29,17 +29,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
+import { patientDocuments, verifyDocument, type MedicalDocument } from "@/app/_lib/records";
 import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib/doctor";
 import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
 import { ConcludeDialog } from "./ConcludeDialog";
-import { CONSOLE_CSS, DICTATION_CSS } from "./consoleStyles";
+import { CONSOLE_CSS, DICTATION_CSS, REPORTS_CSS } from "./consoleStyles";
 import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
 import { EncounterBar, type Action } from "./EncounterBar";
 import { Login } from "./Login";
 import { PatientCard } from "./PatientCard";
+import { ReportsTab } from "./ReportsTab";
 import { WorkTabs, type WorkTab } from "./WorkTabs";
 
 export function Console() {
@@ -63,8 +65,18 @@ export function Console() {
   // when the console does not know a note was signed.
   const [concluding, setConcluding] = useState(false);
   const [concludeError, setConcludeError] = useState<string | null>(null);
+  // The patient's scanned papers (MRD2). Fetched alongside the card rather than
+  // when the Reports tab is opened, because the spine states the count before
+  // the doctor opens anything — that is the module's entire stated intent: know
+  // what the papers say before the patient is in the room.
+  const [documents, setDocuments] = useState<MedicalDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(null);
   const scopeRef = useRef<DayScope>("mine");
+  /** Whose reports the console is currently meant to be showing. */
+  const patientRef = useRef<string | null>(null);
 
   useEffect(() => {
     setTok(getToken());
@@ -86,6 +98,32 @@ export function Console() {
     setCard(null);
     setSelected(null);
     setTab("overview");
+    setDocuments([]);
+  }, []);
+
+  /**
+   * This patient's scanned papers.
+   *
+   * Guarded by the patient it was asked for: the card and the documents are two
+   * fetches, and a doctor moving down the rail faster than the network would
+   * otherwise land patient A's reports under patient B's name. On a screen whose
+   * whole job is "these are this patient's lab values", that is the one bug that
+   * must not be possible.
+   */
+  const loadDocuments = useCallback(async (tok: string, patientId: string) => {
+    setDocumentsLoading(true);
+    setDocumentsError(null);
+    try {
+      const rows = await patientDocuments(tok, patientId);
+      if (patientRef.current !== patientId) return;
+      setDocuments(rows);
+    } catch {
+      if (patientRef.current !== patientId) return;
+      setDocuments([]);
+      setDocumentsError("Could not load this patient's scanned reports.");
+    } finally {
+      if (patientRef.current === patientId) setDocumentsLoading(false);
+    }
   }, []);
 
   const loadDay = useCallback(
@@ -113,12 +151,40 @@ export function Console() {
         // The record, not this session's memory, is what says a note is signed.
         if (next.note_signed) setSignedNotes((prev) => new Set(prev).add(next.visit_id));
         setError(null);
+        if (patientRef.current !== next.patient_id) {
+          patientRef.current = next.patient_id;
+          setDocuments([]);
+        }
+        await loadDocuments(tok, next.patient_id);
       } catch (err) {
         if (err instanceof AuthError) signOut();
         else setError("Could not open that patient.");
       }
     },
-    [signOut],
+    [signOut, loadDocuments],
+  );
+
+  /**
+   * "I have read this against the pages."
+   *
+   * Recorded against the *reading*, not the document — a re-extraction produces
+   * different numbers and clears it, because carrying a doctor's name onto
+   * numbers they never saw is the worst thing this module could do.
+   */
+  const onVerify = useCallback(
+    async (documentId: string) => {
+      if (!token || verifying) return;
+      setVerifying(documentId);
+      try {
+        const updated = await verifyDocument(token, documentId);
+        setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not record that review.");
+      } finally {
+        setVerifying(null);
+      }
+    },
+    [token, verifying],
   );
 
   // First load: the day, and whoever is already in the room.
@@ -320,7 +386,7 @@ export function Console() {
 
   return (
     <div className="console">
-      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS }} />
 
       {/* The app bar carries identity only. Every verb that moves the queue
           lives on the encounter bar, next to the patient it acts on. */}
@@ -372,16 +438,33 @@ export function Console() {
           {card ? (
             <>
               {/* Sticky, and mounted for every tab including Consult. */}
-              <ContextSpine card={card} isMine={isMine} />
+              <ContextSpine
+                card={card}
+                isMine={isMine}
+                documents={documents}
+                documentsLoading={documentsLoading}
+                onOpenReports={() => setTab("reports")}
+              />
 
               <WorkTabs
                 tab={tab}
                 onTab={setTab}
                 answerCount={card.answers.length}
                 noteSigned={signedNotes.has(card.visit_id)}
+                reportCount={documents.length}
+                reportsUnverified={documents.some((d) => d.extraction && !d.extraction.verified)}
               />
 
-              {tab === "consult" ? (
+              {tab === "reports" ? (
+                <ReportsTab
+                  token={token}
+                  documents={documents}
+                  loading={documentsLoading}
+                  error={documentsError}
+                  verifying={verifying}
+                  onVerify={onVerify}
+                />
+              ) : tab === "consult" ? (
                 <DictationPanel
                   token={token}
                   visitId={card.visit_id}

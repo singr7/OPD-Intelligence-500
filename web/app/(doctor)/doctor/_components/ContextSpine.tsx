@@ -17,6 +17,19 @@
 // Vitals, history and the summary live in the work area below. Anything that
 // wants a fifth permanent slot is asking for the spine to stop being readable.
 //
+// **Session MRD2 added a fifth slot anyway, and it is worth saying why.** The
+// clinical-intelligence plan (§1.5) asks for `Reports: 2 new · 4 values flagged`
+// here, and the whole stated intent of that module is that the doctor knows what
+// the patient's papers say *before* the patient is in the room — which a badge
+// on a tab they have not opened does not achieve on its own.
+//
+// So it is one line, and it is held to the rules that keep the spine readable:
+// it never wraps to two, it is a **link into the tab** rather than content in
+// its own right (nothing here is a value or a number a doctor could act on
+// without opening the reading), and it is amber at its loudest. It is a status,
+// not an alarm — red on this console stays reserved for the deterministic
+// red-flag lane above it. A sixth slot should still be refused.
+//
 // Two rules the strips follow, both from the plan:
 //
 // * **Only what is present is rendered as danger.** Ruled-out criteria — "no
@@ -28,6 +41,8 @@
 //   because a missing strip is indistinguishable from a strip that failed to
 //   load.
 
+import type { MedicalDocument } from "@/app/_lib/records";
+import { documentTally } from "@/app/_lib/records";
 import type { PatientCard as Card } from "../_lib/doctor";
 
 const SEX_SHORT: Record<string, string> = { male: "M", female: "F", other: "—" };
@@ -48,9 +63,22 @@ const STATE_LABEL: Record<string, string> = {
   no_show: "No-show",
 };
 
-export function ContextSpine({ card, isMine }: { card: Card; isMine: boolean }) {
+export function ContextSpine({
+  card,
+  isMine,
+  documents,
+  documentsLoading,
+  onOpenReports,
+}: {
+  card: Card;
+  isMine: boolean;
+  documents: MedicalDocument[];
+  documentsLoading: boolean;
+  onOpenReports: () => void;
+}) {
   const urgent = card.red_flags.filter((f) => f.severity === "urgent");
   const other = card.red_flags.filter((f) => f.severity !== "urgent");
+  const tally = documentTally(documents);
 
   return (
     <section className="spine-ctx" data-testid="context-spine">
@@ -143,6 +171,31 @@ export function ContextSpine({ card, isMine }: { card: Card; isMine: boolean }) 
           No red flags fired during intake
         </p>
       )}
+
+      {/* 5. the papers (MRD2). Below the red flags on purpose: those stay
+          nearest the top, and this is a status line, not a finding. */}
+      <button
+        className={`cx-reports ${tally.awaitingReview > 0 ? "attn" : ""}`}
+        onClick={onOpenReports}
+        data-testid="spine-reports"
+      >
+        <span className="cx-reports-l">Reports</span>
+        {documentsLoading ? (
+          // Never "none" while we do not know. A spine that says "no reports"
+          // for the half-second before the fetch lands is a spine that told the
+          // doctor a clinical fact it had not checked.
+          <span className="cx-reports-t">checking…</span>
+        ) : tally.onFile === 0 ? (
+          <span className="cx-reports-t none">nothing scanned for this patient</span>
+        ) : (
+          <span className="cx-reports-t">
+            {tally.onFile} on file
+            {tally.flagged > 0 && <> · {tally.flagged} flagged</>}
+            {tally.awaitingReview > 0 && <> · {tally.awaitingReview} unverified</>}
+            {tally.failed > 0 && <> · {tally.failed} unread</>}
+          </span>
+        )}
+      </button>
     </section>
   );
 }

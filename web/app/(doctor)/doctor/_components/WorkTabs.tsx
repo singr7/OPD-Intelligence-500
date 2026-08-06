@@ -24,23 +24,32 @@
 //
 // Dictation is deliberately absent from that list. This repo ships it, and a
 // card advertising it as upcoming teaches doctors not to look for it.
+//
+// **Session MRD2 graduated the fifth tab.** Reports is what the coordinator's
+// phone has been filling since M1, and it is the tab this disclosure was built
+// to hand over to. Note what did *not* happen: "Lab reports" did not disappear
+// from the list, it was rewritten. Paper results a patient carries in are now
+// live, and results delivered electronically from the hospital lab still are
+// not — collapsing those two into one graduated feature would tell a doctor
+// their lab orders come back here, and they do not.
 
 import { useState } from "react";
 
-export type WorkTab = "overview" | "answers" | "history" | "consult";
+export type WorkTab = "overview" | "answers" | "history" | "reports" | "consult";
 
 const TABS: { id: WorkTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "answers", label: "Intake answers" },
   { id: "history", label: "History" },
+  { id: "reports", label: "Reports" },
   { id: "consult", label: "Consult" },
 ];
 
 const SOON: { name: string; line: string }[] = [
   { name: "Imaging", line: "Scans and radiology reports in the console." },
   {
-    name: "Lab reports",
-    line: "Results delivered back into the visit. Not live yet — lab work is ordered here today, but the results still come back on paper.",
+    name: "Lab reports ordered here",
+    line: "Results delivered electronically from the hospital lab. Not live yet — lab work ordered here still comes back on paper, and that paper is scanned into the Reports tab at the desk.",
   },
   { name: "AI Research", line: "Evidence lookup for this patient's presentation." },
   { name: "NCCN Guidelines", line: "Guideline reference at the point of decision." },
@@ -55,11 +64,19 @@ export function WorkTabs({
   onTab,
   answerCount,
   noteSigned,
+  reportCount,
+  reportsUnverified,
 }: {
   tab: WorkTab;
   onTab: (tab: WorkTab) => void;
   answerCount: number;
   noteSigned: boolean;
+  /** Documents on file. Zero renders no badge — an empty badge and a missing
+   *  one would be the same pixel, and the tab itself is the honest statement. */
+  reportCount: number;
+  /** Any reading nobody has checked against the pages. Amber, not red: red on
+   *  this console belongs to the deterministic red-flag lane. */
+  reportsUnverified: boolean;
 }) {
   const [soonOpen, setSoonOpen] = useState(false);
 
@@ -77,6 +94,14 @@ export function WorkTabs({
           >
             {t.label}
             {t.id === "answers" && answerCount > 0 && <span className="wtab-n">{answerCount}</span>}
+            {t.id === "reports" && reportCount > 0 && (
+              <span
+                className={`wtab-n ${reportsUnverified ? "unread" : ""}`}
+                data-testid="reports-badge"
+              >
+                {reportCount}
+              </span>
+            )}
             {t.id === "consult" && noteSigned && (
               <span className="wtab-signed" title="This visit has a signed note">
                 signed
