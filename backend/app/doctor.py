@@ -393,9 +393,7 @@ async def conclude_visit(
 # already make, worded the same way.
 
 
-async def _visit_in_scope(
-    session: AsyncSession, *, visit_id: uuid.UUID, doctor: Doctor
-) -> Visit:
+async def _visit_in_scope(session: AsyncSession, *, visit_id: uuid.UUID, doctor: Doctor) -> Visit:
     visit = await session.get(Visit, visit_id)
     if visit is None or visit.deleted_at is not None:
         raise DoctorError(f"no such visit {visit_id}")

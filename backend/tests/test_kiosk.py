@@ -19,6 +19,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
+from app.models.clinical import Visit
 from app.models.org import Hospital
 from app.models.patient import Patient
 from tests import factories as f
@@ -536,3 +538,102 @@ async def test_voice_answer_enriches_a_later_node(
     assert interp.last_others
     # node2 was pre-filled from the enrichment, so it is not the next screen.
     assert body["node"] is None or body["node"]["id"] != node2["id"]
+
+
+# -- allergies (SESSION-ALLERGY) ----------------------------------------------
+
+
+async def test_the_kiosk_records_what_the_patient_said_about_allergies(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    started = await _start_med_onc(client, session)
+
+    resp = await client.post(
+        f"/kiosk/{started['session_id']}/allergies",
+        json={
+            "none_known": False,
+            "items": [{"substance": "पेनिसिलिन", "substance_en": "penicillin"}],
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["recorded"] == 1
+
+    visit = (await session.execute(select(Visit))).scalars().one()
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert view.state == allergy_svc.KNOWN
+    assert view.entries[0].substance == "पेनिसिलिन"
+    # Nobody clinical has stood behind it yet, and the doctor's screen says so.
+    assert view.entries[0].confirmed_at is None
+
+
+async def test_the_patient_saying_none_is_recorded_as_a_statement(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """ "She said none" is a fact worth storing. It is not "nobody asked", and it
+    is not "no known allergies" either — it is a statement with her name on the
+    other end of it."""
+    started = await _start_med_onc(client, session)
+
+    resp = await client.post(
+        f"/kiosk/{started['session_id']}/allergies", json={"none_known": True, "items": []}
+    )
+
+    assert resp.status_code == 200
+    visit = (await session.execute(select(Visit))).scalars().one()
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert view.state == allergy_svc.NONE_STATED
+    assert view.none_statement.source == "patient_kiosk"
+
+
+async def test_the_allergy_route_needs_no_credential(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The kiosk is a public terminal and the patient drives this screen. If it
+    needed a token, the coordinator would have to stand at the tablet for every
+    intake — which is the arrangement the whole channel exists to avoid."""
+    started = await _start_med_onc(client, session)
+    resp = await client.post(f"/kiosk/{started['session_id']}/allergies", json={"none_known": True})
+    assert resp.status_code == 200
+
+
+async def test_an_unknown_session_cannot_write_an_allergy(client: AsyncClient) -> None:
+    resp = await client.post("/kiosk/no-such-session/allergies", json={"none_known": True})
+    assert resp.status_code == 404
+
+
+async def test_the_allergy_survives_the_patient_abandoning_the_readback(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """AC: written before `/confirm`, not at it.
+
+    A patient who names a drug and then walks away from the summary screen has
+    still told this hospital what she reacts to, and a coordinator may put her
+    in the queue by hand ten minutes later.
+    """
+    started = await _start_med_onc(client, session)
+    await client.post(
+        f"/kiosk/{started['session_id']}/allergies",
+        json={"none_known": False, "items": [{"substance": "sulfa"}]},
+    )
+    # …and nothing else happens. No /finish, no /confirm.
+
+    visit = (await session.execute(select(Visit))).scalars().one()
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert view.state == allergy_svc.KNOWN
+
+
+async def test_a_double_tap_does_not_write_the_allergy_twice(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A tablet with a slow network gets tapped twice. It is one statement."""
+    started = await _start_med_onc(client, session)
+    body = {"none_known": False, "items": [{"substance": "penicillin"}]}
+
+    await client.post(f"/kiosk/{started['session_id']}/allergies", json=body)
+    second = await client.post(f"/kiosk/{started['session_id']}/allergies", json=body)
+
+    assert second.json()["recorded"] == 0
+    visit = (await session.execute(select(Visit))).scalars().one()
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert len(view.entries) == 1

@@ -69,6 +69,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
 from app import assignment, queue
 from app.config import get_settings
 from app.models.clinical import Intake, Visit
@@ -274,6 +275,7 @@ async def sync_intake(
     patient_phone: str | None = None,
     patient_external_id: str | None = None,
     completed_at: datetime | None = None,
+    allergies: dict[str, Any] | None = None,
 ) -> SyncResult:
     """Replay one offline intake onto the server.
 
@@ -407,6 +409,21 @@ async def sync_intake(
         exclude_patient_id=patient.id,
     )
     await assignment.note_candidate(session, visit=visit, candidate=candidate)
+
+    # What she said about allergies during the outage (SESSION-ALLERGY). It
+    # syncs with the intake rather than through its own endpoint because it was
+    # asked in the same sitting, on the same tablet, by the same person — and
+    # because a separate call could fail on its own and leave a token issued for
+    # a patient whose stated penicillin allergy never left the kiosk.
+    if allergies is not None:
+        await allergy_svc.from_intake(
+            session,
+            patient_id=patient.id,
+            visit_id=visit.id,
+            caregiver=caregiver,
+            none_known=bool(allergies.get("none_known")),
+            substances=list(allergies.get("items") or []),
+        )
 
     await _mark_used(session, block, token_no)
 

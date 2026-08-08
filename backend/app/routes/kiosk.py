@@ -55,6 +55,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
 from app import assignment as assignment_svc
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
@@ -586,6 +587,89 @@ async def finish_impl(
     )
 
 
+class AllergyItemIn(BaseModel):
+    """One substance, as the patient said it.
+
+    `substance_en` is optional and rides along untranslated when the kiosk has
+    nothing to put there — the doc 02 §4 convention is original beside English,
+    and a kiosk that machine-translated a drug name to fill the column would be
+    inventing the safer-looking half of the record.
+    """
+
+    substance: str = Field(min_length=1, max_length=200)
+    substance_en: str | None = Field(default=None, max_length=200)
+
+
+class AllergiesIn(BaseModel):
+    """What the patient answered when the kiosk asked.
+
+    Both fields, not one: `none_known=True` with an empty list is the patient
+    saying "none", and `none_known=False` with an empty list is a client that
+    should not have called this route at all. The service refuses to write the
+    second as a negative statement.
+    """
+
+    none_known: bool = False
+    items: list[AllergyItemIn] = Field(default_factory=list, max_length=20)
+
+
+class AllergiesOut(BaseModel):
+    recorded: int
+
+
+@router.post("/{session_id}/allergies", response_model=AllergiesOut)
+async def record_allergies(
+    session_id: str,
+    payload: AllergiesIn,
+    engine: IntakeEngine = Depends(get_engine),
+    session: AsyncSession = Depends(get_session),
+) -> AllergiesOut:
+    """What the patient said about allergies, on the way to the read-back.
+
+    **Its own route rather than a tree node**, and that is the whole design
+    decision. An allergy is not a department's clinical question — it is an
+    identity-level fact that has to be asked of the ENT walk-in and the
+    palliative review alike, on the tap-only tier, in every language, and during
+    an outage. As a node it would have to be authored into all eleven trees,
+    where eleven copies would drift, ten of them would be reviewed by nobody, and
+    a new tree would ship without it.
+
+    **It writes before the read-back, not at `/confirm`.** A patient who names a
+    drug and then walks away from the summary screen has still told this hospital
+    something about what she reacts to, and the record should keep it — she may
+    be in the queue by a coordinator's hand ten minutes later. Nothing about this
+    write is a clinical claim: it is a statement, stored with its source.
+    """
+    state = await _load_state(engine, session_id)
+    if state.visit_id is None:
+        # No visit yet means no patient row to hang a statement on. This is a
+        # kiosk calling the route before `/start`, which is a client bug —
+        # answered as a 409 rather than silently dropping what she said.
+        raise HTTPException(status_code=409, detail="this session has no visit yet")
+
+    from app.models.clinical import Intake, Visit
+
+    visit = await session.get(Visit, state.visit_id)
+    if visit is None:
+        raise HTTPException(status_code=409, detail="this session has no visit yet")
+
+    # Caregiver mode is read off the `Intake` row rather than the session state,
+    # which does not carry it. It is what decides whether this is the patient
+    # telling us or her son telling us, and the doctor's screen says which.
+    intake = await session.get(Intake, state.intake_id) if state.intake_id else None
+
+    written = await allergy_svc.from_intake(
+        session,
+        patient_id=visit.patient_id,
+        visit_id=visit.id,
+        caregiver=bool(intake.caregiver_answered) if intake else False,
+        none_known=payload.none_known,
+        substances=[item.model_dump() for item in payload.items],
+    )
+    await session.commit()
+    return AllergiesOut(recorded=len(written))
+
+
 @router.post("/{session_id}/confirm", response_model=ConfirmOut)
 async def confirm(
     session_id: str,
@@ -957,6 +1041,12 @@ class SyncIntakeIn(BaseModel):
     #: this, so it rides along and the lookup happens here, at sync.
     patient_external_id: str | None = Field(default=None, max_length=64)
     completed_at: datetime | None = None
+    #: What she said when the kiosk asked about allergies during the outage
+    #: (SESSION-ALLERGY): `{none_known: bool, items: [{substance, substance_en}]}`.
+    #: `None` — the field absent entirely — means this kiosk build never asked,
+    #: which is not the same as a patient who said none, and must not be written
+    #: as one. An older kiosk that has not been updated lands here.
+    allergies: dict[str, Any] | None = None
 
 
 class SyncIn(BaseModel):
@@ -1048,6 +1138,7 @@ async def sync(
             patient_phone=item.patient_phone,
             patient_external_id=item.patient_external_id,
             completed_at=item.completed_at,
+            allergies=item.allergies,
         )
         results.append(
             SyncResultOut(

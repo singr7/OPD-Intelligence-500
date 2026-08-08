@@ -26,6 +26,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app.config import Settings
@@ -738,3 +739,102 @@ async def test_an_offline_arrival_with_no_match_stays_a_new_file(
     assert visit.candidate_patient_id is None
     assert str(visit.patient_link_state) == "none"
     assert hospital is not None
+
+
+async def test_an_allergy_stated_during_the_outage_survives_the_sync(
+    session: AsyncSession,
+) -> None:
+    """AC: a downtime intake is a first-class record, allergies included.
+
+    The kiosk asks about allergies whether or not there is a network, so the
+    answer rides in with the intake. A patient who names penicillin at 9am
+    during an outage must not have that fact stop at the tablet.
+    """
+    await _seed_departments(session)
+    blocks = await offline_svc.lease_blocks(session, kiosk_id="kiosk-a")
+    block = next(b for b in blocks if b.department_key == "MEDONC")
+    tree_key = _tree_key()
+
+    result = await offline_svc.sync_intake(
+        session,
+        kiosk_id="kiosk-a",
+        client_id="c-allergy-00000001",
+        department_key="MEDONC",
+        tree_key=tree_key,
+        lang=Lang.HI,
+        token_no=block.start_no,
+        answers=_answers_for(tree_key),
+        patient_name="सीमा देवी",
+        allergies={"none_known": False, "items": [{"substance": "पेनिसिलिन"}]},
+    )
+
+    assert result.status == "synced"
+    intake = await session.get(Intake, result.intake_id)
+    visit = await session.get(Visit, intake.visit_id)
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert view.state == allergy_svc.KNOWN
+    assert view.entries[0].substance == "पेनिसिलिन"
+    assert view.entries[0].source == "patient_kiosk"
+
+
+async def test_an_older_kiosk_that_never_asked_does_not_get_a_none_written_for_it(
+    session: AsyncSession,
+) -> None:
+    """AC: the field being absent means "this build never asked", which is not
+    the same fact as a patient who said none — and writing it as one would put a
+    negative allergy statement on a chart nobody ever asked about."""
+    await _seed_departments(session)
+    blocks = await offline_svc.lease_blocks(session, kiosk_id="kiosk-a")
+    block = next(b for b in blocks if b.department_key == "MEDONC")
+    tree_key = _tree_key()
+
+    result = await offline_svc.sync_intake(
+        session,
+        kiosk_id="kiosk-a",
+        client_id="c-noallergyfield01",
+        department_key="MEDONC",
+        tree_key=tree_key,
+        lang=Lang.HI,
+        token_no=block.start_no,
+        answers=_answers_for(tree_key),
+        patient_name="सीमा देवी",
+    )
+
+    intake = await session.get(Intake, result.intake_id)
+    visit = await session.get(Visit, intake.visit_id)
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert view.state == allergy_svc.NEVER_ASKED
+
+
+async def test_a_resynced_batch_does_not_duplicate_the_allergy(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The network returning mid-batch is the normal case, not the edge one."""
+    await _seed_departments(session)
+    lease = await client.post("/kiosk/blocks/lease", params={"kiosk_id": "kiosk-a"})
+    block = next(b for b in lease.json()["blocks"] if b["department"]["key"] == "MEDONC")
+    tree_key = _tree_key()
+    payload = {
+        "kiosk_id": "kiosk-a",
+        "intakes": [
+            {
+                "client_id": "c-resync-000000001",
+                "department_key": "MEDONC",
+                "tree_key": tree_key,
+                "lang": "hi",
+                "token_no": block["start_no"],
+                "answers": _answers_for(tree_key),
+                "allergies": {"none_known": False, "items": [{"substance": "penicillin"}]},
+            }
+        ],
+    }
+
+    first = await client.post("/kiosk/sync", json=payload)
+    second = await client.post("/kiosk/sync", json=payload)
+
+    assert first.json()["synced"] == 1
+    assert second.json()["duplicates"] == 1
+
+    visit = (await session.execute(select(Visit))).scalars().one()
+    view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+    assert len(view.entries) == 1
