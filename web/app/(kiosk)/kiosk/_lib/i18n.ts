@@ -495,6 +495,29 @@ export const T = {
     mr: "पावती छापा",
     te: "స్లిప్ ముద్రించండి",
   } as Str,
+  // The boarding pass (doc 23 §7). The button says *pass* rather than *slip*
+  // because what comes out is a different object: a fixed-size document with
+  // the patient's own answers on it and a stub the desk tears off.
+  printPass: {
+    hi: "पास छापें",
+    en: "Print pass",
+    mr: "पास छापा",
+    te: "పాస్ ముద్రించండి",
+  } as Str,
+  reprintPass: {
+    hi: "फिर से छापें",
+    en: "Re-print",
+    mr: "पुन्हा छापा",
+    te: "మళ్లీ ముద్రించండి",
+  } as Str,
+  /** Named for what the patient is looking at, not for the technology: this is
+   *  a picture of the piece of paper they are about to be handed. */
+  passPreview: {
+    hi: "आपका पास",
+    en: "Your pass",
+    mr: "तुमचा पास",
+    te: "మీ పాస్",
+  } as Str,
   // Error micro-copy (doc 04 law 8: never blame). Previously inline hi/en
   // ternaries in KioskApp — folded here so mr/te patients see their own language.
   genericError: {

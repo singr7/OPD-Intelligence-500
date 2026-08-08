@@ -20,7 +20,20 @@ sent, and answers in prose that cannot reach any record. **Imaging** (M3, this
 session): study discovery by UHC ID and a popup handoff to the viewer already
 connected to the same Orthanc. Logs: `sessions/SESSION-M3.md`, `SESSION-M5.md`.
 
-## Next session — the plan is out of modules; pick from the pilot's needs
+## Next session — BUILD THE INTAKE BOARDING PASS (pilot requirement, 2026-08-08)
+
+A hard pilot requirement arrived and is fully designed: **the intake boarding
+pass** — a fixed 80mm × 200mm printed pass (token, name, mobile, age/sex,
+UHC ID, and the intake summary at max real estate) with a Print/Re-print
+screen, printing on the kiosk thermal bridge *or* any attached printer.
+**The complete build brief is `docs/23-INTAKE-BOARDING-PASS.md`** — read it
+first; §10 is the build order, §6 the architecture (pure `layoutPass()` +
+one SVG renderer + SVG→canvas→`GS v 0` raster for thermal, which is also what
+finally gets shaped Devanagari/Telugu onto paper). It supersedes the old
+text-mode slip in `web/app/(kiosk)/kiosk/_lib/print.ts` but does not delete it
+until a real printer has printed a pass. No backend or migration work.
+
+## After that — the plan is out of modules; pick from the pilot's needs
 
 Nothing is left in the clinical-intelligence plan except debt. **Two modules
 have never met the real thing they wrap, and both gates are clinical or

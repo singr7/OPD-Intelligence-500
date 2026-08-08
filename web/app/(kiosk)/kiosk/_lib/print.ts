@@ -154,6 +154,61 @@ export async function printSlip(
   return "skipped";
 }
 
+// -- the boarding pass (doc 23) ----------------------------------------------
+//
+// `printSlip` above is the S7 text-mode slip and it is still here on purpose:
+// the pass supersedes it, but nothing deletes the path of record until a real
+// printer has printed a pass at the real kiosk (doc 23 §6). Until then the old
+// slip is one import away.
+//
+// The difference at this layer is small — the bytes are built elsewhere, ahead
+// of time — and that is the point of §6's pre-render: by the time a patient
+// presses the button there is nothing left to compute, so Print is one local
+// POST and the wait is the printer's own feed rate.
+
+/** How long to wait for the bridge before falling back. A print daemon on
+ *  127.0.0.1 either answers immediately or is not there; anything longer is a
+ *  patient watching a button do nothing. */
+const BRIDGE_TIMEOUT_MS = 2_000;
+
+/**
+ * Send a pre-rendered pass to the thermal bridge, or fall back to the browser's
+ * print dialog over the mounted `PassSvg`.
+ *
+ * `bytes` is null when rasterisation has not finished or failed — the browser
+ * path still prints the same artifact at the same size, so a patient is never
+ * left with no paper because a canvas was slow.
+ */
+export async function printPass(
+  bytes: Uint8Array | null,
+  opts: { bridgeUrl?: string } = {}
+): Promise<"thermal" | "browser" | "skipped"> {
+  const bridge = opts.bridgeUrl ?? bridgeUrlFromEnv();
+  if (bridge && bytes) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), BRIDGE_TIMEOUT_MS);
+    try {
+      const res = await fetch(bridge, {
+        method: "POST",
+        headers: { "content-type": "application/octet-stream" },
+        body: bytes,
+        signal: controller.signal,
+      });
+      if (res.ok) return "thermal";
+    } catch {
+      // Unplugged, daemon down, or slower than the timeout. Fall through to the
+      // dialog rather than leaving the patient with nothing.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (typeof window !== "undefined" && typeof window.print === "function") {
+    window.print();
+    return "browser";
+  }
+  return "skipped";
+}
+
 function bridgeUrlFromEnv(): string | null {
   // A kiosk with a thermal printer sets this to its local print daemon, e.g.
   // http://127.0.0.1:9100/print. Absent on a laptop demo.

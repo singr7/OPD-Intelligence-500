@@ -1546,18 +1546,98 @@
 /* Browser-print fallback (a kiosk with no thermal printer): print only the token
    card, black on white. The ESC/POS bytes are the real path on a kiosk with a
    print bridge; this is the honest fallback. */
+/* --- doc 23: the boarding pass -------------------------------------------
+   The pass beside the numeral, at roughly 55% of life size. The token keeps
+   its own pane and its own job — readable from three metres — and the pass is
+   the answer to "what am I about to be handed", which a patient has never been
+   able to see before pressing Print. */
+.tokenMain {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(var(--sp-2), 3vw, var(--sp-5));
+  width: 100%;
+}
+.passPane {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.passPaneLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: #bfe3d8;
+}
+/* A sheet of paper, drawn as one. The pass itself is pure black on white
+   because thermal has no grey; the drop shadow is the screen's, and stops at
+   the paper's edge — nothing inside this box is decoration. */
+.passPaper {
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
+  padding: 0;
+  line-height: 0;
+}
+.passSvg {
+  display: block;
+  /* 80 x 200mm, held to the screen's height rather than a fixed scale: the
+     kiosk is a 10-11" landscape tab and the pass is a tall thin thing. */
+  height: clamp(240px, 52vh, 560px);
+  width: auto;
+}
+@media (max-width: 900px), (orientation: portrait) {
+  /* Portrait kiosk: the numeral keeps the top of the screen and the pass sits
+     under it, smaller. Stacking beats shrinking the token. */
+  .passSvg { height: clamp(200px, 34vh, 380px); }
+}
+
+/* The printed page is the pass and nothing else — declared at its true
+   physical size, so an office printer lays it down at 80 x 200mm rather than
+   scaling it to whatever the driver thinks A4 wants. */
+@page {
+  size: 80mm 200mm;
+  margin: 0;
+}
+
 @media print {
   .shell > *:not(.tokenScreen) { display: none !important; }
   .downtimeBanner { display: none !important; }
   .tokenScreen {
+    position: static !important;
+    display: block !important;
     background: #fff !important;
     color: #000 !important;
     box-shadow: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
-  .tokenNumber { color: #000 !important; }
-  .tokenName, .tokenDept, .tokenWait { color: #000 !important; }
+  .tokenMain {
+    display: block !important;
+    gap: 0 !important;
+  }
+  /* The screen's half of the token screen is not the document. The numeral,
+     the wait line and the buttons are furniture for a person standing at a
+     kiosk; what gets printed is the pass. */
+  .tokenPatient { display: none !important; }
   .tokenActions { display: none !important; }
-  /* The slip is the patient's. Staff never appears on it — least of all a
+  .passPaneLabel { display: none !important; }
+  .passPane { display: block !important; }
+  .passPaper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .passSvg {
+    width: 80mm !important;
+    height: 200mm !important;
+  }
+  /* The pass is the patient's. Staff never appears on it — least of all a
      candidate's name, which would print a second patient's identity onto a
      piece of paper the first one walks out with. */
   .staffStrip { display: none !important; }

@@ -36,7 +36,15 @@ import {
 import { useOffline } from "./_lib/offline/useOffline";
 import { isLocalSession } from "./_lib/offline/local";
 import { OfflineNeedsDepartment, OfflineUnavailableForDept } from "./_lib/offline/flow";
-import { printSlip } from "./_lib/print";
+// The boarding pass (doc 23). `printSlip`/`escposSlip` are still in `print.ts`
+// and still tested — they are the path of record until a real printer at the
+// real kiosk has printed a pass — but the token screen's button is the pass now.
+import { PassSvg } from "./_lib/pass/PassSvg";
+import { passGeometry } from "./_lib/pass/geometry";
+import { layoutPass } from "./_lib/pass/layout";
+import { canvasMeasure } from "./_lib/pass/measure";
+import { svgToEscpos } from "./_lib/pass/raster";
+import { printPass } from "./_lib/print";
 import {
   cancelSpeech,
   kioskAdaptiveEnabled,
@@ -749,6 +757,8 @@ export function KioskApp() {
           lang={lang}
           token={token}
           details={details}
+          complaint={complaint}
+          answers={summaryAnswers}
           // The strip talks to the server about *this* session. An offline
           // intake has no server session to settle against, which is the
           // accepted debt in the plan (§8): those visits sync unassigned and are
@@ -1604,10 +1614,16 @@ function ReadbackScreen({
 
 // -- token --------------------------------------------------------------------
 
+/** Print once on mount, for a kiosk with a printer bolted to it (doc 23 §7).
+ *  Default off: a laptop demo must not pop a print dialog uninvited. */
+const PASS_AUTOPRINT = process.env.NEXT_PUBLIC_PASS_AUTOPRINT === "1";
+
 function TokenScreen({
   lang,
   token,
   details,
+  complaint,
+  answers,
   sessionId,
   onDone,
   say,
@@ -1615,6 +1631,8 @@ function TokenScreen({
   lang: KioskLang;
   token: ConfirmResult;
   details: PatientDetails;
+  complaint: string;
+  answers: SummaryAnswer[];
   /** Null when there is no server session to settle — an offline intake. */
   sessionId: string | null;
   onDone: () => void;
@@ -1626,8 +1644,88 @@ function TokenScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const passSvg = useRef<SVGSVGElement>(null);
+  const autoprinted = useRef(false);
+  /** The ESC/POS job, rendered ahead of the button press (§6). Null means the
+   *  raster is still running or failed — either way the browser path prints the
+   *  same artifact, so a patient is never left with no paper. */
+  const [passBytes, setPassBytes] = useState<Uint8Array | null>(null);
+  const [rasterSettled, setRasterSettled] = useState(false);
+  const [printed, setPrinted] = useState(false);
+  /** Frozen at mount: a re-print must be the same piece of paper as the first
+   *  print, down to the issue time. */
+  const [issuedAt] = useState(() => new Date().toISOString());
+
+  const geometry = useMemo(() => passGeometry(), []);
+  const passLayout = useMemo(
+    () =>
+      layoutPass(
+        {
+          tokenNo: token.token_no,
+          name: details.name,
+          age: details.age,
+          sex: details.sex,
+          phone: details.phone,
+          uhcId: details.externalId,
+          department: token.department?.name ?? "",
+          hospital: t("hospital", lang),
+          issuedAt,
+          // The band says *show this at the desk*; the reasons stay off the
+          // paper, same rule as the public board (doc 23 §8).
+          urgent: token.red_flags.length > 0,
+          lang,
+          complaint,
+          answers,
+          sexLabels: {
+            male: t("sexMale", lang),
+            female: t("sexFemale", lang),
+            other: t("sexOther", lang),
+          },
+        },
+        geometry,
+        canvasMeasure()
+      ),
+    [token, details, complaint, answers, lang, issuedAt, geometry]
+  );
+
+  // Rasterise as soon as the pass is on screen, so pressing Print is one local
+  // POST and the wait a patient feels is the printer's own feed rate.
+  useEffect(() => {
+    const svg = passSvg.current;
+    if (!svg) return;
+    let cancelled = false;
+    svgToEscpos(svg, geometry)
+      .then((bytes) => {
+        if (!cancelled) setPassBytes(bytes);
+      })
+      .catch(() => {
+        // No canvas, no fonts, a browser that refuses the blob — all of them
+        // land on the browser print path, which is a working fallback and not
+        // an error worth showing a patient.
+      })
+      .finally(() => {
+        if (!cancelled) setRasterSettled(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [passLayout, geometry]);
+
+  const print = useCallback(async () => {
+    const result = await printPass(passBytes);
+    // A browser print counts: paper came out of something.
+    if (result !== "skipped") setPrinted(true);
+  }, [passBytes]);
+
+  useEffect(() => {
+    if (!PASS_AUTOPRINT || autoprinted.current || !rasterSettled) return;
+    autoprinted.current = true;
+    void print();
+  }, [rasterSettled, print]);
+
   return (
     <div className={s.tokenScreen}>
+      <div className={s.tokenMain}>
       {/* The patient's half. It keeps the whole screen when there is no strip,
           and the strip below never takes space from the token numeral — a
           patient reading their number from three metres away is the one job
@@ -1653,23 +1751,6 @@ function TokenScreen({
         ) : null}
         <div className={s.tokenActions}>
           <button
-            className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
-            data-testid="token-print"
-            onClick={() =>
-              void printSlip({
-                tokenNo: token.token_no,
-                departmentName: token.department?.name ?? "",
-                hospitalName: t("hospital", lang),
-                patientName: details.name,
-                issuedAt: new Date().toISOString(),
-                urgent: token.red_flags.length > 0,
-                lang,
-              })
-            }
-          >
-            <Icon name="printer" /> {t("printSlip", lang)}
-          </button>
-          <button
             className={`${s.btn} ${s.btnBig} ${s.tokenRestart}`}
             onClick={onDone}
             data-testid="token-done"
@@ -1677,6 +1758,31 @@ function TokenScreen({
             {t("startOver", lang)}
           </button>
         </div>
+      </div>
+
+      {/* The pass, at ~55% of life size, so the patient can see the paper
+          before it exists. This is the same element the browser prints and the
+          same element the rasteriser photographs — there is one artifact here,
+          and a preview that disagrees with the paper is not representable. */}
+      <div className={s.passPane}>
+        <div className={s.passPaneLabel}>{t("passPreview", lang)}</div>
+        <div className={s.passPaper}>
+          <PassSvg
+            ref={passSvg}
+            layout={passLayout}
+            className={s.passSvg}
+            title={t("passPreview", lang)}
+            testId="pass-preview"
+          />
+        </div>
+        <button
+          className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
+          data-testid="token-print"
+          onClick={() => void print()}
+        >
+          <Icon name="printer" /> {t(printed ? "reprintPass" : "printPass", lang)}
+        </button>
+      </div>
       </div>
 
       {sessionId && <StaffStrip lang={lang} sessionId={sessionId} say={say} />}
