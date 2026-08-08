@@ -288,6 +288,32 @@ class Settings(BaseSettings):
     # whole conversation for context nobody is still referring to.
     research_history_turns: int = 6
 
+    # -- PACS imaging (SESSION-M3, plan §2) --
+    # Off = the Imaging section says so and asks nothing. Default off, unlike
+    # the other module switches: a PACS that is configured but wrong returns
+    # empty for every patient, which reads exactly like "this patient has never
+    # had a scan". Better that an operator turns it on deliberately, having
+    # checked the join key, than that it appears to work everywhere.
+    pacs_enabled: bool = False
+    pacs_provider: str = "fake"
+    # Orthanc's DICOMweb root, e.g. http://pacs.internal:8042/dicom-web
+    pacs_dicomweb_url: str = ""
+    pacs_auth_user: str = ""
+    pacs_auth_password: str = ""
+    # The already-connected web viewer. The study UID is appended as
+    # `?StudyInstanceUIDs=…`; nothing else is ever put in this URL.
+    pacs_viewer_url: str = ""
+    # Documentation of the DICOM endpoint the modality pushes to. Nothing in
+    # this repo dials it — the web path above is what we call — but it is the
+    # first thing anyone debugging a missing study needs, and the alternative to
+    # recording it here is a wiki nobody finds.
+    pacs_aet: str = "RAD-RENVA-PACS"
+    pacs_dicom_port: int = 4242
+    # Short on purpose: this call is in the request path of a doctor opening a
+    # tab. A PACS that takes twenty seconds must show "unreachable", not hold
+    # the console.
+    pacs_timeout_seconds: float = 8.0
+
     @property
     def is_local(self) -> bool:
         return self.env in {"local", "test"}

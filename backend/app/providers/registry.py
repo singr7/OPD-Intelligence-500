@@ -47,6 +47,11 @@ from app.providers.objectstore import (
     FilesystemObjectStore,
     ObjectStore,
 )
+from app.providers.pacs import (
+    DicomWebPacsProvider,
+    FakePacsProvider,
+    PacsProvider,
+)
 from app.providers.realtime import FakeRealtimeProvider, RealtimeVoiceProvider
 from app.providers.sms import (
     ExotelSMSProvider,
@@ -462,12 +467,13 @@ def telephony_provider_dependency(settings: Settings = Depends(get_settings)) ->
 
 def reset_providers() -> None:
     """Drop cached providers. Test fixtures use this for isolation between tests."""
-    global _object_store
+    global _object_store, _pacs
     _instances.clear()
     _fingerprints.clear()
     _pinned.clear()
     _profile_instances.clear()
     _object_store = None
+    _pacs = None
 
 
 def install(kind: str, provider: Provider, *, name: str | None = None) -> None:
@@ -509,3 +515,45 @@ def install_object_store(store: ObjectStore) -> None:
     """Force a specific store in — for fixtures that need a handle on the fake."""
     global _object_store
     _object_store = store
+
+
+# -- PACS ----------------------------------------------------------------------
+#
+# Separate from `_BUILDERS` for the reason the object store is: a `PacsProvider`
+# is not a `Provider`. Orthanc is our own server on our own account, so there is
+# no per-unit price to meter and a `usage_events` row for it would reconcile to
+# nothing on the S18 dashboard. It keeps the config-selected-with-a-fake habit
+# and skips the billing machinery.
+
+_pacs: PacsProvider | None = None
+
+
+def _build_pacs(name: str, settings: Settings) -> PacsProvider:
+    match name:
+        case "fake":
+            return FakePacsProvider()
+        case "dicomweb":
+            if not settings.pacs_dicomweb_url:
+                raise UnknownProvider("PACS_PROVIDER=dicomweb needs PACS_DICOMWEB_URL")
+            return DicomWebPacsProvider(
+                settings.pacs_dicomweb_url,
+                username=settings.pacs_auth_user,
+                password=settings.pacs_auth_password,
+                timeout_seconds=settings.pacs_timeout_seconds,
+            )
+    raise UnknownProvider(f"PACS_PROVIDER={name!r}; expected dicomweb|fake")
+
+
+def pacs_provider(settings: Settings | None = None) -> PacsProvider:
+    global _pacs
+    settings = settings or get_settings()
+    if _pacs is None:
+        _pacs = _build_pacs(settings.pacs_provider, settings)
+        logger.info("pacs -> %s", _pacs.name)
+    return _pacs
+
+
+def install_pacs(provider: PacsProvider) -> None:
+    """Force a specific PACS in — for fixtures that need a handle on the fake."""
+    global _pacs
+    _pacs = provider

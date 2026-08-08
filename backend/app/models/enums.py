@@ -367,6 +367,24 @@ class AuditAction(StrEnum):
     UPDATE = "update"
     SOFT_DELETE = "soft_delete"
     DELETE = "delete"
+    #: Somebody looked at clinical data that never passes through this database
+    #: (SESSION-M3). The four above are all *writes*, because the audit hook
+    #: keys off a flush — but a doctor opening a patient's imaging from the PACS
+    #: leaves no row to flush, and "who viewed this patient's scans" is exactly
+    #: the question an access review asks. It is a distinct action rather than a
+    #: `create` of an access record, because `create` is counted by existing
+    #: audit queries and a read is not a change to anything.
+    #:
+    #: Deliberately **not** used for ordinary reads. Every list and card in this
+    #: system reads patient data and logging all of it would drown the log that
+    #: matters. This is for clinical content fetched from outside the box.
+    #:
+    #: No migration: `enum_type` builds a VARCHAR with `create_constraint`
+    #: defaulted off (SQLAlchemy 1.4+), so `audit_log.action` is a plain
+    #: varchar(11) with no CHECK to widen — "read" is four characters and
+    #: "soft_delete" already set the ceiling. Verified against the live column
+    #: rather than assumed; a value longer than eleven would need one.
+    READ = "read"
 
 
 class OtpPurpose(StrEnum):

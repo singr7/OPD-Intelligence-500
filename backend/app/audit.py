@@ -146,6 +146,46 @@ def record_admin_action(
     return entry
 
 
+def record_read(
+    session: Session,
+    *,
+    entity: str,
+    entity_id: uuid.UUID | None = None,
+    meta: dict[str, Any] | None = None,
+) -> AuditLog:
+    """Log that somebody looked at clinical data this database does not hold.
+
+    The `before_flush` hook audits writes to `Clinical` models, which covers
+    everything that lives here. It cannot cover a doctor opening a patient's
+    imaging out of the PACS: the study never enters this database, so there is
+    nothing to flush and no row to attribute — and "who viewed this patient's
+    scans" is exactly the question an access review asks first.
+
+    **Not a general read log.** Every list and card in this system reads patient
+    data, and auditing all of it would bury the entries that matter under a
+    million rows nobody can search. Callers are the ones fetching clinical
+    content from outside the box, and there are two of them
+    (`app.routes.imaging`).
+
+    `meta` is stored verbatim, so callers pass study UIDs, modalities and
+    counts — never a patient name, and never the report bytes.
+    """
+    actor = get_actor()
+    entry = AuditLog(
+        actor_id=actor.id,
+        actor_role=actor.role,
+        actor_label=actor.label,
+        action=AuditAction.READ,
+        entity=entity,
+        entity_id=entity_id,
+        request_id=actor.request_id,
+        ip=actor.ip,
+        meta=meta or {},
+    )
+    session.add(entry)
+    return entry
+
+
 def _redact(value: Any) -> Any:
     """Keep change detection useful without copying PII: booleans and short enum
     codes are safe to record verbatim; everything else becomes a marker."""

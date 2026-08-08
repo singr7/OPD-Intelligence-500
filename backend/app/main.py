@@ -37,6 +37,7 @@ from app.routes.checkins import router as checkins_router
 from app.routes.dictation import router as dictation_router
 from app.routes.doctor import router as doctor_router
 from app.routes.health import router as health_router
+from app.routes.imaging import router as imaging_router
 from app.routes.kiosk import router as kiosk_router
 from app.routes.notes import router as notes_router
 from app.routes.patient import router as patient_router
@@ -163,6 +164,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(checkins_router)
     app.include_router(records_router)
     app.include_router(research_router)
+    app.include_router(imaging_router)
     return app
 
 
