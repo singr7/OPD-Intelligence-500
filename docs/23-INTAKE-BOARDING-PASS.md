@@ -1,7 +1,9 @@
 # 23 — The Intake Boarding Pass
 
-**Status:** designed 2026-08-08, not yet built. This document is the build brief
-for the implementing session (see HANDOFF.md).
+**Status:** designed 2026-08-08, **built 2026-08-08** (SESSION-PASS). This
+document was the build brief; §12 records where the build departed from it and
+why. Everything else below is as-built. **No printer has printed one yet** —
+§11 is still the open list.
 
 **Pilot requirement (verbatim intent):** after intake, the kiosk prints a slip
 the size and shape of an airline boarding pass carrying the token number,
@@ -239,3 +241,42 @@ met a printer, and the doc that says so is this one.
   answer is a better printer, not a shorter summary.
 - Bridge daemon owns the USB printer and answers on 127.0.0.1 (existing
   `NEXT_PUBLIC_PRINT_BRIDGE_URL` contract, unchanged).
+
+## 12. As built — where the implementation departed from this brief
+
+Four things, all decided during SESSION-PASS and all in the code with the
+reasoning beside them.
+
+1. **The raster is the print head's width, not the paper's.** §3 costed
+   576 × 1600 dots / 72 bytes a row, which is 72mm at 8 dots/mm — the printable
+   strip of an 80mm roll, not the 80mm. So `marginMm` does double duty: it is
+   the layout margin *and* the unprintable edge, the rasteriser draws the pass
+   shifted left by it, and the margins fall off both sides exactly as they do on
+   paper. `ROLL58`'s margin moved 3mm → 5mm to land on the standard 48mm head.
+
+2. **The identity grid's four field labels are English only.** §4 asked for
+   bilingual labels throughout. In the grid there is no room:
+   `यूएचसी आईडी · UHC ID` measures ~26mm against a 14mm label column and would be
+   fitted down to ~1.8mm, which prints as a smudge on a 203dpi head and serves
+   neither reader. The bilingual budget is spent where the *patient* reads — the
+   token label, the summary heading, the chief-complaint label and the urgent
+   band — and the four administrative fields sit beside self-describing values
+   in one language, which is what a real boarding pass does. §4's stated purpose
+   (the desk can read a Telugu pass) is met by the English half either way.
+
+3. **`layoutPass` throws in dev and stays quiet in production.** §5.4 asked for
+   the assertion; the choice about *where* it fires is that a thrown layout
+   error on a kiosk means a patient standing at a machine with no paper. In CI
+   it fails the build, which is the order those two things should happen in.
+
+4. **One `GS v 0` command carries the whole pass**, rather than chunking rows
+   defensively. Chunking would cost the single-POST budget for a quirk §11 has
+   not seen yet; if a clone turns out to cap raster height, that is the moment
+   to chunk.
+
+Also worth knowing: the pass pane made the token screen tall enough to overflow
+the portrait tablet, and `.tokenScreen` centres with `overflow-y: auto` — a
+centred flex box pushes its first child above the top edge where scrolling
+cannot reach it. It is `justify-content: safe center` now, asserted by the
+`pass-ui` tablet-matrix test. Any future pane added to that screen inherits both
+the risk and the test.

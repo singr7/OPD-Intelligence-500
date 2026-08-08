@@ -6,6 +6,33 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-PASS):** The **intake boarding pass** (doc 23) — a pilot
+requirement, and the first thing this kiosk hands a patient that is a document
+rather than a number. A fixed **80mm × 200mm** pass in five bands: hospital and
+department under an `OPD PASS` lozenge, the token at 18mm beside name /
+age-sex / mobile / UHC ID / issued, a reversed *show at desk now* strip when the
+rule engine fired, the intake summary in the largest band, and a dashed tear
+line above a stub the desk keeps. `_lib/pass/layout.ts` is **pure and takes its
+text measurer as an argument**, which is what makes the central claim checkable:
+a 60-answer intake and an empty one are both exactly 200mm, asserted by
+`assertFits` rather than hoped. What does not fit is *counted* on a reserved
+last line — `+ N more answers — full record is with the doctor` — never dropped
+in silence. **One `PassSvg` is the preview, the printed page and the thermal
+raster**, so paper that disagrees with the preview is not representable; the
+raster path (SVG → `<img>` → canvas → threshold → `GS v 0`) is also what finally
+gets shaped Devanagari and Telugu onto a thermal head, because the printer
+receives pixels rather than codepoints. The bytes are built when the token
+screen mounts, so Print is one local POST and Re-print re-sends the *same* bytes
+— including a frozen issue time. `NEXT_PUBLIC_PASS_GEOMETRY` picks `roll80`
+(default) or the `roll58` degradation; `NEXT_PUBLIC_PASS_AUTOPRINT` prints once
+on mount for a kiosk with a printer bolted to it. **The old text-mode slip
+(`escposSlip`/`printSlip`) and its tests stay** — path of record until a real
+printer prints a pass. Gates: backend **1,701**, voice-gw 25, conformance
+**79** (was 48), `pass-ui` 5 against a live stack, kiosk 3, ux-smoke 2,
+accessibility 3, assign 3, production build, typecheck, lint. **No migration,
+no backend change.** Deviations from the brief are doc 23 §12; the printer
+itself is doc 23 §11 and **has still never printed one**.
+
 **Built (SESSION-MRD2):** The doctor's half of MRD, which completes the module
 (doc 21 §1.5/§1.6; deploying it is **doc 22** and it is not a normal release).
 The console has a fifth tab, **Reports**: the summary stamped **unverified**
@@ -584,6 +611,18 @@ so the module is demonstrable with no imaging centre attached.
 cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
   npm run e2e:imaging      # the M3 AC + screenshots -> web/screenshots/m3/
 ```
+Boarding pass (SESSION-PASS): the kiosk stack, plus a **bridge URL on the dev
+server** — the test intercepts that route, so no print daemon has to exist, but
+without the variable the app never takes the thermal path and the raster is
+never exercised. Start the dev server with it:
+```
+cd web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000 \
+  NEXT_PUBLIC_PRINT_BRIDGE_URL=http://127.0.0.1:9110/print npx next dev -p 3210
+cd web && npm run e2e:pass   # 5 tests + screenshots -> web/screenshots/pass/
+```
+It walks a full Hindi intake and creates a real visit and token. Dev boxes only.
+The pure suites (`pass.spec.ts`, `pass-raster.spec.ts`) need none of this — they
+are in the `conformance` project and run in `make test`.
 **Never run `npm run build` while a dev server is up on 3210.** It overwrites
 `.next` underneath it and every page load 404s its chunks, which presents as a
 login regression on every E2E project at once. This warning has now cost two
@@ -684,6 +723,16 @@ replayed), `CHECKIN_SEND_HOUR` (default 10, hospital-local), `CHECKIN_QUIET_STAR
 has no voice-gw handler yet, see Stubs). The protocol bank is `seeds/protocols.json`, not env.
 Web: `NEXT_PUBLIC_PRINT_BRIDGE_URL` (a kiosk's local thermal-print daemon; absent = browser print
 fallback).
+**The boarding pass (SESSION-PASS, doc 23):** `NEXT_PUBLIC_PASS_GEOMETRY`
+(`roll80` default / `roll58`; **must match the printer the pilot bought** — an
+unrecognised value falls back to `roll80` rather than leaving a patient with no
+paper) and `NEXT_PUBLIC_PASS_AUTOPRINT` (`0` default; `1` prints once on mount
+for a kiosk with a printer attached — off so a laptop demo cannot pop a print
+dialog uninvited). Both **build-time**, so the web image must be rebuilt to
+change them. Not env, but a hard dependency: **the kiosk OS needs Noto Sans +
+Devanagari + Telugu installed** (doc 05 §6a) — the pass is rasterised through an
+`<img>`, which resolves system fonts only, so the app's self-hosted webfonts are
+invisible to it and a box without Noto prints tofu.
 
 Admin console (S18E → S-GL.2): served at `/admin` (staff, phone-OTP; **admin** role only —
 seeded Priya Sharma `+915550000001`). **Eight** tabs, in the order an operator needs them:
@@ -895,6 +944,16 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **No printer has ever printed a boarding pass** (SESSION-PASS, doc 23 §11).
+  The pass is rasterised end-to-end in a real browser and the `pass-ui` suite
+  asserts 115,206 bytes of correctly-framed ESC/POS reaching a bridge — but the
+  bridge in that test is an intercepted route, and no print head has accepted a
+  `GS v 0` job from this repo. Open until someone stands at the real kiosk: the
+  80mm-vs-58mm head, whether the clone takes the cut command and a 1600-row
+  raster, Noto installed on the box, and the feed-to-cut time for 200mm. The
+  older text-mode slip (`escposSlip`) is still in `print.ts` **and still the
+  fallback of record** for exactly this reason; delete it only after a real
+  pass has come out of a real printer.
 - **There is no S3 object store** (MRD1) — `app/providers/objectstore.py` has the
   interface, a filesystem impl (the Omen primary) and an in-memory fake. The
   cloud shape needs the impl written; `OBJECT_STORE=s3` fails at boot rather

@@ -67,3 +67,24 @@ stay off the WAN (doc 09 §2/§15).
 ## 6. Kiosk hardware note
 
 Any 10–11" Android tab (₹15–20k) in a floor stand + USB thermal printer; Chrome kiosk mode pointed at the PWA. Queue board = TV + ₹3k Android stick. Budget ~₹60k per OPD floor.
+
+### 6a. Printer and fonts, for the boarding pass (doc 23)
+
+The pass is rendered as a bitmap in the browser and sent to the printer as
+pixels, which is what gets shaped Devanagari and Telugu onto a thermal head at
+all. Three things follow, and all three are provisioning, not code:
+
+- **Buy an 80mm printer** (72mm print head, 203dpi — the whole cheap-thermal
+  market). `NEXT_PUBLIC_PASS_GEOMETRY=roll80` is the default and must match the
+  hardware; `roll58` exists as a degradation if a 58mm unit is already on site.
+- **Install Noto on the kiosk box** — `Noto Sans`, `Noto Sans Devanagari`,
+  `Noto Sans Telugu` (`apt install fonts-noto-core fonts-noto-devanagari
+  fonts-noto-telugu`, or the Android equivalent). The pass's SVG is rasterised
+  through an `<img>`, which resolves **system fonts only**: the app's own
+  self-hosted webfonts are invisible to it. A box without Noto prints tofu — and
+  shows tofu in the on-screen preview first, which is the intended warning.
+- **The print bridge** is unchanged: a local daemon owning the USB printer,
+  answering on `127.0.0.1`, named by `NEXT_PUBLIC_PRINT_BRIDGE_URL`. Without it
+  the pass still prints, through the browser's dialog, at the same 80×200mm.
+
+Doc 23 §11 is the list of things only the real kiosk can settle.
