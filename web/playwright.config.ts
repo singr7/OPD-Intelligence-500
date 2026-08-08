@@ -119,6 +119,17 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // The M3 PACS stub (plan §2). Live stack with PACS_ENABLED=true and
+      // PACS_PROVIDER=fake, plus `seed_doctor_demo`; this project *is* the
+      // session's frontend AC — the studies list, the spine states the count
+      // before the doctor opens anything, the viewer handoff carries a study
+      // UID and nothing else, and every empty list says which of the four
+      // reasons it is empty for. Run explicitly (`npm run e2e:imaging`).
+      name: "imaging",
+      testMatch: /imaging\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // The M5 research assistant (plan §4). Live stack + `seed_doctor_demo`;
       // this project *is* the session's frontend AC — the doctor sees what
       // will be sent before it is sent, a line they untick is struck rather

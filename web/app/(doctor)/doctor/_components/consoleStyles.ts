@@ -939,19 +939,31 @@ export const NOTE_CSS = `
   background: var(--accent-soft); color: #7a4d0a; border: 1px solid #e8c583; }
 
 /* ---- the drawer -------------------------------------------------------- */
-/* Height, and the padding below, are one decision made twice.
+/* Height, and the padding below, are one decision made twice — and there is a
+   third input that M4 did not write down.
    The first screenshot of this surface had the drawer at 62vh and it ate the
    spine — diagnosis, allergies and red flags all gone behind it, which is the
    exact failure Session B built the spine to fix and the reason this is a
-   drawer rather than a tab. So: the drawer takes the bottom 52vh, the console
-   gets matching padding underneath while it is open (so there is somewhere to
-   scroll), and the sticky spine pins under the app bar in the 48vh that is
-   left. The two numbers must move together. */
+   drawer rather than a tab. So: the drawer takes the bottom of the screen, the
+   console gets matching padding underneath while it is open (so there is
+   somewhere to scroll), and the sticky spine pins under the app bar in what is
+   left. The two numbers must move together.
+
+   **The third input is the spine's own height, and it grows.** M4 set these to
+   52vh/54vh, which left the spine's bottom edge within a pixel or two of the
+   drawer's top on a 720px viewport — and M3 then added a five-word clause to
+   the Reports line, grew the spine by three pixels, and the notes E2E's
+   geometry assertion failed. It was right to fail: the spine really was behind
+   the drawer.
+   Sized with margin now rather than to the pixel, because every module that
+   ships adds a fact to that strip. 48vh leaves roughly 30px of headroom at
+   720px, which is a line of spine. If a future module needs more than that,
+   the answer is a shorter spine line, not a thinner drawer. */
 .nd-drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
-  max-height: 52vh; display: flex; flex-direction: column;
+  max-height: 48vh; display: flex; flex-direction: column;
   background: var(--surface); border-top: 1px solid var(--line);
   box-shadow: 0 -12px 34px rgba(16,48,42,.16); }
-body[data-note-open="1"] .console { padding-bottom: 54vh; }
+body[data-note-open="1"] .console { padding-bottom: 50vh; }
 
 .nd-head { flex: none; display: flex; align-items: center; justify-content: space-between;
   gap: 14px; padding: 13px 24px; border-bottom: 1px solid var(--line); }
@@ -1190,5 +1202,66 @@ export const RESEARCH_CSS = `
 
 @media (max-width: 900px) {
   .rsx-ctx-h { flex-direction: column; gap: 2px; }
+}
+`;
+
+export const IMAGING_CSS = `
+/* ---- imaging, on the Reports tab (M3) ---------------------------------- */
+/* A section rather than a seventh tab, and it takes no aesthetic risk on
+   purpose: it is a list of rows handing off to a viewer somebody else
+   designed. See ImagingSection's header. */
+
+.img-sec { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.img-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.img-head h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--ink); }
+.img-aet { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.img-empty { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-muted);
+  max-width: 76ch; }
+/* Amber, never red: red on this console belongs to the deterministic red-flag
+   lane. "We could not ask" is a caution, not a clinical danger. */
+.img-empty.warn { color: #7a4d0a; background: var(--accent-soft);
+  border: 1px solid #e8c583; border-radius: var(--radius-md); padding: 9px 12px; }
+
+.img-list { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+/* The right padding is the note dock's gutter, the same decision .rsx-composer-r
+   records: the dock is fixed to the bottom-right and floats over whatever tab
+   is open, so a row's actions must clear it *horizontally* — vertical spacing
+   only separates them at one scroll position, and these rows scroll. The first
+   screenshot of this section had the mic sitting on a study's Report button.
+   105px of dock + 26px offset, rounded up. */
+.img-row { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto;
+  align-items: center; gap: 14px; padding: 10px 140px 10px 13px;
+  background: var(--surface); }
+
+.img-when { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.img-nodate { color: var(--text-muted); font-style: italic; font-variant-numeric: normal; }
+
+.img-what { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.img-mod { font-weight: 800; font-size: 13px; color: var(--ink);
+  letter-spacing: .02em; }
+.img-desc { font-size: 13px; color: var(--ink-soft); }
+.img-series { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.img-act { display: flex; align-items: center; gap: 8px; }
+.img-open { text-decoration: none; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 6px 13px; border-radius: var(--radius-md);
+  background: var(--brand); color: #fff; }
+.img-report { text-decoration: none; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 6px 11px; border-radius: var(--radius-md);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
+.img-report:hover { border-color: var(--border-strong); color: var(--ink); }
+.img-noviewer { font-size: 12px; color: var(--text-muted); }
+
+/* the spine's scan clause, riding on the Reports line */
+.cx-scans { color: var(--text-muted); }
+.cx-scans::before { content: " · "; }
+.cx-scans.attn { color: #7a4d0a; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .img-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .img-act { justify-content: flex-start; }
 }
 `;

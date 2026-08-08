@@ -41,6 +41,8 @@
 //   because a missing strip is indistinguishable from a strip that failed to
 //   load.
 
+import type { ImagingLookup } from "@/app/_lib/imaging";
+import { imagingSpineLine } from "@/app/_lib/imaging";
 import type { MedicalDocument } from "@/app/_lib/records";
 import { documentTally } from "@/app/_lib/records";
 import type { PatientCard as Card } from "../_lib/doctor";
@@ -68,17 +70,22 @@ export function ContextSpine({
   isMine,
   documents,
   documentsLoading,
+  imaging,
   onOpenReports,
 }: {
   card: Card;
   isMine: boolean;
   documents: MedicalDocument[];
   documentsLoading: boolean;
+  /** M3. Folded into the Reports line rather than given a slot of its own —
+   *  see the note above about refusing a sixth. */
+  imaging: ImagingLookup;
   onOpenReports: () => void;
 }) {
   const urgent = card.red_flags.filter((f) => f.severity === "urgent");
   const other = card.red_flags.filter((f) => f.severity !== "urgent");
   const tally = documentTally(documents);
+  const scans = imagingSpineLine(imaging);
 
   return (
     <section className="spine-ctx" data-testid="context-spine">
@@ -193,6 +200,20 @@ export function ContextSpine({
             {tally.flagged > 0 && <> · {tally.flagged} flagged</>}
             {tally.awaitingReview > 0 && <> · {tally.awaitingReview} unverified</>}
             {tally.failed > 0 && <> · {tally.failed} unread</>}
+          </span>
+        )}
+        {/* M3 rides on this line rather than taking a sixth slot. It is the
+            same kind of fact — what is on file about this patient from
+            elsewhere — and the same kind of control: a link into the tab, with
+            no number a doctor could act on without opening it. `null` when the
+            PACS is switched off, because an installation without one should
+            not carry a permanent "imaging: off" line on every patient. */}
+        {scans && (
+          <span
+            className={`cx-scans ${imaging.state === "unreachable" ? "attn" : ""}`}
+            data-testid="spine-imaging"
+          >
+            {scans}
           </span>
         )}
       </button>

@@ -223,11 +223,52 @@ class FakePacsProvider(PacsProvider):
 
     name: ClassVar[str] = "fake"
 
+    @classmethod
+    def demo(cls) -> FakePacsProvider:
+        """A fake that answers for *any* UHC ID, for a stack with no vendor.
+
+        The MRD2 habit: the whole module should be demonstrable on a laptop
+        with no imaging centre attached, because a module nobody can see is a
+        module nobody reviews. Tests construct this class with an explicit dict
+        instead — a fake that invents data would hide the very bugs the four
+        empty states exist to catch.
+        """
+        fake = cls()
+        fake._any = [
+            Study(
+                study_uid="1.2.840.113619.2.55.3.604688119.868.1690000001.1",
+                study_date=date(2026, 7, 30),
+                modality="CT",
+                description="CT Thorax with contrast",
+                series_count=4,
+                has_report=False,
+            ),
+            Study(
+                study_uid="1.2.840.113619.2.55.3.604688119.868.1690000002.1",
+                study_date=date(2026, 3, 11),
+                modality="MR",
+                description="MRI Brain — screening",
+                series_count=7,
+                has_report=False,
+            ),
+        ]
+        fake._reports = {
+            fake._any[0].study_uid: Report(
+                content=b"%PDF-1.4\n% demo radiology report\n",
+                media_type="application/pdf",
+                filename="report-1690000001.1.pdf",
+            )
+        }
+        return fake
+
     def __init__(
         self,
         studies: dict[str, list[Study]] | None = None,
         reports: dict[str, Report] | None = None,
     ):
+        #: Set only by `demo()`. None means "answer strictly from `studies`",
+        #: which is what every test wants.
+        self._any: list[Study] | None = None
         self._studies = studies or {}
         self._reports = reports or {}
         self.fail_with: PacsError | None = None
@@ -238,6 +279,8 @@ class FakePacsProvider(PacsProvider):
         self.calls.append(patient_id)
         if self.fail_with:
             raise self.fail_with
+        if self._any is not None:
+            return list(self._any)
         return list(self._studies.get(patient_id, []))
 
     async def report(self, *, study_uid: str) -> Report | None:

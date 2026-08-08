@@ -29,12 +29,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
+import { IMAGING_UNASKED, patientStudies, type ImagingLookup } from "@/app/_lib/imaging";
 import { patientDocuments, verifyDocument, type MedicalDocument } from "@/app/_lib/records";
 import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib/doctor";
 import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
 import { ConcludeDialog } from "./ConcludeDialog";
-import { CONSOLE_CSS, DICTATION_CSS, NOTE_CSS, REPORTS_CSS, RESEARCH_CSS } from "./consoleStyles";
+import {
+  CONSOLE_CSS,
+  DICTATION_CSS,
+  IMAGING_CSS,
+  NOTE_CSS,
+  REPORTS_CSS,
+  RESEARCH_CSS,
+} from "./consoleStyles";
 import { ContextSpine } from "./ContextSpine";
 import { DayRail } from "./DayRail";
 import { DictationPanel } from "./DictationPanel";
@@ -75,6 +83,10 @@ export function Console() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  // What the PACS has (M3). Fetched with the card, like the documents and for
+  // the same reason: the spine states it before the doctor opens anything.
+  const [imaging, setImaging] = useState<ImagingLookup>(IMAGING_UNASKED);
+  const [imagingLoading, setImagingLoading] = useState(false);
   const selectedRef = useRef<string | null>(null);
   const scopeRef = useRef<DayScope>("mine");
   /** Whose reports the console is currently meant to be showing. */
@@ -101,6 +113,7 @@ export function Console() {
     setSelected(null);
     setTab("overview");
     setDocuments([]);
+    setImaging(IMAGING_UNASKED);
   }, []);
 
   /**
@@ -125,6 +138,33 @@ export function Console() {
       setDocumentsError("Could not load this patient's scanned reports.");
     } finally {
       if (patientRef.current === patientId) setDocumentsLoading(false);
+    }
+  }, []);
+
+  /**
+   * This visit's imaging.
+   *
+   * Guarded by the visit it was asked for, exactly as `loadDocuments` is
+   * guarded by the patient: a doctor moving down the rail faster than a QIDO
+   * round-trip would otherwise land patient A's scan list under patient B's
+   * name. On a screen whose job is "these are this patient's investigations",
+   * that is the one bug that must not be possible.
+   *
+   * A failure here becomes `unreachable` rather than an error banner — that is
+   * already one of the four states the section renders, and it is the truthful
+   * one: we asked and do not know.
+   */
+  const loadImaging = useCallback(async (tok: string, visitId: string) => {
+    setImagingLoading(true);
+    try {
+      const found = await patientStudies(tok, visitId);
+      if (selectedRef.current !== visitId) return;
+      setImaging(found);
+    } catch {
+      if (selectedRef.current !== visitId) return;
+      setImaging({ state: "unreachable", studies: [], aet: "" });
+    } finally {
+      if (selectedRef.current === visitId) setImagingLoading(false);
     }
   }, []);
 
@@ -157,13 +197,16 @@ export function Console() {
           patientRef.current = next.patient_id;
           setDocuments([]);
         }
-        await loadDocuments(tok, next.patient_id);
+        await Promise.all([
+          loadDocuments(tok, next.patient_id),
+          loadImaging(tok, next.visit_id),
+        ]);
       } catch (err) {
         if (err instanceof AuthError) signOut();
         else setError("Could not open that patient.");
       }
     },
-    [signOut, loadDocuments],
+    [signOut, loadDocuments, loadImaging],
   );
 
   /**
@@ -389,7 +432,9 @@ export function Console() {
   return (
     <div className="console">
       <style
-        dangerouslySetInnerHTML={{ __html: CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS + RESEARCH_CSS }}
+        dangerouslySetInnerHTML={{ __html:
+            CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS + RESEARCH_CSS + IMAGING_CSS,
+        }}
       />
 
       {/* The app bar carries identity only. Every verb that moves the queue
@@ -447,6 +492,7 @@ export function Console() {
                 isMine={isMine}
                 documents={documents}
                 documentsLoading={documentsLoading}
+                imaging={imaging}
                 onOpenReports={() => setTab("reports")}
               />
 
@@ -462,11 +508,14 @@ export function Console() {
               {tab === "reports" ? (
                 <ReportsTab
                   token={token}
+                  visitId={card.visit_id}
                   documents={documents}
                   loading={documentsLoading}
                   error={documentsError}
                   verifying={verifying}
                   onVerify={onVerify}
+                  imaging={imaging}
+                  imagingLoading={imagingLoading}
                 />
               ) : tab === "research" ? (
                 /* Keyed on the visit: a patient switch must not leave one

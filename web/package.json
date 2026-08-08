@@ -21,7 +21,8 @@
     "e2e:scan": "playwright test --project=scan",
     "e2e:reports": "playwright test --project=reports",
     "e2e:notes": "playwright test --project=notes",
-    "e2e:research": "playwright test --project=research"
+    "e2e:research": "playwright test --project=research",
+    "e2e:imaging": "playwright test --project=imaging"
   },
   "dependencies": {
     "dexie": "^4.4.4",

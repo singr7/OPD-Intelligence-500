@@ -42,6 +42,8 @@ import {
   type FlaggedValue,
   type MedicalDocument,
 } from "@/app/_lib/records";
+import type { ImagingLookup } from "@/app/_lib/imaging";
+import { ImagingSection } from "./ImagingSection";
 import { PageStrip } from "./PageViewer";
 
 const STATUS_COPY: Record<MedicalDocument["status"], string> = {
@@ -55,18 +57,26 @@ const STATUS_COPY: Record<MedicalDocument["status"], string> = {
 
 export function ReportsTab({
   token,
+  visitId,
   documents,
   loading,
   error,
   verifying,
   onVerify,
+  imaging,
+  imagingLoading,
 }: {
   token: string;
+  visitId: string;
   documents: MedicalDocument[];
   loading: boolean;
   error: string | null;
   verifying: string | null;
   onVerify: (documentId: string) => void;
+  /** M3. Rendered under the scanned papers — see ImagingSection's header for
+   *  why imaging is a section here rather than a seventh tab. */
+  imaging: ImagingLookup;
+  imagingLoading: boolean;
 }) {
   // Newest first, and the newest one open: it is almost always the report the
   // patient just handed over at the desk. The rest are one tap away rather than
@@ -74,24 +84,45 @@ export function ReportsTab({
   const [open, setOpen] = useState<string | null>(null);
   const openId = open ?? documents[0]?.id ?? null;
 
-  if (loading) return <p className="work-empty">Looking for scanned reports…</p>;
+  const imagingBlock = (
+    <ImagingSection visitId={visitId} lookup={imaging} loading={imagingLoading} />
+  );
+
+  // The three early returns below are about *scanned paper*. Imaging is a
+  // different source with a different server, and a patient with no photographed
+  // documents may well have had three CTs — so it renders in every branch. An
+  // earlier version returned before it, which hid the scans of exactly the
+  // patients whose paperwork had not been photographed yet.
+  if (loading)
+    return (
+      <section className="reports" data-testid="reports-tab">
+        <p className="work-empty">Looking for scanned reports…</p>
+        {imagingBlock}
+      </section>
+    );
 
   if (error) {
     return (
-      <p className="work-empty err" data-testid="reports-error">
-        {error} Their papers may still be on file — this is the console failing to ask, not a
-        statement that there are none.
-      </p>
+      <section className="reports" data-testid="reports-tab">
+        <p className="work-empty err" data-testid="reports-error">
+          {error} Their papers may still be on file — this is the console failing to ask, not a
+          statement that there are none.
+        </p>
+        {imagingBlock}
+      </section>
     );
   }
 
   if (documents.length === 0) {
     return (
-      <p className="work-empty" data-testid="reports-empty">
-        Nothing has been scanned for this patient. Paper reports are photographed at the desk on
-        the coordinator&rsquo;s phone; nothing here means nothing was scanned, not that nothing
-        exists.
-      </p>
+      <section className="reports" data-testid="reports-tab">
+        <p className="work-empty" data-testid="reports-empty">
+          Nothing has been scanned for this patient. Paper reports are photographed at the desk on
+          the coordinator&rsquo;s phone; nothing here means nothing was scanned, not that nothing
+          exists.
+        </p>
+        {imagingBlock}
+      </section>
     );
   }
 
@@ -112,6 +143,7 @@ export function ReportsTab({
           onVerify={() => onVerify(doc.id)}
         />
       ))}
+      {imagingBlock}
     </section>
   );
 }

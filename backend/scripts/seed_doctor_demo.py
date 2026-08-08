@@ -39,6 +39,7 @@ from app.db import build_engine, build_sessionmaker
 from app.models.clinical import (
     ClinicalNote,
     Dictation,
+    DocumentExtraction,
     DoseEvent,
     Intake,
     MedicalDocument,
@@ -455,8 +456,8 @@ async def _reset(session, hospital_id: uuid.UUID) -> None:
         await session.execute(delete(ClinicalNote).where(ClinicalNote.visit_id.in_(visit_ids)))
 
         # Scanned papers hang off the *patient*, not the visit, so they are
-        # cleared with the patients below rather than here — but their rows
-        # reference these visits, so the link has to go first.
+        # cleared with the patients further down rather than here — but their
+        # rows reference these visits, so the link has to go first.
         await session.execute(
             update(MedicalDocument)
             .where(MedicalDocument.visit_id.in_(visit_ids))
@@ -466,6 +467,26 @@ async def _reset(session, hospital_id: uuid.UUID) -> None:
         await session.execute(delete(Dictation).where(Dictation.visit_id.in_(visit_ids)))
         await session.execute(delete(Intake).where(Intake.visit_id.in_(visit_ids)))
         await session.execute(delete(Visit).where(Visit.id.in_(visit_ids)))
+
+    # Scanned papers hang off the **patient**, not the visit, so they outlive
+    # every visit deleted above and block the patient delete below. The `reports`
+    # and `scan` E2E projects both file real documents against these demo
+    # patients, so this fires on any box where either has been run.
+    document_ids = (
+        (
+            await session.execute(
+                select(MedicalDocument.id).where(MedicalDocument.patient_id.in_(patient_ids))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if document_ids:
+        await session.execute(
+            delete(DocumentExtraction).where(DocumentExtraction.document_id.in_(document_ids))
+        )
+        await session.execute(delete(MedicalDocument).where(MedicalDocument.id.in_(document_ids)))
+
     await session.execute(delete(Patient).where(Patient.id.in_(patient_ids)))
     # Drop today's now-empty MEDONC queue so the demo re-enqueues from scratch.
     await session.execute(
@@ -564,6 +585,14 @@ async def main() -> None:
                 lang=Lang.HI,
                 village=spec["village"],
                 district="Alwar",
+                # The UHC ID — which is also the DICOM PatientID the imaging
+                # centre registers studies under (M3, plan §8.1). Without one
+                # the doctor's Imaging section correctly reports that the scans
+                # cannot be looked up, which is a truthful demo of the wrong
+                # thing. Token 14 is left without one **on purpose**, so the
+                # `no_uhc_id` state is reachable in the demo too.
+                external_id=None if spec["token"] == 14 else f"UHC{spec['token']:06d}",
+                external_id_kind=None if spec["token"] == 14 else "uhc",
             )
             session.add(patient)
             await session.flush()

@@ -43,6 +43,14 @@
 //
 // Six is the ceiling this row can carry, and the next module to graduate should
 // have to argue for a seventh rather than assume it.
+//
+// **Session M3 argued it and lost, deliberately.** Imaging shipped and left this
+// list, but it did *not* become a seventh tab: it is a section of Reports, which
+// is already "what is on file about this patient from outside this consult". A
+// doctor asking what investigations a patient has had should find the scanned
+// histopath and the CT in one place. See `ImagingSection.tsx` for the argument
+// in full. The row therefore still ends at six, and the disclosure is down to
+// two entries — which is the direction it should keep going.
 
 import { useState } from "react";
 
@@ -64,7 +72,6 @@ const TABS: { id: WorkTab; label: string }[] = [
 ];
 
 const SOON: { name: string; line: string }[] = [
-  { name: "Imaging", line: "Scans and radiology reports in the console." },
   {
     name: "Lab reports ordered here",
     line: "Results delivered electronically from the hospital lab. Not live yet — lab work ordered here still comes back on paper, and that paper is scanned into the Reports tab at the desk.",

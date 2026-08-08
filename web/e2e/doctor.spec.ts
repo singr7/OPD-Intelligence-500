@@ -221,12 +221,21 @@ test("the tabs carry the doc 03 §4 contract, and provenance instead of a percen
 test("Coming soon is one quiet entry with no mock clinical content", async ({ page, request }) => {
   await signedIn(page, await loginToken(request));
 
-  // Four tabs, not eight. The unbuilt surfaces are not among them.
-  await expect(page.locator(".wtab")).toHaveCount(4);
+  // Six tabs now, not eight — and the count is asserted because the whole point
+  // of the disclosure is that unbuilt surfaces are *not* among them.
+  //
+  // This assertion said four until M3, and had been wrong since MRD2 graduated
+  // Reports: nobody ran this project for three sessions, so a stale number sat
+  // green in nobody's terminal. Overview, Intake answers, History, Reports,
+  // Research, Consult.
+  await expect(page.locator(".wtab")).toHaveCount(6);
   await page.getByTestId("coming-soon").click();
 
   const panel = page.getByTestId("coming-soon-panel");
-  await expect(panel).toContainText("Imaging");
+  // Imaging left this list in M3 when it shipped — as a section of Reports
+  // rather than a seventh tab. A feature that is live must not still be
+  // advertised as upcoming; that teaches doctors not to look for it.
+  await expect(panel).not.toContainText("Imaging");
   await expect(panel).toContainText("NCCN Guidelines");
   // Lab reports is the one a doctor could read as broken rather than absent —
   // this system already has a lab_requeue state, so it says so in words.

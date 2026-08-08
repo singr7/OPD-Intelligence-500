@@ -531,7 +531,10 @@ _pacs: PacsProvider | None = None
 def _build_pacs(name: str, settings: Settings) -> PacsProvider:
     match name:
         case "fake":
-            return FakePacsProvider()
+            # `demo()`, not a bare fake: a laptop stack with PACS_PROVIDER=fake
+            # should show a doctor what this module does. Tests build the class
+            # directly with an explicit study dict.
+            return FakePacsProvider.demo()
         case "dicomweb":
             if not settings.pacs_dicomweb_url:
                 raise UnknownProvider("PACS_PROVIDER=dicomweb needs PACS_DICOMWEB_URL")
