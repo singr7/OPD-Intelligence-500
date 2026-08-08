@@ -204,8 +204,8 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         ResearchTurn,
     )
     from app.models.content import Checkin, CheckinPlan
-    from app.models.enums import Channel, DoseStatus
-    from app.models.patient import CaregiverLink
+    from app.models.enums import AllergyKind, AllergySource, Channel, DoseStatus
+    from app.models.patient import CaregiverLink, PatientAllergy
     from app.models.scheduling import Appointment, Queue, QueueEntry
 
     queue = Queue(department_id=clinic["department"].id, date=visit.date)
@@ -250,6 +250,13 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         "checkin_plans": plan,
         "checkins": Checkin(plan_id=plan.id, due_at=datetime.now(UTC), channel=Channel.WHATSAPP),
         "caregiver_links": CaregiverLink(patient_id=clinic["patient"].id, phone="+915550000123"),
+        "patient_allergies": PatientAllergy(
+            patient_id=clinic["patient"].id,
+            visit_id=visit.id,
+            kind=AllergyKind.SUBSTANCE,
+            substance="penicillin",
+            source=AllergySource.PATIENT_KIOSK,
+        ),
         "medical_documents": document,
         "document_extractions": DocumentExtraction(document_id=document.id),
         "clinical_notes": ClinicalNote(visit_id=visit.id, doctor_id=clinic["doctor"].id),
@@ -302,6 +309,11 @@ async def test_clinical_marker_covers_the_expected_tables() -> None:
         # the one row that widens who can see a cancer diagnosis.
         "caregiver_links",
         "dose_events",
+        # SESSION-ALLERGY: every statement anyone has made about what this
+        # patient reacts to. Audited harder than most: a row here is read at
+        # prescribing time, and both "who said penicillin" and "who withdrew it"
+        # are questions a review asks before it asks anything else.
+        "patient_allergies",
         # SESSION-MRD1: a scanned report and the machine's reading of it. The
         # reading especially — it is a clinical claim about a patient made by a
         # model, and "which prompt version said her platelets were 40" has to be

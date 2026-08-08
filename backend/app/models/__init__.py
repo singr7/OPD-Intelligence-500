@@ -26,6 +26,9 @@ from app.models.content import (
     QuestionTree,
 )
 from app.models.enums import (
+    AllergyKind,
+    AllergySeverity,
+    AllergySource,
     AppointmentStatus,
     AuditAction,
     CaregiverLinkStatus,
@@ -50,7 +53,7 @@ from app.models.enums import (
 )
 from app.models.metering import PriceBook, UsageEvent
 from app.models.org import Department, Doctor, Hospital, User
-from app.models.patient import CaregiverLink, Patient
+from app.models.patient import CaregiverLink, Patient, PatientAllergy
 from app.models.scheduling import (
     Appointment,
     AppointmentSlot,
@@ -83,6 +86,7 @@ __all__ = [
     "MedicalDocument",
     "DocumentExtraction",
     "CaregiverLink",
+    "PatientAllergy",
     # scheduling
     "Appointment",
     "SlotTemplate",
@@ -107,6 +111,9 @@ __all__ = [
     # audit
     "AuditLog",
     # enums
+    "AllergyKind",
+    "AllergySeverity",
+    "AllergySource",
     "AppointmentStatus",
     "AuditAction",
     "CaregiverLinkStatus",

@@ -266,6 +266,56 @@ class CaregiverLinkStatus(StrEnum):
     REVOKED = "revoked"
 
 
+class AllergyKind(StrEnum):
+    """What one allergy statement actually says (plan §4.2, SESSION-ALLERGY).
+
+    Two kinds, because **"the patient named penicillin" and "the patient said
+    there are none" are the same kind of act** — somebody was asked, at a
+    knowable time, and answered. Modelling only the first would leave "asked and
+    told there are none" indistinguishable from "never asked", which is the
+    exact confusion the console has been refusing to make in words ever since
+    Session B.
+
+    So `none_known` is a **row**, not the absence of rows. Absence of rows means
+    nobody has asked, and every surface must keep saying so.
+    """
+
+    SUBSTANCE = "substance"
+    NONE_KNOWN = "none_known"
+
+
+class AllergySeverity(StrEnum):
+    """How bad the reaction was, when anyone knows.
+
+    `unknown` is the default and is *not* a synonym for mild: a patient who says
+    "penicillin" at a kiosk has told us the substance and nothing about the
+    reaction, and a console that renders that as mild has invented the reassuring
+    half. Only a clinician who asked can set anything else.
+    """
+
+    UNKNOWN = "unknown"
+    MILD = "mild"
+    SEVERE = "severe"
+
+
+class AllergySource(StrEnum):
+    """Who said it. Never inferred — it is stamped by the route that wrote it.
+
+    This is the difference between a fact the record can stand behind and a
+    thing a frightened patient said through a tablet at 9am, and both surfaces
+    that render an allergy state it. A doctor's statement outranks a kiosk one
+    for display order; it never deletes it.
+    """
+
+    PATIENT_KIOSK = "patient_kiosk"
+    #: The kiosk, in caregiver mode — a family member answering for the patient.
+    #: Worth its own value rather than folding into the above: "her son said she
+    #: is allergic to sulfa" is weaker evidence than the patient saying it, and
+    #: the doctor should be able to see which one they have.
+    CAREGIVER_KIOSK = "caregiver_kiosk"
+    DOCTOR = "doctor"
+
+
 class DoseStatus(StrEnum):
     """What happened to one scheduled dose of one medicine (doc 03 §1c.4, S16).
 
