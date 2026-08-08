@@ -576,7 +576,18 @@ cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
   npm run e2e:research     # the M5 AC + screenshots -> web/screenshots/m5/
 ```
 It writes real research threads *and* a real confirmed clinical note (the M4 →
-M5 hand-off is part of the AC). Dev boxes only. **Re-run `seed_doctor_demo`
+M5 hand-off is part of the AC). Dev boxes only.
+Imaging (M3): the same api with `PACS_ENABLED=true PACS_PROVIDER=fake` and a
+`PACS_VIEWER_URL`. The fake's `demo()` answers for any UHC ID with two studies,
+so the module is demonstrable with no imaging centre attached.
+```
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:imaging      # the M3 AC + screenshots -> web/screenshots/m3/
+```
+**Never run `npm run build` while a dev server is up on 3210.** It overwrites
+`.next` underneath it and every page load 404s its chunks, which presents as a
+login regression on every E2E project at once. This warning has now cost two
+sessions; if a build is needed mid-session, stop the dev server first. **Re-run `seed_doctor_demo`
 first**: the demo day is keyed to `queue.today()`, so it goes stale at UTC
 midnight and the console then renders an empty day that looks exactly like a
 broken login. `OTP_RESEND_COOLDOWN_SECONDS=0` on the api is worth setting for
@@ -633,6 +644,22 @@ not a rupee cap, see `app/research/assistant.py` for why), `RESEARCH_MAX_QUESTIO
 The assistant runs on whatever `LLM_PROVIDER` is configured and needs no vision;
 `local_vllm` runs the whole thing on the box, which is the point — a doctor's
 research questions are a record of what they were unsure about.
+**PACS imaging (M3):** `PACS_ENABLED` (**defaults false**, unlike the other
+module switches — a PACS pointed at the wrong join key returns empty for every
+patient, which reads exactly like "never scanned", so an operator turns it on
+deliberately having checked), `PACS_PROVIDER` (`dicomweb|fake`),
+`PACS_DICOMWEB_URL` (Orthanc's DICOMweb root), `PACS_AUTH_USER` /
+`PACS_AUTH_PASSWORD`, `PACS_VIEWER_URL` (the already-connected web viewer; the
+study UID is appended as `?StudyInstanceUIDs=…` and nothing else ever is),
+`PACS_AET` (default `RAD-RENVA-PACS`) and `PACS_DICOM_PORT` (4242) — both
+documentation of the DICOM endpoint the modality pushes to, which nothing here
+dials but everyone debugging a missing study needs — and `PACS_TIMEOUT_SECONDS`
+(8, short because this call sits in the request path of a doctor opening a tab).
+**The join key is `Patient.external_id` matched against the DICOM `PatientID`**,
+which is an operational contract with the imaging centre (plan §8.1, confirmed
+2026-08-08). If the modality registers studies under a hospital MRN instead,
+every lookup returns "no scans" for a patient who has had ten — that is the
+first thing to check when a doctor says imaging is missing.
 **Adaptive intake (S-ADAPT):** `INTAKE_ADAPTIVE` (backend gate; needs a real,
 non-fake `LLM_PROVIDER`) + `NEXT_PUBLIC_KIOSK_ADAPTIVE` (**build-time** — the web
 image must be rebuilt to change it). Both default `0` = today's pure-tap kiosk.
@@ -948,6 +975,25 @@ the only gate right now.**
 - **The research panel does not poll** (M5) — the context is reassembled on
   every open, so a report scanned during the consult appears the next time the
   tab is opened, not live.
+- **No line of the PACS module has met a real Orthanc** (M3) — the DICOMweb
+  provider is written against the documented QIDO-RS/WADO-RS shapes and driven
+  entirely against an `httpx.MockTransport`. Plan §2.2 lists manual acceptance
+  against `RAD-RENVA-PACS` as a gate and it is **unmet**. Specifically
+  unverified: whether the report endpoint answers a study-level PDF `Accept` the
+  way this expects, whether `includefield` returns the series count, and whether
+  the modality registers the UHC ID as `PatientID` for a real patient. Until
+  then `PACS_ENABLED` should stay false on any box a doctor uses.
+- **`has_report` is always false on a listed study** (M3) — QIDO does not say,
+  and asking per study at list time would be a fetch per row for a question most
+  doctors will not ask. The Report link is always offered and the backend
+  answers "not reported yet" with a 404.
+- **The study list is not cached and not polled** (M3) — every patient open is a
+  QIDO call, and a study acquired during the consult appears on the next open.
+- **Nothing links a scanned imaging report to the PACS study it describes** (M3)
+  — an MRD `imaging_report` document and the CT it reports sit in the same tab,
+  and nothing knows they are about the same scan.
+- **No local Orthanc mirror and no compose service for one** (M3) — plan §8.6
+  puts replication and its backup in doc-17/18 ops territory, not backend code.
 - **Every router except `/notes` and `/research` can 404 a client that chains
   two writes** (M4) — FastAPI tears down `yield` dependencies after sending the
   response, so `get_session`'s commit lands after the caller has its 200. Both

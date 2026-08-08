@@ -414,12 +414,20 @@ deploy note for MinIO + migration on Omen. *Gates:* doctor E2E extended
 (report appears before consult, unverified badge clears on review, failed
 extraction still shows originals), conformance untouched, full frontend gates.
 
-**Session M3 — PACS stub.**
-Config + proxy endpoints + fake DICOMweb server + spine `Images (n)` +
-study list + viewer popup handoff + report streaming + audit rows + the three
-truthful empty/error states. *Gates:* backend tests against the fake, doctor
-E2E with mocked study list, manual acceptance checklist against the real
-`RAD-RENVA-PACS` recorded in the session log (external gate if unreachable).
+**Session M3 — PACS stub.** ✅ *Delivered 2026-08-08
+(`sessions/SESSION-M3.md`), last of the four, once §8.1's external gate closed.*
+Config, proxy endpoints, a fake DICOMweb server, the study list, the viewer
+popup handoff, report streaming and audit rows. Three things differ. There are
+**four** truthful empty states, not three — "the switch is off" is a fact about
+us and had to stay separate from "the PACS says none". `Images (n)` is a
+**clause on the spine's Reports line**, not a sixth slot, and imaging is a
+**section of the Reports tab**, not a seventh tab: it has no surface of its own
+to justify one, and Reports already means "what is on file from outside this
+consult". *Gates met:* backend **1,701**, imaging E2E 6, doctor 12 (that project
+had asserted four tabs since MRD2 and nobody had run it), full frontend gates.
+**Gate NOT met: manual acceptance against the real `RAD-RENVA-PACS`.** No line
+of the DICOMweb path has met a real Orthanc; it is proven only against a fake.
+`PACS_ENABLED` defaults false for that reason.
 
 **Session M4 — Ambient notes.** ✅ *Delivered 2026-08-06
 (`sessions/SESSION-M4.md`), built ahead of M3 because M3's external gate (§8.1)
@@ -493,11 +501,18 @@ recommended held even with M3 missing from the middle of it — the research
 assistant depended on the first three producing structure, and not on the
 imaging stub at all.
 
-**What is left of this plan is M3 and its external gate**, plus the debt in §8.
-There is no longer an obvious next module, which is itself the finding: the next
-session should be chosen from the pilot's needs (§8.1 if the imaging agreement
-has landed; otherwise an oncologist reading M5's answers against a real model,
-which no session has done) rather than by continuing to number these.
+**All four modules are now built** (2026-08-08): M1 → M2 → M4 → M5 → M3, with
+M3 last rather than third because §8.1's contract took until now to confirm.
+
+**What is left of this plan is not code.** Two of the four modules have never
+been exercised against the real thing they wrap — the research assistant has
+answered nobody with a real model, and the PACS path has never met a real
+Orthanc — and both gates are clinical or operational rather than engineering.
+§8's debt list is otherwise intact: the reference-range table still needs
+oncologist review, extracted labs still feed no decision, retrieval for the
+assistant is undesigned, storage has no lifecycle policy, and the box still has
+no mirrored disks. The next session should be chosen from that list, or from the
+pilot's own needs, rather than by continuing to number these.
 
 ---
 
