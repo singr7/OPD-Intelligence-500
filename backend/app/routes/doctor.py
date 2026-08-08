@@ -16,6 +16,11 @@ actually need — put their own name on the patient in front of them. `conclude`
 records *how* the consult ended, including the two ways that leave this system
 with no prescription in it, and then moves the queue through the S8 verb.
 
+SESSION-ALLERGY adds three more writes, all under `/visits/{id}/allergies`, for
+the same reason `take` and `conclude` are here: what they record is a clinical
+fact about a patient, not a position in a line. They are scoped under the visit
+so the department check that guards every read of this patient guards them too.
+
 Every route is `require_doctor` (doctor or admin), a tighter guard than the
 coordinator's `require_staff`: this is the one surface that returns a patient's
 name, phone, answers and history together, which is more than a queue
@@ -32,10 +37,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
 from app import doctor as doctor_svc
 from app.auth.rbac import Principal, require_doctor
 from app.db import get_session
-from app.models.enums import RxMode
+from app.models.enums import AllergySeverity, RxMode
 from app.queue_hub import QueueHub
 from app.routes.queue import get_hub
 
@@ -134,6 +140,37 @@ class DiagnosisOut(BaseModel):
     is_current_visit: bool
 
 
+class AllergyEntryOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    substance: str | None = None
+    substance_en: str | None = None
+    reaction: str | None = None
+    severity: str
+    source: str
+    stated_at: datetime
+    confirmed_at: datetime | None = None
+    confirmed_by_name: str | None = None
+    recorded_by_name: str | None = None
+    retracted_at: datetime | None = None
+    retracted_by_name: str | None = None
+    retracted_reason: str | None = None
+
+
+class AllergyViewOut(BaseModel):
+    """The three states, on the wire, with `state` as the only thing to branch on.
+
+    Note there is no `has_allergies` boolean and there must never be one: a
+    two-valued field forces "nobody asked" and "asked, told none" into the same
+    bucket, and the whole module exists to keep them apart.
+    """
+
+    state: str
+    entries: list[AllergyEntryOut] = []
+    none_statement: AllergyEntryOut | None = None
+    retracted: list[AllergyEntryOut] = []
+
+
 class CardOut(BaseModel):
     patient_id: uuid.UUID
     visit_id: uuid.UUID
@@ -165,6 +202,7 @@ class CardOut(BaseModel):
     assigned_doctor_name: str | None = None
     diagnosis: DiagnosisOut | None = None
     caregiver_answered: bool = False
+    allergies: AllergyViewOut
     rx_mode: str | None = None
     concluded_at: datetime | None = None
     conclusion_note: str | None = None
@@ -305,3 +343,125 @@ async def get_patient(
     except doctor_svc.DoctorError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return CardOut.model_validate(card, from_attributes=True)
+
+
+# -- allergies (SESSION-ALLERGY) ----------------------------------------------
+#
+# Three writes and no read: the current picture already rides on the patient
+# card, which the console has open the whole time it could possibly want it. A
+# `GET /allergies` would be a second source of the same derivation, and the two
+# would be one refresh apart from disagreeing on the most safety-critical line
+# on the screen.
+#
+# Every one of these returns the whole recomputed view for the same reason.
+
+
+class AllergyIn(BaseModel):
+    """What a doctor is putting on the record.
+
+    `none_known` and `substance` are mutually exclusive in practice and the
+    service enforces it — a "none" carrying a substance is a client bug, and
+    accepting it would write a row that says two contradictory things.
+
+    There is no `certainty` field and no free-text "notes": the reaction is the
+    note, and a second prose field on a line the spine renders in one row would
+    fill the top of the console with a paragraph.
+    """
+
+    substance: str | None = Field(default=None, max_length=200)
+    reaction: str | None = Field(default=None, max_length=500)
+    severity: AllergySeverity = AllergySeverity.UNKNOWN
+    #: The doctor asked and was told there are none. A statement, with their name
+    #: on it — which is what makes it outrank the tablet's version.
+    none_known: bool = False
+
+
+class RetractIn(BaseModel):
+    """Why this is being withdrawn.
+
+    Optional, and deliberately not enforced: a doctor who has spotted a wrong
+    allergy mid-consult must be able to strike it out in one tap, and a required
+    justification field is how a safety control turns into a thing people work
+    around. The prompt asks; the record takes whatever it is given.
+    """
+
+    reason: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/visits/{visit_id}/allergies", response_model=AllergyViewOut)
+async def record_allergy(
+    visit_id: uuid.UUID,
+    body: AllergyIn,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+) -> AllergyViewOut:
+    """Record an allergy, or record that the doctor asked and there are none."""
+    try:
+        doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
+        view = await doctor_svc.record_allergy(
+            session,
+            visit_id=visit_id,
+            doctor=doctor,
+            substance=body.substance,
+            reaction=body.reaction,
+            severity=body.severity,
+            none_known=body.none_known,
+        )
+    except allergy_svc.AllergyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except doctor_svc.DoctorError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await session.commit()
+    return AllergyViewOut.model_validate(view, from_attributes=True)
+
+
+@router.post("/visits/{visit_id}/allergies/{allergy_id}/confirm", response_model=AllergyViewOut)
+async def confirm_allergy(
+    visit_id: uuid.UUID,
+    allergy_id: uuid.UUID,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+) -> AllergyViewOut:
+    """Stand behind a statement somebody else made — usually the patient's own.
+
+    Scoped under the visit rather than sitting at `/allergies/{id}`, so the
+    department check that guards every other read of this patient guards this
+    write too, from the same visit the console already has open.
+    """
+    try:
+        doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
+        view = await doctor_svc.confirm_allergy(
+            session, visit_id=visit_id, allergy_id=allergy_id, doctor=doctor
+        )
+    except allergy_svc.AllergyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except doctor_svc.DoctorError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await session.commit()
+    return AllergyViewOut.model_validate(view, from_attributes=True)
+
+
+@router.post("/visits/{visit_id}/allergies/{allergy_id}/retract", response_model=AllergyViewOut)
+async def retract_allergy(
+    visit_id: uuid.UUID,
+    allergy_id: uuid.UUID,
+    body: RetractIn,
+    principal: Principal = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+) -> AllergyViewOut:
+    """Withdraw a statement. The row stays on file, struck out, with a name on it."""
+    try:
+        doctor = await doctor_svc.resolve_doctor(session, user_id=principal.id)
+        view = await doctor_svc.retract_allergy(
+            session,
+            visit_id=visit_id,
+            allergy_id=allergy_id,
+            doctor=doctor,
+            reason=body.reason,
+        )
+    except allergy_svc.AllergyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except doctor_svc.DoctorError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await session.commit()
+    return AllergyViewOut.model_validate(view, from_attributes=True)

@@ -53,10 +53,12 @@ from typing import Any, Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import allergies as allergy_svc
 from app import queue as queue_svc
+from app.allergies import NEVER_ASKED, AllergyView
 from app.models.clinical import Dictation, Intake, Visit
 from app.models.content import Checkin, CheckinPlan
-from app.models.enums import DictationStatus, Lang, QueueEntryState, RxMode
+from app.models.enums import AllergySeverity, DictationStatus, Lang, QueueEntryState, RxMode
 from app.models.org import Department, Doctor
 from app.models.patient import Patient
 from app.trees import bank
@@ -381,6 +383,87 @@ async def conclude_visit(
     return Conclusion(visit=visit, entry_state=str(entry.state) if entry else None)
 
 
+# -- allergies (SESSION-ALLERGY) ----------------------------------------------
+#
+# These three sit here rather than in `app.allergies` for one reason: department
+# scope. `app.allergies` knows about patients and statements and deliberately
+# knows nothing about who is allowed to write one — it is called by the kiosk,
+# which has no doctor at all. Authorization for the console is this module's job
+# and it is the same check `take_visit`, `conclude_visit` and `patient_card`
+# already make, worded the same way.
+
+
+async def _visit_in_scope(
+    session: AsyncSession, *, visit_id: uuid.UUID, doctor: Doctor
+) -> Visit:
+    visit = await session.get(Visit, visit_id)
+    if visit is None or visit.deleted_at is not None:
+        raise DoctorError(f"no such visit {visit_id}")
+    if visit.department_id != doctor.department_id:
+        raise DoctorError("that patient is in another department")
+    return visit
+
+
+async def record_allergy(
+    session: AsyncSession,
+    *,
+    visit_id: uuid.UUID,
+    doctor: Doctor,
+    substance: str | None,
+    reaction: str | None = None,
+    severity: AllergySeverity = AllergySeverity.UNKNOWN,
+    none_known: bool = False,
+) -> AllergyView:
+    """A doctor states an allergy — or states that they asked and there are none.
+
+    Returns the whole recomputed view rather than the row, because the console's
+    spine renders a *state*, and a client that patched a returned row into its
+    own list would be re-deriving that state in TypeScript. One derivation, in
+    `app.allergies`, on the server.
+    """
+    visit = await _visit_in_scope(session, visit_id=visit_id, doctor=doctor)
+    await allergy_svc.record_by_doctor(
+        session,
+        patient_id=visit.patient_id,
+        visit_id=visit.id,
+        doctor=doctor,
+        substance=substance,
+        reaction=reaction,
+        severity=severity,
+        none_known=none_known,
+    )
+    return await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+
+
+async def confirm_allergy(
+    session: AsyncSession, *, visit_id: uuid.UUID, allergy_id: uuid.UUID, doctor: Doctor
+) -> AllergyView:
+    visit = await _visit_in_scope(session, visit_id=visit_id, doctor=doctor)
+    await allergy_svc.confirm(
+        session, allergy_id=allergy_id, patient_id=visit.patient_id, doctor=doctor
+    )
+    return await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+
+
+async def retract_allergy(
+    session: AsyncSession,
+    *,
+    visit_id: uuid.UUID,
+    allergy_id: uuid.UUID,
+    doctor: Doctor,
+    reason: str | None = None,
+) -> AllergyView:
+    visit = await _visit_in_scope(session, visit_id=visit_id, doctor=doctor)
+    await allergy_svc.retract(
+        session,
+        allergy_id=allergy_id,
+        patient_id=visit.patient_id,
+        doctor=doctor,
+        reason=reason,
+    )
+    return await allergy_svc.for_patient(session, patient_id=visit.patient_id)
+
+
 async def _has_signed_note(session: AsyncSession, *, visit_id: uuid.UUID) -> bool:
     return (
         await session.scalar(
@@ -545,6 +628,11 @@ class PatientCard:
     rx_mode: str | None = None
     concluded_at: datetime | None = None
     conclusion_note: str | None = None
+    #: What this record knows about what she reacts to (SESSION-ALLERGY). The
+    #: whole view rather than a list, because the *state* is the clinical fact:
+    #: "nobody asked" and "asked, told none" are different situations and the
+    #: console must be unable to render them the same way.
+    allergies: AllergyView = field(default_factory=lambda: AllergyView(state=NEVER_ASKED))
     #: Whether this visit already has a signed consult note. The console used to
     #: remember this per session, which meant a reload forgot which notes it had
     #: watched get signed — and it is what decides whether completing the consult
@@ -611,6 +699,7 @@ async def patient_card(
         rx_mode=str(visit.rx_mode) if visit.rx_mode else None,
         concluded_at=visit.concluded_at,
         conclusion_note=visit.conclusion_note,
+        allergies=await allergy_svc.for_patient(session, patient_id=patient.id),
         note_signed=await _has_signed_note(session, visit_id=visit.id),
     )
 

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import tests.factories as f
+from app import allergies as allergy_svc
 from app import doctor as doc
 from app import queue as q
 from app.auth.tokens import create_access_token
@@ -1182,3 +1183,172 @@ async def test_no_show_drops_off_the_worklist(session: AsyncSession) -> None:
     day = await doc.day_list(session, doctor=clinic["doctor"], on=TODAY, scope="department")
     assert day.rows == []
     assert visit.status is VisitStatus.NO_SHOW
+
+
+# -- allergies (SESSION-ALLERGY) ----------------------------------------------
+
+
+async def test_a_card_for_a_patient_nobody_asked_says_so_on_the_wire(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The console can only render three states if the card ships three states."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=61)
+
+    resp = await client.get(
+        f"/doctor/patients/{visit.id}", headers=_headers(settings, clinic["user"])
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["allergies"]["state"] == "never_asked"
+
+
+async def test_a_doctor_records_an_allergy_and_the_card_carries_it(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=62)
+    headers = _headers(settings, clinic["user"])
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies",
+        json={"substance": "penicillin", "reaction": "throat closed", "severity": "severe"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "known"
+    assert body["entries"][0]["substance"] == "penicillin"
+    assert body["entries"][0]["severity"] == "severe"
+    # A doctor's own statement needs no second doctor to stand behind it.
+    assert body["entries"][0]["confirmed_by_name"] == clinic["doctor"].name
+
+    card = await client.get(f"/doctor/patients/{visit.id}", headers=headers)
+    assert card.json()["allergies"]["state"] == "known"
+
+
+async def test_a_doctor_can_record_that_they_asked_and_there_are_none(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The whole point of the third state: a doctor who asked can leave that on
+    the record instead of leaving the spine saying nobody ever did."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=63)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies",
+        json={"none_known": True},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "none_stated"
+    assert body["none_statement"]["source"] == "doctor"
+    assert body["entries"] == []
+
+
+async def test_recording_an_allergy_with_no_substance_is_a_400_not_a_403(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """A doctor told "forbidden" for a blank field goes looking for the wrong
+    thing entirely — the same split `conclude` makes between refusal and denial."""
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=64)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies",
+        json={"substance": "   "},
+        headers=_headers(settings, clinic["user"]),
+    )
+    assert resp.status_code == 400
+
+
+async def test_a_doctor_confirms_the_patients_own_statement(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=65)
+    [row] = await allergy_svc.from_intake(
+        session,
+        patient_id=clinic["patient"].id,
+        visit_id=visit.id,
+        caregiver=False,
+        none_known=False,
+        substances=[{"substance": "penicillin"}],
+    )
+    await session.commit()
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies/{row.id}/confirm",
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    entry = resp.json()["entries"][0]
+    assert entry["source"] == "patient_kiosk"  # still hers
+    assert entry["confirmed_by_name"] == clinic["doctor"].name
+
+
+async def test_a_doctor_retracts_a_statement_and_it_stays_on_file(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=66)
+    [row] = await allergy_svc.from_intake(
+        session,
+        patient_id=clinic["patient"].id,
+        visit_id=visit.id,
+        caregiver=False,
+        none_known=False,
+        substances=[{"substance": "penicillin"}],
+    )
+    await session.commit()
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies/{row.id}/retract",
+        json={"reason": "she meant her mother"},
+        headers=_headers(settings, clinic["user"]),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "never_asked"
+    assert body["entries"] == []
+    assert body["retracted"][0]["retracted_reason"] == "she meant her mother"
+    assert body["retracted"][0]["retracted_by_name"] == clinic["doctor"].name
+
+
+async def test_a_doctor_in_another_department_cannot_write_an_allergy(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """Department scope guards this write exactly as it guards the card."""
+    clinic = await f.build_clinic(session)
+    other_dept = f.make_department(clinic["hospital"], code="ENT")
+    session.add(other_dept)
+    await session.flush()
+    visit, _, _ = await _seed_visit(session, clinic, token_no=67, department=other_dept)
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies",
+        json={"substance": "penicillin"},
+        headers=_headers(settings, clinic["user"]),
+    )
+    assert resp.status_code == 403
+
+
+async def test_allergy_writes_refuse_a_coordinator(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    clinic = await f.build_clinic(session)
+    visit, _, _ = await _seed_visit(session, clinic, token_no=68)
+    coordinator = f.make_user(clinic["hospital"], role=Role.COORDINATOR)
+    session.add(coordinator)
+    await session.flush()
+
+    resp = await client.post(
+        f"/doctor/visits/{visit.id}/allergies",
+        json={"substance": "penicillin"},
+        headers=_headers(settings, coordinator),
+    )
+    assert resp.status_code == 403
