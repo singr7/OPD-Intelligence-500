@@ -701,6 +701,13 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* `safe` is load-bearing, not a nicety. A centred flex box that overflows
+     pushes its first child off the *top* edge, where no amount of scrolling
+     reaches it — on the portrait kiosk that silently ate the "your token
+     number" label the moment the pass pane made this screen taller. `safe`
+     falls back to flex-start exactly when the content does not fit, so the
+     overflow all goes downwards, where `overflow-y` below can get to it. */
+  justify-content: safe center;
   gap: var(--sp-2);
   padding: clamp(var(--sp-2), 3vh, var(--sp-5));
   text-align: center;
@@ -1588,8 +1595,11 @@
 .passSvg {
   display: block;
   /* 80 x 200mm, held to the screen's height rather than a fixed scale: the
-     kiosk is a 10-11" landscape tab and the pass is a tall thin thing. */
-  height: clamp(240px, 52vh, 560px);
+     kiosk is a 10-11" landscape tab and the pass is a tall thin thing. Sized
+     so the summary lines are legible and not merely present — a thumbnail
+     shows the shape of the paper, and the point is that the patient can see
+     their own answers on it before it is printed. */
+  height: clamp(280px, 62vh, 620px);
   width: auto;
 }
 @media (max-width: 900px), (orientation: portrait) {

@@ -29,6 +29,23 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // The intake boarding pass (doc 23). Live stack; this project *is* the
+      // session AC — the patient sees the paper before they are handed it, the
+      // pass carries the six things the pilot asked for, Print puts a real
+      // ESC/POS raster on the bridge and then says Re-print, and the browser
+      // path lays down one 80 x 200mm page. Needs the dev server started with
+      // `NEXT_PUBLIC_PRINT_BRIDGE_URL=http://127.0.0.1:9110/print` — the route
+      // is intercepted, so no daemon has to exist. Run explicitly
+      // (`npm run e2e:pass`); it creates a real visit and token.
+      name: "pass-ui",
+      testMatch: /pass-ui\.spec\.ts/,
+      // Every test here walks a whole intake against a live api, and against a
+      // dev server the first compile of `/kiosk` can eat the file default on
+      // its own — same reason `notes` raised it.
+      timeout: 180_000,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // S-UX.6 viewport smoke: the kiosk surface on portrait and laptop.
       name: "ux-smoke",
       testMatch: /ux-smoke\.spec\.ts/,
