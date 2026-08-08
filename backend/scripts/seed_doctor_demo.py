@@ -32,11 +32,21 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app import queue as q
 from app.db import build_engine, build_sessionmaker
-from app.models.clinical import Dictation, DoseEvent, Intake, Prescription, Visit
+from app.models.clinical import (
+    ClinicalNote,
+    Dictation,
+    DoseEvent,
+    Intake,
+    MedicalDocument,
+    Prescription,
+    ResearchThread,
+    ResearchTurn,
+    Visit,
+)
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import (
     Channel,
@@ -418,6 +428,41 @@ async def _reset(session, hospital_id: uuid.UUID) -> None:
             await session.execute(delete(Prescription).where(Prescription.id.in_(prescription_ids)))
         # Consult notes and their generated prescriptions keep the visit alive;
         # remove dependants first so this demo remains repeatable after signing.
+        #
+        # Every clinical-intelligence module adds another table hanging off a
+        # visit, and each one has broken this script in turn: MRD's scanned
+        # documents, M4's ambient notes, and now M5's research threads. So the
+        # dependants are cleared in FK order rather than left for the next
+        # session to discover as a `ForeignKeyViolationError` halfway through a
+        # demo. **A module that hangs a new table off `visits` has to add it
+        # here**, and the ordering is children-before-parents throughout.
+        research_thread_ids = (
+            (
+                await session.execute(
+                    select(ResearchThread.id).where(ResearchThread.visit_id.in_(visit_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if research_thread_ids:
+            await session.execute(
+                delete(ResearchTurn).where(ResearchTurn.thread_id.in_(research_thread_ids))
+            )
+            await session.execute(
+                delete(ResearchThread).where(ResearchThread.id.in_(research_thread_ids))
+            )
+        await session.execute(delete(ClinicalNote).where(ClinicalNote.visit_id.in_(visit_ids)))
+
+        # Scanned papers hang off the *patient*, not the visit, so they are
+        # cleared with the patients below rather than here — but their rows
+        # reference these visits, so the link has to go first.
+        await session.execute(
+            update(MedicalDocument)
+            .where(MedicalDocument.visit_id.in_(visit_ids))
+            .values(visit_id=None)
+        )
+
         await session.execute(delete(Dictation).where(Dictation.visit_id.in_(visit_ids)))
         await session.execute(delete(Intake).where(Intake.visit_id.in_(visit_ids)))
         await session.execute(delete(Visit).where(Visit.id.in_(visit_ids)))

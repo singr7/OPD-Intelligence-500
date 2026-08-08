@@ -119,6 +119,18 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // The M5 research assistant (plan §4). Live stack + `seed_doctor_demo`;
+      // this project *is* the session's frontend AC — the doctor sees what
+      // will be sent before it is sent, a line they untick is struck rather
+      // than hidden and does not reach the server, M4's confirmed tags arrive
+      // as context, and a provider outage closes the composer with nothing
+      // queued. Run explicitly (`npm run e2e:research`); it writes real
+      // research threads and clinical notes on whatever database it points at.
+      name: "research",
+      testMatch: /research\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // The M4 ambient note (plan §3). Live stack + `seed_doctor_demo`; this
       // project *is* the session's frontend AC — the mic survives every tab, the
       // review leaves the spine on screen, an edit sticks, and there is nowhere

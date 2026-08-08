@@ -1,0 +1,25 @@
+# Prettier is not this repo's formatter, and running it is a mistake worth
+# making impossible rather than merely discouraging.
+#
+# The web gate is `npm run typecheck && npm run lint && npm run conformance`
+# (Makefile, `test-web`). There is no prettier step in it, no prettier config,
+# and prettier is not a dependency — it only ever arrives via `npx`. The code
+# here is hand-formatted at roughly 100 columns, but only roughly: at *every*
+# print width tried (80/90/100/110) prettier would still rewrite 54 or more
+# files, because the formatting is deliberate in places no width setting
+# reproduces — the CSS-in-template-literal blocks in
+# `app/(doctor)/doctor/_components/consoleStyles.ts` above all, where property
+# grouping carries meaning.
+#
+# Adding a `.prettierrc` instead would be worse than nothing: it would advertise
+# prettier as the formatter while still churning most of the tree the first time
+# anyone believed it.
+#
+# So: ignore everything. `npx prettier --write .` becomes a no-op instead of a
+# 71-file diff that buries a real change. Session M5 made exactly that mess and
+# had to `git checkout --` the lot; this is the guard that stops the next one.
+#
+# If this repo ever genuinely adopts prettier, that is a deliberate session with
+# a formatting-only commit at the start of it — delete this file there, not in
+# passing.
+*

@@ -1047,7 +1047,18 @@ export const RESEARCH_CSS = `
    doing, it wants the width, and the note dock already owns the bottom of the
    screen. See ResearchTab's header for the argument. */
 
-.rsx { display: flex; flex-direction: column; gap: 16px; padding: 4px 0 8px; }
+/* The bottom padding and the note dock's own footprint are one decision made
+   twice — the .nd-drawer 52vh / 54vh pairing again, in a different place.
+   The dock is fixed 24px off the bottom and stands 111px tall with its label,
+   so without a reserved gutter the mic lands squarely on top of Ask once the
+   doctor scrolls to the end of a conversation. The first screenshot of this
+   surface had exactly that. 24 + 111 = 135, rounded up for the shadow.
+   If the dock's size or offset changes, this moves with it.
+
+   Note for anyone editing comments in this file: every rule here lives inside
+   a template literal, so a backtick ends the string. One in this very comment
+   took the whole doctor console down with a 500 until it was found. */
+.rsx { display: flex; flex-direction: column; gap: 16px; padding: 4px 0 140px; }
 
 /* ---- what will be sent (first on the screen, deliberately) -------------- */
 .rsx-ctx { border: 1px solid var(--line); border-radius: var(--radius-lg);
@@ -1058,7 +1069,22 @@ export const RESEARCH_CSS = `
   letter-spacing: .01em; }
 .rsx-ctx-n { margin: 0; font-size: 12px; color: var(--text-muted);
   font-variant-numeric: tabular-nums; }
-.rsx-ctx-phi { margin: 5px 0 11px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.rsx-ctx-phi { margin: 5px 0 11px; font-size: 12px; line-height: 1.5; color: var(--text-muted);
+  max-width: var(--rsx-measure); }
+
+/* Every run of prose on this surface stops here.
+   Two reasons, and the second one is the reason it is a variable.
+   1. 868px of 14px text is a poor measure — this is the one console surface
+      with paragraphs on it rather than fields and chips, and it should read
+      like something written.
+   2. The note dock is fixed to the bottom-right and floats over whatever the
+      open tab is showing. Without a stop, the context lines and the answer run
+      underneath the mic and its "N notes this visit" label: the first
+      screenshot of this tab had "the doctor mentioned grade 1" disappearing
+      behind it, which is the module's core claim being obscured by another
+      module's button. The measure keeps text clear of it at every scroll
+      position, which a bottom padding cannot do. */
+.rsx { --rsx-measure: 72ch; }
 
 .rsx-items { list-style: none; margin: 0; padding: 0;
   display: flex; flex-direction: column; gap: 9px; }
@@ -1066,8 +1092,10 @@ export const RESEARCH_CSS = `
 .rsx-items label { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; }
 .rsx-items input { margin: 3px 0 0; flex: none; width: 15px; height: 15px;
   accent-color: var(--brand); cursor: pointer; }
-.rsx-item-t { font-size: 14px; line-height: 1.5; color: var(--ink); }
-.rsx-item-src { margin: 2px 0 0 24px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.rsx-item-t { font-size: 14px; line-height: 1.5; color: var(--ink);
+  max-width: var(--rsx-measure); }
+.rsx-item-src { margin: 2px 0 0 24px; font-size: 12px; line-height: 1.45; color: var(--text-muted);
+  max-width: var(--rsx-measure); }
 .rsx-item-caveat { color: #7a4d0a; font-weight: 600; }
 
 /* The deliberate risk: a line the doctor turns off is struck, not removed.
@@ -1079,14 +1107,15 @@ export const RESEARCH_CSS = `
 
 .rsx-absent { list-style: none; margin: 12px 0 0; padding: 10px 0 0;
   border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
-.rsx-absent li { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.rsx-absent li { font-size: 12px; line-height: 1.5; color: var(--text-muted);
+  max-width: var(--rsx-measure); }
 .rsx-absent-l { font-weight: 700; color: var(--ink-soft); }
 
 /* ---- the framing ------------------------------------------------------- */
 /* Above the conversation, not under it in small print. It is the most
    important sentence on this screen. Amber, never red: red on this console
    belongs to the deterministic red-flag lane in the spine. */
-.rsx-frame { margin: 0; padding: 10px 14px; border-radius: var(--radius-md);
+.rsx-frame { margin: 0; padding: 10px 14px; border-radius: var(--radius-md); max-width: 92ch;
   background: var(--accent-soft); border: 1px solid #e8c583; color: #7a4d0a;
   font-size: 13px; line-height: 1.55; }
 .rsx-frame strong { font-weight: 800; }
@@ -1106,8 +1135,10 @@ export const RESEARCH_CSS = `
 .rsx-suggest button:disabled { opacity: .5; cursor: default; }
 
 .rsx-turn { border-left: 2px solid var(--line); padding-left: 15px; }
-.rsx-q { margin: 0 0 9px; font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5; }
-.rsx-a p { margin: 0 0 9px; font-size: 14px; line-height: 1.62; color: var(--ink-soft); }
+.rsx-q { margin: 0 0 9px; font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5;
+  max-width: var(--rsx-measure); }
+.rsx-a p { margin: 0 0 9px; font-size: 14px; line-height: 1.62; color: var(--ink-soft);
+  max-width: var(--rsx-measure); }
 .rsx-a p:last-child { margin-bottom: 0; }
 
 .rsx-turn-f { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 9px; }
@@ -1120,7 +1151,8 @@ export const RESEARCH_CSS = `
 .rsx-sent { list-style: none; margin: 8px 0 0; padding: 9px 12px; border-radius: var(--radius-md);
   background: var(--canvas); border: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 4px; }
-.rsx-sent li { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.rsx-sent li { font-size: 12px; line-height: 1.5; color: var(--text-muted);
+  max-width: var(--rsx-measure); }
 
 .rsx-thinking { margin: 0; font-size: 13px; color: var(--text-muted); }
 
@@ -1140,7 +1172,16 @@ export const RESEARCH_CSS = `
   border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .rsx-composer textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px;
   border-color: transparent; }
-.rsx-composer-r { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The right gutter is the note dock's, not this row's.
+   An earlier fix reserved the space with bottom padding on .rsx, which only
+   separates the mic from Ask at *maximum* scroll — at every intermediate
+   position the dock still landed on the button, and the screenshot caught it
+   after the test said it was fixed. Horizontal clearance is the property that
+   actually holds: the dock is fixed to the right edge, so a button kept left
+   of it is clear of it at every scroll position. 105px of dock + 26px offset,
+   rounded up. */
+.rsx-composer-r { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding-right: 140px; }
 .rsx-budget { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .rsx-budget.low { color: #7a4d0a; font-weight: 700; }
 .rsx-ask { border: none; background: var(--brand); color: #fff; border-radius: var(--radius-md);

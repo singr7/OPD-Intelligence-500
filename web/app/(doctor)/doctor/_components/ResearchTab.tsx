@@ -148,9 +148,28 @@ export function ResearchTab({
     [asking, panel, token, visitId, selected, onAuthError],
   );
 
+  // Scroll to the newest answer — but **only** for a turn this session added,
+  // never on the way in.
+  //
+  // The first build scrolled on mount too, and the screenshot caught what that
+  // meant: opening the tab on a visit with an existing thread scrolled the
+  // context strip up behind the sticky spine, so the one thing this panel
+  // exists to show first was the one thing off screen. `block: "nearest"` did
+  // not save it, because the end marker genuinely was below the fold.
+  //
+  // So the count is remembered across renders and the scroll happens on an
+  // increase. A doctor returning to a conversation lands at the top of it,
+  // reading what is about to be sent, which is where they should land.
+  const seenTurns = useRef<number | null>(null);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "nearest" });
-  }, [panel?.turns.length, asking]);
+    const count = panel?.turns.length;
+    if (count == null) return;
+    const previous = seenTurns.current;
+    seenTurns.current = count;
+    if (previous !== null && count > previous) {
+      endRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [panel?.turns.length]);
 
   if (loading) return <p className="work-empty">Opening the assistant…</p>;
 
@@ -219,9 +238,15 @@ export function ResearchTab({
       {halt && (
         <p className={`rsx-halt ${halt.kind}`} data-testid="research-halt">
           {halt.kind === "provider" ? (
+            // The vendor's own words are deliberately not here. `halt.message`
+            // carries something like "gemini http 503", which tells a doctor
+            // mid-consult nothing they can act on and puts a vendor's name on a
+            // clinical screen. What they need is the two facts below: it did
+            // not go, and nothing is pending. The detail is in the api logs,
+            // where the person who can use it is looking.
             <>
-              <strong>The assistant is unreachable.</strong> {halt.message}. Nothing was sent and
-              nothing is waiting to be — ask again when it is back.
+              <strong>The assistant is unreachable.</strong> Nothing was sent and nothing is
+              waiting to be — ask again in a moment.
             </>
           ) : (
             <>

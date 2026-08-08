@@ -200,6 +200,8 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         DoseEvent,
         MedicalDocument,
         Prescription,
+        ResearchThread,
+        ResearchTurn,
     )
     from app.models.content import Checkin, CheckinPlan
     from app.models.enums import Channel, DoseStatus
@@ -216,6 +218,10 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
 
     prescription = Prescription(visit_id=visit.id, dictation_id=dictation.id)
     session.add(prescription)
+    await session.flush()
+
+    thread = ResearchThread(visit_id=visit.id, doctor_id=clinic["doctor"].id)
+    session.add(thread)
     await session.flush()
 
     document = MedicalDocument(
@@ -247,6 +253,8 @@ async def test_every_clinical_write_is_audited(session: AsyncSession) -> None:
         "medical_documents": document,
         "document_extractions": DocumentExtraction(document_id=document.id),
         "clinical_notes": ClinicalNote(visit_id=visit.id, doctor_id=clinic["doctor"].id),
+        "research_threads": thread,
+        "research_turns": ResearchTurn(thread_id=thread.id, question="q", answer="a"),
         "dose_events": DoseEvent(
             patient_id=clinic["patient"].id,
             prescription_id=prescription.id,
@@ -305,6 +313,15 @@ async def test_clinical_marker_covers_the_expected_tables() -> None:
         # un-auditable record of a clinical observation is the kind of thing that
         # gets treated as informal until somebody needs it in a dispute.
         "clinical_notes",
+        # M5: what the doctor asked a model about a patient, and what it said
+        # back. Audited even though the assistant treats nobody and writes to no
+        # clinical record — because "what did the doctor look up before they
+        # changed the plan" is exactly the question a medico-legal review asks,
+        # and because "what doctors ask" is itself the analytics (plan §4.1).
+        # The turn also stores the context that left the box with it, which is
+        # the only durable evidence of what a vendor was told about a patient.
+        "research_threads",
+        "research_turns",
     }
 
 
