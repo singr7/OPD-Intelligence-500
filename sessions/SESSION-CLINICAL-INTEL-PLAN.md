@@ -434,11 +434,21 @@ spine exists to prevent. *Gates met:* backend 1,604, notes E2E 5, dictation E2E
 8 unchanged, full frontend gates; the prescription-origination test is
 structural (`app.notes` may not import the prescription path at all).
 
-**Session M5 — Research assistant.**
-Context assembly + view/edit, thread models + migration, prompt family, panel
-UI, storage/audit, cost guard, provider-down state. *Gates:* backend tests
-(context minimizer property tests, thread persistence, guard limits), doctor
-E2E happy path + provider-down, full frontend gates.
+**Session M5 — Research assistant.** ✅ *Delivered 2026-08-08
+(`sessions/SESSION-M5.md`).* Context assembly + trim, `ResearchThread`/
+`ResearchTurn` + migration `9f2ab41c77d3`, the `research_assist` prompt family,
+the panel, storage/audit, the daily guard and the provider-down state. Three
+things differ from this paragraph. The context is **trimmed by id, never by
+text** — the client can only subtract, because a payload the browser composed is
+one `app.phi` cannot vouch for; that asymmetry turned out to be the module. The
+guard is a **count of turns, not a sum of rupees**, because metering is async by
+design and the rupee is not knowable at the moment the guard must decide. And it
+is a **tab, not a panel over the console** — the inverse of M4's dock argument:
+reading an evidence summary is the thing being done, not something done while
+reading. *Gates met:* backend **1,660**, research E2E 7, notes 5, dictation 8,
+conformance 48 unchanged, full frontend gates; the no-clinical-write test is
+structural (`app/research` may not import a clinical writer, and nothing parses
+an answer).
 
 **Session M6 — the S3 object store, and the AWS storage mode.**
 Parked deliberately (decision 9): the on-premise box ships first and does not
@@ -475,10 +485,19 @@ Rough order of dependency, not just preference: M3 needs nothing from M1/M2
 and can swap earlier if the imaging-centre contract (§8.1) resolves first. M6 is
 ordered by the *deployment* calendar rather than by this list.
 
-**Where this actually went** (2026-08-06): M1 → M2 → **M4**, with M3 skipped on
-its open gate. M5 is now the natural next one rather than merely the next
-numbered: its context assembly (§4.1) reads the spine's signed-note diagnosis,
-M1's computed lab flags and M4's confirmed note tags, and all three now exist.
+**Where this actually went** (2026-08-08): M1 → M2 → **M4** → **M5**, with M3
+skipped on its open gate throughout. Three of the four modules are complete.
+M5's context assembly (§4.1) reads the spine's signed-note diagnosis, M1's
+computed lab flags and M4's confirmed note tags, so the build order the plan
+recommended held even with M3 missing from the middle of it — the research
+assistant depended on the first three producing structure, and not on the
+imaging stub at all.
+
+**What is left of this plan is M3 and its external gate**, plus the debt in §8.
+There is no longer an obvious next module, which is itself the finding: the next
+session should be chosen from the pilot's needs (§8.1 if the imaging agreement
+has landed; otherwise an oncologist reading M5's answers against a real model,
+which no session has done) rather than by continuing to number these.
 
 ---
 

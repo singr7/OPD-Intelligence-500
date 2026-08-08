@@ -567,6 +567,20 @@ cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
   npm run e2e:reports      # the MRD2 AC + screenshots -> web/screenshots/mrd2/
 ```
 It files real documents and records a real verification. Dev boxes only.
+Research tab (M5): the same api and seed, `RESEARCH_ENABLED` on by default, and
+the LLM may stay `fake` — `research_assist` is prose, so the fake's reply drives
+the whole path with no vendor key (it answers "ok", which proves the plumbing
+and nothing about the register — see STATE → Stubs & fakes).
+```
+cd web && API_BASE=http://127.0.0.1:8123 KIOSK_URL=http://127.0.0.1:3210 \
+  npm run e2e:research     # the M5 AC + screenshots -> web/screenshots/m5/
+```
+It writes real research threads *and* a real confirmed clinical note (the M4 →
+M5 hand-off is part of the AC). Dev boxes only. **Re-run `seed_doctor_demo`
+first**: the demo day is keyed to `queue.today()`, so it goes stale at UTC
+midnight and the console then renders an empty day that looks exactly like a
+broken login. `OTP_RESEND_COOLDOWN_SECONDS=0` on the api is worth setting for
+any E2E session — the 30-second default costs a wait on every token.
 Local login: `POST /auth/otp/request {"phone": "+915550001001"}` (seeded doctor) returns
 `debug_code` when `OTP_DEBUG_ECHO=true`; POST it to `/auth/otp/verify` for a JWT.
 Provider status: `GET /providers/health` (unauthenticated; names + health only, never keys).
@@ -610,6 +624,15 @@ captured and shown, only the machine reading is absent), `MRD_MAX_PAGE_BYTES`,
 `MRD_MAX_PAGES`, `MRD_MAX_EXTRACT_PAGES`, `MRD_MAX_EXTRACT_ATTEMPTS`. Extraction
 needs a vision-capable `LLM_PROVIDER` (gemini/openai); sarvam and local vLLM are
 text-only and refuse rather than answer from pages they never saw.
+**Research assistant (M5):** `RESEARCH_ENABLED` (default **true**; off = the tab
+renders a line saying the assistant is switched off, and the ask route 503s —
+never a 404, which would look like a broken build), `RESEARCH_DAILY_TURNS`
+(default 40, per doctor per calendar day in clinic time — a *count of turns*,
+not a rupee cap, see `app/research/assistant.py` for why), `RESEARCH_MAX_QUESTION`
+(2,000 chars) and `RESEARCH_HISTORY_TURNS` (6 exchanges replayed as history).
+The assistant runs on whatever `LLM_PROVIDER` is configured and needs no vision;
+`local_vllm` runs the whole thing on the box, which is the point — a doctor's
+research questions are a record of what they were unsure about.
 **Adaptive intake (S-ADAPT):** `INTAKE_ADAPTIVE` (backend gate; needs a real,
 non-fake `LLM_PROVIDER`) + `NEXT_PUBLIC_KIOSK_ADAPTIVE` (**build-time** — the web
 image must be rebuilt to change it). Both default `0` = today's pure-tap kiosk.
@@ -891,18 +914,45 @@ the only gate right now.**
 - **A confirmed note cannot be amended or deleted** (M4) — the same shape as a
   signed dictation, and this system still has no amendment path anywhere. A
   doctor who confirms a wrong mapping can only record a second observation.
-- **Ambient notes reach no surface but their own** (M4) — not the research
-  assistant (M5, deliberately), not printed sheets, not the patient app, and no
-  summary anywhere else. A colleague sees them only by opening the same visit.
-  `tags` are counted clinic-wide in admin and nowhere else.
+- **Ambient notes reach two surfaces** (M4, extended M5) — the admin tag counts,
+  and the research assistant's context, which reads a visit's *confirmed* note
+  tags. Still not printed sheets, not the patient app, and no summary elsewhere:
+  a colleague sees the notes themselves only by opening the same visit.
 - **The note tag counts have no department or doctor filter** (M4) — one
   clinic-wide number over seven days. Anything finer wants the filter machinery
   the cost tab already has.
-- **Every router except `/notes` can 404 a client that chains two writes** (M4)
-  — FastAPI tears down `yield` dependencies after sending the response, so
-  `get_session`'s commit lands after the caller has its 200. Only `/notes` has a
-  client that uses an id from one write in the very next request, and only
-  `/notes` commits before responding (`_settle`). Latent everywhere else.
+- **The research assistant's answers have never been read by an oncologist**
+  (M5) — every test and screenshot ran on `LLM_PROVIDER=fake`, whose reply is
+  the string "ok". The plumbing is proven end to end; whether the prompt's four
+  refusals hold and whether the trials it names exist has not been checked once
+  against a real model. `RESEARCH_ENABLED` defaults **true**, so this is the
+  gate before the tab meets a doctor, and it is a clinical review rather than a
+  QA pass.
+- **Research answers are uncited and dated** (M5, plan §8.4) — v1 is the model's
+  own knowledge. The prompt is told to say when it is working from general
+  knowledge rather than a nameable trial, and to flag that recent practice may
+  have moved; that is a mitigation, not a citation. Retrieval is its own session.
+- **The research turn budget is per doctor per day and nothing else** (M5) — a
+  count of turns, not rupees, because metering is async and the cost of the
+  previous turn is not knowable when the guard must decide. No per-department
+  cap, no rupee ceiling, no admin editor: `RESEARCH_DAILY_TURNS` is an env var
+  and changing it needs a restart.
+- **Nothing surfaces what doctors ask** (M5) — the plan calls that "itself the
+  analytics". `research_threads`/`research_turns` are stored and audited, and no
+  query reads them.
+- **A research thread cannot be amended or deleted** (M5) — the same shape as a
+  signed dictation and a confirmed note, and deliberately it also cannot be
+  *accepted*: the tables have no status, signature or `applied` column, because
+  a turn that can be marked accepted is a model's prose turned into a clinical
+  decision with a doctor's name on it.
+- **The research panel does not poll** (M5) — the context is reassembled on
+  every open, so a report scanned during the consult appears the next time the
+  tab is opened, not live.
+- **Every router except `/notes` and `/research` can 404 a client that chains
+  two writes** (M4) — FastAPI tears down `yield` dependencies after sending the
+  response, so `get_session`'s commit lands after the caller has its 200. Both
+  those routers commit before responding (`_settle`); M5 did it from the start
+  rather than after a live stack failed. Latent everywhere else.
 - **A model's script is guarded, not trusted** (2026-08-05) — `app.languages`
   rejects text containing a non-Latin script the patient's language does not use,
   at six boundaries: the kiosk `/stt` route, `IntakeEngine._hear`, the WhatsApp
