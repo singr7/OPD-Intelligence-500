@@ -2,6 +2,7 @@
 // deliberately mirrors the intake tool contract, so this stays thin — one method
 // per tool. The kiosk is a V3 client: taps in, nodes out.
 
+import type { CareSystem } from "@/app/_lib/careSystem";
 import type { Tree as CanonicalTree } from "./tree/types";
 import type { SummaryRole } from "./tree/types";
 
@@ -40,7 +41,14 @@ export type PatientDetails = {
   externalId: string;
 };
 
-export type Dept = { key: string; name: string };
+/** One department as the chooser draws it.
+ *
+ *  `care_system` (doc 24 §5) styles the card — the icon and treatment that say
+ *  "this is the ayurveda clinic". It is presentation keyed on identity, and
+ *  nothing about traversal, routing or red flags may consult it: a wellness
+ *  framing must never soften an emergency, so the rule engine sees answer IDs
+ *  in either system of medicine. Read it through `_lib/careSystem`. */
+export type Dept = { key: string; name: string; care_system: CareSystem };
 
 export type StartResult =
   | {

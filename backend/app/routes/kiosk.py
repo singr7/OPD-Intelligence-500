@@ -67,7 +67,7 @@ from app.db import get_session
 from app.intake import IntakeEngine, Interpreter, SessionState, ToolError
 from app.languages import script_problem
 from app.models.clinical import Visit
-from app.models.enums import Channel, Lang, UsagePurpose
+from app.models.enums import CareSystem, Channel, Lang, UsagePurpose
 from app.models.org import Doctor
 from app.models.patient import Patient
 from app.providers.audio import AudioClip
@@ -165,6 +165,15 @@ class NodeOut(BaseModel):
 class DeptOut(BaseModel):
     key: str
     name: str
+    #: The raw stored value (doc 24 §5). The kiosk uses it to style the
+    #: department's card — an icon and a card treatment that say "this is the
+    #: ayurveda clinic" — which is presentation keyed on identity, not a
+    #: behaviour branch. `web/app/_lib/careSystem.ts` is where it is read.
+    #:
+    #: **Nothing about traversal, routing or red flags may consult it.** Doc 24
+    #: §4: a wellness framing must never soften an emergency, so the rule engine
+    #: sees answer IDs and nothing else, in either system of medicine.
+    care_system: CareSystem
 
 
 class StartOut(BaseModel):
@@ -265,7 +274,9 @@ async def start(
         departments = await kiosk_svc._departments(session)
         return StartOut(
             status="needs_department",
-            departments=[DeptOut(key=d.code, name=d.name) for d in departments],
+            departments=[
+                DeptOut(key=d.code, name=d.name, care_system=d.care_system) for d in departments
+            ],
             reason=routed.guess.reason or "Let's confirm the right doctor for you.",
         )
 
@@ -304,7 +315,11 @@ async def start(
         session_id=state.session_id,
         lang=state.lang,
         tier=state.active_tier.value,
-        department=DeptOut(key=routed.department.code, name=routed.department.name),
+        department=DeptOut(
+            key=routed.department.code,
+            name=routed.department.name,
+            care_system=routed.department.care_system,
+        ),
         tree_key=routed.tree.key,
         node=_node_out(first),
         complete=first.get("complete", False),
@@ -718,7 +733,7 @@ async def confirm(
             enqueued = True
         dept = await session.get(kiosk_svc.Department, visit.department_id)
         if dept is not None:
-            department = DeptOut(key=dept.code, name=dept.name)
+            department = DeptOut(key=dept.code, name=dept.name, care_system=dept.care_system)
 
     if enqueued:
         await session.commit()  # commit before broadcasting so re-fetches see it
@@ -981,7 +996,13 @@ async def bundle(
     # Content-addressed: the kiosk sends If-None-Match and skips the download
     # when nothing changed. A tree edit (S18) or a department rename changes it.
     payload = json.dumps(
-        {"departments": [(d.code, d.name) for d in departments], "trees": trees},
+        {
+            # `care_system` is in the hash on purpose: it changes how the kiosk
+            # draws the card, so a department switching system must invalidate
+            # a cached bundle exactly the way a rename does.
+            "departments": [(d.code, d.name, str(d.care_system)) for d in departments],
+            "trees": trees,
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -997,7 +1018,9 @@ async def bundle(
     return BundleOut(
         etag=etag,
         generated_at=datetime.now(UTC),
-        departments=[DeptOut(key=d.code, name=d.name) for d in departments],
+        departments=[
+            DeptOut(key=d.code, name=d.name, care_system=d.care_system) for d in departments
+        ],
         trees=[BundleTreeOut(department_key=tree.get("department"), tree=tree) for tree in trees],
     )
 
@@ -1095,7 +1118,11 @@ async def lease_blocks(
         date=offline_svc.today().isoformat(),
         blocks=[
             BlockOut(
-                department=DeptOut(key=block.department_key, name=block.department_name),
+                department=DeptOut(
+                    key=block.department_key,
+                    name=block.department_name,
+                    care_system=block.department_care_system,
+                ),
                 start_no=block.start_no,
                 end_no=block.end_no,
                 used_up_to=block.used_up_to,
@@ -1358,7 +1385,9 @@ async def read_strip(
         token_no=visit.token_no,
         department_key=dept.code,
         department_name=dept.name,
-        departments=[DeptOut(key=d.code, name=d.name) for d in departments],
+        departments=[
+            DeptOut(key=d.code, name=d.name, care_system=d.care_system) for d in departments
+        ],
         doctors=[
             StripDoctorOut(id=o.id, name=o.name, qualification=o.qualification, on_duty=o.on_duty)
             for o in options

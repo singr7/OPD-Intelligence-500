@@ -25,13 +25,16 @@
 import Dexie, { type Table } from "dexie";
 
 import type { Tree } from "../tree/types";
+import type { Dept } from "../api";
 import type { AnswersJson } from "../tree/walker";
 
 export type BundleRow = {
   id: "current";
   etag: string;
   fetchedAt: string;
-  departments: { key: string; name: string }[];
+  /** The chooser has to look the same during an outage, so the card's whole
+   *  input comes down with the bundle — `care_system` included (doc 24 §5). */
+  departments: Dept[];
   trees: Tree[];
 };
 

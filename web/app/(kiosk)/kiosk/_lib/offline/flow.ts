@@ -17,6 +17,7 @@
 // model summary — the same V3 tier the kiosk always runs, minus the two model
 // calls).
 
+import type { CareSystem } from "@/app/_lib/careSystem";
 import type {
   AnswerResult,
   ConfirmResult,
@@ -56,6 +57,7 @@ export type StartInput = {
   details: PatientDetails;
   deptKey?: string;
   deptName?: string;
+  deptCareSystem?: CareSystem;
 };
 
 export function makeFlow({ net }: FlowDeps) {
@@ -86,7 +88,11 @@ export function makeFlow({ net }: FlowDeps) {
       }
     }
 
-    if (input.deptKey === undefined || input.deptName === undefined) {
+    if (
+      input.deptKey === undefined ||
+      input.deptName === undefined ||
+      input.deptCareSystem === undefined
+    ) {
       // No department and no server to classify: the kiosk must show the chooser
       // from the cached bundle. `KioskApp` handles that before calling start.
       throw new OfflineNeedsDepartment();
@@ -102,6 +108,7 @@ export function makeFlow({ net }: FlowDeps) {
       details: input.details,
       departmentKey: input.deptKey,
       departmentName: input.deptName,
+      departmentCareSystem: input.deptCareSystem,
     });
     return localStartResult(session);
   }
@@ -188,7 +195,11 @@ function localStartResult(session: LocalSession): StartResult {
     session_id: session.sessionId,
     lang: session.lang,
     tier: "prerecorded",
-    department: { key: session.departmentKey, name: session.departmentName },
+    department: {
+      key: session.departmentKey,
+      name: session.departmentName,
+      care_system: session.departmentCareSystem,
+    },
     tree_key: session.tree.key,
     node,
     complete: node === null,
@@ -257,7 +268,11 @@ async function localConfirm(sessionId: string): Promise<ConfirmResult> {
   const result = await confirmLocal(session);
   return {
     token_no: result.tokenNo,
-    department: { key: result.departmentKey, name: result.departmentName },
+    department: {
+      key: result.departmentKey,
+      name: result.departmentName,
+      care_system: result.departmentCareSystem,
+    },
     red_flags: result.redFlags.map((h) => ({ id: h.id, severity: h.severity })),
     cost_inr: "0.0000", // a pure-V3 offline intake costs nothing per turn
   };

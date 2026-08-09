@@ -26,6 +26,7 @@ from app.models.audit import AuditLog
 from app.models.clinical import Dictation
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import (
+    CareSystem,
     Channel,
     DictationStatus,
     QueueEntryState,
@@ -1352,3 +1353,73 @@ async def test_allergy_writes_refuse_a_coordinator(
         headers=_headers(settings, coordinator),
     )
     assert resp.status_code == 403
+
+
+# -- the console's capability bootstrap (doc 24 §6) ---------------------------
+
+
+async def test_the_worklist_carries_the_consoles_capabilities(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The day is the console's bootstrap: it is fetched before any patient is
+    opened, so the tabs know what they are before there is anything in them."""
+    clinic = await f.build_clinic(session)
+
+    resp = await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))
+
+    assert resp.status_code == 200
+    assert resp.json()["capabilities"] == {
+        "shows_cycles": True,
+        "shows_regimen_events": True,
+        "checkin_protocols": True,
+        "guideline_pack": "nccn",
+        "formulary_scope": "allopathy",
+        "ayurveda_assessment": False,
+        "pathya_apathya": False,
+        "prompt_pack": "oncology",
+    }
+
+
+async def test_an_ayurveda_doctor_gets_the_other_console(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """The whole point of SESSION-AYUR-0: one column decides a console.
+
+    Nothing renders differently yet — SESSION-AYUR-3 wires the flags to the
+    sections — but the derivation is already end-to-end, so that session is
+    reading a payload rather than inventing one.
+    """
+    clinic = await f.build_clinic(session)
+    clinic["department"].care_system = CareSystem.AYURVEDA
+    await session.flush()
+
+    resp = await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))
+
+    caps = resp.json()["capabilities"]
+    assert caps["shows_cycles"] is False
+    assert caps["checkin_protocols"] is False
+    assert caps["guideline_pack"] == "ayush"
+    assert caps["formulary_scope"] == "ayurveda"
+    assert caps["ayurveda_assessment"] is True
+    assert caps["pathya_apathya"] is True
+    assert caps["prompt_pack"] == "ayurveda"
+
+
+async def test_the_worklist_never_names_the_system_of_medicine(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """Doc 24 §2. The console is handed flags and denied the value it could
+    branch on — that is what keeps a third system of medicine from becoming a
+    sweep of every component.
+    """
+    clinic = await f.build_clinic(session)
+    clinic["department"].care_system = CareSystem.AYURVEDA
+    await session.flush()
+
+    body = (await client.get("/doctor/day", headers=_headers(settings, clinic["user"]))).text
+
+    # "ayurveda" is in this payload — as the *value* of `formulary_scope` and
+    # `prompt_pack`. What is absent is any field naming the department's system
+    # of medicine, so there is nothing for a component to compare against.
+    assert "care_system" not in body
+    assert "ayurveda" in body

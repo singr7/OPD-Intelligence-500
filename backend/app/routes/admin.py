@@ -35,7 +35,16 @@ from app.auth.rbac import Principal, require_admin
 from app.checkins import store as checkin_store
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models.enums import Channel, IntakeTier, Lang, PriceUnit, Role, SlotType, UsagePurpose
+from app.models.enums import (
+    CareSystem,
+    Channel,
+    IntakeTier,
+    Lang,
+    PriceUnit,
+    Role,
+    SlotType,
+    UsagePurpose,
+)
 from app.models.org import Department
 from app.providers import runtime
 from app.providers.costguard import CostGuard, get_guard
@@ -1244,6 +1253,11 @@ def _booked_out(row: people.BookedAppointment) -> BookedOut:
 class DepartmentOut(BaseModel):
     code: str
     name: str
+    #: The raw stored value rather than a capabilities object, and this is the
+    #: one surface where that is right: the admin console's job is to *show and
+    #: edit* the system of medicine (doc 24 §7), so here it is the data, not a
+    #: thing to branch on. Every other consumer gets flags.
+    care_system: CareSystem
 
 
 @router.get("/people", response_model=list[PersonOut])
@@ -1262,7 +1276,7 @@ async def list_departments(session: AsyncSession = Depends(get_session)) -> list
             .order_by(Department.name)
         )
     ).scalars()
-    return [DepartmentOut(code=d.code, name=d.name) for d in rows]
+    return [DepartmentOut(code=d.code, name=d.name, care_system=d.care_system) for d in rows]
 
 
 class CreateUserIn(BaseModel):

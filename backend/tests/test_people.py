@@ -25,8 +25,8 @@ from app import people, roster, scheduling
 from app.auth.tokens import create_access_token
 from app.config import Settings
 from app.models.audit import AuditLog
-from app.models.enums import Channel, Lang, Role, SlotType
-from app.models.org import Doctor, User
+from app.models.enums import CareSystem, Channel, Lang, Role, SlotType
+from app.models.org import Department, Doctor, User
 from app.models.scheduling import AppointmentSlot, SlotTemplate
 from tests.factories import (
     generation_start,
@@ -445,3 +445,30 @@ async def test_the_people_routes_are_admin_only(client: AsyncClient, session, se
 
     assert (await client.get("/admin/people", headers=headers)).status_code == 403
     assert (await client.post("/admin/people", headers=headers, json={})).status_code == 403
+
+
+async def test_the_department_list_states_each_system_of_medicine(
+    client: AsyncClient, session, settings
+):
+    """doc 24 §7. The admin console is the one surface handed the raw value
+    instead of capability flags — showing and editing it is precisely its job,
+    so here the system of medicine is the data rather than a thing to branch on.
+    """
+    hospital, department, _ = await _clinic(session)
+    headers = await _admin_headers(session, settings, hospital)
+    session.add(
+        Department(
+            hospital_id=hospital.id,
+            code="AYUR",
+            name="Ayurveda",
+            icon="leaf",
+            care_system=CareSystem.AYURVEDA,
+        )
+    )
+    await session.flush()
+
+    rows = (await client.get("/admin/departments", headers=headers)).json()
+
+    systems = {d["code"]: d["care_system"] for d in rows}
+    assert systems["AYUR"] == "ayurveda"
+    assert systems["MEDONC"] == "allopathy"

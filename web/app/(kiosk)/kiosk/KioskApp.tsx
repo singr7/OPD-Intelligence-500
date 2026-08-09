@@ -292,6 +292,7 @@ export function KioskApp() {
           details,
           deptKey: dept?.key,
           deptName: dept?.name,
+          deptCareSystem: dept?.care_system,
         });
         applyStart(res);
       } catch (e) {

@@ -77,6 +77,28 @@ class DayCountsOut(BaseModel):
     waiting: int
 
 
+class CapabilitiesOut(BaseModel):
+    """What this doctor's console switches on (doc 24 §6).
+
+    Flags, never the system of medicine's name. The console is not given the
+    ability to ask *which* system it is rendering — only what that system turns
+    on — because the moment a component can compare against "ayurveda", adding a
+    third system stops being one enum value and one capabilities row and becomes
+    a sweep of every screen. `web/app/_lib/careSystem.ts` is the only place
+    these are read from, and a conformance fixture holds it to the Python
+    mapping.
+    """
+
+    shows_cycles: bool
+    shows_regimen_events: bool
+    checkin_protocols: bool
+    guideline_pack: str
+    formulary_scope: str
+    ayurveda_assessment: bool
+    pathya_apathya: bool
+    prompt_pack: str
+
+
 class DayOut(BaseModel):
     doctor_name: str
     doctor_id: uuid.UUID
@@ -86,6 +108,9 @@ class DayOut(BaseModel):
     scope: str
     counts: DayCountsOut
     rows: list[DayRowOut]
+    #: The console's bootstrap: the day is fetched before any patient is opened,
+    #: so the tabs know what they are before there is anything to draw in them.
+    capabilities: CapabilitiesOut
 
 
 class RedFlagOut(BaseModel):

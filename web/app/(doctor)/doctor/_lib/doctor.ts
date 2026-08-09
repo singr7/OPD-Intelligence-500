@@ -10,6 +10,7 @@
 // consult ended — including the two endings that leave this system with no
 // prescription in it — and lets the queue verb do the queue's part.
 
+import type { CapabilitiesPayload } from "@/app/_lib/careSystem";
 import { API_BASE, AuthError } from "@/app/_lib/queue";
 
 /** The three worklists. `mine` is the default because the kiosk now assigns
@@ -59,6 +60,16 @@ export type Day = {
   scope: DayScope;
   counts: DayCounts;
   rows: DayRow[];
+  /** Which console this doctor gets (doc 24 §6), derived server-side from
+   *  their department's system of medicine and delivered as flags — never as
+   *  the system's name, so no component can branch on it. The day is the
+   *  console's bootstrap: it lands before any patient is opened, so the tabs
+   *  know what they are before there is anything to draw in them.
+   *
+   *  Widen it with `fromPayload` from `@/app/_lib/careSystem`; that adapter is
+   *  what makes a flag added server-side and forgotten here fail to compile
+   *  rather than arrive as `undefined` and silently hide a section. */
+  capabilities: CapabilitiesPayload;
 };
 
 export type RedFlag = {

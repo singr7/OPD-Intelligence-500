@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import allergies as allergy_svc
 from app.models.clinical import Visit
+from app.models.enums import CareSystem
 from app.models.org import Hospital
 from app.models.patient import Patient
 from tests import factories as f
@@ -637,3 +638,86 @@ async def test_a_double_tap_does_not_write_the_allergy_twice(
     visit = (await session.execute(select(Visit))).scalars().one()
     view = await allergy_svc.for_patient(session, patient_id=visit.patient_id)
     assert len(view.entries) == 1
+
+
+# -- the system of medicine on the department card (doc 24 §5) ----------------
+
+
+async def test_the_chooser_says_which_system_of_medicine_each_department_is(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The kiosk styles the card from this — an icon and a treatment that say
+    "this is the ayurveda clinic". Presentation keyed on identity, not a
+    behaviour branch: traversal, routing and red flags never see it (doc 24 §4).
+    """
+    hospital = await _seed_departments(session)
+    session.add(
+        f.make_department(hospital, code="AYUR", name="Ayurveda", care_system=CareSystem.AYURVEDA)
+    )
+    await session.flush()
+
+    resp = await client.post(
+        "/kiosk/start",
+        json={"lang": "hi", "chief_complaint": "mujhe kuch theek nahi lag raha"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    systems = {d["key"]: d["care_system"] for d in resp.json()["departments"]}
+    assert systems["AYUR"] == "ayurveda"
+    assert systems["MEDONC"] == "allopathy"
+    assert systems["DERM"] == "allopathy"
+
+
+async def test_an_inactive_department_is_not_offered_at_all(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Why the seeded AYUR ships dark.
+
+    A department appears on the chooser the moment it is active, and this one
+    has no intake trees until SESSION-AYUR-2 — a patient who tapped it would hit
+    the `routed.tree is not None` assert in this very module.
+    """
+    hospital = await _seed_departments(session)
+    session.add(
+        f.make_department(
+            hospital,
+            code="AYUR",
+            name="Ayurveda",
+            care_system=CareSystem.AYURVEDA,
+            active=False,
+        )
+    )
+    await session.flush()
+
+    resp = await client.post(
+        "/kiosk/start",
+        json={"lang": "hi", "chief_complaint": "mujhe kuch theek nahi lag raha"},
+    )
+
+    assert "AYUR" not in {d["key"] for d in resp.json()["departments"]}
+
+
+async def test_the_offline_bundle_carries_the_system_of_medicine_too(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The chooser has to look the same during an outage.
+
+    The bundle is fetched while the network is up and rendered while it is
+    down, so anything the card needs must come down with it — and the ETag
+    covers it, or a department that switched system would keep drawing as the
+    old one out of a cached bundle.
+    """
+    hospital = await _seed_departments(session)
+    ayurveda = f.make_department(
+        hospital, code="AYUR", name="Ayurveda", care_system=CareSystem.AYURVEDA
+    )
+    session.add(ayurveda)
+    await session.flush()
+
+    body = (await client.get("/kiosk/bundle")).json()
+    assert {d["key"]: d["care_system"] for d in body["departments"]}["AYUR"] == "ayurveda"
+
+    before = body["etag"]
+    ayurveda.care_system = CareSystem.ALLOPATHY
+    await session.flush()
+    assert (await client.get("/kiosk/bundle")).json()["etag"] != before

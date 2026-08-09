@@ -56,6 +56,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import allergies as allergy_svc
 from app import queue as queue_svc
 from app.allergies import NEVER_ASKED, AllergyView
+from app.care_system import CareSystemCapabilities, capabilities_for
 from app.models.clinical import Dictation, Intake, Visit
 from app.models.content import Checkin, CheckinPlan
 from app.models.enums import AllergySeverity, DictationStatus, Lang, QueueEntryState, RxMode
@@ -157,6 +158,22 @@ class DayList:
     scope: DayScope
     counts: DayCounts
     doctor_id: uuid.UUID
+    #: Which console this doctor gets (doc 24 §6), derived from their
+    #: department's system of medicine. Named flags rather than the system's
+    #: name, deliberately: the console must not be able to ask *which* system it
+    #: is rendering, only what that system switches on — that is what keeps a
+    #: third system from becoming a sweep of every component.
+    #:
+    #: It rides the worklist because the worklist is the console's bootstrap:
+    #: the day is fetched before any patient is opened, so the tabs know what
+    #: they are before there is anything to draw in them. For every department
+    #: that exists today this is the allopathy row, which is today's behaviour
+    #: unchanged.
+    #:
+    #: Required rather than defaulted, so that a future caller building a
+    #: `DayList` has to say which department it belongs to instead of silently
+    #: inheriting an oncology console.
+    capabilities: CareSystemCapabilities
 
 
 async def resolve_doctor(session: AsyncSession, *, user_id: uuid.UUID) -> Doctor:
@@ -252,6 +269,7 @@ async def day_list(
         scope=scope,
         counts=counts,
         doctor_id=doctor.id,
+        capabilities=capabilities_for(dept.care_system),
     )
 
 

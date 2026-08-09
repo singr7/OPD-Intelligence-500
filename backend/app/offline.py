@@ -73,7 +73,7 @@ from app import allergies as allergy_svc
 from app import assignment, queue
 from app.config import get_settings
 from app.models.clinical import Intake, Visit
-from app.models.enums import Channel, IntakeTier, Lang, VisitStatus
+from app.models.enums import CareSystem, Channel, IntakeTier, Lang, VisitStatus
 from app.models.org import Department
 from app.models.patient import Patient
 from app.models.scheduling import OfflineTokenBlock
@@ -106,6 +106,11 @@ class Block:
 
     department_key: str
     department_name: str
+    #: The department's system of medicine (doc 24). Carried so the offline
+    #: kiosk's chooser can style an ayurveda card the same as the online one —
+    #: a block is leased while the network is up and then rendered during the
+    #: outage, so anything the card needs has to come down with it.
+    department_care_system: CareSystem
     start_no: int
     end_no: int
     used_up_to: int | None
@@ -175,6 +180,7 @@ async def lease_blocks(
             Block(
                 department_key=department.code,
                 department_name=department.name,
+                department_care_system=department.care_system,
                 start_no=row.start_no,
                 end_no=row.end_no,
                 used_up_to=row.used_up_to,

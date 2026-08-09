@@ -30,6 +30,7 @@
 // produces is byte-identical to the server's, and why sync can replay it into
 // ordinary rows.
 
+import type { CareSystem } from "@/app/_lib/careSystem";
 import type { PatientDetails } from "../api";
 import { treeRef, type NodeType, type Tree } from "../tree/types";
 import { Walk } from "../tree/walker";
@@ -46,6 +47,12 @@ export type LocalSession = {
   lang: string;
   departmentKey: string;
   departmentName: string;
+  /** The department's system of medicine (doc 24 §5), carried so the token
+   *  screen looks the same offline as online. In-memory only: it is styling,
+   *  and the sync payload deliberately does not carry it — the server already
+   *  knows which system the department is, and a value round-tripped through a
+   *  kiosk would be a second place it could be wrong. */
+  departmentCareSystem: CareSystem;
   chiefComplaint: string;
   caregiver: boolean;
   details: PatientDetails;
@@ -105,6 +112,7 @@ export async function startLocal(input: {
   details: PatientDetails;
   departmentKey: string;
   departmentName: string;
+  departmentCareSystem: CareSystem;
 }): Promise<LocalSession> {
   const tree = await treeFor(input.departmentKey);
   if (tree === null) {
@@ -121,6 +129,7 @@ export async function startLocal(input: {
     lang: input.lang,
     departmentKey: input.departmentKey,
     departmentName: input.departmentName,
+    departmentCareSystem: input.departmentCareSystem,
     chiefComplaint: input.chiefComplaint,
     caregiver: input.caregiver,
     details: input.details,
@@ -170,6 +179,7 @@ export type LocalConfirm = {
   tokenNo: number | null;
   departmentKey: string;
   departmentName: string;
+  departmentCareSystem: CareSystem;
   redFlags: RedFlagHit[];
   /** True when the block is spent and the patient must be sent to the desk for a
    *  paper token (doc 01 §5 step 3). Never invent a number. */
@@ -191,6 +201,7 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
       tokenNo: null,
       departmentKey: session.departmentKey,
       departmentName: session.departmentName,
+      departmentCareSystem: session.departmentCareSystem,
       redFlags,
       needsPaper: true,
     };
@@ -228,6 +239,7 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
     tokenNo: token,
     departmentKey: session.departmentKey,
     departmentName: session.departmentName,
+    departmentCareSystem: session.departmentCareSystem,
     redFlags,
     needsPaper: false,
   };
