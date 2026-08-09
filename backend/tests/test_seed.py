@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.care_system import CareSystemError
 from app.models.audit import AuditLog
 from app.models.content import QuestionTree
-from app.models.enums import Role, TreeStatus
+from app.models.enums import CareSystem, Role, TreeStatus
 from app.models.org import Department, Doctor, Hospital, User
 from app.models.patient import Patient
-from app.seed import seed
+from app.seed import SeedReport, seed
 from app.trees.bank import load_bank
 from app.trees.schema import parse
 
@@ -26,9 +28,14 @@ async def test_seed_loads_the_pilot_dataset(session: AsyncSession) -> None:
     assert hospital.code == "ALWAR01"
     assert hospital.city == "Alwar"
 
-    # The departments doc 03 §3 names: 4 oncology + 5 routing.
+    # The departments doc 03 §3 names: 4 oncology + 5 routing. Plus doc 24's
+    # AYUR, the platform's second system of medicine — seeded **inactive**, so
+    # it is a row and not yet a department anyone can be routed to. That is the
+    # distinction the two assertions below draw, and it is the reason this count
+    # moved from 9 to 10 while every screen kept rendering the same nine.
     departments = list((await session.execute(select(Department))).scalars())
-    assert len(departments) == 9
+    assert len(departments) == 10
+    assert len([d for d in departments if d.active]) == 9
     assert {"MEDONC", "RADONC", "SURGONC", "PALL"} <= {d.code for d in departments}
 
     assert await _count(session, Doctor) == 5
@@ -41,6 +48,71 @@ async def test_seed_loads_the_pilot_dataset(session: AsyncSession) -> None:
 
     assert report.created["patient"] == 50
     assert report.created["doctor"] == 5
+
+
+async def test_every_seeded_department_states_its_system_of_medicine(
+    session: AsyncSession,
+) -> None:
+    """Doc 24 §3.4. Nine allopathy, one ayurveda, and the ayurveda one is dark.
+
+    The inactivity is the load-bearing half. `Department.active` is what the
+    kiosk chooser, the classifier and the admin department list all filter on,
+    and AYUR has no intake trees until SESSION-AYUR-2 — an active card here
+    would put "Ayurveda" in front of a patient and then fail the assert in
+    `routes/kiosk.py` when they tapped it.
+    """
+    await seed(session, patients=1)
+    departments = {d.code: d for d in (await session.execute(select(Department))).scalars()}
+
+    ayurveda = departments["AYUR"]
+    assert ayurveda.care_system is CareSystem.AYURVEDA
+    assert ayurveda.active is False, "AYUR must stay dark until its trees exist"
+
+    others = [d for code, d in departments.items() if code != "AYUR"]
+    assert all(d.care_system is CareSystem.ALLOPATHY for d in others)
+    assert all(d.active for d in others)
+
+
+async def test_a_department_that_does_not_say_is_allopathy(session: AsyncSession) -> None:
+    """A `hospital.json` written before doc 24 keeps loading, and its departments
+    are what they have always been — no backfill, no reclassification."""
+    from app.seed import _upsert_departments
+
+    hospital = Hospital(code="OLD01", name="Somewhere", city=None, district=None)
+    session.add(hospital)
+    await session.flush()
+
+    report = SeedReport.empty()
+    departments = await _upsert_departments(
+        session,
+        hospital,
+        [{"code": "GENMED", "name": "General Medicine", "icon": "stethoscope"}],
+        report,
+    )
+    assert departments["GENMED"].care_system is CareSystem.ALLOPATHY
+    assert departments["GENMED"].active is True
+
+
+async def test_a_misspelt_system_of_medicine_is_refused_not_defaulted(
+    session: AsyncSession,
+) -> None:
+    """The other half of the default: silence means allopathy, a typo means a
+    mistake. Defaulting "ayurved" would hand an ayurveda clinic the oncology
+    prompt pack and the chemo check-in machinery, and look right on every screen.
+    """
+    hospital = Hospital(code="OLD02", name="Somewhere", city=None, district=None)
+    session.add(hospital)
+    await session.flush()
+
+    from app.seed import _upsert_departments
+
+    with pytest.raises(CareSystemError):
+        await _upsert_departments(
+            session,
+            hospital,
+            [{"code": "AYUR", "name": "Ayurveda", "icon": "leaf", "care_system": "ayurved"}],
+            SeedReport.empty(),
+        )
 
 
 async def test_running_seed_twice_changes_nothing(session: AsyncSession) -> None:

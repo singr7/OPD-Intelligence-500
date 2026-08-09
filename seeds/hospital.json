@@ -1,6 +1,7 @@
 {
   "code": "ALWAR01",
   "name": "Alwar District Cancer Centre",
+  "_comment_care_system": "doc 24 §3.4. `care_system` is stated explicitly on every department for readability; the seed loader defaults a missing one to `allopathy`, so a hospital.json written before doc 24 still loads. The value means something operationally — it selects intake trees, doctor-console sections, formulary scope and prompt pack — and it is derived in exactly two places (backend/app/care_system.py, web/app/_lib/careSystem.ts). Nothing else may branch on it.",
   "city": "Alwar",
   "district": "Alwar",
   "default_lang": "hi",
@@ -9,30 +10,72 @@
       "code": "MEDONC",
       "name": "Medical Oncology",
       "icon": "iv-drip",
+      "care_system": "allopathy",
       "note": "Primary pilot department (doc 03 §3): new-patient intake, between-cycle review, pain."
     },
     {
       "code": "RADONC",
       "name": "Radiation Oncology",
       "icon": "radiation",
+      "care_system": "allopathy",
       "note": "On-treatment review (skin, swallowing, urinary per site)."
     },
     {
       "code": "SURGONC",
       "name": "Surgical Oncology",
       "icon": "scalpel",
+      "care_system": "allopathy",
       "note": "Post-op review; new lump/lesion intake."
     },
     {
       "code": "PALL",
       "name": "Palliative Care",
       "icon": "hands-holding",
+      "care_system": "allopathy",
       "note": "Symptom burden (ESAS-lite)."
     },
-    { "code": "GENMED", "name": "General Medicine", "icon": "stethoscope", "note": "Routing tree." },
-    { "code": "GYNAE", "name": "Gynecology", "icon": "gynae", "note": "Gynae-onc routing tree." },
-    { "code": "ENT", "name": "ENT", "icon": "ear", "note": "Head & neck routing tree." },
-    { "code": "PULM", "name": "Pulmonology", "icon": "lungs", "note": "Routing tree." },
-    { "code": "DERM", "name": "Dermatology", "icon": "skin", "note": "Routing tree." }
+    {
+      "code": "GENMED",
+      "name": "General Medicine",
+      "icon": "stethoscope",
+      "care_system": "allopathy",
+      "note": "Routing tree."
+    },
+    {
+      "code": "GYNAE",
+      "name": "Gynecology",
+      "icon": "gynae",
+      "care_system": "allopathy",
+      "note": "Gynae-onc routing tree."
+    },
+    {
+      "code": "ENT",
+      "name": "ENT",
+      "icon": "ear",
+      "care_system": "allopathy",
+      "note": "Head & neck routing tree."
+    },
+    {
+      "code": "PULM",
+      "name": "Pulmonology",
+      "icon": "lungs",
+      "care_system": "allopathy",
+      "note": "Routing tree."
+    },
+    {
+      "code": "DERM",
+      "name": "Dermatology",
+      "icon": "skin",
+      "care_system": "allopathy",
+      "note": "Routing tree."
+    },
+    {
+      "code": "AYUR",
+      "name": "Ayurveda",
+      "icon": "leaf",
+      "care_system": "ayurveda",
+      "active": false,
+      "note": "doc 24. The platform's second system of medicine. Seeded INACTIVE on purpose and it must stay that way until SESSION-AYUR-2: an active department is offered on the kiosk chooser immediately, and a patient who taps a card whose intake trees do not exist yet gets a 500, not a fallback. Activating it is an admin action (SESSION-AYUR-1) once seeds/trees/ayurveda_*.json are authored. Everything the department will eventually offer — trees, formulary entries, prompt packs — ships model-drafted and UNREVIEWED until a BAMS practitioner signs it off (doc 24 §9)."
+    }
   ]
 }

@@ -67,8 +67,16 @@ def tree_ids() -> list[str]:
 
 
 def department_codes() -> set[str]:
+    """The departments a walk-in can actually be routed to.
+
+    Active only, because that is what every caller means by it: a tree exists so
+    that a routed patient has something to be asked, and an inactive department
+    is never offered on the chooser and never returned by the classifier
+    (`routing.pilot_departments`, `kiosk._departments`). Doc 24's AYUR is seeded
+    inactive precisely because its trees do not exist yet.
+    """
     hospital = json.loads((SEEDS_DIR / "hospital.json").read_text())
-    return {dept["code"] for dept in hospital["departments"]}
+    return {dept["code"] for dept in hospital["departments"] if dept.get("active", True)}
 
 
 def descendants(tree: Tree, node_id: str) -> set[str]:

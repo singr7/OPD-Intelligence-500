@@ -84,17 +84,25 @@ class DepartmentGuess:
 
 
 def pilot_departments(seeds_dir: Path | None = None) -> tuple[DepartmentOption, ...]:
-    """The pilot's nine departments, from `seeds/hospital.json`.
+    """The pilot's **active** departments, from `seeds/hospital.json`.
 
     A convenience for the eval harness and for callers without a session. S5 has a
     database and should pass its own `Department` rows — the codes are the same,
     and this file is what seeded them.
+
+    Inactive departments are excluded, which is what makes that last sentence
+    true: the session-backed path (`kiosk._departments`) has always filtered on
+    `active`, and this one did not simply because no seeded department had ever
+    been inactive. Doc 24's AYUR is the first, and it must not be routable — it
+    has no intake trees until SESSION-AYUR-2, so a classifier that could name it
+    would route a patient to a department with nothing to ask them.
     """
     path = (seeds_dir or _SEEDS_DIR) / "hospital.json"
     hospital = json.loads(path.read_text())
     return tuple(
         DepartmentOption(key=dept["code"], name=dept["name"], note=dept.get("note"))
         for dept in hospital["departments"]
+        if dept.get("active", True)
     )
 
 

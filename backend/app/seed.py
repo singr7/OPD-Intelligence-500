@@ -32,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import Actor, acting_as
+from app.care_system import care_system_of
 from app.checkins import protocols
 from app.config import get_settings
 from app.db import build_engine, build_sessionmaker
@@ -137,7 +138,22 @@ async def _upsert_departments(
 
     departments: dict[str, Department] = {}
     for row in rows:
-        values = {"name": row["name"], "icon": row["icon"], "active": True}
+        values = {
+            "name": row["name"],
+            "icon": row["icon"],
+            # Was hard-coded `True`. A seed file may now say otherwise, and doc
+            # 24's AYUR department is the first that does: a department is
+            # offered on the kiosk chooser the moment it is active, and one
+            # offered before its intake trees exist is a card that routes a
+            # patient into a 500. Absent, this still reads `True`, so the nine
+            # oncology departments are seeded exactly as before.
+            "active": row.get("active", True),
+            # Absent means allopathy (doc 24 §3.4) — that is what every
+            # department authored before the second system of medicine is, and
+            # it keeps a third-party `hospital.json` loading unchanged. A
+            # *misspelt* value raises rather than defaulting.
+            "care_system": care_system_of(row.get("care_system")),
+        }
         dept = existing.get(row["code"])
         if dept is None:
             dept = Department(hospital_id=hospital.id, code=row["code"], **values)

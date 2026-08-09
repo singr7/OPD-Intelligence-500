@@ -173,13 +173,14 @@ def test_json_shape_is_the_flags_and_nothing_else() -> None:
 
 
 #: Where naming a `CareSystem` member is legitimate: the mapping that derives
-#: from it, the fixture that exports the mapping, and the column that stores it
-#: (which has to state its own default). Notably **not** the seed loader — it
-#: parses authored strings through `care_system_of`, so that the coercion also
-#: lives in one place.
+#: from it, and the column that stores it (which has to state its own default).
+#:
+#: Notably **not** the seed loader, which parses authored strings through
+#: `care_system_of` so the coercion also lives in one place; and not the fixture
+#: generator, which iterates the enum rather than naming a member — exporting
+#: the mapping needs no permission to branch on it.
 _MAY_NAME_THE_ENUM = {
     "app/care_system.py",
-    "app/care_system_fixtures.py",
     "app/models/org.py",
 }
 
