@@ -1,76 +1,79 @@
-# HANDOFF — after SESSION-AYUR-1
+# HANDOFF — after SESSION-AYUR-2
 
-**Repo state:** branch `main`. `make test` green, exit 0 — backend **1,822** (was
-1,771), voice-gw 25, typecheck, lint, conformance 115.
+**Repo state:** branch `main`, last commit `f570bb1`. `make test` green, exit 0 —
+backend **1,899** (was 1,822), voice-gw 25, conformance **135** (was 115),
+typecheck, lint, android.
 
-**One new migration, `28e0ff23658b`** (`hospitals.name_i18n`; additive, one JSONB
-column, server default `{}`, **no backfill**). That makes **nine** pending on
-Omen: `c6e3681f5ce1`, `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`,
-`02571a5c1871`, `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b` —
-applied locally only, and `make deploy` still does not run migrations.
+**No migration this session.** The nine pending on Omen are unchanged:
+`c6e3681f5ce1`, `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`, `02571a5c1871`,
+`9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b` — applied locally
+only, and `make deploy` still does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open.
 
-**Where the build stands.** AYUR-0 stored a system of medicine and derived it;
-AYUR-1 made a hospital **configurable by the person who runs it**. `app/facility.py`
-is the two facts a hospital owns about itself that used to require editing
-`seeds/hospital.json` on the box: what it is called, and which departments it
-runs. Both audited. Two things are worth knowing beyond the feature:
+**Where the build stands.** AYUR-0 stored a system of medicine, AYUR-1 made the
+hospital configurable, and AYUR-2 gave the ayurveda department **something to ask
+and a way to be reached**. Five trees (37 nodes, 14 red flags, four languages),
+and one new idea in the engine worth understanding before touching it:
 
-- **Doc 24 §3.2 told us to verify the letterhead rather than assume it, and it was
-  half wrong.** The prescription reads `Hospital.name`. The kiosk brand bar and the
-  **intake boarding pass did not** — they rendered a four-language constant that had
-  already drifted from the seeded name. A rename would have changed the
-  prescription and not the paper in the patient's hand. Fixed: the stored name
-  rides on `GET /kiosk/bundle`, inside the ETag.
-- **AYUR is now held dark by code, not by a comment.** `_assert_has_intake` refuses
-  to activate a department that resolves no intake tree, which is exactly the 500
-  the last handoff asked this session to remember. It will open on its own the
-  moment AYUR-2's trees exist.
+- **A tree can now name the department a patient belongs in.** `Option.department`
+  is the preference she states ("मैं आयुर्वेद इलाज के लिए आया/आई हूँ");
+  `RedFlagSpec.route_to` is where a deterministic rule sends her. Both are
+  resolved by **one** function, `Walk.destination()`, and the precedence is the
+  safety rule: a fired flag's `route_to` wins, **any fired flag with no
+  destination cancels a preference**, and only then does an answered option
+  decide. A patient who asks for the ayurveda OPD and then reports chest pain is
+  not moved on the strength of the asking.
+- **Applied before the token, never after.** The token series is per department
+  per day. `/kiosk/{sid}/confirm` re-homes the visit and then allocates;
+  `confirmLocal` reads the same derivation and draws from the destination's
+  leased block. That is why `destination` is now in the walker conformance
+  fixture — a Python/TS disagreement here is a patient holding a number for a
+  queue she is not in, during exactly the outage the offline walker exists for.
+- **A closed department's question is removed, not disabled.**
+  `app/trees/visibility.for_active` prunes it out of the canonical tree in
+  `store.resolve_tree` and in `GET /kiosk/bundle`, so the kiosk never caches it
+  and WhatsApp and telephony inherit the filter. `schema._validate_offers` is
+  what makes that safe (two options, no option-keyed branch, read by no red
+  flag), and the pruned tree is re-`parse`d, so a prune that orphaned a node
+  fails a test rather than a kiosk.
 
-**Both of the decisions this handoff was going to ask for were answered by the
-operator mid-session, and are built.**
+**AYUR is seeded active.** The only thing holding it dark was that it had nothing
+to ask. **On a box that has already been seeded this changes nothing** — since
+AYUR-1 the loader never overwrites a department a console can edit — so the local
+dev box needed the Facility tab (this session opened it through
+`facility.update_department`, which is also the proof that AYUR-1's
+`_assert_has_intake` guard now passes on its own). The clinical review has not
+happened and is still a launch gate.
 
-- **`make seed` no longer overwrites what an administrator set up.** For the rows
-  a console can edit — hospital, departments, staff users, doctors, clinic
-  templates — it creates what is missing and never overwrites what it finds.
-  Adding a department or a doctor to a seed file and re-running is still how new
-  reference data arrives. A row left alone *because it differs* is counted and
-  logged in a fourth report bucket, **`kept`**, so a run says so out loud. The
-  files are still validated on every run whether or not they are written.
-- **The hospital has an English name and a Hindi one.** `Hospital.name_i18n`
-  (JSONB) with `name` as English and as the fallback, read through one
-  derivation, `Hospital.name_in(lang)`. **Sixteen call sites** that held a
-  language while reading `hospital.name` were rewritten. `TRANSLATABLE_LANGUAGES
-  = (Lang.HI,)` is the whole of "Hindi only" — mr/te fall back to English rather
-  than carry a guess at a facility's own name, and widening it is one tuple entry
-  plus the text.
+## Next session — SESSION-AYUR-3, the doctor console, capability-gated
 
-## Next session — SESSION-AYUR-2, intake content and routing
+Objective (doc 24 §8): wire the capabilities into the console bootstrap and hide
+cycles / regimen lines / check-in / NCCN surfaces under ayurveda while proving the
+**oncology console renders unchanged**; the ayurveda assessment panel and
+pathya–apathya in the Rx composer and shared renderer; ayurveda formulary entries
+and `validate_meds` scoping; the dictation-mapping and summary prompt packs; and
+canned fake-LLM ayurveda replies.
 
-Objective (doc 24 §8): author the five ayurveda trees of §5 in Hindi +
-Hinglish-en + mr/te with `_comment` blocks carrying the UNREVIEWED flag and the
-language decision; the **TB red-flag rule** in `ayurveda_respiratory.json` with a
-dedicated test; inactive-destination option filtering; the AYUR branch in the
-GENMED and PULM routing trees; the kiosk department card for ayurveda.
+**What AYUR-2 changes about how it starts:**
 
-**What AYUR-1 changes about how it starts:**
-
-- **You no longer have to remember to keep AYUR closed.** Opening it is refused
-  until a tree resolves for `AYUR` — via a published row *or* `seeds/trees/`. So
-  the moment you author `seeds/trees/ayurveda_*.json` with `"department":
-  "AYUR"` and re-seed, the console's Open button for Ayurveda enables itself and
-  the refusal stops firing. `backend/tests/test_facility.py` has the pair of
-  tests that prove both directions; do not weaken them.
-- **`GET /admin/facility` is the editor's read**, `GET /admin/departments` is
-  still the active-only picker for the create-a-doctor form. Do not merge them.
-- **AYUR-2 ships patient-facing kiosk content, so the hospital-name rule applies
-  to it too**: a string a patient reads must come from `name_in(lang)` or from the
-  tree, never from a constant compiled into the bundle. That mistake is what this
-  session found in the boarding pass.
-- **The care-system change confirmation is derived.** If AYUR-2 or AYUR-3 adds a
-  capability flag, add its sentence to `FLAG_LABELS` in `app/care_system.py` in
-  the same edit — a test fails otherwise, on purpose.
+- **A patient can already arrive in AYUR two ways** — the chooser, and the offer
+  inside the General Medicine or Pulmonology walk. So the doctor console will see
+  ayurveda visits whose `Intake.tree_ref` is `general_medicine_routing@v3`. That
+  is correct and deliberate: she answered those questions. Do not "fix" it by
+  re-homing the tree.
+- **The capability flags all exist already** and none of them are read by
+  anything yet. AYUR-3 is the session that finally consumes
+  `shows_cycles` / `shows_regimen_events` / `checkin_protocols` /
+  `guideline_pack` / `formulary_scope` / `ayurveda_assessment` /
+  `pathya_apathya` / `prompt_pack`. If you add a ninth, its sentence goes into
+  `FLAG_LABELS` in `app/care_system.py` in the same edit — a test fails
+  otherwise, on purpose — and `make care-system-fixtures` regenerates the TS side.
+- **A card's styling reads the raw value, a component's behaviour reads a flag.**
+  The kiosk chooser puts `care_system` on the DOM as `data-care-system` and lets
+  the stylesheet decide; that is allowed and is the pattern for anything purely
+  presentational. Anything that changes *what is shown* is a capability flag.
+- Demo the whole thing on `LLM_PROVIDER=fake`, the MRD precedent.
 
 First commands:
 
@@ -78,97 +81,95 @@ First commands:
 make dev && make migrate && make seed && make test
 ```
 
+Then open Ayurveda in the console's Facility tab if this box was seeded before
+today (the seed will report `kept (yours, not this file's): department=1`).
+
 The three long-standing non-coding items are unchanged and still the most
 valuable things nobody has done: **print a pass on the real printer** (doc 23
 §11), **point M3 at the real `RAD-RENVA-PACS`**, and **have an oncologist read
-the research assistant's answers** (asked in five consecutive handoffs now).
+the research assistant's answers** (asked in six consecutive handoffs now).
 After those: **deploy the nine pending migrations to Omen** and give
 `make deploy` a migration step.
 
 ## Watch out for
 
-- **A seed file no longer wins over a row that already exists.** If you edit
-  `seeds/hospital.json` (or `doctors.json`, or `slot_templates.json`) on a box
-  that has already been seeded, **nothing happens** — by design, see above. The
-  run tells you: `kept (yours, not this file's): hospital=1`. To make a file edit
-  land, change the row in the console too, or delete it and re-seed. This bites
-  every developer exactly once; the local dev box hit it the first time the Hindi
-  hospital name was seeded.
-- **`hospital.name` is almost never the right read any more.** If your code has a
-  language in hand — a patient's, a user's, a request's — use
-  `hospital.name_in(lang)`. Bare `name` is correct in exactly two places and both
-  say why in a comment: the *clinical* copy of a prescription (the pharmacy's and
-  the chart's) and the downtime print sheets (every language on one page under
-  one header).
-- **Two source tests still enforce doc 24 §2 and they still bite.** No module
-  under `backend/app` may name a `CareSystem` member outside `app/care_system.py`
-  and `app/models/org.py` — `app/facility.py` stays inside the rule by never
-  naming one, coercing through `care_system_of` and diffing through
-  `differences()`. No file under `web/app` may *compare* against
-  `"allopathy"`/`"ayurveda"` outside `_lib/careSystem.ts`; holding the strings in
-  a selector is fine, which is how `FacilityTab.tsx` renders the picker. If no
-  capability flag fits, **add one to both mappings and regenerate the fixture**
-  (`make care-system-fixtures`).
-- **`published_trees` is not "can a patient be asked anything".** It counts
-  DB-published rows only; nine of the ten seeded departments have zero and are
-  open, because `resolve_tree` falls through to `seeds/trees/`. Read `has_intake`
-  for the real question. A screenshot caught this surfaced wrongly in the console
-  and it is the kind of mistake that looks fine until someone acts on it.
+- **Two urgent red flags naming two departments break the tie by flag id.** In
+  `ayurveda_respiratory` a patient with blood in the sputum *and* chest pain
+  fires `ayr.tb_suspect` (PULM) and `ayr.chest_pain` (GENMED), and
+  `ayr.chest_pain` sorts first. She is urgent and both flags are on the
+  coordinator's strip either way, so nothing is lost clinically — but which queue
+  gets the token is arbitrary between two urgents, and if that ever needs to be a
+  clinical decision it belongs in the rule bank, not in a sort key.
+- **An offering node has an authoring contract and `parse` enforces it.** Single,
+  exactly two options, `next.default` only, and no red flag may read it. If you
+  need a third option there, you need a different mechanism — not a relaxed
+  check, because the whole point is that removing the node changes nothing else.
+- **Adding a tree changes five counts.** `test_tree_bank.PILOT_BANK` and its file
+  count, `test_offline`'s bundle tree count, `test_seed`'s department counts,
+  `test_routing.EVAL_CASES`, and the routing eval set (a department with no
+  labelled utterance fails `test_the_eval_set_covers_every_department`). All
+  manifests; none of them are the test's meaning.
+- **`bank.load_bank()` is `@cache`d and returns the *unpruned* trees.** Anything
+  in the intake path must go through `store.resolve_tree` or
+  `visibility.for_active`, or it will offer a closed department. The engine does
+  this via `SessionState.open_departments`, which is `None` for sessions created
+  before today and prunes nothing.
 - **`web/e2e/people.spec.ts` is still red** and still predates all this:
   `people.spec.ts:54` clicks `nav button:has-text('People & roster')`, renamed to
   **"People and roster"** by `5be4c28` on 2026-07-27. One word, any session.
-- Everything from the previous handoff still holds, in particular: **do not run
-  two live E2E projects in parallel against one database**; **never run `npm run
-  build` while a dev server is up on 3210**; re-run `seed_doctor_demo` before any
-  doctor E2E (the demo day goes stale at UTC midnight); `scripts.seed_doctor_demo`
-  clears visit *and* patient dependants in FK order; the three allergy states must
-  never collapse into two and nothing composes the phrase "no known allergies";
-  nothing checks a stated allergy against a prescribed drug, on purpose;
-  `never_asked` is deliberately quiet, not amber; `consoleStyles.ts` is template
-  literals and a backtick in a comment takes `/doctor` down with a 500;
+- Everything from the previous handoff still holds, in particular: **a seed file
+  no longer wins over a row that already exists**; **`hospital.name` is almost
+  never the right read — use `name_in(lang)`**; the two source tests that keep
+  `CareSystem` out of every module but `app/care_system.py` and
+  `web/app/_lib/careSystem.ts`; `published_trees` is not "can a patient be asked
+  anything" (read `has_intake`); **do not run two live E2E projects in parallel
+  against one database**; **never run `npm run build` while a dev server is up on
+  3210**; re-run `seed_doctor_demo` before any doctor E2E; the three allergy
+  states must never collapse into two; `consoleStyles.ts` is template literals and
+  a backtick in a comment takes `/doctor` down with a 500;
   `OTP_RESEND_COOLDOWN_SECONDS=0` saves a wait on every E2E token; a new
-  `Clinical` model must be registered in `tests/test_audit.py`; `PACS_ENABLED=false`
-  means "nothing was asked" (four states, never three); and `offline-demo` is
-  still red and still predates everything.
+  `Clinical` model must be registered in `tests/test_audit.py`; and `offline-demo`
+  is still red and still predates everything.
 
 ## Decisions needed from the human
 
-- **New — is "अलवर जिला कैंसर केंद्र" the right Hindi name for this hospital?** It
-  is model-drafted, it is now on the Hindi kiosk's brand bar and on the patient's
-  copy of every prescription, and an administrator can correct it in the console
-  without a deploy. Someone who knows the facility should read it once.
-- **Unchanged, now asked five times:** which thermal printer and when can someone
+- **Now urgent — who is the BAMS practitioner?** Doc 24 §9 makes clinical
+  sign-off a launch gate, and there is now content to sign off: five trees, 37
+  questions and 14 red flags in four languages, all model-drafted. The TB rule in
+  `ayurveda_respiratory.json` is the one to read first — it decides who gets sent
+  to DOTS, and TB is notifiable. Until this happens, **Ayurveda must be closed in
+  the console on any deployment a real patient can reach.**
+- **Is "अलवर जिला कैंसर केंद्र" the right Hindi name for this hospital?** Asked
+  last session, unanswered. It is on the Hindi kiosk's brand bar and on the
+  patient's copy of every prescription, and an administrator can correct it in
+  the console without a deploy.
+- **Is "Ayurveda" the right department name?** It is now a card a patient taps,
+  and it renders in English on a Hindi screen because a department has one name
+  (see backlog). An administrator can rename it, but not per language.
+- **Unchanged, now asked six times:** which thermal printer and when can someone
   stand at it; when can M3 be pointed at the real PACS and by whom; who reviews
   the research assistant's answers.
-- **Unchanged — who is the BAMS practitioner?** Doc 24 §9 makes clinical sign-off a
-  launch gate for every ayurveda tree, formulary entry and prompt pack. **AYUR-2
-  is the session that starts authoring that content**, so this is now the next
-  session's problem rather than a future one.
-- **Unchanged — is "Ayurveda" the right department name and `leaf` the right icon?**
-  Both are patient-facing placeholders chosen by an executor. Both are now
-  editable in the console without a deploy, which lowers the cost of being wrong
-  but not the cost of shipping wrong.
 - **Unchanged from SESSION-ALLERGY:** does a coordinator need to record an allergy?
 
 ## Backlog additions
 
-- **An admin E2E for the facility tab** — doc 24 §8 asked AYUR-1 for one; per the
-  operator's instruction the AYUR sessions do session-scope tests and E2E lands in
-  the last one. Both flows (rename → letterhead, create an ayurveda department)
-  were driven in a browser and screenshotted this session; the spec was deleted
-  rather than committed. Whichever session closes the module inherits it.
+- **Department names are single-language.** `departments.name` is one string, so
+  the kiosk chooser shows "General Medicine" and "Ayurveda" to a patient who
+  chose हिंदी — visible in `web/screenshots/ayur2/01-chooser-ayurveda-card.png`.
+  The hospital solved this in AYUR-1 with `name_i18n` + `name_in(lang)`; the
+  same shape applies here, plus a column and a Facility-tab field. It is the most
+  visible remaining flaw on the kiosk's first real screen.
+- **An admin E2E for the facility tab, and a kiosk E2E for an ayurveda intake.**
+  Both driven in a browser and screenshotted rather than committed, per the
+  operator's instruction that E2E lands in the last ayurveda session. Whichever
+  session closes the module inherits both.
 - **`make lint` is red on 96 errors, all in `alembic/versions/`** — boilerplate
-  from alembic's own revision template (`from typing import Sequence, Union`,
-  `Union[...]` annotations, one long `sa.Enum` line). The `ruff format --check`
-  half recorded in the last handoff is **fixed** (commit `192dc80`). What remains
-  is a one-line decision about whether this repo lints generated migrations.
+  from alembic's own revision template. A one-line decision about whether this
+  repo lints generated migrations.
 - **The downtime print sheets head in English** even on a Marathi or Telugu page
-  (`routes/queue.py::_hospital_name`). Per-language headers there need a
-  `print_sheets` signature change — every language renders on one page under one
-  header today. Small, any session.
+  (`routes/queue.py::_hospital_name`).
 - **Marathi and Telugu have no hospital name of their own** and fall back to
-  English. One entry in `TRANSLATABLE_LANGUAGES` (`app/facility.py`) plus the text
-  when a native speaker supplies it.
+  English. One entry in `TRANSLATABLE_LANGUAGES` (`app/facility.py`) plus the text.
 - **`web/e2e/people.spec.ts:54` selector fix** — one word, any session.
 - Everything already on the list: allergies on the boarding pass; a kiosk "I
   don't know" recording nothing; no coded substance vocabulary; `offline-demo`

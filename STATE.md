@@ -6,6 +6,46 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-AYUR-2):** The ayurveda department got **something to ask and a
+way to be reached** (doc 24 §5). Five trees in `seeds/trees/` — routing,
+digestion (pachan/agni), joint pain (sandhi-shool), lifestyle/prameha and
+respiratory — 37 nodes and 14 red flags in four languages, where the `en` slot
+carries **Hinglish** because Hinglish is authored content and not a locale (the
+`Lang` enum was deliberately not widened), and the tone puts the familiar word
+first with the classical term in brackets: "पाचन (अग्नि)", never a dosha quiz.
+All of it is **model-drafted and UNREVIEWED** and doc 24 §9's BAMS sign-off is a
+launch gate, stated in every file's `_comment`. The engine gained exactly one new
+idea: **a tree can name the department a patient belongs in.** `Option.department`
+is the preference she states ("मैं आयुर्वेद इलाज के लिए आया/आई हूँ", now an option
+in the GENMED and PULM routing trees); `RedFlagSpec.route_to` is where a
+deterministic rule sends her, which is how doc 24 §4's **TB rule** reaches
+Pulmonology/DOTS out of the ayurveda respiratory tree — blood in the sputum, or
+two weeks of cough with evening fever or weight loss. Both are resolved by **one**
+function, `Walk.destination()`, and its precedence is the safety rule: a fired
+flag's `route_to` wins, **any fired flag with no destination cancels a
+preference** (a patient who asked for the ayurveda OPD and then reported chest
+pain is not moved on the strength of the asking), and only then does an answered
+option decide. It is applied **before the token** — the series is per department
+per day, so a visit re-homed after allocation would hold one department's number
+on another's board — online at `/kiosk/{sid}/confirm` and offline in
+`confirmLocal`, which draws from the destination's leased block; `destination` is
+in the walker conformance fixture for the same reason the flags are.
+`app/trees/visibility.for_active` removes an offer of a **closed** department from
+the canonical tree in `store.resolve_tree` and in `GET /kiosk/bundle`, so the
+kiosk needs no filtering logic and cannot have cached the question, and WhatsApp
+and telephony inherit it; `schema._validate_offers` (single, exactly two options,
+`next.default` only, read by no red flag) is what makes removing the whole node
+safe, and the pruned tree is re-`parse`d so a prune that orphaned a node fails a
+test rather than a kiosk. `SessionState.open_departments` pins the set at
+`/start`, so a department closing mid-intake does not change the questions under
+the patient. The kiosk chooser draws an ayurveda card on its own ground with a
+leaf, keyed off `data-care-system` on the DOM — the value travels, no component
+compares it. **AYUR is seeded active**: the only thing holding it dark was that it
+had nothing to ask, and on an already-seeded box nothing changes because the
+loader has not overwritten an editable department since AYUR-1. Gates: backend
+**1,899** (was 1,822), conformance **135** (was 115, 17 trees), voice-gw 25,
+typecheck, lint, android; screenshots `web/screenshots/ayur2/`. **No migration.**
+
 **Built (SESSION-AYUR-1):** A hospital became **configurable by the person who
 runs it** (doc 24 §7). `backend/app/facility.py` owns the two facts a hospital
 holds about itself that previously required editing `seeds/hospital.json` on the
@@ -902,6 +942,17 @@ the only gate right now.**
   allergies"**: it is the summary of a chart review nobody here has performed, and
   a doctor reads it and prescribes on it. `none_stated` always travels with its
   source and its date.
+- **A red flag never softens into a preference** (SESSION-AYUR-2, doc 24 §4).
+  `Walk.destination()` is the only place a tree's named department is decided,
+  and its order is load-bearing: a fired flag's `route_to` wins, **any fired flag
+  with no destination cancels a preference**, and only then does an answered
+  option decide. Red flags stay deterministic and stay allopathic — no rule in
+  the bank routes *into* an ayurveda department, and there is a test that says so.
+- **A tree offering another department obeys `schema._validate_offers`** — single,
+  exactly two options, `next.default` only, read by no red flag. Those are not
+  style rules: `app.trees.visibility` removes the whole node when the department
+  is closed, and they are what make that change nothing else. The pruned tree is
+  re-`parse`d, so a prune that orphaned a node fails a test rather than a kiosk.
 - **New model ⇒ import it in `app/models/__init__.py`**, or it is silently missing from migrations.
 - **Every external call behind a provider interface**, each with a fake (doc 02 §9). Feature code
   must never import a vendor SDK, and never name a vendor — ask `app.providers.get_*_provider()`.
@@ -1063,16 +1114,23 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
-- **The AYUR department is a row, not a department** (SESSION-AYUR-0, doc 24).
-  Seeded **inactive** with no intake trees, no formulary entries, no prompt pack
-  and no console sections; nothing renders differently anywhere. It must stay
-  closed until SESSION-AYUR-2 authors its trees — the kiosk chooser offers a
-  department the moment it is active, and `routes/kiosk.py` asserts a tree after
-  routing, so an active card is a 500 with a patient's finger on it. **Since
-  SESSION-AYUR-1 that is enforced rather than remembered**: `app.facility`
-  refuses to activate a department for which `resolve_tree` finds nothing, and
-  the console disables the Open button on it. It opens by itself once the trees
-  exist.
+- **Every ayurveda tree is model-drafted and UNREVIEWED** (SESSION-AYUR-2, doc 24
+  §9). Five files, 37 questions and 14 red flags in four languages, written by a
+  model; **BAMS sign-off is a launch gate and has not happened.** The hardest
+  content in them is `ayr.tb_suspect`, which decides who is sent to the chest
+  clinic, and TB is notifiable. The module demos on fake providers; **on any
+  deployment a real patient can reach, Ayurveda must be closed in the console
+  until a practitioner has read the trees.** Nothing in code enforces that —
+  a fresh seed now creates the department **open**, because the condition that
+  held it dark (no intake trees) no longer holds. An already-seeded box is
+  unaffected: since AYUR-1 the loader never overwrites an editable department.
+- **The AYUR department had no trees between AYUR-0 and AYUR-2**, and was seeded
+  inactive for it — the kiosk chooser offers a department the moment it is
+  active, and `routes/kiosk.py` asserts a tree after routing, so an active card
+  was a 500 with a patient's finger on it. Kept here because the *guard* is still
+  live and still the reason a new department is created closed: `app.facility`
+  refuses to activate one for which `resolve_tree` finds nothing, and the console
+  disables its Open button. AYUR now passes it on its own.
 - **Marathi and Telugu have no hospital name of their own** (SESSION-AYUR-1) and
   fall back to English. Deliberate and the operator's call: this repo's mr/te
   patient-facing text is model-drafted pending native review (S13/S21), and a
