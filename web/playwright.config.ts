@@ -22,7 +22,7 @@ export default defineConfig({
     {
       name: "conformance",
       testMatch:
-        /(conformance|offline-db|print|pass|pass-raster|allergy-line|care-system)\.spec\.ts/,
+        /(conformance|offline-db|offline-destination|print|pass|pass-raster|allergy-line|care-system)\.spec\.ts/,
     },
     {
       name: "kiosk",
