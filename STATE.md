@@ -6,6 +6,26 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-ALLERGY):** The doctor's spine finally holds a fact where it
+used to hold an apology. `patient_allergies` is a **log of statements, not a list
+of allergies**: one row is somebody being asked at a knowable moment and
+answering, and `none_known` is a row rather than an absence of rows, so "asked
+and told there are none" and "never asked" stay apart at the storage layer. The
+current picture is derived in one place (`app.allergies.for_patient`) into three
+states that no surface may collapse — `never_asked`, `none_stated`, `known` — and
+`known` outranks a later `none`, because a rushed second intake tapping "no" must
+not silence a penicillin anaphylaxis. Un-saying one is `retract`: a clinician, a
+reason, and the row survives struck out — the first correction path in this
+system, built first because a wrong allergy is its most dangerous stale fact. The
+kiosk asks every patient, in four languages, online and during an outage, with
+three answers where "I don't know" is one of them and records nothing. The
+console's third slot renders the derivation, opens a panel where confirming what
+the patient said is one tap, and still says "no known allergies" nowhere. Nothing
+here reads the formulary. Gates: backend **1,741**, conformance **92**, allergy
+E2E 6, kiosk 3, doctor 12, notes 5, assign 3, pass-ui 5, typecheck, lint.
+Migration `8ef31aa60c55` (additive, one table, **no backfill** — every existing
+patient genuinely has never been asked) — **applied locally only.**
+
 **Built (SESSION-PASS):** The **intake boarding pass** (doc 23) — a pilot
 requirement, and the first thing this kiosk hands a patient that is a document
 rather than a number. A fixed **80mm × 200mm** pass in five bands: hospital and
@@ -783,6 +803,13 @@ the only gate right now.**
 - **Soft deletes only** on clinical tables; set `deleted_at`, never DELETE.
 - **Money is `Numeric`/`Decimal`, never float** — costs must reconcile exactly against
   `usage_events` (S18 AC).
+- **The three allergy states must never collapse into two** (SESSION-ALLERGY) —
+  `never_asked` / `none_stated` / `known`, derived only by
+  `app.allergies.for_patient`. No surface re-derives them, no wire model carries a
+  `has_allergies` boolean, and **nothing anywhere composes the phrase "no known
+  allergies"**: it is the summary of a chart review nobody here has performed, and
+  a doctor reads it and prescribes on it. `none_stated` always travels with its
+  source and its date.
 - **New model ⇒ import it in `app/models/__init__.py`**, or it is silently missing from migrations.
 - **Every external call behind a provider interface**, each with a fake (doc 02 §9). Feature code
   must never import a vendor SDK, and never name a vendor — ask `app.providers.get_*_provider()`.
@@ -1068,12 +1095,17 @@ the only gate right now.**
   prompt. `tests/test_script_guard.py` fails when a new module asks a model for
   patient-facing text without running the guard or being declared exempt — that
   test is the guarantee, not the prompt.
-- **Nothing in this product captures an allergy** (Session B) — not the kiosk
-  intake, not the consult note, no field on `Patient` or `Visit`. The context
-  spine and the History tab therefore both say so in words. Neither says "no
-  known allergies", which is a clinical claim this record cannot make and a
-  doctor would act on. This is the largest remaining gap in the spine's four
-  elements (plan §4.2).
+- **Nothing checks a stated allergy against a prescribed drug** (SESSION-ALLERGY)
+  — deliberately, and it is the entry here most likely to be "fixed" wrongly.
+  `app.allergies` imports no formulary and the prescription path never calls it,
+  pinned by a source test. An interaction check against free text a patient typed
+  at a kiosk is a safety feature made of guesses, and the failure mode of a
+  *missed* match is a doctor who trusted a green tick. The spine puts the words
+  in front of the doctor; the doctor decides. It should stay this way until there
+  is a coded substance vocabulary and somebody clinical owns it. Related: a
+  substance is free text, so two spellings of penicillin are two statements and
+  nothing merges them; and a kiosk "I don't know" records nothing, so a patient
+  who was asked and did not know reads the same as one nobody asked.
 - **There are no vitals in the schema** (Session B) — nothing records blood
   pressure, SpO2, height or weight, so plan §4.3's vitals treatment (clinical
   emphasis, out-of-range marked by text and shape) is unbuilt rather than mocked.
@@ -1084,9 +1116,10 @@ the only gate right now.**
   for a phone number and a health ID, so the gap is recorded rather than papered
   over. Pending native review (doc 07 §4); when it arrives the keys move into `T`
   and `tb` disappears — the type makes that a compile-time move, not a search.
-- **Migrations `c6e3681f5ce1`, `520d07f0b3e4` and `c063fd91e198` are applied
-  locally only** (AR1/AR2/Session C) — still pending on Omen, and `make deploy`
-  does not run migrations.
+- **Seven migrations are applied locally only** — `c6e3681f5ce1`,
+  `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`, `02571a5c1871`,
+  `9f2ab41c77d3`, `8ef31aa60c55` (AR1 → SESSION-ALLERGY). Still pending on Omen,
+  and `make deploy` does not run migrations.
 - **The consult-note recording meter has never met a real microphone**
   (Session C) — headless Chromium has none, so the E2E covers the elapsed-timer
   path only. The bars are real analyser samples and there are deliberately none
