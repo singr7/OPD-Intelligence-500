@@ -79,6 +79,8 @@ from app.providers.registry import stt_chain, tts_chain
 from app.providers.runtime import effective_settings
 from app.queue_hub import QueueHub
 from app.trees import bank
+from app.trees import store as tree_store
+from app.trees import visibility as tree_visibility
 from app.trees.schema import Node
 from app.trees.walker import AnswerError, validate_answer
 
@@ -307,6 +309,10 @@ async def start(
         visit_id=walk_in.visit.id,
         chief_complaint=payload.chief_complaint,
         voice_profile=snapshot_profile(channel_config.kiosk_voice_profile, settings),
+        # Pinned for the life of the intake (doc 24 §5) — `routed.tree` was
+        # already pruned to these, and every later turn reloads the tree from
+        # the bank and must prune it the same way.
+        open_departments=sorted(await tree_store.active_department_codes(session)),
     )
 
     dispatcher = engine.dispatcher(state, routed.tree)
@@ -686,6 +692,43 @@ async def record_allergies(
     return AllergiesOut(recorded=len(written))
 
 
+async def _apply_destination(
+    session: AsyncSession,
+    *,
+    engine: IntakeEngine,
+    state: Any,
+    visit: Any,
+) -> None:
+    """Move the visit to the department these answers ask for, if any.
+
+    The decision itself is `Walk.destination` — deterministic, computed from the
+    answers, and it already drops a patient's stated preference when a red flag
+    fired. What is left here is the two things only a request can know: whether
+    that department exists and is open, and whether it is somewhere else.
+
+    A destination that resolves to nothing is **ignored, not an error**. A tree
+    naming a department this hospital does not run (or has since closed) is a
+    content problem for the tree bank tests to catch; at 9am with a patient at
+    the screen, the right answer is the department she is already in, with a
+    token, rather than a failed confirm.
+    """
+    destination = engine.dispatcher(state).walk.destination()
+    if destination is None:
+        return
+    dept = await kiosk_svc.department_by_code(session, destination)
+    if dept is None or dept.id == visit.department_id:
+        if dept is None:
+            logger.warning(
+                "intake %s asked for department %r, which is not open; leaving the visit where "
+                "it is",
+                state.intake_id,
+                destination,
+            )
+        return
+    visit.department_id = dept.id
+    await session.flush()
+
+
 @router.post("/{session_id}/confirm", response_model=ConfirmOut)
 async def confirm(
     session_id: str,
@@ -727,6 +770,13 @@ async def confirm(
     department: DeptOut | None = None
     enqueued = False
     if visit is not None:
+        # Where these answers say this patient belongs (doc 24 §4/§5) — the
+        # ayurveda OPD she asked for, or the chest clinic a TB-suspect rule
+        # names. Applied *before* the token, because the number is per
+        # department and a token issued in the wrong series is a queue the
+        # patient is not in. Nothing is reissued and no coordinator has to
+        # intervene: at this point in the walk there is no number yet.
+        await _apply_destination(session, engine=engine, state=state, visit=visit)
         token_no = await kiosk_svc.allocate_token(session, visit)
         intake = await session.get(kiosk_svc.Intake, state.intake_id)
         if intake is not None:
@@ -1021,7 +1071,15 @@ async def bundle(
     """
     departments = await kiosk_svc._departments(session)
     hospital = await facility.identity(session)
-    trees = [tree.to_json() for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)]
+    # Pruned before it is packed, not filtered when it is drawn (doc 24 §5): a
+    # question offering a closed department never reaches the kiosk's IndexedDB,
+    # so an outage cannot surface one. `departments` is already in the ETag
+    # below, which is what makes opening Ayurveda invalidate yesterday's pack.
+    open_codes = {d.code for d in departments}
+    trees = [
+        tree_visibility.for_active(tree, open_codes).to_json()
+        for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)
+    ]
 
     # Content-addressed: the kiosk sends If-None-Match and skips the download
     # when nothing changed. A tree edit (S18) or a department rename changes it.

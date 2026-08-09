@@ -1,6 +1,7 @@
 {
+  "_comment": "doc 24 §5 — the AYUR offer (`pu.ayur`) is a **preference, not triage**: it branches nowhere, and `Walk.destination` applies it only when no red flag fired. `app.trees.visibility` removes the whole question while the Ayurveda department is closed, which is why it has exactly two options and routes by next.default alone — with it gone this tree is bit-for-bit what it was before.",
   "key": "pulmonology_routing",
-  "version": 1,
+  "version": 2,
   "department": "PULM",
   "languages": [
     "en",
@@ -221,9 +222,46 @@
         }
       ],
       "next": {
-        "default": "pu.words"
+        "default": "pu.ayur"
       },
       "adaptive_hints": "Ask without judgement — a patient who feels judged under-reports."
+    },
+    {
+      "id": "pu.ayur",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Would you like to be seen in the Ayurveda OPD today?",
+        "hi": "क्या आप आज आयुर्वेद ओपीडी में दिखाना चाहेंगे?",
+        "mr": "तुम्हाला आज आयुर्वेद ओपीडीमध्ये दाखवायचं आहे का?",
+        "te": "మీరు ఈ రోజు ఆయుర్వేద ఓపీడీలో చూపించుకోవాలనుకుంటున్నారా?"
+      },
+      "options": [
+        {
+          "id": "ayurveda",
+          "text": {
+            "en": "Yes — I came for ayurveda treatment",
+            "hi": "हाँ — मैं आयुर्वेद इलाज के लिए आया/आई हूँ",
+            "mr": "होय — मी आयुर्वेद उपचारासाठी आलो/आले आहे",
+            "te": "అవును — నేను ఆయుర్వేద చికిత్స కోసం వచ్చాను"
+          },
+          "icon": "leaf",
+          "department": "AYUR"
+        },
+        {
+          "id": "regular",
+          "text": {
+            "en": "No, the regular OPD is fine",
+            "hi": "नहीं, सामान्य ओपीडी ठीक है",
+            "mr": "नाही, नेहमीची ओपीडी ठीक आहे",
+            "te": "లేదు, సాధారణ ఓపీడీ సరిపోతుంది"
+          },
+          "icon": "hospital"
+        }
+      ],
+      "next": {
+        "default": "pu.words"
+      }
     },
     {
       "id": "pu.words",

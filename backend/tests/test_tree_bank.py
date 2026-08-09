@@ -1,7 +1,7 @@
 """The authored pilot tree bank (doc 03 §3) — the clinical content itself.
 
 `test_trees.py` proves the engine is right. This file proves the *content* is,
-which is a different job: these eleven trees are what an actual patient in Alwar
+which is a different job: these sixteen trees are what an actual patient in Alwar
 is asked, and what an oncologist signs off in S21.
 
 The checks worth understanding:
@@ -51,7 +51,19 @@ ROUTING_TREES = {
     "pulmonology_routing": "PULM",
     "dermatology_routing": "DERM",
 }
-PILOT_BANK = CLINICAL_TREES | ROUTING_TREES
+#: doc 24 §5 — the ayurveda bank (SESSION-AYUR-2). Model-drafted and UNREVIEWED
+#: until a BAMS practitioner signs them off (doc 24 §9), which is a launch gate
+#: and not something a test can stand in for. What the tests below *can* check is
+#: what they check for every other tree: it walks to an end, every red flag can
+#: fire, and every language is present and in its own script.
+AYURVEDA_TREES = {
+    "ayurveda_routing": "AYUR",
+    "ayurveda_digestion": "AYUR",
+    "ayurveda_joint_pain": "AYUR",
+    "ayurveda_lifestyle_prameha": "AYUR",
+    "ayurveda_respiratory": "AYUR",
+}
+PILOT_BANK = CLINICAL_TREES | ROUTING_TREES | AYURVEDA_TREES
 
 # PILOT_LANGUAGES is now `app.languages` — one source of truth shared with the seed
 # and the language QA harness. S4 authored en+hi; S13 completed mr+te.
@@ -134,7 +146,7 @@ def test_the_bank_holds_exactly_the_pilot_trees(bank):
 def test_every_authored_file_parses(bank):
     """`load_bank` parses through the validator, so this passing means every file
     on disk is a tree that is safe to ask."""
-    assert len(bank) == len(list(TREES_DIR.glob("*.json"))) == 11
+    assert len(bank) == len(list(TREES_DIR.glob("*.json"))) == 16
 
 
 @pytest.mark.parametrize("key", tree_ids())

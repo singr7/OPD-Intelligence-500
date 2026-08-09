@@ -13,9 +13,10 @@ the pass, online and during an outage) now gets the name from.
 
 **A department cannot be opened onto an error.** `routes/kiosk.py` asserts a tree
 was resolved after routing, so an active department with no intake tree is a
-patient tapping a card into a 500. Doc 24 seeds `AYUR` dark for exactly this
-reason; this is the check that keeps it dark until SESSION-AYUR-2 authors its
-trees, rather than a comment asking the next session to remember.
+patient tapping a card into a 500. Doc 24 seeded `AYUR` dark for exactly this
+reason, and this check is what kept it dark until SESSION-AYUR-2 authored its
+trees — which it now has, so the example moved to `CODE_WITHOUT_A_TREE` and the
+guard is unchanged.
 
 **A change of system of medicine is confirmed against derived consequences.**
 The copy is not authored — it is the diff of two capability rows, so a flag
@@ -47,6 +48,12 @@ pytestmark = pytest.mark.asyncio
 #: finds something and the activation guard passes. Using a real one rather than
 #: publishing a row keeps these tests about the facility, not about the editor.
 CODE_WITH_A_TREE = "MEDONC"
+#: A department the tree bank has nothing for. It used to be "AYUR", which is
+#: what doc 24 seeded dark; SESSION-AYUR-2 authored the five ayurveda trees, so
+#: AYUR now *has* an intake and this check needs a department that still does
+#: not. That change of example is the point: the guard is about trees, not about
+#: ayurveda.
+CODE_WITHOUT_A_TREE = "PHYSIO"
 
 
 async def _admin(session: AsyncSession, settings: Settings, hospital: Hospital) -> dict[str, str]:
@@ -350,22 +357,22 @@ async def test_a_staff_invite_names_the_hospital_in_the_reader_s_language(
 async def test_a_department_with_no_intake_tree_cannot_be_opened(
     session: AsyncSession,
 ) -> None:
-    """The guard doc 24's AYUR department is seeded dark behind.
+    """The guard doc 24's AYUR department was seeded dark behind.
 
     `routes/kiosk.py` asserts `routed.tree is not None` after routing, and the
     chooser lists every active department — so this refusal is the difference
-    between "Ayurveda is not open yet" and a patient's tap returning a 500.
+    between "Physiotherapy is not open yet" and a patient's tap returning a 500.
     """
     hospital = await _one_hospital(session)
-    dept = f.make_department(hospital, code="AYUR", name="Ayurveda", active=False)
+    dept = f.make_department(hospital, code=CODE_WITHOUT_A_TREE, name="Physiotherapy", active=False)
     session.add(dept)
     await session.flush()
 
     with pytest.raises(facility.FacilityError) as raised:
-        await facility.update_department(session, code="AYUR", active=True)
+        await facility.update_department(session, code=CODE_WITHOUT_A_TREE, active=True)
 
     assert "no intake tree" in str(raised.value)
-    assert "AYUR" in str(raised.value)
+    assert CODE_WITHOUT_A_TREE in str(raised.value)
     await session.refresh(dept)
     assert dept.active is False
 
@@ -387,11 +394,11 @@ async def test_closing_a_department_is_never_blocked(session: AsyncSession) -> N
     patients to it; closing one only stops that, and an operator taking a
     department off the kiosk in a hurry must never be argued with."""
     hospital = await _one_hospital(session)
-    dept = f.make_department(hospital, code="AYUR", name="Ayurveda", active=True)
+    dept = f.make_department(hospital, code=CODE_WITHOUT_A_TREE, name="Physiotherapy", active=True)
     session.add(dept)
     await session.flush()
 
-    updated = await facility.update_department(session, code="AYUR", active=False)
+    updated = await facility.update_department(session, code=CODE_WITHOUT_A_TREE, active=False)
 
     assert updated.active is False
     assert updated.has_intake is False
@@ -424,12 +431,15 @@ async def test_creating_a_department_open_is_refused_for_the_same_reason(
     resp = await client.post(
         "/admin/departments",
         headers=await _admin(session, settings, hospital),
-        json={"code": "AYUR", "name": "Ayurveda", "care_system": "ayurveda", "active": True},
+        json={"code": "physio", "name": "Physiotherapy", "active": True},
     )
 
     assert resp.status_code == 422
     assert "no intake tree" in resp.json()["detail"]
-    assert await session.scalar(select(Department).where(Department.code == "AYUR")) is None
+    assert (
+        await session.scalar(select(Department).where(Department.code == CODE_WITHOUT_A_TREE))
+        is None
+    )
 
 
 @pytest.mark.parametrize("code", ["", "a", "1AYUR", "AYUR-2", "ayur veda"])

@@ -58,6 +58,7 @@ from app.providers.metering import get_meter
 from app.queue_hub import QueueHub
 from app.routes import kiosk as kiosk_routes
 from app.routes.kiosk import _node_out
+from app.trees import store as tree_store
 
 logger = logging.getLogger(__name__)
 
@@ -501,6 +502,7 @@ async def intake_start(
         intake_id=intake.id,
         visit_id=visit.id,
         chief_complaint=payload.chief_complaint,
+        open_departments=sorted(await tree_store.active_department_codes(session)),
     )
     dispatcher = engine.dispatcher(state, routed.tree)
     first = await dispatcher.get_next_node()

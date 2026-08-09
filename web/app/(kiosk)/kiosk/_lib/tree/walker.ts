@@ -227,6 +227,42 @@ export class Walk {
     return hits;
   }
 
+  /** The department these answers ask for, or null for "wherever they are".
+   *  Mirrors `Walk.destination` (backend/app/trees/walker.py) exactly, including
+   *  the precedence, which is the safety rule:
+   *
+   *  1. a fired flag's `route_to` wins, worst severity first — the rule engine is
+   *     deterministic and no preference outranks it;
+   *  2. any fired flag with no destination cancels a preference, so a patient who
+   *     asked for the ayurveda OPD and then reported chest pain stays on the
+   *     staffed allopathic path (doc 24 §4);
+   *  3. otherwise the department an answered option named.
+   *
+   *  The offline flow reads this to draw the token from the right department's
+   *  block. Getting it wrong here and right in Python would mean a patient
+   *  holding a number for a queue she is not in — which is why it is in the
+   *  conformance fixture. */
+  destination(): string | null {
+    const fired = this.tree.red_flags
+      .filter((spec) => evaluate(spec.when, this.values()))
+      .sort((a, b) => {
+        const bySeverity = SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity];
+        if (bySeverity !== 0) return bySeverity;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      });
+    for (const spec of fired) {
+      if (spec.route_to) return spec.route_to;
+    }
+    if (fired.length > 0) return null;
+    for (const nodeId of this.path()) {
+      const answer = this.answersMap.get(nodeId);
+      if (!answer || typeof answer.value !== "string") continue;
+      const chosen = option(this.node(nodeId), answer.value);
+      if (chosen?.department) return chosen.department;
+    }
+    return null;
+  }
+
   /** The visit priority these answers earn (doc 03 §1: red flag → urgent). */
   priority(): Severity {
     const flags = this.redFlags();

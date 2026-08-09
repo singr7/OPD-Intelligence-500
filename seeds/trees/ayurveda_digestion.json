@@ -1,0 +1,397 @@
+{
+  "_comment": "doc 24 §5 — ayurveda intake. **MODEL-DRAFTED AND UNREVIEWED.** Every question, option and red flag in this file was written by a model and is a launch gate (doc 24 §9): it must be signed off by a BAMS practitioner before it is asked of a real patient, exactly like the oncology bank and the check-in protocols. LANGUAGE (doc 24 §5): the `en` slot carries accessible **Hinglish** — the words an Alwar patient actually uses — because Hinglish is authored content, not a locale, and widening the `Lang` enum would ripple through models, kiosk shells, TTS packs and the patient app for a language nobody selects. `hi` is Devanagari Hindi. `mr`/`te` are plain translations, owed native review like the rest of the bank (S13/S21). TONE: ayurveda context without a jargon wall — the familiar word does the work and the classical term rides in brackets, 'पाचन (अग्नि)'. There is no dosha quiz: doc 24 §4 makes dosha language presentation only, and a patient is never required to know or pick one. Traversal and red flags read answer ids alone. RED FLAGS: deterministic and allopathic. A fired flag makes the visit urgent and, where it carries `route_to`, hands the patient to a staffed allopathic department — a wellness framing must never soften an emergency.",
+  "key": "ayurveda_digestion",
+  "version": 1,
+  "department": "AYUR",
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
+  "title": {
+    "en": "Ayurveda — digestion (agni)",
+    "hi": "आयुर्वेद — पाचन (अग्नि)",
+    "mr": "आयुर्वेद — पचन (अग्नी)",
+    "te": "ఆయుర్వేదం — జీర్ణం (అగ్ని)"
+  },
+  "root": "ayd.main",
+  "nodes": [
+    {
+      "id": "ayd.main",
+      "type": "single",
+      "summary_role": "primary_symptom",
+      "text": {
+        "en": "Pet mein sabse zyada kya hota hai?",
+        "hi": "पेट में सबसे ज़्यादा क्या होता है?",
+        "mr": "पोटात सर्वात जास्त काय होतं?",
+        "te": "కడుపులో ఎక్కువగా ఏమి అవుతుంది?"
+      },
+      "options": [
+        {
+          "id": "jalan",
+          "text": {
+            "en": "Jalan ya khatti dakar",
+            "hi": "जलन या खट्टी डकार",
+            "mr": "जळजळ किंवा आंबट ढेकर",
+            "te": "మంట లేదా పుల్లని త్రేన్పులు"
+          }
+        },
+        {
+          "id": "gas",
+          "text": {
+            "en": "Gas, pet phoolna",
+            "hi": "गैस, पेट फूलना",
+            "mr": "गॅस, पोट फुगणं",
+            "te": "గ్యాస్, కడుపు ఉబ్బరం"
+          }
+        },
+        {
+          "id": "dast",
+          "text": {
+            "en": "Baar baar dast",
+            "hi": "बार-बार दस्त",
+            "mr": "वारंवार जुलाब",
+            "te": "పదే పదే విరేచనాలు"
+          }
+        },
+        {
+          "id": "bhookh",
+          "text": {
+            "en": "Bhookh nahin lagti",
+            "hi": "भूख नहीं लगती",
+            "mr": "भूक लागत नाही",
+            "te": "ఆకలి వేయడం లేదు"
+          }
+        },
+        {
+          "id": "ulti",
+          "text": {
+            "en": "Vomiting",
+            "hi": "उल्टी",
+            "mr": "उलटी",
+            "te": "వాంతి"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayd.timing"
+      }
+    },
+    {
+      "id": "ayd.timing",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Yeh kab zyada hota hai?",
+        "hi": "यह कब ज़्यादा होता है?",
+        "mr": "हे कधी जास्त होतं?",
+        "te": "ఇది ఎప్పుడు ఎక్కువ అవుతుంది?"
+      },
+      "options": [
+        {
+          "id": "khaali_pet",
+          "text": {
+            "en": "Khaali pet",
+            "hi": "खाली पेट",
+            "mr": "उपाशीपोटी",
+            "te": "ఖాళీ కడుపుతో"
+          }
+        },
+        {
+          "id": "khaane_baad",
+          "text": {
+            "en": "Khaane ke baad",
+            "hi": "खाने के बाद",
+            "mr": "जेवणानंतर",
+            "te": "భోజనం తర్వాత"
+          }
+        },
+        {
+          "id": "raat",
+          "text": {
+            "en": "Raat ko",
+            "hi": "रात को",
+            "mr": "रात्री",
+            "te": "రాత్రి"
+          }
+        },
+        {
+          "id": "din_bhar",
+          "text": {
+            "en": "Din bhar",
+            "hi": "दिन भर",
+            "mr": "दिवसभर",
+            "te": "రోజంతా"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayd.duration"
+      }
+    },
+    {
+      "id": "ayd.duration",
+      "type": "number",
+      "summary_role": "duration",
+      "text": {
+        "en": "Kitne dinon se?",
+        "hi": "कितने दिनों से?",
+        "mr": "किती दिवसांपासून?",
+        "te": "ఎన్ని రోజుల నుండి?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": {
+        "default": "ayd.bowel"
+      }
+    },
+    {
+      "id": "ayd.bowel",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Pet saaf hota hai? (koshtha)",
+        "hi": "पेट साफ़ होता है? (कोष्ठ)",
+        "mr": "पोट साफ होतं का?",
+        "te": "మలవిసర్జన సరిగా అవుతుందా?"
+      },
+      "options": [
+        {
+          "id": "roz",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "kabz",
+          "text": {
+            "en": "Constipated",
+            "hi": "कब्ज़",
+            "mr": "बद्धकोष्ठता",
+            "te": "మలబద్ధకం"
+          }
+        },
+        {
+          "id": "patla",
+          "text": {
+            "en": "Patla ya baar baar",
+            "hi": "पतला या बार-बार",
+            "mr": "पातळ किंवा वारंवार",
+            "te": "పలుచగా లేదా పదే పదే"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayd.diet"
+      }
+    },
+    {
+      "id": "ayd.diet",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Khaana zyada kaisa hota hai?",
+        "hi": "खाना ज़्यादातर कैसा होता है?",
+        "mr": "जेवण बहुतेक कसं असतं?",
+        "te": "భోజనం ఎక్కువగా ఎలా ఉంటుంది?"
+      },
+      "options": [
+        {
+          "id": "ghar",
+          "text": {
+            "en": "Ghar ka, samay par",
+            "hi": "घर का, समय पर",
+            "mr": "घरचं, वेळेवर",
+            "te": "ఇంటిది, సమయానికి"
+          }
+        },
+        {
+          "id": "bahar",
+          "text": {
+            "en": "Bahar ka aksar",
+            "hi": "बाहर का अक्सर",
+            "mr": "बाहेरचं बरेचदा",
+            "te": "బయటిది తరచుగా"
+          }
+        },
+        {
+          "id": "besamay",
+          "text": {
+            "en": "Samay ka thikana nahin",
+            "hi": "समय का ठिकाना नहीं",
+            "mr": "वेळेचं भान नाही",
+            "te": "సమయం స్థిరంగా ఉండదు"
+          }
+        },
+        {
+          "id": "teekha",
+          "text": {
+            "en": "Bahut teekha ya tala hua",
+            "hi": "बहुत तीखा या तला हुआ",
+            "mr": "खूप तिखट किंवा तळलेलं",
+            "te": "చాలా కారం లేదా వేయించినవి"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayd.alarm"
+      }
+    },
+    {
+      "id": "ayd.alarm",
+      "type": "multi",
+      "text": {
+        "en": "Inmein se kuch hai? Jo bhi ho, sab chuniye.",
+        "hi": "क्या इनमें से कुछ है? जो भी हो, सब चुनें।",
+        "mr": "यांपैकी काही आहे का? जे असेल ते सर्व निवडा.",
+        "te": "వీటిలో ఏమైనా ఉన్నాయా? ఉన్నవన్నీ ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "blood",
+          "text": {
+            "en": "Ulti ya tatti mein khoon / kaala paakhana",
+            "hi": "उल्टी या पाखाने में खून / काला पाखाना",
+            "mr": "उलटी किंवा शौचात रक्त / काळं शौच",
+            "te": "వాంతి లేదా మలంలో రక్తం / నల్లని మలం"
+          }
+        },
+        {
+          "id": "nigalna",
+          "text": {
+            "en": "Nigalne mein takleef",
+            "hi": "निगलने में तकलीफ़",
+            "mr": "गिळताना त्रास",
+            "te": "మింగడంలో ఇబ్బంది"
+          }
+        },
+        {
+          "id": "gaanth",
+          "text": {
+            "en": "Pet mein gaanth lagti hai",
+            "hi": "पेट में गाँठ लगती है",
+            "mr": "पोटात गाठ जाणवते",
+            "te": "కడుపులో గడ్డ తగులుతుంది"
+          }
+        },
+        {
+          "id": "weight_loss",
+          "text": {
+            "en": "Bina koshish wazan ghat gaya",
+            "hi": "बिना कोशिश वज़न घट गया",
+            "mr": "प्रयत्नाशिवाय वजन कमी झालं",
+            "te": "ప్రయత్నం లేకుండా బరువు తగ్గింది"
+          }
+        },
+        {
+          "id": "none",
+          "text": {
+            "en": "Inmein se kuch nahin",
+            "hi": "इनमें से कुछ नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayd.words"
+      }
+    },
+    {
+      "id": "ayd.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Aur kuch batana chahenge? Apne shabdon mein bataiye.",
+        "hi": "और कुछ बताना चाहेंगे? अपने शब्दों में बताइए।",
+        "mr": "आणखी काही सांगायचं आहे का? तुमच्या शब्दांत सांगा.",
+        "te": "ఇంకా ఏమైనా చెప్పాలనుకుంటున్నారా? మీ మాటల్లో చెప్పండి."
+      },
+      "next": {
+        "default": null
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "ayd.gi_bleed",
+      "severity": "urgent",
+      "when": {
+        "node": "ayd.alarm",
+        "op": "contains",
+        "value": "blood"
+      },
+      "label": {
+        "en": "Bleeding from the gut",
+        "hi": "पेट से खून आना",
+        "mr": "पोटातून रक्तस्राव",
+        "te": "జీర్ణాశయం నుండి రక్తస్రావం"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ayd.dysphagia",
+      "severity": "urgent",
+      "when": {
+        "node": "ayd.alarm",
+        "op": "contains",
+        "value": "nigalna"
+      },
+      "label": {
+        "en": "Difficulty swallowing",
+        "hi": "निगलने में तकलीफ़",
+        "mr": "गिळण्यात अडचण",
+        "te": "మింగడంలో కష్టం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ayd.mass",
+      "severity": "semi",
+      "when": {
+        "op": "or",
+        "rules": [
+          {
+            "node": "ayd.alarm",
+            "op": "contains",
+            "value": "gaanth"
+          },
+          {
+            "node": "ayd.alarm",
+            "op": "contains",
+            "value": "weight_loss"
+          }
+        ]
+      },
+      "label": {
+        "en": "Abdominal lump or weight loss",
+        "hi": "पेट में गाँठ या वज़न घटना",
+        "mr": "पोटात गाठ किंवा वजन कमी होणं",
+        "te": "కడుపులో గడ్డ లేదా బరువు తగ్గడం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    }
+  ]
+}

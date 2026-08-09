@@ -64,6 +64,7 @@ from app.providers.base import ProviderError, with_fallback
 from app.providers.messaging import Button, ListRow, OutboundMessage
 from app.providers.metering import get_meter, usage_scope
 from app.providers.registry import get_messaging_provider, stt_chain, tts_chain
+from app.trees import store as tree_store
 from app.trees.schema import Tree
 from app.whatsapp import render
 from app.whatsapp.conversation import (
@@ -397,6 +398,7 @@ class WhatsAppBot:
             intake_id=intake.id,
             visit_id=visit.id,
             chief_complaint=complaint,
+            open_departments=sorted(await tree_store.active_department_codes(session)),
         )
         conv.session_id = state.session_id
         conv.patient_id = patient.id

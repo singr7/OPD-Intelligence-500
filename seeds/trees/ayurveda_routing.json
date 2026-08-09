@@ -1,0 +1,559 @@
+{
+  "_comment": "doc 24 §5 — ayurveda intake. **MODEL-DRAFTED AND UNREVIEWED.** Every question, option and red flag in this file was written by a model and is a launch gate (doc 24 §9): it must be signed off by a BAMS practitioner before it is asked of a real patient, exactly like the oncology bank and the check-in protocols. LANGUAGE (doc 24 §5): the `en` slot carries accessible **Hinglish** — the words an Alwar patient actually uses — because Hinglish is authored content, not a locale, and widening the `Lang` enum would ripple through models, kiosk shells, TTS packs and the patient app for a language nobody selects. `hi` is Devanagari Hindi. `mr`/`te` are plain translations, owed native review like the rest of the bank (S13/S21). TONE: ayurveda context without a jargon wall — the familiar word does the work and the classical term rides in brackets, 'पाचन (अग्नि)'. There is no dosha quiz: doc 24 §4 makes dosha language presentation only, and a patient is never required to know or pick one. Traversal and red flags read answer ids alone. RED FLAGS: deterministic and allopathic. A fired flag makes the visit urgent and, where it carries `route_to`, hands the patient to a staffed allopathic department — a wellness framing must never soften an emergency.",
+  "key": "ayurveda_routing",
+  "version": 1,
+  "department": "AYUR",
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
+  "title": {
+    "en": "Ayurveda OPD — walk-in",
+    "hi": "आयुर्वेद ओपीडी — बिना अपॉइंटमेंट",
+    "mr": "आयुर्वेद ओपीडी — अपॉइंटमेंटशिवाय",
+    "te": "ఆయుర్వేద ఓపీడీ — అపాయింట్‌మెంట్ లేకుండా"
+  },
+  "root": "ay.concern",
+  "nodes": [
+    {
+      "id": "ay.concern",
+      "type": "single",
+      "summary_role": "primary_symptom",
+      "text": {
+        "en": "Aaj aap kis cheez ke liye aaye hain?",
+        "hi": "आज आप किस तकलीफ़ के लिए आए हैं?",
+        "mr": "आज तुम्ही कोणत्या त्रासासाठी आला आहात?",
+        "te": "ఈ రోజు మీరు ఏ సమస్య కోసం వచ్చారు?"
+      },
+      "options": [
+        {
+          "id": "pachan",
+          "text": {
+            "en": "Pachan / pet ki takleef",
+            "hi": "पाचन (अग्नि) या पेट की तकलीफ़",
+            "mr": "पचन किंवा पोटाचा त्रास",
+            "te": "జీర్ణం లేదా కడుపు సమస్య"
+          },
+          "icon": "belly"
+        },
+        {
+          "id": "sandhi",
+          "text": {
+            "en": "Jodon ka dard",
+            "hi": "जोड़ों का दर्द (संधि-शूल)",
+            "mr": "सांध्यांचं दुखणं",
+            "te": "కీళ్ల నొప్పి"
+          },
+          "icon": "pain"
+        },
+        {
+          "id": "twacha",
+          "text": {
+            "en": "Twacha / baal ki takleef",
+            "hi": "त्वचा या बाल की तकलीफ़",
+            "mr": "त्वचा किंवा केसांचा त्रास",
+            "te": "చర్మం లేదా జుట్టు సమస్య"
+          },
+          "icon": "skin"
+        },
+        {
+          "id": "nidra",
+          "text": {
+            "en": "Neend ya tanaav",
+            "hi": "नींद या तनाव",
+            "mr": "झोप किंवा ताण",
+            "te": "నిద్ర లేదా ఒత్తిడి"
+          },
+          "icon": "sleep"
+        },
+        {
+          "id": "jeevan",
+          "text": {
+            "en": "Jeevanshaili / parhez ki salaah",
+            "hi": "जीवनशैली और पथ्य की सलाह",
+            "mr": "जीवनशैली आणि पथ्याचा सल्ला",
+            "te": "జీవనశైలి, పథ్య సలహా"
+          },
+          "icon": "leaf"
+        }
+      ],
+      "next": {
+        "pachan": "ay.pachan_kind",
+        "sandhi": "ay.sandhi_where",
+        "twacha": "ay.twacha_kind",
+        "nidra": "ay.nidra_kind",
+        "default": "ay.duration"
+      }
+    },
+    {
+      "id": "ay.pachan_kind",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Pet mein sabse zyada kya hota hai?",
+        "hi": "पेट में सबसे ज़्यादा क्या होता है?",
+        "mr": "पोटात सर्वात जास्त काय होतं?",
+        "te": "కడుపులో ఎక్కువగా ఏమి అవుతుంది?"
+      },
+      "options": [
+        {
+          "id": "jalan",
+          "text": {
+            "en": "Jalan ya khatti dakar",
+            "hi": "जलन या खट्टी डकार",
+            "mr": "जळजळ किंवा आंबट ढेकर",
+            "te": "మంట లేదా పుల్లని త్రేన్పులు"
+          }
+        },
+        {
+          "id": "gas",
+          "text": {
+            "en": "Gas ya pet phoolna",
+            "hi": "गैस या पेट फूलना",
+            "mr": "गॅस किंवा पोट फुगणं",
+            "te": "గ్యాస్ లేదా కడుపు ఉబ్బరం"
+          }
+        },
+        {
+          "id": "dast",
+          "text": {
+            "en": "Baar baar dast",
+            "hi": "बार-बार दस्त",
+            "mr": "वारंवार जुलाब",
+            "te": "పదే పదే విరేచనాలు"
+          }
+        },
+        {
+          "id": "bhookh",
+          "text": {
+            "en": "Bhookh nahin lagti",
+            "hi": "भूख नहीं लगती",
+            "mr": "भूक लागत नाही",
+            "te": "ఆకలి వేయడం లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.duration"
+      }
+    },
+    {
+      "id": "ay.sandhi_where",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Sabse zyada kahan dard hota hai?",
+        "hi": "सबसे ज़्यादा दर्द कहाँ होता है?",
+        "mr": "सर्वात जास्त दुखणं कुठे होतं?",
+        "te": "ఎక్కడ ఎక్కువగా నొప్పి ఉంటుంది?"
+      },
+      "options": [
+        {
+          "id": "ghutne",
+          "text": {
+            "en": "Ghutne",
+            "hi": "घुटने",
+            "mr": "गुडघे",
+            "te": "మోకాళ్ళు"
+          }
+        },
+        {
+          "id": "kamar",
+          "text": {
+            "en": "Kamar ya peeth",
+            "hi": "कमर या पीठ",
+            "mr": "कंबर किंवा पाठ",
+            "te": "నడుము లేదా వీపు"
+          }
+        },
+        {
+          "id": "kandha",
+          "text": {
+            "en": "Kandha ya gardan",
+            "hi": "कंधा या गर्दन",
+            "mr": "खांदा किंवा मान",
+            "te": "భుజం లేదా మెడ"
+          }
+        },
+        {
+          "id": "haath",
+          "text": {
+            "en": "Haath ki ungliyan",
+            "hi": "हाथ की उंगलियाँ",
+            "mr": "हाताची बोटं",
+            "te": "చేతి వేళ్ళు"
+          }
+        },
+        {
+          "id": "kai",
+          "text": {
+            "en": "Kai jodon mein",
+            "hi": "कई जोड़ों में",
+            "mr": "अनेक सांध्यांमध्ये",
+            "te": "అనేక కీళ్లలో"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.duration"
+      }
+    },
+    {
+      "id": "ay.twacha_kind",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Twacha mein kya takleef hai?",
+        "hi": "त्वचा में क्या तकलीफ़ है?",
+        "mr": "त्वचेत काय त्रास आहे?",
+        "te": "చర్మంలో ఏమి సమస్య ఉంది?"
+      },
+      "options": [
+        {
+          "id": "khujli",
+          "text": {
+            "en": "Itching",
+            "hi": "खुजली",
+            "mr": "खाज",
+            "te": "దురద"
+          }
+        },
+        {
+          "id": "chakatte",
+          "text": {
+            "en": "Chakatte ya daag",
+            "hi": "चकत्ते या दाग",
+            "mr": "पुरळ किंवा डाग",
+            "te": "దద్దుర్లు లేదా మచ్చలు"
+          }
+        },
+        {
+          "id": "baal",
+          "text": {
+            "en": "Baal jhadna",
+            "hi": "बाल झड़ना",
+            "mr": "केस गळणं",
+            "te": "జుట్టు రాలడం"
+          }
+        },
+        {
+          "id": "rookhi",
+          "text": {
+            "en": "Rookhi twacha",
+            "hi": "रूखी त्वचा",
+            "mr": "कोरडी त्वचा",
+            "te": "పొడి చర్మం"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.duration"
+      }
+    },
+    {
+      "id": "ay.nidra_kind",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Neend ke baare mein kya sahi hai?",
+        "hi": "नींद के बारे में क्या सही है?",
+        "mr": "झोपेबद्दल काय बरोबर आहे?",
+        "te": "నిద్ర గురించి ఏది సరైనది?"
+      },
+      "options": [
+        {
+          "id": "der",
+          "text": {
+            "en": "Der se neend aati hai",
+            "hi": "देर से नींद आती है",
+            "mr": "उशिरा झोप लागते",
+            "te": "ఆలస్యంగా నిద్ర పడుతుంది"
+          }
+        },
+        {
+          "id": "tootna",
+          "text": {
+            "en": "Raat mein neend tootti hai",
+            "hi": "रात में नींद टूटती है",
+            "mr": "रात्री झोप मोडते",
+            "te": "రాత్రి నిద్ర చెదిరిపోతుంది"
+          }
+        },
+        {
+          "id": "chinta",
+          "text": {
+            "en": "Chinta ya tanaav rehta hai",
+            "hi": "चिंता या तनाव रहता है",
+            "mr": "काळजी किंवा ताण असतो",
+            "te": "ఆందోళన లేదా ఒత్తిడి ఉంటుంది"
+          }
+        },
+        {
+          "id": "thakan",
+          "text": {
+            "en": "Uth kar bhi thakan",
+            "hi": "उठकर भी थकान",
+            "mr": "उठल्यावरही थकवा",
+            "te": "లేచినా అలసట"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.duration"
+      }
+    },
+    {
+      "id": "ay.duration",
+      "type": "number",
+      "summary_role": "duration",
+      "text": {
+        "en": "Kitne dinon se?",
+        "hi": "कितने दिनों से?",
+        "mr": "किती दिवसांपासून?",
+        "te": "ఎన్ని రోజుల నుండి?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": {
+        "default": "ay.severity"
+      }
+    },
+    {
+      "id": "ay.severity",
+      "type": "scale",
+      "summary_role": "severity",
+      "text": {
+        "en": "Aaj takleef kitni hai? 0 = bilkul nahin, 10 = bahut zyada",
+        "hi": "आज तकलीफ़ कितनी है? 0 = बिल्कुल नहीं, 10 = बहुत ज़्यादा",
+        "mr": "आज त्रास किती आहे? 0 = अजिबात नाही, 10 = खूप जास्त",
+        "te": "ఈ రోజు బాధ ఎంత? 0 = అస్సలు లేదు, 10 = చాలా ఎక్కువ"
+      },
+      "min": 0,
+      "max": 10,
+      "next": {
+        "default": "ay.appetite"
+      }
+    },
+    {
+      "id": "ay.appetite",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Aajkal bhookh (agni) kaisi hai?",
+        "hi": "आजकल भूख (अग्नि) कैसी है?",
+        "mr": "सध्या भूक कशी आहे?",
+        "te": "ఈ మధ్య ఆకలి ఎలా ఉంది?"
+      },
+      "options": [
+        {
+          "id": "normal",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "kam",
+          "text": {
+            "en": "Kam lagti hai",
+            "hi": "कम लगती है",
+            "mr": "कमी लागते",
+            "te": "తక్కువగా ఉంటుంది"
+          }
+        },
+        {
+          "id": "badalti",
+          "text": {
+            "en": "Kabhi kam kabhi zyada",
+            "hi": "कभी कम कभी ज़्यादा",
+            "mr": "कधी कमी कधी जास्त",
+            "te": "కొన్నిసార్లు తక్కువ కొన్నిసార్లు ఎక్కువ"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.bowel"
+      }
+    },
+    {
+      "id": "ay.bowel",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Pet saaf hota hai?",
+        "hi": "पेट साफ़ होता है?",
+        "mr": "पोट साफ होतं का?",
+        "te": "మలవిసర్జన సరిగా అవుతుందా?"
+      },
+      "options": [
+        {
+          "id": "roz",
+          "text": {
+            "en": "Normal",
+            "hi": "सामान्य",
+            "mr": "सामान्य",
+            "te": "సాధారణం"
+          }
+        },
+        {
+          "id": "kabz",
+          "text": {
+            "en": "Constipated",
+            "hi": "कब्ज़",
+            "mr": "बद्धकोष्ठता",
+            "te": "మలబద్ధకం"
+          }
+        },
+        {
+          "id": "dast",
+          "text": {
+            "en": "Patla ya baar baar",
+            "hi": "पतला या बार-बार",
+            "mr": "पातळ किंवा वारंवार",
+            "te": "పలుచగా లేదా పదే పదే"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.alarm"
+      }
+    },
+    {
+      "id": "ay.alarm",
+      "type": "multi",
+      "text": {
+        "en": "Inmein se kuch hai? Jo bhi ho, sab chuniye.",
+        "hi": "क्या इनमें से कुछ है? जो भी हो, सब चुनें।",
+        "mr": "यांपैकी काही आहे का? जे असेल ते सर्व निवडा.",
+        "te": "వీటిలో ఏమైనా ఉన్నాయా? ఉన్నవన్నీ ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "blood",
+          "text": {
+            "en": "Khoon — ulti, tatti ya khaansi mein",
+            "hi": "खून — उल्टी, पाखाने या खाँसी में",
+            "mr": "रक्त — उलटी, शौच किंवा खोकल्यात",
+            "te": "రక్తం — వాంతి, మలం లేదా దగ్గులో"
+          }
+        },
+        {
+          "id": "weight_loss",
+          "text": {
+            "en": "Bina koshish wazan ghat gaya",
+            "hi": "बिना कोशिश वज़न घट गया",
+            "mr": "प्रयत्नाशिवाय वजन कमी झालं",
+            "te": "ప్రయత్నం లేకుండా బరువు తగ్గింది"
+          }
+        },
+        {
+          "id": "chest",
+          "text": {
+            "en": "Chest mein dard ya saans phoolna",
+            "hi": "छाती में दर्द या साँस फूलना",
+            "mr": "छातीत दुखणं किंवा धाप लागणं",
+            "te": "ఛాతీలో నొప్పి లేదా శ్వాస ఆడకపోవడం"
+          }
+        },
+        {
+          "id": "none",
+          "text": {
+            "en": "Inmein se kuch nahin",
+            "hi": "इनमें से कुछ नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ay.words"
+      }
+    },
+    {
+      "id": "ay.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Aur kuch batana chahenge? Apne shabdon mein bataiye.",
+        "hi": "और कुछ बताना चाहेंगे? अपने शब्दों में बताइए।",
+        "mr": "आणखी काही सांगायचं आहे का? तुमच्या शब्दांत सांगा.",
+        "te": "ఇంకా ఏమైనా చెప్పాలనుకుంటున్నారా? మీ మాటల్లో చెప్పండి."
+      },
+      "next": {
+        "default": null
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "ay.route.bleeding",
+      "severity": "urgent",
+      "when": {
+        "node": "ay.alarm",
+        "op": "contains",
+        "value": "blood"
+      },
+      "label": {
+        "en": "Bleeding",
+        "hi": "खून आना",
+        "mr": "रक्तस्राव",
+        "te": "రక్తస్రావం"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ay.route.chest",
+      "severity": "urgent",
+      "when": {
+        "node": "ay.alarm",
+        "op": "contains",
+        "value": "chest"
+      },
+      "label": {
+        "en": "Chest pain or breathlessness",
+        "hi": "छाती में दर्द या साँस फूलना",
+        "mr": "छातीत दुखणं किंवा धाप लागणं",
+        "te": "ఛాతీ నొప్పి లేదా శ్వాస ఆడకపోవడం"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ay.route.weight_loss",
+      "severity": "semi",
+      "when": {
+        "node": "ay.alarm",
+        "op": "contains",
+        "value": "weight_loss"
+      },
+      "label": {
+        "en": "Unexplained weight loss",
+        "hi": "बिना कारण वज़न घटना",
+        "mr": "कारणाशिवाय वजन कमी होणं",
+        "te": "కారణం లేకుండా బరువు తగ్గడం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    }
+  ]
+}

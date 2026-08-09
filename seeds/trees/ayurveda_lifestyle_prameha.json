@@ -1,0 +1,370 @@
+{
+  "_comment": "doc 24 §5 — ayurveda intake. **MODEL-DRAFTED AND UNREVIEWED.** Every question, option and red flag in this file was written by a model and is a launch gate (doc 24 §9): it must be signed off by a BAMS practitioner before it is asked of a real patient, exactly like the oncology bank and the check-in protocols. LANGUAGE (doc 24 §5): the `en` slot carries accessible **Hinglish** — the words an Alwar patient actually uses — because Hinglish is authored content, not a locale, and widening the `Lang` enum would ripple through models, kiosk shells, TTS packs and the patient app for a language nobody selects. `hi` is Devanagari Hindi. `mr`/`te` are plain translations, owed native review like the rest of the bank (S13/S21). TONE: ayurveda context without a jargon wall — the familiar word does the work and the classical term rides in brackets, 'पाचन (अग्नि)'. There is no dosha quiz: doc 24 §4 makes dosha language presentation only, and a patient is never required to know or pick one. Traversal and red flags read answer ids alone. RED FLAGS: deterministic and allopathic. A fired flag makes the visit urgent and, where it carries `route_to`, hands the patient to a staffed allopathic department — a wellness framing must never soften an emergency.",
+  "key": "ayurveda_lifestyle_prameha",
+  "version": 1,
+  "department": "AYUR",
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
+  "title": {
+    "en": "Ayurveda — diabetes & lifestyle (prameha)",
+    "hi": "आयुर्वेद — मधुमेह और जीवनशैली (प्रमेह)",
+    "mr": "आयुर्वेद — मधुमेह आणि जीवनशैली",
+    "te": "ఆయుర్వేదం — మధుమేహం, జీవనశైలి"
+  },
+  "root": "ayp.known",
+  "nodes": [
+    {
+      "id": "ayp.known",
+      "type": "single",
+      "summary_role": "primary_symptom",
+      "text": {
+        "en": "Sugar (madhumeh) ke baare mein kya sahi hai?",
+        "hi": "शुगर (मधुमेह) के बारे में क्या सही है?",
+        "mr": "साखरेबद्दल (मधुमेह) काय बरोबर आहे?",
+        "te": "చక్కెర వ్యాధి గురించి ఏది సరైనది?"
+      },
+      "options": [
+        {
+          "id": "diagnosed",
+          "text": {
+            "en": "Doctor ne sugar bataya hai",
+            "hi": "डॉक्टर ने शुगर बताई है",
+            "mr": "डॉक्टरांनी साखर सांगितली आहे",
+            "te": "డాక్టర్ చక్కెర ఉందని చెప్పారు"
+          }
+        },
+        {
+          "id": "borderline",
+          "text": {
+            "en": "Border line hai",
+            "hi": "बॉर्डर लाइन है",
+            "mr": "बॉर्डर लाइन आहे",
+            "te": "బార్డర్ లైన్‌లో ఉంది"
+          }
+        },
+        {
+          "id": "untested",
+          "text": {
+            "en": "Kabhi jaanch nahin karayi",
+            "hi": "कभी जाँच नहीं करायी",
+            "mr": "कधीच तपासणी केली नाही",
+            "te": "ఎప్పుడూ పరీక్ష చేయించలేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayp.years"
+      }
+    },
+    {
+      "id": "ayp.years",
+      "type": "number",
+      "summary_role": "duration",
+      "text": {
+        "en": "Kitne saal se? (nahin pata to 0)",
+        "hi": "कितने साल से? (पता न हो तो 0)",
+        "mr": "किती वर्षांपासून? (माहीत नसेल तर 0)",
+        "te": "ఎన్ని సంవత్సరాల నుండి? (తెలియకపోతే 0)"
+      },
+      "min": 0,
+      "max": 80,
+      "unit": "years",
+      "next": {
+        "default": "ayp.medicines"
+      }
+    },
+    {
+      "id": "ayp.medicines",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Abhi dawa chal rahi hai?",
+        "hi": "अभी दवा चल रही है?",
+        "mr": "सध्या औषध चालू आहे का?",
+        "te": "ప్రస్తుతం మందులు వాడుతున్నారా?"
+      },
+      "options": [
+        {
+          "id": "regular",
+          "text": {
+            "en": "Haan, roz leta/leti hoon",
+            "hi": "हाँ, रोज़ लेता/लेती हूँ",
+            "mr": "होय, रोज घेतो/घेते",
+            "te": "అవును, రోజూ తీసుకుంటున్నాను"
+          }
+        },
+        {
+          "id": "kabhi",
+          "text": {
+            "en": "Kabhi kabhi",
+            "hi": "कभी-कभी",
+            "mr": "कधी कधी",
+            "te": "అప్పుడప్పుడు"
+          }
+        },
+        {
+          "id": "band",
+          "text": {
+            "en": "Apne aap band kar di",
+            "hi": "अपने आप बंद कर दी",
+            "mr": "स्वतःहून बंद केली",
+            "te": "నా అంతట నేనే ఆపేశాను"
+          }
+        },
+        {
+          "id": "koi_nahin",
+          "text": {
+            "en": "Koi dawa nahin",
+            "hi": "कोई दवा नहीं",
+            "mr": "कोणतंही औषध नाही",
+            "te": "ఏ మందూ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayp.habits"
+      }
+    },
+    {
+      "id": "ayp.habits",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Roz chalna ya vyayam hota hai?",
+        "hi": "रोज़ चलना या व्यायाम होता है?",
+        "mr": "रोज चालणं किंवा व्यायाम होतो का?",
+        "te": "రోజూ నడక లేదా వ్యాయామం చేస్తారా?"
+      },
+      "options": [
+        {
+          "id": "roz",
+          "text": {
+            "en": "Haan, roz",
+            "hi": "हाँ, रोज़",
+            "mr": "होय, रोज",
+            "te": "అవును, రోజూ"
+          }
+        },
+        {
+          "id": "kabhi",
+          "text": {
+            "en": "Kabhi kabhi",
+            "hi": "कभी-कभी",
+            "mr": "कधी कधी",
+            "te": "అప్పుడప్పుడు"
+          }
+        },
+        {
+          "id": "nahin",
+          "text": {
+            "en": "Nahin hota",
+            "hi": "नहीं होता",
+            "mr": "होत नाही",
+            "te": "చేయడం లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayp.diet"
+      }
+    },
+    {
+      "id": "ayp.diet",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Meetha ya chawal kitna khaate hain?",
+        "hi": "मीठा या चावल कितना खाते हैं?",
+        "mr": "गोड किंवा भात किती खाता?",
+        "te": "తీపి లేదా అన్నం ఎంత తింటారు?"
+      },
+      "options": [
+        {
+          "id": "roz",
+          "text": {
+            "en": "Roz",
+            "hi": "रोज़",
+            "mr": "रोज",
+            "te": "రోజూ"
+          }
+        },
+        {
+          "id": "kabhi",
+          "text": {
+            "en": "Kabhi kabhi",
+            "hi": "कभी-कभी",
+            "mr": "कधी कधी",
+            "te": "అప్పుడప్పుడు"
+          }
+        },
+        {
+          "id": "kam",
+          "text": {
+            "en": "Bahut kam",
+            "hi": "बहुत कम",
+            "mr": "खूप कमी",
+            "te": "చాలా తక్కువ"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayp.alarm"
+      }
+    },
+    {
+      "id": "ayp.alarm",
+      "type": "multi",
+      "text": {
+        "en": "Inmein se kuch hai? Jo bhi ho, sab chuniye.",
+        "hi": "क्या इनमें से कुछ है? जो भी हो, सब चुनें।",
+        "mr": "यांपैकी काही आहे का? जे असेल ते सर्व निवडा.",
+        "te": "వీటిలో ఏమైనా ఉన్నాయా? ఉన్నవన్నీ ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "hypo",
+          "text": {
+            "en": "Achanak paseena, kampan ya chakkar",
+            "hi": "अचानक पसीना, कंपन या चक्कर",
+            "mr": "अचानक घाम, थरथर किंवा चक्कर",
+            "te": "అకస్మాత్తుగా చెమట, వణుకు లేదా కళ్లు తిరగడం"
+          }
+        },
+        {
+          "id": "foot",
+          "text": {
+            "en": "Pair ka ghaav bhar nahin raha",
+            "hi": "पैर का घाव भर नहीं रहा",
+            "mr": "पायाची जखम भरत नाही",
+            "te": "కాలి గాయం మానడం లేదు"
+          }
+        },
+        {
+          "id": "vision",
+          "text": {
+            "en": "Dikhna dhundhla ho gaya",
+            "hi": "दिखना धुंधला हो गया",
+            "mr": "दिसणं अंधुक झालं",
+            "te": "చూపు మసకబారింది"
+          }
+        },
+        {
+          "id": "thirst",
+          "text": {
+            "en": "Baar baar peshaab aur bahut pyaas",
+            "hi": "बार-बार पेशाब और बहुत प्यास",
+            "mr": "वारंवार लघवी आणि खूप तहान",
+            "te": "పదే పదే మూత్రం, చాలా దాహం"
+          }
+        },
+        {
+          "id": "none",
+          "text": {
+            "en": "Inmein se kuch nahin",
+            "hi": "इनमें से कुछ नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayp.words"
+      }
+    },
+    {
+      "id": "ayp.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Aur kuch batana chahenge? Apne shabdon mein bataiye.",
+        "hi": "और कुछ बताना चाहेंगे? अपने शब्दों में बताइए।",
+        "mr": "आणखी काही सांगायचं आहे का? तुमच्या शब्दांत सांगा.",
+        "te": "ఇంకా ఏమైనా చెప్పాలనుకుంటున్నారా? మీ మాటల్లో చెప్పండి."
+      },
+      "next": {
+        "default": null
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "ayp.hypo",
+      "severity": "urgent",
+      "when": {
+        "node": "ayp.alarm",
+        "op": "contains",
+        "value": "hypo"
+      },
+      "label": {
+        "en": "Possible low sugar",
+        "hi": "शुगर कम होने के लक्षण",
+        "mr": "साखर कमी होण्याची लक्षणं",
+        "te": "చక్కెర తగ్గిన లక్షణాలు"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ayp.foot_ulcer",
+      "severity": "semi",
+      "when": {
+        "node": "ayp.alarm",
+        "op": "contains",
+        "value": "foot"
+      },
+      "label": {
+        "en": "Non-healing foot wound",
+        "hi": "न भरने वाला पैर का घाव",
+        "mr": "न भरणारी पायाची जखम",
+        "te": "మానని కాలి గాయం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ayp.vision",
+      "severity": "semi",
+      "when": {
+        "op": "or",
+        "rules": [
+          {
+            "node": "ayp.alarm",
+            "op": "contains",
+            "value": "vision"
+          },
+          {
+            "node": "ayp.alarm",
+            "op": "contains",
+            "value": "thirst"
+          }
+        ]
+      },
+      "label": {
+        "en": "Blurred vision or thirst with frequent urine",
+        "hi": "धुंधला दिखना या बार-बार पेशाब के साथ प्यास",
+        "mr": "अंधुक दिसणं किंवा वारंवार लघवीसह तहान",
+        "te": "మసక చూపు లేదా తరచూ మూత్రంతో దాహం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    }
+  ]
+}

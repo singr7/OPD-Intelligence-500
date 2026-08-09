@@ -75,7 +75,7 @@ from app.providers import (
 from app.providers.costguard import LADDER, CostGuard, downgrade, get_guard
 from app.providers.profiles import VoiceProfileSnapshot, resolve_profile
 from app.providers.realtime import RealtimeConfig, RealtimeSession, RealtimeVoiceProvider
-from app.trees import bank
+from app.trees import bank, visibility
 from app.trees.schema import Tree
 
 logger = logging.getLogger(__name__)
@@ -246,6 +246,7 @@ class IntakeEngine:
         chief_complaint: str | None = None,
         chief_complaint_en: str | None = None,
         voice_profile: VoiceProfileSnapshot | None = None,
+        open_departments: list[str] | None = None,
     ) -> SessionState:
         """Open an intake and persist it. Active tier respects the cost guard from
         the first turn — a channel already over budget starts on the cheaper tier
@@ -269,14 +270,25 @@ class IntakeEngine:
             chief_complaint=chief_complaint,
             chief_complaint_en=chief_complaint_en,
             voice_profile=voice_profile,
+            open_departments=open_departments,
         )
         await self._store.save(state)
         return state
 
     def _tree(self, state: SessionState) -> Tree:
         """Reload the tree from the bank — never trust a dict thawed from Redis
-        (STATE.md: a `Tree` is only valid through `schema.parse`)."""
-        return bank.get(state.tree_key)
+        (STATE.md: a `Tree` is only valid through `schema.parse`).
+
+        Pruned to the departments that were open when the session started, so
+        every turn asks the same questions the first one did (doc 24 §5). Without
+        this the offer to be seen in Ayurveda would be filtered on the first
+        screen, which `/start` resolves through `store.resolve_tree`, and then
+        reappear on the second, which comes from here.
+        """
+        tree = bank.get(state.tree_key)
+        if state.open_departments is None:
+            return tree
+        return visibility.for_active(tree, state.open_departments)
 
     def dispatcher(self, state: SessionState, tree: Tree | None = None) -> ToolDispatcher:
         tree = tree or self._tree(state)

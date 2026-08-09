@@ -50,7 +50,7 @@ from app.trees.schema import Node, NodeType, Tree, parse
 from app.trees.walker import AnswerError, Walk
 
 #: Bumped when the trace format changes, so a stale fixture cannot pass quietly.
-FIXTURE_VERSION = 1
+FIXTURE_VERSION = 2
 
 #: One seed, one file. The sample must be identical on every machine and in CI —
 #: a fixture that differs per run would make the diff gate meaningless.
@@ -356,6 +356,11 @@ def _snapshot(walk: Walk) -> dict[str, Any]:
             for hit in walk.red_flags()
         ],
         "priority": str(walk.priority()),
+        # doc 24 §5. In the fixture for the same reason the flags are: the online
+        # confirm and the offline token draw both read it, so a Python/TS
+        # disagreement here is a patient holding a number for a queue she is not
+        # in — during exactly the outage the offline walker exists for.
+        "destination": walk.destination(),
     }
 
 

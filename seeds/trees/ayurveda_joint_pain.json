@@ -1,0 +1,321 @@
+{
+  "_comment": "doc 24 §5 — ayurveda intake. **MODEL-DRAFTED AND UNREVIEWED.** Every question, option and red flag in this file was written by a model and is a launch gate (doc 24 §9): it must be signed off by a BAMS practitioner before it is asked of a real patient, exactly like the oncology bank and the check-in protocols. LANGUAGE (doc 24 §5): the `en` slot carries accessible **Hinglish** — the words an Alwar patient actually uses — because Hinglish is authored content, not a locale, and widening the `Lang` enum would ripple through models, kiosk shells, TTS packs and the patient app for a language nobody selects. `hi` is Devanagari Hindi. `mr`/`te` are plain translations, owed native review like the rest of the bank (S13/S21). TONE: ayurveda context without a jargon wall — the familiar word does the work and the classical term rides in brackets, 'पाचन (अग्नि)'. There is no dosha quiz: doc 24 §4 makes dosha language presentation only, and a patient is never required to know or pick one. Traversal and red flags read answer ids alone. RED FLAGS: deterministic and allopathic. A fired flag makes the visit urgent and, where it carries `route_to`, hands the patient to a staffed allopathic department — a wellness framing must never soften an emergency.",
+  "key": "ayurveda_joint_pain",
+  "version": 1,
+  "department": "AYUR",
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
+  "title": {
+    "en": "Ayurveda — joint pain (sandhi-shool)",
+    "hi": "आयुर्वेद — जोड़ों का दर्द (संधि-शूल)",
+    "mr": "आयुर्वेद — सांधेदुखी",
+    "te": "ఆయుర్వేదం — కీళ్ల నొప్పి"
+  },
+  "root": "ayj.where",
+  "nodes": [
+    {
+      "id": "ayj.where",
+      "type": "single",
+      "summary_role": "primary_symptom",
+      "text": {
+        "en": "Sabse zyada kahan dard hota hai?",
+        "hi": "सबसे ज़्यादा दर्द कहाँ होता है?",
+        "mr": "सर्वात जास्त दुखणं कुठे होतं?",
+        "te": "ఎక్కడ ఎక్కువగా నొప్పి ఉంటుంది?"
+      },
+      "options": [
+        {
+          "id": "ghutne",
+          "text": {
+            "en": "Ghutne",
+            "hi": "घुटने",
+            "mr": "गुडघे",
+            "te": "మోకాళ్ళు"
+          }
+        },
+        {
+          "id": "kamar",
+          "text": {
+            "en": "Kamar ya peeth",
+            "hi": "कमर या पीठ",
+            "mr": "कंबर किंवा पाठ",
+            "te": "నడుము లేదా వీపు"
+          }
+        },
+        {
+          "id": "kandha",
+          "text": {
+            "en": "Kandha ya gardan",
+            "hi": "कंधा या गर्दन",
+            "mr": "खांदा किंवा मान",
+            "te": "భుజం లేదా మెడ"
+          }
+        },
+        {
+          "id": "haath",
+          "text": {
+            "en": "Haath ki ungliyan",
+            "hi": "हाथ की उंगलियाँ",
+            "mr": "हाताची बोटं",
+            "te": "చేతి వేళ్ళు"
+          }
+        },
+        {
+          "id": "kai",
+          "text": {
+            "en": "Kai jodon mein",
+            "hi": "कई जोड़ों में",
+            "mr": "अनेक सांध्यांमध्ये",
+            "te": "అనేక కీళ్లలో"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayj.duration"
+      }
+    },
+    {
+      "id": "ayj.duration",
+      "type": "number",
+      "summary_role": "duration",
+      "text": {
+        "en": "Kitne dinon se?",
+        "hi": "कितने दिनों से?",
+        "mr": "किती दिवसांपासून?",
+        "te": "ఎన్ని రోజుల నుండి?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": {
+        "default": "ayj.stiffness"
+      }
+    },
+    {
+      "id": "ayj.stiffness",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Subah uthte hi jodon mein akadan hoti hai?",
+        "hi": "सुबह उठते ही जोड़ों में अकड़न होती है?",
+        "mr": "सकाळी उठल्यावर सांधे आखडतात का?",
+        "te": "ఉదయం లేవగానే కీళ్లు బిగుసుకుపోతాయా?"
+      },
+      "options": [
+        {
+          "id": "aadha_ghanta",
+          "text": {
+            "en": "Haan, aadha ghanta se zyada",
+            "hi": "हाँ, आधे घंटे से ज़्यादा",
+            "mr": "होय, अर्ध्या तासापेक्षा जास्त",
+            "te": "అవును, అరగంటకు మించి"
+          }
+        },
+        {
+          "id": "thodi",
+          "text": {
+            "en": "Thodi der ke liye",
+            "hi": "थोड़ी देर के लिए",
+            "mr": "थोड्या वेळासाठी",
+            "te": "కొద్దిసేపు"
+          }
+        },
+        {
+          "id": "nahin",
+          "text": {
+            "en": "Nahin",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayj.pattern"
+      }
+    },
+    {
+      "id": "ayj.pattern",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Dard kab badhta hai?",
+        "hi": "दर्द कब बढ़ता है?",
+        "mr": "दुखणं कधी वाढतं?",
+        "te": "నొప్పి ఎప్పుడు పెరుగుతుంది?"
+      },
+      "options": [
+        {
+          "id": "thand",
+          "text": {
+            "en": "Thand ya barsaat mein",
+            "hi": "ठंड या बरसात में",
+            "mr": "थंडी किंवा पावसात",
+            "te": "చలి లేదా వర్షంలో"
+          }
+        },
+        {
+          "id": "chalne",
+          "text": {
+            "en": "Chalne ya kaam karne par",
+            "hi": "चलने या काम करने पर",
+            "mr": "चालताना किंवा काम करताना",
+            "te": "నడిచేటప్పుడు లేదా పని చేసేటప్పుడు"
+          }
+        },
+        {
+          "id": "aaram",
+          "text": {
+            "en": "Aaram karne par",
+            "hi": "आराम करने पर",
+            "mr": "आराम करताना",
+            "te": "విశ్రాంతి తీసుకున్నప్పుడు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayj.severity"
+      }
+    },
+    {
+      "id": "ayj.severity",
+      "type": "scale",
+      "summary_role": "severity",
+      "text": {
+        "en": "Aaj dard kitna hai? 0 = bilkul nahin, 10 = bahut zyada",
+        "hi": "आज दर्द कितना है? 0 = बिल्कुल नहीं, 10 = बहुत ज़्यादा",
+        "mr": "आज दुखणं किती आहे? 0 = अजिबात नाही, 10 = खूप जास्त",
+        "te": "ఈ రోజు నొప్పి ఎంత? 0 = అస్సలు లేదు, 10 = చాలా ఎక్కువ"
+      },
+      "min": 0,
+      "max": 10,
+      "next": {
+        "default": "ayj.alarm"
+      }
+    },
+    {
+      "id": "ayj.alarm",
+      "type": "multi",
+      "text": {
+        "en": "Inmein se kuch hai? Jo bhi ho, sab chuniye.",
+        "hi": "क्या इनमें से कुछ है? जो भी हो, सब चुनें।",
+        "mr": "यांपैकी काही आहे का? जे असेल ते सर्व निवडा.",
+        "te": "వీటిలో ఏమైనా ఉన్నాయా? ఉన్నవన్నీ ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "garam_sooja",
+          "text": {
+            "en": "Ek jod garam, laal aur sooja hua",
+            "hi": "एक जोड़ गरम, लाल और सूजा हुआ",
+            "mr": "एक सांधा गरम, लाल आणि सुजलेला",
+            "te": "ఒక కీలు వేడిగా, ఎర్రగా, వాచి ఉంది"
+          }
+        },
+        {
+          "id": "chot",
+          "text": {
+            "en": "Haal hi mein girna ya chot",
+            "hi": "हाल ही में गिरना या चोट",
+            "mr": "अलीकडे पडणं किंवा दुखापत",
+            "te": "ఇటీవల పడటం లేదా గాయం"
+          }
+        },
+        {
+          "id": "bukhar",
+          "text": {
+            "en": "Dard ke saath bukhar",
+            "hi": "दर्द के साथ बुखार",
+            "mr": "दुखण्यासोबत ताप",
+            "te": "నొప్పితో పాటు జ్వరం"
+          }
+        },
+        {
+          "id": "none",
+          "text": {
+            "en": "Inmein se kuch nahin",
+            "hi": "इनमें से कुछ नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayj.words"
+      }
+    },
+    {
+      "id": "ayj.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Aur kuch batana chahenge? Apne shabdon mein bataiye.",
+        "hi": "और कुछ बताना चाहेंगे? अपने शब्दों में बताइए।",
+        "mr": "आणखी काही सांगायचं आहे का? तुमच्या शब्दांत सांगा.",
+        "te": "ఇంకా ఏమైనా చెప్పాలనుకుంటున్నారా? మీ మాటల్లో చెప్పండి."
+      },
+      "next": {
+        "default": null
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "ayj.septic",
+      "severity": "urgent",
+      "when": {
+        "op": "or",
+        "rules": [
+          {
+            "node": "ayj.alarm",
+            "op": "contains",
+            "value": "garam_sooja"
+          },
+          {
+            "node": "ayj.alarm",
+            "op": "contains",
+            "value": "bukhar"
+          }
+        ]
+      },
+      "label": {
+        "en": "Hot swollen joint or fever",
+        "hi": "गरम सूजा जोड़ या बुखार",
+        "mr": "गरम सुजलेला सांधा किंवा ताप",
+        "te": "వేడిగా వాచిన కీలు లేదా జ్వరం"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    },
+    {
+      "id": "ayj.trauma",
+      "severity": "semi",
+      "when": {
+        "node": "ayj.alarm",
+        "op": "contains",
+        "value": "chot"
+      },
+      "label": {
+        "en": "Recent injury",
+        "hi": "हाल की चोट",
+        "mr": "अलीकडची दुखापत",
+        "te": "ఇటీవలి గాయం"
+      },
+      "instruction": {
+        "en": "Aap pehle general doctor ko dikhaenge — ayurveda ilaaj uske baad bhi ho sakta hai. Please desk par bataiye.",
+        "hi": "आपको पहले जनरल डॉक्टर को दिखाना होगा — आयुर्वेद इलाज उसके बाद भी हो सकता है। कृपया डेस्क पर बताएं।",
+        "mr": "तुम्हाला आधी जनरल डॉक्टरना दाखवावं लागेल — आयुर्वेद उपचार त्यानंतरही होऊ शकतो. कृपया डेस्कवर सांगा.",
+        "te": "మీరు ముందు జనరల్ డాక్టర్‌ను చూడాలి — ఆయుర్వేద చికిత్స ఆ తర్వాత కూడా చేయవచ్చు. దయచేసి డెస్క్‌లో చెప్పండి."
+      },
+      "route_to": "GENMED"
+    }
+  ]
+}

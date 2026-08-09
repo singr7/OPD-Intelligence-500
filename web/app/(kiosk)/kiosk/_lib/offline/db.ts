@@ -191,6 +191,16 @@ export async function saveBlocks(rows: BlockRow[]): Promise<void> {
   });
 }
 
+/** One department out of the cached bundle, by code. The chooser's own list is
+ *  the source: a destination named by a tree (doc 24 §5) has to be checked
+ *  against the departments this kiosk knows are open, and offline that list is
+ *  the bundle's. Returns undefined for a department this kiosk has never seen —
+ *  the caller keeps the patient where she is. */
+export async function departmentFor(code: string): Promise<Dept | undefined> {
+  const bundle = await loadBundle();
+  return bundle?.departments.find((dept) => dept.key === code);
+}
+
 export async function blockFor(departmentKey: string): Promise<BlockRow | undefined> {
   return getDb().blocks.get(departmentKey);
 }

@@ -61,6 +61,11 @@ from app.trees import rules as rule_lang
 ID_PATTERN = re.compile(r"^[a-z0-9]+([._][a-z0-9]+)*$")
 KEY_PATTERN = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 
+#: `departments.code` — "GENMED", "AYUR", "PULM". A destination named by a tree is
+#: matched against this column, so the shape is checked here rather than at the
+#: moment a patient is standing in front of a department that does not exist.
+DEPT_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
+
 #: doc 03 §1a — "Max 3–5 options/screen". body_map is exempt: it is a picture, not
 #: a list of buttons, and a torso has more than five places to hurt.
 MAX_OPTIONS = 5
@@ -74,6 +79,13 @@ _TREE_KEYS = {
     "root",
     "nodes",
     "red_flags",
+    # Authoring note for whoever reviews this file — who drafted it, what is
+    # unreviewed, which decisions the content encodes. Parsed only to be
+    # ignored, and deliberately absent from `to_json`: it is a note to a human
+    # reading the repo, not content to ship to a kiosk. The convention comes
+    # from the other seed files (`seeds/protocols.json`, `seeds/glossary.json`),
+    # and doc 24 §5 requires it on every ayurveda tree.
+    "_comment",
 }
 _NODE_KEYS = {
     "id",
@@ -91,8 +103,8 @@ _NODE_KEYS = {
     "red_flag_if",
     "red_flag",
 }
-_OPTION_KEYS = {"id", "text", "icon", "flag"}
-_FLAG_KEYS = {"id", "severity", "when", "label", "instruction"}
+_OPTION_KEYS = {"id", "text", "icon", "flag", "department"}
+_FLAG_KEYS = {"id", "severity", "when", "label", "instruction", "route_to"}
 #: What a *tree-level* red flag may carry. `source_node` is not authored by hand —
 #: `parse` stamps it on flags desugared from a node — but `Tree.to_json` emits it,
 #: and `parse(tree.to_json())` must round-trip, so the canonical form has to be
@@ -146,13 +158,26 @@ class Option:
     text: Mapping[str, str]
     icon: str | None = None
     flag: bool = False
+    #: The `departments.code` this answer asks for — "I came for ayurveda
+    #: treatment" (doc 24 §5). It is a **preference**, not a triage decision: the
+    #: walk continues down `next.default` exactly as before, and the destination
+    #: is applied once, at the end, by `Walk.destination` — which drops it if a
+    #: red flag fired. An option carrying one is subject to the authoring
+    #: contract in `_validate_offers`, which is what makes such a node safely
+    #: removable when its department is closed (`app.trees.visibility`).
+    department: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         # `flag` is deliberately absent: `parse` has already turned it into a real
         # RedFlagSpec in `tree.red_flags`, and a consumer of the canonical form
         # must read flags from there only. Emitting it would invite a second,
         # divergent way to decide a red flag.
-        return {"id": self.id, "text": dict(self.text), "icon": self.icon}
+        return {
+            "id": self.id,
+            "text": dict(self.text),
+            "icon": self.icon,
+            "department": self.department,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +200,13 @@ class RedFlagSpec:
     #: Set when the flag was authored as node-level sugar (`red_flag_if` /
     #: `flag: true`), for error messages and S18's editor.
     source_node: str | None = None
+    #: The `departments.code` this flag sends the patient to when it fires —
+    #: doc 24 §4's TB rule ("blood in the sputum, three weeks of cough" →
+    #: Pulmonology/DOTS, because TB is notifiable). Deterministic and it outranks
+    #: any preference an option expressed: see `Walk.destination`. Optional, and
+    #: most flags will never carry one — a flag without it still does what every
+    #: red flag has always done, which is make the visit urgent and say the words.
+    route_to: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -184,6 +216,7 @@ class RedFlagSpec:
             "label": dict(self.label),
             "instruction": dict(self.instruction),
             "source_node": self.source_node,
+            "route_to": self.route_to,
         }
 
 
@@ -364,11 +397,26 @@ def parse(data: Any) -> Tree:
     tree_flags = _parse_red_flags(data.get("red_flags"), languages, kinds, where=f"tree {key}")
 
     flags = tuple(node_flags) + tree_flags
+    offer_nodes = {
+        node_id
+        for node_id, node in nodes.items()
+        if any(option.department for option in node.options)
+    }
     seen: set[str] = set()
     for flag in flags:
         if flag.id in seen:
             raise TreeError(f"tree {key}: duplicate red flag id {flag.id!r}")
         seen.add(flag.id)
+        if read := offer_nodes & rule_lang.referenced_nodes(flag.when):
+            # See `_validate_offers`: such a node disappears when its department
+            # is closed, and a rule reading a node that is not there can never
+            # fire. A clinical rule that silently stops firing is the exact
+            # failure `rules.validate` exists to catch.
+            raise TreeError(
+                f"tree {key}: red flag {flag.id!r} reads {sorted(read)}, which offer(s) another "
+                "department and may be removed when it is closed — a red flag may not depend on "
+                "one"
+            )
         try:
             rule_lang.validate(flag.when, kinds, where=f"tree {key}: red_flag {flag.id!r}")
         except rule_lang.RuleError as exc:
@@ -493,7 +541,50 @@ def _parse_node(
         adaptive=adaptive,
         summary_role=summary_role,
     )
+    _validate_offers(node, where=where)
     return node, _parse_node_flags(raw, node, languages, where=where)
+
+
+def _validate_offers(node: Node, *, where: str) -> None:
+    """The authoring contract for a node that offers another department.
+
+    doc 24 §5 asks for an option that is not rendered when its destination
+    department is closed. `app.trees.visibility` implements that by removing the
+    whole node and wiring its parents to `next.default` — which is only safe, and
+    only leaves a tree that still `parse`s, if the node is shaped so that its
+    removal changes nothing else:
+
+    - **single, exactly two options** — the offer and "carry on as usual". Drop
+      the offer from a three-option node and the patient is left with a question
+      that has lost a third of its answers, silently.
+    - **no option-keyed branch** — a branch under the offer would be orphaned
+      when the node goes, and an unreachable node is a tree `parse` refuses.
+    - **not read by any red flag** — checked in `parse`, where the flags are
+      known. A rule reading a node that is no longer there can never fire, which
+      is the one failure mode the rule validator exists to prevent.
+
+    The contract is enforced here rather than trusted to whoever authors the next
+    tree, because the failure is invisible: the tree still loads, and one
+    department's patients quietly stop being offered something.
+    """
+    offers = [option for option in node.options if option.department]
+    if not offers:
+        return
+    if node.type is not NodeType.SINGLE:
+        raise TreeError(f"{where}: only a single-choice node may offer a department")
+    if len(node.options) != 2:
+        raise TreeError(
+            f"{where}: a node offering a department needs exactly two options — the offer "
+            f"and carrying on as usual — got {len(node.options)}"
+        )
+    if len(offers) != 1:
+        raise TreeError(f"{where}: a node may offer at most one department")
+    if branches := set(node.next) - {"default"}:
+        raise TreeError(
+            f"{where}: a node offering a department routes by next.default only "
+            f"(remove {sorted(branches)}); the destination is applied at the end of the walk, "
+            "not by branching"
+        )
 
 
 def _parse_audio(value: Any, languages: Sequence[Lang], *, where: str) -> dict[str, str]:
@@ -544,6 +635,9 @@ def _parse_options(
         flag = raw.get("flag", False)
         if not isinstance(flag, bool):
             raise TreeError(f"{where}: options[{index}] flag must be true/false")
+        department = _dept_code(
+            raw.get("department"), where=f"{where}: options[{index}] department"
+        )
         options.append(
             Option(
                 id=option_id,
@@ -552,9 +646,21 @@ def _parse_options(
                 ),
                 icon=icon,
                 flag=flag,
+                department=department,
             )
         )
     return tuple(options)
+
+
+def _dept_code(value: Any, *, where: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not DEPT_CODE_PATTERN.match(value):
+        raise TreeError(
+            f"{where}: must be a department code matching {DEPT_CODE_PATTERN.pattern!r}, "
+            f"got {value!r}"
+        )
+    return value
 
 
 def _parse_range(
@@ -731,6 +837,7 @@ def _build_flag(
         label=_localized(meta.get("label"), languages, where=f"{where}: label"),
         instruction=_localized(meta.get("instruction"), languages, where=f"{where}: instruction"),
         source_node=source_node,
+        route_to=_dept_code(meta.get("route_to"), where=f"{where}: route_to"),
     )
 
 

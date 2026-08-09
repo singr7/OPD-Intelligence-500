@@ -2,7 +2,7 @@
   "id": "routing",
   "prompt": "routing",
   "threshold": 0.85,
-  "description": "Chief complaint (patient's own words) -> department code. 60 labeled utterances in the Hindi / Hinglish / English mix an Alwar OPD desk actually hears. Labels are the department a coordinator would send them to, not a diagnosis.",
+  "description": "Chief complaint (patient's own words) -> department code. 65 labeled utterances in the Hindi / Hinglish / English mix an Alwar OPD desk actually hears — doc 06's sixty, plus five added by SESSION-AYUR-2 for the ayurveda department doc 24 opened (four that name the system of medicine rather than a symptom, and one TB-suspect case that must still reach the chest clinic). Labels are the department a coordinator would send them to, not a diagnosis.",
   "notes": [
     "Every case has exactly one correct answer. Where two desks could defend a case, it was rewritten rather than given two labels — an eval that accepts either answer cannot measure anything.",
     "Vague utterances are labelled GENMED on purpose: prompts/routing/v1.md says an unroutable complaint goes to general/triage with low confidence, and that this is the right answer, not a failure.",
@@ -402,6 +402,41 @@
       "lang": "hi",
       "utterance": "skin par kala daag bada hota ja raha hai",
       "expect": "DERM"
+    },
+    {
+      "id": "r61",
+      "lang": "hi",
+      "utterance": "मैं आयुर्वेद इलाज के लिए आया हूँ",
+      "expect": "AYUR",
+      "note": "doc 24 §5 — the patient names the system of medicine, not a symptom. The one utterance the ayurveda department exists to catch."
+    },
+    {
+      "id": "r62",
+      "lang": "hi",
+      "utterance": "ayurvedic dawai leni hai, jodon ke dard ke liye",
+      "expect": "AYUR",
+      "note": "Hinglish, and the symptom would otherwise route to general medicine — the stated preference is what decides it."
+    },
+    {
+      "id": "r63",
+      "lang": "hi",
+      "utterance": "पंचकर्म और परहेज़ के बारे में पूछना है",
+      "expect": "AYUR",
+      "note": "Names an ayurvedic treatment by its own word."
+    },
+    {
+      "id": "r64",
+      "lang": "en",
+      "utterance": "I want to see the ayurveda doctor about my digestion",
+      "expect": "AYUR",
+      "note": "English, explicit."
+    },
+    {
+      "id": "r65",
+      "lang": "hi",
+      "utterance": "तीन हफ़्ते से खाँसी है और बलगम में खून आ रहा है",
+      "expect": "PULM",
+      "note": "doc 24 §4 — TB-suspect. It must reach the chest clinic even in a hospital with an ayurveda OPD; the ayurveda respiratory tree's own red flag says the same thing from the other side."
     }
   ]
 }

@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.content import QuestionTree
 from app.models.enums import TreeStatus
 from app.models.org import Department
-from app.trees import bank
+from app.trees import bank, visibility
 from app.trees.schema import Tree, TreeError, parse
 
 
@@ -80,15 +80,26 @@ async def published_for_department(session: AsyncSession, dept_key: str) -> list
     return list(latest.values())
 
 
+async def active_department_codes(session: AsyncSession) -> set[str]:
+    """Every open department's code — what a tree's offers are checked against."""
+    rows = await session.execute(select(Department.code).where(Department.active.is_(True)))
+    return set(rows.scalars().all())
+
+
 async def resolve_tree(session: AsyncSession, dept_key: str) -> Tree | None:
     """The tree a kiosk/telephony walk-in for `dept_key` should run.
 
     DB-published content wins; the disk bank is the floor. This is the call the
     intake path makes instead of `bank.for_department` so an admin publish is
     live on the next intake.
+
+    It is also where a tree stops offering a department the hospital has closed
+    (doc 24 §5, `app.trees.visibility`). Doing it here rather than in each
+    channel's renderer is what gives kiosk, WhatsApp and telephony the same
+    answer, and what keeps the question out of the offline pack entirely.
     """
     published = await published_for_department(session, dept_key)
-    chosen = pick(published)
-    if chosen is not None:
-        return chosen
-    return pick(bank.for_department(dept_key))
+    chosen = pick(published) or pick(bank.for_department(dept_key))
+    if chosen is None:
+        return None
+    return visibility.for_active(chosen, await active_department_codes(session))

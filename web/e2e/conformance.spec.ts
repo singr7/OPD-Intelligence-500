@@ -31,6 +31,7 @@ type Snapshot = {
   answers: string[];
   red_flags: { id: string; severity: string; source_node: string | null }[];
   priority: string;
+  destination: string | null;
 };
 
 type Fixture = {
@@ -58,7 +59,7 @@ type Fixture = {
  *  value keeps the recorded answers comparable. */
 const FIXED_AT = "2026-07-17T09:00:00+00:00";
 
-const FIXTURE_VERSION = 1;
+const FIXTURE_VERSION = 2;
 
 const fixture: Fixture = JSON.parse(
   readFileSync(join(__dirname, "fixtures", "walk-conformance.json"), "utf8")
@@ -79,6 +80,7 @@ function snapshot(walk: Walk): Snapshot {
       source_node: hit.source_node,
     })),
     priority: walk.priority(),
+    destination: walk.destination(),
   };
 }
 

@@ -1,0 +1,381 @@
+{
+  "_comment": "doc 24 §5 — ayurveda intake. **MODEL-DRAFTED AND UNREVIEWED.** Every question, option and red flag in this file was written by a model and is a launch gate (doc 24 §9): it must be signed off by a BAMS practitioner before it is asked of a real patient, exactly like the oncology bank and the check-in protocols. LANGUAGE (doc 24 §5): the `en` slot carries accessible **Hinglish** — the words an Alwar patient actually uses — because Hinglish is authored content, not a locale, and widening the `Lang` enum would ripple through models, kiosk shells, TTS packs and the patient app for a language nobody selects. `hi` is Devanagari Hindi. `mr`/`te` are plain translations, owed native review like the rest of the bank (S13/S21). TONE: ayurveda context without a jargon wall — the familiar word does the work and the classical term rides in brackets, 'पाचन (अग्नि)'. There is no dosha quiz: doc 24 §4 makes dosha language presentation only, and a patient is never required to know or pick one. Traversal and red flags read answer ids alone. RED FLAGS: deterministic and allopathic. A fired flag makes the visit urgent and, where it carries `route_to`, hands the patient to a staffed allopathic department — a wellness framing must never soften an emergency. TB IS NOTIFIABLE (doc 24 §4): `ayr.tb_suspect` is the hardest rule in this file. Blood in the sputum, or a cough of two weeks or more with evening fever or weight loss, routes to Pulmonology/DOTS and makes the visit urgent. The ayurveda consult is adjunct at most and never a substitute. This rule is reviewed like a red flag in the oncology bank, not like content.",
+  "key": "ayurveda_respiratory",
+  "version": 1,
+  "department": "AYUR",
+  "languages": [
+    "en",
+    "hi",
+    "mr",
+    "te"
+  ],
+  "title": {
+    "en": "Ayurveda — cough & breathing (kasa/shwas)",
+    "hi": "आयुर्वेद — खाँसी और साँस (कास/श्वास)",
+    "mr": "आयुर्वेद — खोकला आणि श्वास",
+    "te": "ఆయుర్వేదం — దగ్గు, శ్వాస"
+  },
+  "root": "ayr.main",
+  "nodes": [
+    {
+      "id": "ayr.main",
+      "type": "single",
+      "summary_role": "primary_symptom",
+      "text": {
+        "en": "Sabse zyada kya takleef hai?",
+        "hi": "सबसे ज़्यादा क्या तकलीफ़ है?",
+        "mr": "सर्वात जास्त काय त्रास आहे?",
+        "te": "ఎక్కువగా ఏమి ఇబ్బంది ఉంది?"
+      },
+      "options": [
+        {
+          "id": "khaansi",
+          "text": {
+            "en": "Cough",
+            "hi": "खाँसी",
+            "mr": "खोकला",
+            "te": "దగ్గు"
+          }
+        },
+        {
+          "id": "saans",
+          "text": {
+            "en": "Breathlessness",
+            "hi": "साँस फूलना",
+            "mr": "धाप लागणं",
+            "te": "శ్వాస ఆడకపోవడం"
+          }
+        },
+        {
+          "id": "dono",
+          "text": {
+            "en": "Dono",
+            "hi": "दोनों",
+            "mr": "दोन्ही",
+            "te": "రెండూ"
+          }
+        },
+        {
+          "id": "chest_tight",
+          "text": {
+            "en": "Chest bhaari lagti hai",
+            "hi": "छाती भारी लगती है",
+            "mr": "छाती जड वाटते",
+            "te": "ఛాతీ బరువుగా అనిపిస్తుంది"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayr.days"
+      }
+    },
+    {
+      "id": "ayr.days",
+      "type": "number",
+      "summary_role": "duration",
+      "text": {
+        "en": "Kitne dinon se khaansi ya saans ki takleef hai?",
+        "hi": "कितने दिनों से खाँसी या साँस की तकलीफ़ है?",
+        "mr": "किती दिवसांपासून खोकला किंवा श्वासाचा त्रास आहे?",
+        "te": "ఎన్ని రోజుల నుండి దగ్గు లేదా శ్వాస సమస్య ఉంది?"
+      },
+      "min": 0,
+      "max": 3650,
+      "unit": "days",
+      "next": {
+        "default": "ayr.sputum"
+      }
+    },
+    {
+      "id": "ayr.sputum",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Balgam kaisa aata hai?",
+        "hi": "बलगम कैसा आता है?",
+        "mr": "कफ कसा येतो?",
+        "te": "కఫం ఎలా వస్తుంది?"
+      },
+      "options": [
+        {
+          "id": "sookhi",
+          "text": {
+            "en": "Balgam nahin, sookhi khaansi",
+            "hi": "बलगम नहीं, सूखी खाँसी",
+            "mr": "कफ नाही, कोरडा खोकला",
+            "te": "కఫం లేదు, పొడి దగ్గు"
+          }
+        },
+        {
+          "id": "safed",
+          "text": {
+            "en": "Safed balgam",
+            "hi": "सफ़ेद बलगम",
+            "mr": "पांढरा कफ",
+            "te": "తెల్లని కఫం"
+          }
+        },
+        {
+          "id": "peela",
+          "text": {
+            "en": "Peela ya hara balgam",
+            "hi": "पीला या हरा बलगम",
+            "mr": "पिवळा किंवा हिरवा कफ",
+            "te": "పసుపు లేదా ఆకుపచ్చ కఫం"
+          }
+        },
+        {
+          "id": "khoon",
+          "text": {
+            "en": "Balgam mein khoon",
+            "hi": "बलगम में खून",
+            "mr": "कफात रक्त",
+            "te": "కఫంలో రక్తం"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayr.fever"
+      }
+    },
+    {
+      "id": "ayr.fever",
+      "type": "single",
+      "summary_role": "symptom_detail",
+      "text": {
+        "en": "Shaam ko bukhar aata hai?",
+        "hi": "शाम को बुखार आता है?",
+        "mr": "संध्याकाळी ताप येतो का?",
+        "te": "సాయంత్రం జ్వరం వస్తుందా?"
+      },
+      "options": [
+        {
+          "id": "roz",
+          "text": {
+            "en": "Haan, roz shaam ko",
+            "hi": "हाँ, रोज़ शाम को",
+            "mr": "होय, रोज संध्याकाळी",
+            "te": "అవును, రోజూ సాయంత్రం"
+          }
+        },
+        {
+          "id": "kabhi",
+          "text": {
+            "en": "Kabhi kabhi",
+            "hi": "कभी-कभी",
+            "mr": "कधी कधी",
+            "te": "అప్పుడప్పుడు"
+          }
+        },
+        {
+          "id": "nahin",
+          "text": {
+            "en": "Nahin",
+            "hi": "नहीं",
+            "mr": "नाही",
+            "te": "లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayr.weight"
+      }
+    },
+    {
+      "id": "ayr.weight",
+      "type": "single",
+      "summary_role": "context",
+      "text": {
+        "en": "Pichhle kuch mahinon mein wazan?",
+        "hi": "पिछले कुछ महीनों में वज़न?",
+        "mr": "गेल्या काही महिन्यांत वजन?",
+        "te": "గత కొన్ని నెలల్లో బరువు?"
+      },
+      "options": [
+        {
+          "id": "ghata",
+          "text": {
+            "en": "Ghat gaya",
+            "hi": "घट गया",
+            "mr": "कमी झालं",
+            "te": "తగ్గింది"
+          }
+        },
+        {
+          "id": "waisa",
+          "text": {
+            "en": "Waisa hi",
+            "hi": "वैसा ही",
+            "mr": "तसंच आहे",
+            "te": "అలాగే ఉంది"
+          }
+        },
+        {
+          "id": "badha",
+          "text": {
+            "en": "Badh gaya",
+            "hi": "बढ़ गया",
+            "mr": "वाढलं",
+            "te": "పెరిగింది"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayr.alarm"
+      }
+    },
+    {
+      "id": "ayr.alarm",
+      "type": "multi",
+      "text": {
+        "en": "Inmein se kuch hai? Jo bhi ho, sab chuniye.",
+        "hi": "क्या इनमें से कुछ है? जो भी हो, सब चुनें।",
+        "mr": "यांपैकी काही आहे का? जे असेल ते सर्व निवडा.",
+        "te": "వీటిలో ఏమైనా ఉన్నాయా? ఉన్నవన్నీ ఎంచుకోండి."
+      },
+      "options": [
+        {
+          "id": "rest_breathless",
+          "text": {
+            "en": "Baithe baithe bhi saans phoolti hai",
+            "hi": "बैठे-बैठे भी साँस फूलती है",
+            "mr": "बसल्या बसल्याही धाप लागते",
+            "te": "కూర్చున్నా శ్వాస ఆడటం లేదు"
+          }
+        },
+        {
+          "id": "chest_pain",
+          "text": {
+            "en": "Chest mein dard",
+            "hi": "छाती में दर्द",
+            "mr": "छातीत दुखणं",
+            "te": "ఛాతీలో నొప్పి"
+          }
+        },
+        {
+          "id": "none",
+          "text": {
+            "en": "Inmein se kuch nahin",
+            "hi": "इनमें से कुछ नहीं",
+            "mr": "यांपैकी काहीही नाही",
+            "te": "వీటిలో ఏదీ లేదు"
+          }
+        }
+      ],
+      "next": {
+        "default": "ayr.words"
+      }
+    },
+    {
+      "id": "ayr.words",
+      "type": "free_voice",
+      "text": {
+        "en": "Aur kuch batana chahenge? Apne shabdon mein bataiye.",
+        "hi": "और कुछ बताना चाहेंगे? अपने शब्दों में बताइए।",
+        "mr": "आणखी काही सांगायचं आहे का? तुमच्या शब्दांत सांगा.",
+        "te": "ఇంకా ఏమైనా చెప్పాలనుకుంటున్నారా? మీ మాటల్లో చెప్పండి."
+      },
+      "next": {
+        "default": null
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "ayr.tb_suspect",
+      "severity": "urgent",
+      "when": {
+        "op": "or",
+        "rules": [
+          {
+            "node": "ayr.sputum",
+            "op": "eq",
+            "value": "khoon"
+          },
+          {
+            "op": "and",
+            "rules": [
+              {
+                "node": "ayr.days",
+                "op": "gte",
+                "value": 14
+              },
+              {
+                "op": "or",
+                "rules": [
+                  {
+                    "node": "ayr.fever",
+                    "op": "eq",
+                    "value": "roz"
+                  },
+                  {
+                    "node": "ayr.weight",
+                    "op": "eq",
+                    "value": "ghata"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "label": {
+        "en": "TB suspect — chest clinic today",
+        "hi": "टीबी की आशंका — आज चेस्ट क्लिनिक",
+        "mr": "टीबीची शंका — आज चेस्ट क्लिनिक",
+        "te": "టీబీ అనుమానం — ఈ రోజు ఛెస్ట్ క్లినిక్"
+      },
+      "instruction": {
+        "en": "Aapko aaj hi chest (TB/DOTS) clinic mein dikhana zaroori hai — jaanch muft hai. Ayurveda ilaaj uske saath chal sakta hai, uski jagah nahin. Please desk par yeh parchi dikhaiye.",
+        "hi": "आपको आज ही चेस्ट (टीबी/डॉट्स) क्लिनिक में दिखाना ज़रूरी है — जाँच मुफ़्त है। आयुर्वेद इलाज उसके साथ चल सकता है, उसकी जगह नहीं। कृपया डेस्क पर यह पर्ची दिखाएँ।",
+        "mr": "तुम्हाला आजच चेस्ट (टीबी/डॉट्स) क्लिनिकमध्ये दाखवणं आवश्यक आहे — तपासणी मोफत आहे. आयुर्वेद उपचार त्यासोबत चालू शकतो, त्याऐवजी नाही. कृपया डेस्कवर ही चिठ्ठी दाखवा.",
+        "te": "మీరు ఈ రోజే ఛెస్ట్ (టీబీ/డాట్స్) క్లినిక్‌లో చూపించుకోవడం అవసరం — పరీక్ష ఉచితం. ఆయుర్వేద చికిత్స దానితో పాటు కొనసాగవచ్చు, దాని స్థానంలో కాదు. దయచేసి డెస్క్‌లో ఈ చీటీ చూపించండి."
+      },
+      "route_to": "PULM"
+    },
+    {
+      "id": "ayr.rest_breathless",
+      "severity": "urgent",
+      "when": {
+        "node": "ayr.alarm",
+        "op": "contains",
+        "value": "rest_breathless"
+      },
+      "label": {
+        "en": "Breathless at rest",
+        "hi": "आराम में भी साँस फूलना",
+        "mr": "विश्रांतीतही धाप लागणं",
+        "te": "విశ్రాంతిలోనూ శ్వాస ఆడకపోవడం"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "PULM"
+    },
+    {
+      "id": "ayr.chest_pain",
+      "severity": "urgent",
+      "when": {
+        "node": "ayr.alarm",
+        "op": "contains",
+        "value": "chest_pain"
+      },
+      "label": {
+        "en": "Chest pain",
+        "hi": "छाती में दर्द",
+        "mr": "छातीत दुखणं",
+        "te": "ఛాతీ నొప్పి"
+      },
+      "instruction": {
+        "en": "Please tell the nurse now, before you sit down. Aapka number ka intezaar mat kijiye.",
+        "hi": "कृपया बैठने से पहले अभी नर्स को बताएं। अपनी बारी का इंतज़ार न करें।",
+        "mr": "कृपया बसण्यापूर्वी आत्ताच नर्सला सांगा. तुमच्या नंबरची वाट पाहू नका.",
+        "te": "దయచేసి కూర్చునే ముందు ఇప్పుడే నర్సుకు చెప్పండి. మీ వంతు కోసం వేచి ఉండకండి."
+      },
+      "route_to": "GENMED"
+    }
+  ]
+}

@@ -36,7 +36,7 @@ import { treeRef, type NodeType, type Tree } from "../tree/types";
 import { Walk } from "../tree/walker";
 import type { AnswersJson, RedFlagHit } from "../tree/walker";
 import type { SummaryRole } from "../tree/types";
-import { blockFor, enqueue, takeToken, treeFor } from "./db";
+import { blockFor, departmentFor, enqueue, takeToken, treeFor } from "./db";
 
 export type LocalSession = {
   /** Prefixed so a local id can never be mistaken for a server session id. */
@@ -194,14 +194,25 @@ export type LocalConfirm = {
  *  hospital has no record of. */
 export async function confirmLocal(session: LocalSession): Promise<LocalConfirm> {
   const redFlags = session.walk.redFlags();
-  const token = await takeToken(session.departmentKey);
+  // Where these answers say she belongs (doc 24 §4/§5): the ayurveda OPD she
+  // asked for, or the chest clinic a TB-suspect rule names. The number is drawn
+  // from *that* department's block, because an offline token belongs to one
+  // department's series and the desk reconciles it there. The online path does
+  // the same thing at `/kiosk/{sid}/confirm`; both read `Walk.destination`,
+  // which is why it is in the conformance fixture.
+  const destination = session.walk.destination();
+  const target = destination ? await departmentFor(destination) : undefined;
+  const departmentKey = target?.key ?? session.departmentKey;
+  const departmentName = target?.name ?? session.departmentName;
+  const departmentCareSystem = target?.care_system ?? session.departmentCareSystem;
+  const token = await takeToken(departmentKey);
 
   if (token === null) {
     return {
       tokenNo: null,
-      departmentKey: session.departmentKey,
-      departmentName: session.departmentName,
-      departmentCareSystem: session.departmentCareSystem,
+      departmentKey,
+      departmentName,
+      departmentCareSystem,
       redFlags,
       needsPaper: true,
     };
@@ -209,8 +220,8 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
 
   await enqueue({
     clientId: session.clientId,
-    departmentKey: session.departmentKey,
-    departmentName: session.departmentName,
+    departmentKey,
+    departmentName,
     treeKey: session.tree.key,
     lang: session.lang,
     tokenNo: token,
@@ -237,9 +248,9 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
 
   return {
     tokenNo: token,
-    departmentKey: session.departmentKey,
-    departmentName: session.departmentName,
-    departmentCareSystem: session.departmentCareSystem,
+    departmentKey,
+    departmentName,
+    departmentCareSystem,
     redFlags,
     needsPaper: false,
   };

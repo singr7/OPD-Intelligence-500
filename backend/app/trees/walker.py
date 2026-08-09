@@ -279,6 +279,52 @@ class Walk:
     def _fires(self, spec: RedFlagSpec) -> bool:
         return rule_lang.evaluate(spec.when, self.values())
 
+    def destination(self) -> str | None:
+        """The department these answers ask for, or None for "wherever they are".
+
+        Doc 24 §5 wants a walk-in who says "मैं आयुर्वेद इलाज के लिए आया हूँ" to end
+        up in the Ayurveda queue, and doc 24 §4 wants a TB-suspect answer in the
+        ayurveda respiratory tree to reach Pulmonology/DOTS whatever the patient
+        came in hoping for. Both are one question — *which department does this
+        completed walk belong to* — so both are answered here, once, from the
+        answers, exactly the way `red_flags` is.
+
+        The precedence is the safety rule, and it is the reason this is one
+        function rather than two features:
+
+        1. **A fired flag's `route_to` wins**, worst severity first. The rule
+           engine is deterministic and nobody's preference outranks it.
+        2. **Any fired flag with no destination cancels a preference.** A patient
+           who asked for the ayurveda OPD and then reported chest pain is not
+           moved anywhere on the strength of the asking; she stays on the
+           staffed allopathic path she is already on (doc 24 §4: "a wellness
+           framing must never soften an emergency").
+        3. Otherwise the department named by an answered option, if any.
+
+        Returning a code, not a `Department`: whether that department is open is
+        the caller's question, and the walker has no session to ask with.
+        """
+        # Over the specs rather than over `red_flags()`: `route_to` is a routing
+        # fact and has no business on `RedFlagHit`, which is what gets written to
+        # `Intake.red_flags` and read back by the doctor's strip.
+        fired = sorted(
+            (spec for spec in self.tree.red_flags if self._fires(spec)),
+            key=lambda spec: (-_SEVERITY_ORDER[spec.severity], spec.id),
+        )
+        for spec in fired:
+            if spec.route_to:
+                return spec.route_to
+        if fired:
+            return None
+        for node_id in self.path():
+            answer = self._answers.get(node_id)
+            if answer is None or not isinstance(answer.value, str):
+                continue
+            option = self.tree.node(node_id).option(answer.value)
+            if option is not None and option.department:
+                return option.department
+        return None
+
     def priority(self) -> Priority:
         """The visit priority these answers earn (doc 03 §1: red flag → urgent)."""
         flags = self.red_flags()

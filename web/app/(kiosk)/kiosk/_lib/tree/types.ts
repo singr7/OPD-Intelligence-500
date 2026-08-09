@@ -38,6 +38,11 @@ export type TreeOption = {
   id: string;
   text: Localized;
   icon: string | null;
+  /** `departments.code` this answer asks to be seen in — doc 24 §5's "I came for
+   *  ayurveda treatment". A preference, never a branch: the walk carries on down
+   *  `next.default` and `Walk.destination` decides at the end. Optional because a
+   *  bundle cached before doc 24 has no such key. */
+  department?: string | null;
 };
 
 export type TreeNode = {
@@ -74,6 +79,10 @@ export type RedFlagSpec = {
   label: Localized;
   instruction: Localized;
   source_node: string | null;
+  /** Where this flag firing sends the patient — doc 24 §4's TB rule routes to
+   *  Pulmonology/DOTS. Deterministic, and it outranks any preference an option
+   *  expressed. Optional for the same reason `department` above is. */
+  route_to?: string | null;
 };
 
 export type Tree = {

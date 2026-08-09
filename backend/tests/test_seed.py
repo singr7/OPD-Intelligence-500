@@ -29,13 +29,13 @@ async def test_seed_loads_the_pilot_dataset(session: AsyncSession) -> None:
     assert hospital.city == "Alwar"
 
     # The departments doc 03 §3 names: 4 oncology + 5 routing. Plus doc 24's
-    # AYUR, the platform's second system of medicine — seeded **inactive**, so
-    # it is a row and not yet a department anyone can be routed to. That is the
-    # distinction the two assertions below draw, and it is the reason this count
-    # moved from 9 to 10 while every screen kept rendering the same nine.
+    # AYUR, the platform's second system of medicine — seeded inactive from
+    # AYUR-0 until AYUR-2 authored its intake trees, and open since, because a
+    # department nobody can be routed to is the one thing an active card must
+    # never mean.
     departments = list((await session.execute(select(Department))).scalars())
     assert len(departments) == 10
-    assert len([d for d in departments if d.active]) == 9
+    assert len([d for d in departments if d.active]) == 10
     assert {"MEDONC", "RADONC", "SURGONC", "PALL"} <= {d.code for d in departments}
 
     assert await _count(session, Doctor) == 5
@@ -53,20 +53,29 @@ async def test_seed_loads_the_pilot_dataset(session: AsyncSession) -> None:
 async def test_every_seeded_department_states_its_system_of_medicine(
     session: AsyncSession,
 ) -> None:
-    """Doc 24 §3.4. Nine allopathy, one ayurveda, and the ayurveda one is dark.
+    """Doc 24 §3.4. Nine allopathy, one ayurveda, and the ayurveda one is open.
 
-    The inactivity is the load-bearing half. `Department.active` is what the
-    kiosk chooser, the classifier and the admin department list all filter on,
-    and AYUR has no intake trees until SESSION-AYUR-2 — an active card here
-    would put "Ayurveda" in front of a patient and then fail the assert in
-    `routes/kiosk.py` when they tapped it.
+    It was seeded dark from AYUR-0 to AYUR-1 for a reason worth keeping in view:
+    `Department.active` is what the kiosk chooser, the classifier and the admin
+    department list all filter on, and a department with no intake tree puts
+    "Ayurveda" in front of a patient and then fails the assert in
+    `routes/kiosk.py` when they tap it. SESSION-AYUR-2 authored the five trees of
+    doc 24 §5, so the condition that held it closed no longer holds — and
+    `facility._assert_has_intake` now enforces the rule itself rather than a
+    comment asking the next session to remember. What this seed does **not**
+    settle is the clinical review: doc 24 §9 makes BAMS sign-off a launch gate,
+    and a real deployment closes this department in the console until a
+    practitioner has read the trees.
     """
     await seed(session, patients=1)
     departments = {d.code: d for d in (await session.execute(select(Department))).scalars()}
 
     ayurveda = departments["AYUR"]
     assert ayurveda.care_system is CareSystem.AYURVEDA
-    assert ayurveda.active is False, "AYUR must stay dark until its trees exist"
+    assert ayurveda.active is True
+    assert [t for t in load_bank().values() if t.department == "AYUR"], (
+        "an open department must have something to ask"
+    )
 
     others = [d for code, d in departments.items() if code != "AYUR"]
     assert all(d.care_system is CareSystem.ALLOPATHY for d in others)

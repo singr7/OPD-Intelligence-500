@@ -75,6 +75,10 @@ def test_the_pilot_departments_come_from_the_seed():
         "ENT",
         "PULM",
         "DERM",
+        # doc 24 — the second system of medicine. It joined the list when
+        # SESSION-AYUR-2 authored its trees: `pilot_departments` filters on
+        # `active`, and AYUR was seeded closed until there was something to ask.
+        "AYUR",
     }
 
 
@@ -251,9 +255,16 @@ async def test_the_fallback_provider_gets_a_turn_before_triage():
 # -- the eval set --------------------------------------------------------------
 
 
-def test_the_eval_set_has_the_sixty_utterances_doc_06_asked_for():
+#: doc 06 asked S4 for sixty labelled utterances; doc 24 §5 added a department,
+#: and a department with no cases is a routing path nobody ever measured (see
+#: `test_the_eval_set_covers_every_department`). Five ayurveda cases were
+#: appended rather than swapped in, so the original sixty still score.
+EVAL_CASES = 65
+
+
+def test_the_eval_set_has_the_utterances_doc_06_asked_for():
     eval_set = load_eval("routing")
-    assert len(eval_set.cases) == 60
+    assert len(eval_set.cases) == EVAL_CASES
     assert eval_set.threshold == 0.85
 
 
@@ -436,8 +447,8 @@ async def test_the_harness_drives_the_classifier_end_to_end():
     scripted = fake(*[reply(case.expect) for case in eval_set.cases])
 
     report = await run_eval(eval_set, providers=[scripted], provider_label="fake-llm")
-    assert len(report.outcomes) == 60
-    assert len(scripted.calls) == 60
+    assert len(report.outcomes) == EVAL_CASES
+    assert len(scripted.calls) == EVAL_CASES
     assert report.accuracy == 1.0  # by construction — the fake was told the answers
 
 
@@ -447,20 +458,20 @@ async def test_the_harness_reports_a_real_miss():
     answers[0] = reply("DERM")  # r01 "kimo ke liye aaya hoon" is MEDONC
 
     report = await run_eval(eval_set, providers=[fake(*answers)], provider_label="fake-llm")
-    assert report.accuracy == pytest.approx(59 / 60)
+    assert report.accuracy == pytest.approx((EVAL_CASES - 1) / EVAL_CASES)
     assert report.failures[0].case.id == "r01"
     assert report.confusion()[("MEDONC", "DERM")] == 1
 
 
 async def test_the_harness_survives_a_provider_that_dies_mid_run():
-    """60 sequential calls against a real vendor will sometimes hit one. The run
+    """Sixty-five sequential calls against a real vendor will sometimes hit one. The run
     should score it as a triage referral, not abort at case 31."""
     eval_set = load_eval("routing")
     dead = fake()
     dead.fail_with = ProviderUnavailable("down")
 
     report = await run_eval(eval_set, providers=[dead], provider_label="fake-llm")
-    assert len(report.outcomes) == 60
+    assert len(report.outcomes) == EVAL_CASES
     assert all(o.guess.needs_human for o in report.outcomes)
     assert all(not o.guess.from_model for o in report.outcomes)
 

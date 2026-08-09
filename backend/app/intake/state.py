@@ -111,6 +111,16 @@ class SessionState:
     #: at finalize; the LLM-call turns reconcile to the intake's INTAKE_TURN usage_events.
     adaptive_turns: list[dict[str, Any]] = field(default_factory=list)
 
+    #: The department codes that were **open when this intake started** — the set
+    #: a tree's "would you rather be seen in Ayurveda?" offer is checked against
+    #: (doc 24 §5, `app.trees.visibility`). It is pinned here, and not re-read per
+    #: turn, for the reason `contract_version` is pinned: a department closing
+    #: while a patient is three questions in must not change the questions under
+    #: her. `None` means a session that never captured it (an older session, or a
+    #: caller with no database in reach) and prunes nothing — the authored tree
+    #: is what gets asked, which is the pre-doc-24 behaviour.
+    open_departments: list[str] | None = None
+
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 

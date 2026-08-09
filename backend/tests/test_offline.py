@@ -628,7 +628,7 @@ async def test_the_bundle_carries_canonical_trees_the_kiosk_can_walk(
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert {d["key"] for d in body["departments"]} == {"MEDONC", "DERM"}
-    assert len(body["trees"]) == 11
+    assert len(body["trees"]) == 16
 
     tree = next(t["tree"] for t in body["trees"] if t["tree"]["key"] == _tree_key())
     # The canonical shape the TS walker expects: nodes as a list, flags desugared

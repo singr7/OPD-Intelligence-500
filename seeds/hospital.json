@@ -78,8 +78,7 @@
       "name": "Ayurveda",
       "icon": "leaf",
       "care_system": "ayurveda",
-      "active": false,
-      "note": "doc 24. The platform's second system of medicine. Seeded INACTIVE on purpose and it must stay that way until SESSION-AYUR-2: an active department is offered on the kiosk chooser immediately, and a patient who taps a card whose intake trees do not exist yet gets a 500, not a fallback. Activating it is an admin action (SESSION-AYUR-1) once seeds/trees/ayurveda_*.json are authored. Everything the department will eventually offer — trees, formulary entries, prompt packs — ships model-drafted and UNREVIEWED until a BAMS practitioner signs it off (doc 24 §9)."
+      "note": "doc 24. The platform's second system of medicine. Seeded INACTIVE from AYUR-0 until AYUR-2, because an active department is offered on the kiosk chooser immediately and a patient tapping a card whose intake trees do not exist gets a 500. SESSION-AYUR-2 authored seeds/trees/ayurveda_*.json, so it is seeded **active** and the `_assert_has_intake` guard (app/facility.py) now passes for it on its own. Two things follow. On a box that has already been seeded this line changes nothing — since AYUR-1 the loader never overwrites a department a console can edit, so AYUR stays closed there until an administrator opens it, which is the right hand to be on the switch. And the content behind it — trees, and later the formulary entries and prompt packs — is model-drafted and UNREVIEWED: doc 24 §9 makes BAMS sign-off a launch gate, so a real deployment closes this department again until someone has read it."
     }
   ]
 }
