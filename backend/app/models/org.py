@@ -16,7 +16,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueCon
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKey, enum_type
-from app.models.enums import Lang, Role
+from app.models.enums import CareSystem, Lang, Role
 
 
 class Hospital(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
@@ -40,6 +40,21 @@ class Department(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
     code: Mapped[str] = mapped_column(String(32))  # natural key for seeds
     icon: Mapped[str | None] = mapped_column(String(64))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    #: The system of medicine practised here (doc 24 §3.1). This is the **only**
+    #: place the platform stores it: an intake tree, a doctor console section and
+    #: a formulary scope are all derived from the department a visit is in, never
+    #: recorded a second time on the visit, the note or the prescription. A
+    #: department that changes its system therefore changes what it offers from
+    #: the next intake onward, and nothing already written is retroactively
+    #: reclassified.
+    #:
+    #: Read it through `app.care_system.capabilities_for`, not directly.
+    care_system: Mapped[CareSystem] = mapped_column(
+        enum_type(CareSystem, "care_system"),
+        default=CareSystem.ALLOPATHY,
+        server_default=CareSystem.ALLOPATHY.value,
+    )
 
     hospital: Mapped[Hospital] = relationship(back_populates="departments")
     doctors: Mapped[list[Doctor]] = relationship(back_populates="department")

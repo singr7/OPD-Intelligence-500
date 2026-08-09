@@ -31,6 +31,25 @@ class Lang(StrEnum):
     TE = "te"
 
 
+class CareSystem(StrEnum):
+    """Which system of medicine a department practises (doc 24 §2).
+
+    Stored **once**, on `Department`, and read exactly twice — by
+    `app.care_system` on the server and `web/app/_lib/careSystem.ts` in the
+    browser — which turn it into named capability flags. Nothing else in this
+    codebase may branch on this value: the moment `care_system == AYURVEDA`
+    appears in a route, a component or a service, adding a third system stops
+    being one enum value and one capabilities row and becomes a grep.
+
+    `ALLOPATHY` is the default and is today's behaviour bit-for-bit. Every
+    department that existed before doc 24 genuinely is one, which is why the
+    column ships with a server default and **no backfill**.
+    """
+
+    ALLOPATHY = "allopathy"
+    AYURVEDA = "ayurveda"
+
+
 class Sex(StrEnum):
     MALE = "male"
     FEMALE = "female"
