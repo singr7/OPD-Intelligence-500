@@ -33,8 +33,35 @@ true by construction and a flag added later cannot flip silently under an
 administrator (a test fails if one lacks its sentence). `GET /admin/departments`
 is untouched and stays active-only — it feeds the create-a-doctor picker, and a
 console must not be able to hire somebody into a department no patient can reach.
-Gates: backend **1,803** (was 1,771), conformance 115, voice-gw 25, typecheck,
-lint, android; screenshots `web/screenshots/ayur1/`. **No migration.**
+Gates: backend **1,822** (was 1,771), conformance 115, voice-gw 25, typecheck,
+lint, android; screenshots `web/screenshots/ayur1/`. Migration `28e0ff23658b`
+(`hospitals.name_i18n`; additive, one JSONB column, server default `{}`, **no
+backfill**) — **applied locally only.**
+
+Two operator decisions were then answered mid-session and built. **`make seed`
+stopped overwriting what an administrator set up**: for the rows a console can
+edit — hospital, departments, staff users, doctors, clinic templates — the loader
+creates what is missing and never overwrites what it finds, so a hand-run seed no
+longer puts back a renamed hospital, reopens a closed department or reactivates a
+retired doctor. Adding an entry to a seed file and re-running is still how new
+reference data arrives; a row left alone *because it differs* is counted and
+logged in a fourth report bucket, **`kept`**, and the files are still validated
+every run whether or not they are written. **And the hospital gained a name per
+language** — `Hospital.name_i18n` (JSONB) with `name` as English and as the
+fallback, read through one derivation, `Hospital.name_in(lang)`. The substance is
+the sweep: **sixteen call sites** held a language while reading `hospital.name` —
+the invite SMS, the D-1 campaign, check-in and cycle messages, the patient app,
+the care file, four appointment-notification paths, the WhatsApp bot, the
+prescription SMS and template, the letterhead — and all now read `name_in`. Two
+deliberately do not: the *clinical* copy of a prescription (the pharmacy's and the
+chart's) and the downtime print sheets (every language on one page, one header).
+`TRANSLATABLE_LANGUAGES = (Lang.HI,)` is the whole of **Hindi only**; mr/te fall
+back to English rather than carry a model-drafted guess at a facility's own name,
+and widening it is one tuple entry plus the text. `parse_name_i18n` refuses a
+language outside that tuple, an `en` key, and text in the wrong script — pasting
+the English name into the Hindi field is the likeliest mistake here and would
+render perfectly, just in the wrong language to the one person who needed
+otherwise.
 
 **Built (SESSION-AYUR-0):** The platform's **second system of medicine** exists
 as a flag and a derivation, and nothing else — the opening session of doc 24.
@@ -617,7 +644,11 @@ box).
 ```
 make dev                 # full stack (11 services)
 make migrate             # apply migrations to the local DB
-make seed                # load the pilot dataset + price book + trees (idempotent)
+make seed                # load the pilot dataset + price book + trees (idempotent).
+                         #   Creates what is missing; never overwrites a hospital,
+                         #   department, user, doctor or clinic template that already
+                         #   exists — those belong to whoever set them up in the
+                         #   console. Rows it stands down on are reported as `kept`.
 make kiosk-pin           # list who can unlock the kiosk staff strip, and who is locked out
 make kiosk-pin ARGS="--phone +915550000002 --set"     # set/rotate (prompts; never echoes)
 make kiosk-pin ARGS="--phone +915550000002 --clear"   # remove the PIN entirely
@@ -1042,22 +1073,18 @@ the only gate right now.**
   refuses to activate a department for which `resolve_tree` finds nothing, and
   the console disables the Open button on it. It opens by itself once the trees
   exist.
-- **`make seed` reverts an administrator's console edits** (SESSION-AYUR-1).
-  `_upsert_hospital` and `_upsert_departments` overwrite `name`, `icon`, `active`
-  and `care_system` from `seeds/hospital.json` on every run, and `_upsert_user`
-  sets `active: True` unconditionally — so a hand-run `make seed` puts back a
-  renamed hospital, reopens a closed department and reactivates a deactivated
-  member of staff. Pre-existing and newly *reachable*, because before AYUR-1
-  nothing but the seed could write those rows. Left alone on purpose: changing it
-  means restating `test_seed_updates_in_place_when_reference_data_changes`, and
-  which way it should go is a policy question for the operator (HANDOFF →
-  Decisions needed). `make deploy` does not run the seed, so it only bites
-  someone running it by hand.
-- **The hospital has one name, in one language** (SESSION-AYUR-1). The kiosk
-  shows the stored `Hospital.name` untranslated to Hindi, Marathi and Telugu
-  speakers; the compiled-in four-language constant is now only a
-  never-fetched-a-bundle fallback. Per-language hospital names are a decision
-  for the operator, not an executor.
+- **Marathi and Telugu have no hospital name of their own** (SESSION-AYUR-1) and
+  fall back to English. Deliberate and the operator's call: this repo's mr/te
+  patient-facing text is model-drafted pending native review (S13/S21), and a
+  facility's own name is the worst string to guess at — it is the first line of
+  the kiosk and the top band of a document the patient carries out. Adding them
+  is one entry in `TRANSLATABLE_LANGUAGES` (`app/facility.py`) plus the text.
+  The seeded Hindi name is itself model-drafted and wants one read by somebody
+  who knows the facility.
+- **The downtime intake sheets and the token-block sheet head in English**
+  (SESSION-AYUR-1), even on a Marathi or Telugu page. Per-language headers need a
+  `print_sheets` signature change; every language renders on one page under one
+  header today.
 - **Three ayurveda capability flags are strings nothing reads yet** (doc 24 §6):
   `formulary_scope` (`validate_meds` is untouched — scoping is AYUR-3),
   `guideline_pack` and `prompt_pack` (no prompt dispatch site consults them —

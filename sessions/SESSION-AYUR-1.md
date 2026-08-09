@@ -11,7 +11,10 @@
 - [x] Letterhead propagation verified — rename the hospital in a test, and the
       Rx print **and the intake pass** show the new name
 - [x] Admin console surface for both
-- [x] Full gates green; no existing test body edited
+- [x] Full gates green
+- [x] **Both HANDOFF decisions answered by the operator mid-session and built** —
+      the seed no longer overwrites console edits, and the hospital has an English
+      and a Hindi name. See the follow-up section.
 - [ ] *"Admin E2E covering rename + department creation as ayurveda"* — **not
       committed as a spec**, per the operator's instruction that the AYUR
       sessions do session-scope tests and E2E lands in the last one. Both flows
@@ -34,8 +37,9 @@
 - **`FLAG_LABELS` + `differences()` in `app/care_system.py`** — one plain
   sentence per capability flag, and the diff of two rows. The confirmation copy
   doc 24 §7 asks for is *derived* from these rather than authored.
-- **`GET /kiosk/bundle` carries the hospital** — `{name, city}`, inside the ETag
-  hash. This is the half of doc 24 §3.2 that turned out not to be true (below).
+- **`GET /kiosk/bundle` carries the hospital** — `{name, name_i18n, city}`, inside
+  the ETag hash. This is the half of doc 24 §3.2 that turned out not to be true
+  (below).
 - **`web/app/(admin)/admin/_components/FacilityTab.tsx`** — a new console tab
   under a new **Facility** group: the letterhead card, the department table, the
   care-system change with its consequence list, and the create form.
@@ -55,11 +59,11 @@ and the intake boarding pass did not**: they rendered `T.hospital` from
 facility would have changed the prescription and not the paper the patient is
 handed at the door, and the two would have disagreed in the patient's hands.
 
-The stored name now wins **in every language**, with the constant as a fallback
-used only before a bundle has ever been fetched. One untranslated proper noun is
-the honest option: this platform was not given four versions of the hospital's
-name and inventing them is worse than showing the real one. Whether the hospital
-*should* have per-language names is a question for the operator, in HANDOFF.
+The stored name now wins, with the compiled-in constant as a fallback used only
+before a bundle has ever been fetched. It shipped first as one untranslated name
+in every language, with "should the hospital have per-language names?" raised for
+the operator — who answered *yes, English and Hindi*, which is the follow-up
+section below.
 
 **2. It rides on the bundle, not on `POST /kiosk/start`.** The brand bar is drawn
 before any intake begins, and the pass must print during an outage — so the name
@@ -119,8 +123,9 @@ were driven in a real browser against a live stack, asserted, and screenshotted;
 the spec was then deleted rather than committed. AYUR-4 (or whichever session
 closes the module) inherits it.
 
-**`make seed` still reverts a console edit, and this was left alone
-deliberately.** `_upsert_hospital` and `_upsert_departments` overwrite `name`,
+**~~`make seed` still reverts a console edit~~ — the operator decided this
+mid-session and it is built; see the follow-up section below.** What was
+originally written here: `_upsert_hospital` and `_upsert_departments` overwrite `name`,
 `icon`, `active` and `care_system` from `seeds/hospital.json` on every run, so
 renaming the hospital in the console and then running `make seed` puts the
 seeded name back. Fixing it means changing
@@ -177,11 +182,89 @@ inside a feature diff.
   Ayurveda Hospital". That is the claim doc 24 §3.2 told us to check rather than
   assume, and it is the one that was false before this session.
 
+## Follow-up in the same session: the two decisions, answered
+
+The operator answered both HANDOFF questions before the session was handed on,
+so they are built here rather than deferred.
+
+**1. `make seed` no longer overwrites what an administrator set up.** The chosen
+rule: *`seeds/*.json` describes a box nobody has set up yet.* For the rows a
+console can edit — hospital, departments, staff users, doctors, clinic templates
+— the loader creates what is missing and never overwrites what it finds. Adding a
+department or a doctor to a file and re-running is still how new reference data
+arrives. Two things keep it from becoming a silent no-op: a fourth report bucket,
+**`kept`**, counts and logs a row left alone *because it differs*, so the run says
+"I noticed and stood down"; and the file is still **validated on every run**,
+written or not, so a typo in an existing department's `care_system` still raises
+rather than going unseen for exactly the rows old enough to have been edited.
+Patients are exempt (generated demo data, no console), as are the price book, the
+tree bank and the protocol bank (versioned or append-only, with editors of their
+own).
+
+`test_seed_updates_in_place_when_reference_data_changes` asserted the behaviour
+being reversed, so it is **restated, not deleted**, with the reason in its
+docstring — the operator's decision is what authorises it, and this is the second
+existing test body doc 24's "no test-body edits" rule has met a genuine exception
+for. Two tests were added for the other half: new entries in the file are still
+created, and a misspelt value in a row the loader will *not* write is still
+refused.
+
+**2. The hospital has an English name and a Hindi one.** `Hospital.name_i18n`
+(JSONB, migration `28e0ff23658b`, additive, **no backfill**) with `name` as
+English and as the fallback, read through one derivation, `name_in()`.
+
+The sweep is the substance: **sixteen call sites** read `hospital.name` while
+holding a language — the staff invite SMS, the D-1 campaign (two), check-in and
+cycle messages, the patient app's missed-dose SMS, the care file (two),
+appointment notifications on four paths, the WhatsApp bot (two), the prescription
+SMS and its WhatsApp template, and the letterhead. All now read
+`name_in(<that language>)`.
+
+Two deliberately do not. The **clinical copy** of a prescription is the file's and
+the pharmacy's, gets photocopied into a chart, and stays in the name everyone can
+read — `name_in(None)`, which is English; the patient copy follows the patient.
+`routes/queue.py`'s **downtime print sheets** keep English too, because they
+render every language on one page under a single header, and per-language headers
+there is a `print_sheets` change this session did not need.
+
+*Hindi only*, per the operator: `TRANSLATABLE_LANGUAGES = (Lang.HI,)` is the whole
+of it, and widening it is one tuple entry plus the text — the column is JSONB, the
+console renders whatever the tuple lists, and the kiosk falls back per language on
+its own. A test pins that property. Marathi and Telugu fall back to English rather
+than carry a model-drafted guess at a facility's own name, which is the first line
+of the kiosk and the top band of a document the patient carries out of the
+building; that is a stricter stance than this repo takes for tree text, and it is
+deliberate.
+
+`parse_name_i18n` refuses three things that would each store fine and then fail
+*silently* at render time: a language not in the tuple, an `en` key (English is
+`name`; two places to write it is one place for them to disagree), and text in the
+wrong script — pasting the English name into the Hindi field is the likeliest
+mistake here, and the letterhead would still render, just in the wrong language to
+the one person who needed otherwise. Blank entries are dropped so that absent and
+empty mean the same thing.
+
+The console's letterhead card gained an **English / हिंदी toggle under the
+"as it prints" caption**: the way to check a translation is to see the page in it,
+not to re-read the field you just typed into.
+
+Evidence: `make test` green — backend **1,822** (from 1,803), conformance 115,
+voice-gw 25, typecheck, lint, android. Screenshots `05-hospital-name-hindi.png`,
+`06-kiosk-hindi-brand.png` (the Hindi kiosk brand bar; switching to मराठी falls
+back to the English name), `07-wrong-script-refused.png`. All three flows driven
+in a real browser and then deleted rather than committed as specs, per the
+operator's E2E instruction.
+
 ## Known gaps / stubs introduced
 
-- **`make seed` reverts console edits to the hospital and to departments.** See
-  Deviations. Not a stub introduced here — it is pre-existing and newly
-  *reachable*, because before this session nothing else could write those rows.
+- **~~`make seed` reverts console edits~~ — fixed in this session**, see the
+  follow-up above.
+- **Marathi and Telugu have no hospital name of their own**, and fall back to
+  English. Deliberate, and the operator's call; adding them is one entry in
+  `TRANSLATABLE_LANGUAGES` and the text.
+- **The downtime intake sheets and the token-block sheet head in English**, even
+  when printed for a Marathi or Telugu page. Per-language headers there need a
+  `print_sheets` signature change; backlog.
 - **AYUR is still dark, and now provably so.** The console's Open button for it
   is disabled and the server refuses the write; it opens by itself once AYUR-2
   publishes its trees. Nothing else about the department exists — no trees, no
@@ -189,8 +272,8 @@ inside a feature diff.
 - **`published_trees` counts only DB-published rows**, by design. The console
   translates it; any other consumer that wants "can a patient be asked
   anything?" must read `has_intake`.
-- **The hospital has one name, in one language.** The kiosk shows it untranslated
-  in all four. See HANDOFF → Decisions needed.
+- **~~The hospital has one name, in one language~~ — fixed in this session**, see
+  the follow-up above.
 - **`make lint` is still red** — 96 errors, *all* of them in `alembic/versions/`,
   all of them boilerplate from alembic's own revision template (`from typing
   import Sequence, Union`, `Union[...]` annotations, a long `sa.Enum` line). The
@@ -205,3 +288,6 @@ inside a feature diff.
 - `1332f4f` — S AYUR-1: the hospital's real name reaches the pass, not just the Rx
 - `7dd4a0b` — S AYUR-1: the console gets a facility tab, and it looks like a letterhead
 - `3ea5711` — S AYUR-1: the intake column says where the questions come from
+- `d9b012e` — S AYUR-1: session close — a hospital its administrator can rename
+- `198dd30` — S AYUR-1: the seed stops overwriting what an administrator set up
+- `92c3529` — S AYUR-1: the hospital has a Hindi name, and it reaches the patient

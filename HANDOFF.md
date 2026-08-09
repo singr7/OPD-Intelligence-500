@@ -1,12 +1,13 @@
 # HANDOFF — after SESSION-AYUR-1
 
-**Repo state:** branch `main`, last commit `3ea5711`. `make test` green, exit 0 —
-backend **1,803** (was 1,771), voice-gw 25, typecheck, lint, conformance 115.
+**Repo state:** branch `main`. `make test` green, exit 0 — backend **1,822** (was
+1,771), voice-gw 25, typecheck, lint, conformance 115.
 
-**No new migration this session.** The pending-on-Omen list is unchanged at
-**eight**: `c6e3681f5ce1`, `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`,
-`02571a5c1871`, `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165` — applied locally
-only, and `make deploy` still does not run migrations.
+**One new migration, `28e0ff23658b`** (`hospitals.name_i18n`; additive, one JSONB
+column, server default `{}`, **no backfill**). That makes **nine** pending on
+Omen: `c6e3681f5ce1`, `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`,
+`02571a5c1871`, `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b` —
+applied locally only, and `make deploy` still does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open.
 
@@ -21,11 +22,29 @@ runs. Both audited. Two things are worth knowing beyond the feature:
   **intake boarding pass did not** — they rendered a four-language constant that had
   already drifted from the seeded name. A rename would have changed the
   prescription and not the paper in the patient's hand. Fixed: the stored name
-  rides on `GET /kiosk/bundle` (inside the ETag) and wins in every language.
+  rides on `GET /kiosk/bundle`, inside the ETag.
 - **AYUR is now held dark by code, not by a comment.** `_assert_has_intake` refuses
   to activate a department that resolves no intake tree, which is exactly the 500
   the last handoff asked this session to remember. It will open on its own the
   moment AYUR-2's trees exist.
+
+**Both of the decisions this handoff was going to ask for were answered by the
+operator mid-session, and are built.**
+
+- **`make seed` no longer overwrites what an administrator set up.** For the rows
+  a console can edit — hospital, departments, staff users, doctors, clinic
+  templates — it creates what is missing and never overwrites what it finds.
+  Adding a department or a doctor to a seed file and re-running is still how new
+  reference data arrives. A row left alone *because it differs* is counted and
+  logged in a fourth report bucket, **`kept`**, so a run says so out loud. The
+  files are still validated on every run whether or not they are written.
+- **The hospital has an English name and a Hindi one.** `Hospital.name_i18n`
+  (JSONB) with `name` as English and as the fallback, read through one
+  derivation, `Hospital.name_in(lang)`. **Sixteen call sites** that held a
+  language while reading `hospital.name` were rewritten. `TRANSLATABLE_LANGUAGES
+  = (Lang.HI,)` is the whole of "Hindi only" — mr/te fall back to English rather
+  than carry a guess at a facility's own name, and widening it is one tuple entry
+  plus the text.
 
 ## Next session — SESSION-AYUR-2, intake content and routing
 
@@ -45,6 +64,10 @@ GENMED and PULM routing trees; the kiosk department card for ayurveda.
   tests that prove both directions; do not weaken them.
 - **`GET /admin/facility` is the editor's read**, `GET /admin/departments` is
   still the active-only picker for the create-a-doctor form. Do not merge them.
+- **AYUR-2 ships patient-facing kiosk content, so the hospital-name rule applies
+  to it too**: a string a patient reads must come from `name_in(lang)` or from the
+  tree, never from a constant compiled into the bundle. That mistake is what this
+  session found in the boarding pass.
 - **The care-system change confirmation is derived.** If AYUR-2 or AYUR-3 adds a
   capability flag, add its sentence to `FLAG_LABELS` in `app/care_system.py` in
   the same edit — a test fails otherwise, on purpose.
@@ -59,20 +82,24 @@ The three long-standing non-coding items are unchanged and still the most
 valuable things nobody has done: **print a pass on the real printer** (doc 23
 §11), **point M3 at the real `RAD-RENVA-PACS`**, and **have an oncologist read
 the research assistant's answers** (asked in five consecutive handoffs now).
-After those: **deploy the eight pending migrations to Omen** and give
+After those: **deploy the nine pending migrations to Omen** and give
 `make deploy` a migration step.
 
 ## Watch out for
 
-- **`make seed` reverts a console rename.** `_upsert_hospital` and
-  `_upsert_departments` overwrite `name`, `icon`, `active` and `care_system` from
-  `seeds/hospital.json` every run, so an admin who renames the hospital and then
-  runs `make seed` gets the seeded name back — and a department they closed comes
-  back open. This was left alone on purpose: fixing it means editing
-  `test_seed_updates_in_place_when_reference_data_changes`, which exists to
-  assert exactly that behaviour, and doc 24 §8 forbids editing an existing test
-  body. `make deploy` does **not** run the seed, so this only bites someone
-  running it by hand. It needs a human decision (below) before anyone changes it.
+- **A seed file no longer wins over a row that already exists.** If you edit
+  `seeds/hospital.json` (or `doctors.json`, or `slot_templates.json`) on a box
+  that has already been seeded, **nothing happens** — by design, see above. The
+  run tells you: `kept (yours, not this file's): hospital=1`. To make a file edit
+  land, change the row in the console too, or delete it and re-seed. This bites
+  every developer exactly once; the local dev box hit it the first time the Hindi
+  hospital name was seeded.
+- **`hospital.name` is almost never the right read any more.** If your code has a
+  language in hand — a patient's, a user's, a request's — use
+  `hospital.name_in(lang)`. Bare `name` is correct in exactly two places and both
+  say why in a comment: the *clinical* copy of a prescription (the pharmacy's and
+  the chart's) and the downtime print sheets (every language on one page under
+  one header).
 - **Two source tests still enforce doc 24 §2 and they still bite.** No module
   under `backend/app` may name a `CareSystem` member outside `app/care_system.py`
   and `app/models/org.py` — `app/facility.py` stays inside the rule by never
@@ -106,18 +133,10 @@ After those: **deploy the eight pending migrations to Omen** and give
 
 ## Decisions needed from the human
 
-- **New — may `make seed` overwrite what an administrator typed into the console?**
-  Right now it does (see above). Three coherent answers: (a) the seed creates and
-  never updates a hospital or department that already exists; (b) the seed keeps
-  owning `name`/`icon` and gives up `active`/`care_system`; (c) leave it, and treat
-  `seeds/hospital.json` as the source of truth an operator must also edit. Any of
-  them requires restating `test_seed_updates_in_place_when_reference_data_changes`,
-  so it wants your word rather than an executor's guess.
-- **New — should the hospital have a name per language?** The kiosk shows the one
-  stored name to Hindi, Marathi and Telugu speakers untranslated. The alternative
-  is four columns and four fields in the console. Today's compiled-in Hindi name
-  ("राजकीय कैंसर अस्पताल, अलवर") is now unused, so if per-language names are wanted,
-  say so before AYUR-2 ships kiosk content.
+- **New — is "अलवर जिला कैंसर केंद्र" the right Hindi name for this hospital?** It
+  is model-drafted, it is now on the Hindi kiosk's brand bar and on the patient's
+  copy of every prescription, and an administrator can correct it in the console
+  without a deploy. Someone who knows the facility should read it once.
 - **Unchanged, now asked five times:** which thermal printer and when can someone
   stand at it; when can M3 be pointed at the real PACS and by whom; who reviews
   the research assistant's answers.
@@ -143,10 +162,13 @@ After those: **deploy the eight pending migrations to Omen** and give
   `Union[...]` annotations, one long `sa.Enum` line). The `ruff format --check`
   half recorded in the last handoff is **fixed** (commit `192dc80`). What remains
   is a one-line decision about whether this repo lints generated migrations.
-- **`_upsert_user` reactivates a deactivated staff member**, the same shape as the
-  department problem above and pre-existing: `make seed` sets `active: True`
-  unconditionally, so a doctor S-GL.2's two-step deactivation retired comes back
-  on the next hand-run seed. Same decision, wider blast radius.
+- **The downtime print sheets head in English** even on a Marathi or Telugu page
+  (`routes/queue.py::_hospital_name`). Per-language headers there need a
+  `print_sheets` signature change — every language renders on one page under one
+  header today. Small, any session.
+- **Marathi and Telugu have no hospital name of their own** and fall back to
+  English. One entry in `TRANSLATABLE_LANGUAGES` (`app/facility.py`) plus the text
+  when a native speaker supplies it.
 - **`web/e2e/people.spec.ts:54` selector fix** — one word, any session.
 - Everything already on the list: allergies on the boarding pass; a kiosk "I
   don't know" recording nothing; no coded substance vocabulary; `offline-demo`
