@@ -171,8 +171,20 @@ async def test_seed_is_deterministic(session: AsyncSession) -> None:
     assert [(p.mrn, p.name, p.age, p.district) for p in again] == first_pass
 
 
-async def test_seed_updates_in_place_when_reference_data_changes(session: AsyncSession) -> None:
-    """Editing seeds/*.json updates the row rather than inserting a rival."""
+async def test_a_hand_set_up_hospital_survives_a_reseed(session: AsyncSession) -> None:
+    """The seed matches on a natural key and never inserts a rival — and, since
+    SESSION-AYUR-1's follow-up, never overwrites the row it found either.
+
+    This test used to assert the opposite: that a hand-renamed hospital was put
+    back from `seeds/hospital.json`. That was safe while the file was the only
+    thing that could write the row. It stopped being safe when the admin console
+    gained `PATCH /admin/hospital` — a hospital renamed to "Ayurveda Hospital"
+    would have reverted on the next hand-run `make seed`, taking the letterhead
+    and every intake pass back with it, and nothing would have said so.
+
+    The reversal is the operator's decision, recorded in HANDOFF after AYUR-1
+    asked for it: `seeds/*.json` describes a box nobody has set up yet.
+    """
     await seed(session, patients=5)
     hospital = (await session.execute(select(Hospital))).scalar_one()
     hospital.name = "Renamed By Hand"
@@ -181,9 +193,78 @@ async def test_seed_updates_in_place_when_reference_data_changes(session: AsyncS
     report = await seed(session, patients=5)
 
     assert await _count(session, Hospital) == 1
-    assert report.updated.get("hospital") == 1
     refreshed = (await session.execute(select(Hospital))).scalar_one()
-    assert refreshed.name == "Alwar District Cancer Centre"
+    assert refreshed.name == "Renamed By Hand"
+    # Kept, not "unchanged": the run noticed the disagreement and stood down,
+    # and says so, rather than leaving an operator to wonder who won.
+    assert report.kept.get("hospital") == 1
+    assert not report.changed_anything
+
+
+async def test_the_seed_still_creates_reference_data_added_to_the_file(
+    session: AsyncSession,
+) -> None:
+    """The other half of the rule, and the reason re-running the seed is still
+    how new reference data arrives: it creates what is missing. Only rows that
+    already exist are left alone."""
+    from app.seed import _upsert_departments
+
+    hospital = Hospital(code="NEW01", name="Somewhere", city=None, district=None)
+    session.add(hospital)
+    await session.flush()
+    report = SeedReport.empty()
+
+    await _upsert_departments(
+        session, hospital, [{"code": "AYUR", "name": "Ayurveda", "icon": "leaf"}], report
+    )
+    # A later edition of the file adds one, and renames the first.
+    await _upsert_departments(
+        session,
+        hospital,
+        [
+            {"code": "AYUR", "name": "Ayurveda (renamed in the file)", "icon": "leaf"},
+            {"code": "PANCH", "name": "Panchakarma", "icon": "leaf"},
+        ],
+        report,
+    )
+
+    rows = {
+        d.code: d
+        for d in (
+            await session.execute(select(Department).where(Department.hospital_id == hospital.id))
+        ).scalars()
+    }
+    assert set(rows) == {"AYUR", "PANCH"}
+    assert rows["AYUR"].name == "Ayurveda", "an existing department is left alone"
+    assert report.created["department"] == 2
+
+
+async def test_a_misspelt_system_of_medicine_is_refused_even_for_a_row_it_will_not_write(
+    session: AsyncSession,
+) -> None:
+    """The file is validated on every run whether or not it is written.
+
+    Otherwise "create only" would have turned the seed into a silent no-op for
+    exactly the rows most likely to carry a typo — the ones that have been in
+    the file long enough for somebody to edit them.
+    """
+    from app.seed import _upsert_departments
+
+    hospital = Hospital(code="NEW02", name="Somewhere", city=None, district=None)
+    session.add(hospital)
+    await session.flush()
+    report = SeedReport.empty()
+    await _upsert_departments(
+        session, hospital, [{"code": "AYUR", "name": "Ayurveda", "icon": "leaf"}], report
+    )
+
+    with pytest.raises(CareSystemError):
+        await _upsert_departments(
+            session,
+            hospital,
+            [{"code": "AYUR", "name": "Ayurveda", "icon": "leaf", "care_system": "ayurved"}],
+            report,
+        )
 
 
 async def test_patient_count_is_configurable(session: AsyncSession) -> None:

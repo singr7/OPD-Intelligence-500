@@ -5,6 +5,31 @@ natural key (see seeds/README.md), so running this twice is the same as running
 it once — which is what makes it safe to wire into a box rebuild rather than a
 one-shot bootstrap.
 
+## `seeds/*.json` describes a box nobody has set up yet
+
+For the rows a person can edit from a console — the hospital, its departments,
+staff users, doctors, clinic templates — this file **creates what is missing and
+never overwrites what it finds**. Adding a department or a doctor to the file and
+re-running is still how new reference data arrives; editing one that already
+exists changes nothing on a box where somebody has already set it up.
+
+That is a reversal, and a deliberate one. Overwriting was harmless while this
+file was the only thing that could write those rows. It stopped being harmless
+when the console could: `PATCH /admin/hospital` and the department editor
+(SESSION-AYUR-1), staff onboarding and the two-step deactivation (S-GL.2). A
+hand-run `make seed` would have put back the seeded hospital name — taking the
+letterhead and every intake pass with it — reopened a department an
+administrator had closed, and reactivated a doctor they had retired, silently.
+
+Rows it leaves alone *because they differ* are reported as `kept`, so the
+operator sees that the run noticed and stood down. The file is still validated on
+every run whether or not it is written, so a typo in an existing department's
+`care_system` is a loud failure and not a quiet no-op.
+
+Patients are exempt (generated demo data, no console). So are the price book, the
+tree bank and the protocol bank — versioned or append-only content with editors
+of their own.
+
 Writes run as the `seed` actor, so the patients it creates carry audit rows
 attributed to seeding rather than to a person.
 
@@ -65,10 +90,16 @@ class SeedReport:
     created: dict[str, int]
     updated: dict[str, int]
     unchanged: dict[str, int]
+    #: Rows this file describes differently from the database, and did **not**
+    #: touch, because a person had set them up by hand (see `_console_owned`).
+    #: Reported rather than silent: an operator who renamed the hospital in the
+    #: console needs to see that `make seed` noticed and stood down, not wonder
+    #: afterwards whether it had quietly won.
+    kept: dict[str, int]
 
     @classmethod
     def empty(cls) -> SeedReport:
-        return cls(created={}, updated={}, unchanged={})
+        return cls(created={}, updated={}, unchanged={}, kept={})
 
     def record(self, bucket: dict[str, int], entity: str) -> None:
         bucket[entity] = bucket.get(entity, 0) + 1
@@ -81,11 +112,14 @@ class SeedReport:
         def fmt(bucket: dict[str, int]) -> str:
             return ", ".join(f"{k}={v}" for k, v in sorted(bucket.items())) or "none"
 
-        return (
-            f"created: {fmt(self.created)}\n"
-            f"updated: {fmt(self.updated)}\n"
-            f"unchanged: {fmt(self.unchanged)}"
-        )
+        lines = [
+            f"created: {fmt(self.created)}",
+            f"updated: {fmt(self.updated)}",
+            f"unchanged: {fmt(self.unchanged)}",
+        ]
+        if self.kept:
+            lines.append(f"kept (yours, not this file's): {fmt(self.kept)}")
+        return "\n".join(lines)
 
 
 def _load(name: str) -> dict[str, Any]:
@@ -106,6 +140,56 @@ def _apply(obj: object, values: dict[str, Any]) -> bool:
     return changed
 
 
+def _differs(obj: object, values: dict[str, Any]) -> list[str]:
+    """Which of `values` this row disagrees with. Reads; never writes."""
+    return sorted(field for field, value in values.items() if getattr(obj, field) != value)
+
+
+def _console_owned(
+    existing: object | None, values: dict[str, Any], entity: str, report: SeedReport
+) -> bool:
+    """True when this row exists already and the seed must leave it alone.
+
+    **The rule: `seeds/*.json` describes a box that has not been set up yet.**
+    It creates what is missing — including a department or a member of staff
+    added to the file later, which is why re-running it is still how new
+    reference data arrives — and it never overwrites a row that is already
+    there.
+
+    Before this, every run rewrote these rows from the file. That was harmless
+    while the file was the only thing that could write them. It stopped being
+    harmless the moment a console could: SESSION-AYUR-1 gave an administrator
+    `PATCH /admin/hospital` and a department editor, S-GL.2 gave them staff
+    onboarding and a two-step deactivation, and a hand-run `make seed` would
+    have put back the seeded hospital name, reopened a department they closed,
+    and reactivated a doctor they had retired — silently, and with the
+    deactivation's whole point (patients booked with that doctor) undone.
+
+    Applies to the rows a person can edit from a console: the hospital, its
+    departments, staff users, doctors and clinic templates. **Not** to patients
+    (generated demo data with no console), nor to the price book, the tree bank
+    or the protocol bank, which are versioned or append-only content with
+    editors of their own.
+
+    The file is still *validated* on every run whether or not it is written —
+    the caller parses its values before asking this — so a typo introduced for
+    an existing department is still a loud failure rather than a quiet no-op.
+    """
+    if existing is None:
+        return False
+    differs = _differs(existing, values)
+    if differs:
+        report.record(report.kept, entity)
+        logger.info(
+            "seed: keeping the %s already set up here; %s differ from seeds/*.json",
+            entity,
+            ", ".join(differs),
+        )
+    else:
+        report.record(report.unchanged, entity)
+    return True
+
+
 async def _upsert_hospital(
     session: AsyncSession, data: dict[str, Any], report: SeedReport
 ) -> Hospital:
@@ -118,15 +202,14 @@ async def _upsert_hospital(
         "default_lang": Lang(data["default_lang"]),
     }
 
-    if hospital is None:
-        hospital = Hospital(code=data["code"], **values)
-        session.add(hospital)
-        await session.flush()
-        report.record(report.created, "hospital")
-    elif _apply(hospital, values):
-        report.record(report.updated, "hospital")
-    else:
-        report.record(report.unchanged, "hospital")
+    if _console_owned(hospital, values, "hospital", report):
+        assert hospital is not None
+        return hospital
+
+    hospital = Hospital(code=data["code"], **values)
+    session.add(hospital)
+    await session.flush()
+    report.record(report.created, "hospital")
     return hospital
 
 
@@ -155,14 +238,11 @@ async def _upsert_departments(
             "care_system": care_system_of(row.get("care_system")),
         }
         dept = existing.get(row["code"])
-        if dept is None:
+        if not _console_owned(dept, values, "department", report):
             dept = Department(hospital_id=hospital.id, code=row["code"], **values)
             session.add(dept)
             report.record(report.created, "department")
-        elif _apply(dept, values):
-            report.record(report.updated, "department")
-        else:
-            report.record(report.unchanged, "department")
+        assert dept is not None
         departments[row["code"]] = dept
 
     await session.flush()
@@ -183,14 +263,11 @@ async def _upsert_user(
         "username": row.get("username"),
     }
 
-    if user is None:
+    if not _console_owned(user, values, "user", report):
         user = User(phone=row["phone"], **values)
         session.add(user)
         report.record(report.created, "user")
-    elif _apply(user, values):
-        report.record(report.updated, "user")
-    else:
-        report.record(report.unchanged, "user")
+    assert user is not None
 
     await session.flush()
     await _seed_kiosk_pin(session, user, row.get("kiosk_pin"))
@@ -264,13 +341,9 @@ async def _upsert_doctors(
             "active": True,
         }
 
-        if doctor is None:
+        if not _console_owned(doctor, values, "doctor", report):
             session.add(Doctor(reg_no=row["reg_no"], **values))
             report.record(report.created, "doctor")
-        elif _apply(doctor, values):
-            report.record(report.updated, "doctor")
-        else:
-            report.record(report.unchanged, "doctor")
 
     await session.flush()
 
@@ -460,7 +533,7 @@ async def _upsert_slot_templates(
                 "capacity": clinic["capacity"],
                 "active": True,
             }
-            if template is None:
+            if not _console_owned(template, values, "slot_template", report):
                 session.add(
                     SlotTemplate(
                         doctor_id=doctor.id,
@@ -471,10 +544,6 @@ async def _upsert_slot_templates(
                     )
                 )
                 report.record(report.created, "slot_template")
-            elif _apply(template, values):
-                report.record(report.updated, "slot_template")
-            else:
-                report.record(report.unchanged, "slot_template")
 
     await session.flush()
 
