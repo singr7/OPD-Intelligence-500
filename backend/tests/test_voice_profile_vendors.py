@@ -32,9 +32,7 @@ def _capture(response: httpx.Response):
 
 
 async def test_openai_stt_uses_current_transcription_contract(meter):
-    seen, handler = _capture(
-        httpx.Response(200, json={"text": "मुझे बुखार है", "language": "hi"})
-    )
+    seen, handler = _capture(httpx.Response(200, json={"text": "मुझे बुखार है", "language": "hi"}))
     provider = OpenAISTTProvider(
         api_key="openai-key",
         client=_client(handler, OpenAISTTProvider.BASE_URL),
@@ -51,9 +49,7 @@ async def test_openai_stt_uses_current_transcription_contract(meter):
 
 async def test_openai_stt_silence_is_an_empty_transcript(meter):
     _, handler = _capture(httpx.Response(200, json={"text": ""}))
-    provider = OpenAISTTProvider(
-        api_key="k", client=_client(handler, OpenAISTTProvider.BASE_URL)
-    )
+    provider = OpenAISTTProvider(api_key="k", client=_client(handler, OpenAISTTProvider.BASE_URL))
     result = await provider.transcribe(AudioClip(data=b"\x00\x00" * 8000), "en")
     assert result.text == ""
 

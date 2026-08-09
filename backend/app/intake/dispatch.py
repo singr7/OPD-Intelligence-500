@@ -167,9 +167,7 @@ class ToolDispatcher:
                 "max": node.max,
                 "unit": node.unit,
                 "audio": node.audio_clip(lang),
-                "summary_role": (
-                    str(node.summary_role) if node.summary_role is not None else None
-                ),
+                "summary_role": (str(node.summary_role) if node.summary_role is not None else None),
                 "remaining": remaining,
                 "voice_input": (
                     node.type is NodeType.FREE_VOICE or remaining <= VOICE_TAIL_QUESTIONS

@@ -472,9 +472,7 @@ def _parse_node(
         raise TreeError(f"{where}: adaptive must be a boolean")
     summary_role_raw = raw.get("summary_role")
     try:
-        summary_role = (
-            SummaryRole(summary_role_raw) if summary_role_raw is not None else None
-        )
+        summary_role = SummaryRole(summary_role_raw) if summary_role_raw is not None else None
     except ValueError:
         raise TreeError(
             f"{where}: summary_role must be one of "

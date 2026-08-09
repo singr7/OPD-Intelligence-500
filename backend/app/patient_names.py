@@ -47,9 +47,7 @@ def normalize_patient_name(value: str | None) -> str:
     if not normalized:
         raise PatientNameError("patient name must not be blank")
     if len(normalized) > MAX_PATIENT_NAME_LENGTH:
-        raise PatientNameError(
-            f"patient name must be at most {MAX_PATIENT_NAME_LENGTH} characters"
-        )
+        raise PatientNameError(f"patient name must be at most {MAX_PATIENT_NAME_LENGTH} characters")
     if any(unicodedata.category(char) == "Cc" for char in normalized):
         raise PatientNameError("patient name must not contain control characters")
     return normalized
