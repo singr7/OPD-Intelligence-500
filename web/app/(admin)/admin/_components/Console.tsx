@@ -9,6 +9,7 @@ import {
   Activity,
   AudioLines,
   BookOpenCheck,
+  Building2,
   Cable,
   ChevronRight,
   CircleDollarSign,
@@ -21,6 +22,7 @@ import type { LucideIcon } from "lucide-react";
 import { AuthError } from "@/app/_lib/queue";
 import { ADMIN_CSS } from "./adminStyles";
 import { ChannelsTab } from "./ChannelsTab";
+import { FacilityTab } from "./FacilityTab";
 import { PeopleTab } from "./PeopleTab";
 import { CostTab } from "./CostTab";
 import { OpsTab } from "./OpsTab";
@@ -31,6 +33,7 @@ import { ProtocolsTab } from "./ProtocolsTab";
 
 type TabId =
   | "channels"
+  | "facility"
   | "people"
   | "cost"
   | "ops"
@@ -50,6 +53,14 @@ const GROUPS: { label: string; items: { id: TabId; label: string; icon: LucideIc
       { id: "channels", label: "Channels", icon: Cable },
       { id: "ops", label: "System operations", icon: Activity },
     ],
+  },
+  // The facility sits between "can a patient reach us" and "is there anybody to
+  // send them to": what this hospital is called, and which of its departments
+  // are open. Doc 24's second system of medicine arrives here as a department
+  // an administrator marks ayurveda.
+  {
+    label: "Facility",
+    items: [{ id: "facility", label: "Hospital and departments", icon: Building2 }],
   },
   {
     label: "Workforce",
@@ -113,6 +124,7 @@ export function Console({ token, onSignOut }: { token: string; onSignOut: () => 
         </nav>
         <main>
           {tab === "channels" && <ChannelsTab token={token} onError={onError} />}
+          {tab === "facility" && <FacilityTab token={token} onError={onError} />}
           {tab === "people" && <PeopleTab token={token} onError={onError} />}
           {tab === "cost" && <CostTab token={token} onError={onError} />}
           {tab === "ops" && <OpsTab token={token} onError={onError} />}

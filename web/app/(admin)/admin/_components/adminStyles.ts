@@ -249,6 +249,42 @@ export const ADMIN_CSS = `
   .admin .split-tables { grid-template-columns: 1fr; }
 }
 
+/* -- the facility: hospital identity + departments (AYUR-1, doc 24 §7) -------
+   The one deliberate risk on this tab (doc 04 §5): the hospital's name is not
+   shown in a form field labelled "Name", it is shown as the top of the page it
+   is printed on. An administrator renaming this facility is editing a
+   prescription letterhead and an intake pass, and the card says so by looking
+   like one. Everything else on the tab stays a quiet table. */
+.admin .letterhead { background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-panel); padding: 26px 28px 22px; text-align: center;
+  margin-bottom: 14px; }
+.admin .letterhead .facility { font-size: 27px; font-weight: 700; letter-spacing: -.01em;
+  line-height: 1.25; word-break: break-word; }
+.admin .letterhead .address { font-size: 13px; color: var(--ink-soft); margin-top: 5px; }
+.admin .letterhead .rule { height: 2px; background: var(--text); opacity: .82;
+  margin: 16px auto 0; max-width: 520px; border-radius: 1px; }
+.admin .letterhead .caption { font-size: 11px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-faint); margin-top: 12px; }
+
+/* A department is a door: open, or closed and saying why. The state column is
+   the first thing read, so it is a word and not a checkbox. */
+.admin .dept-name { display: grid; gap: 2px; }
+.admin .dept-name code { font-size: 11px; color: var(--ink-soft);
+  font-family: ui-monospace, monospace; }
+.admin tr.closed td { background: var(--surface-subtle); }
+.admin tr.closed .dept-name > span:first-child { color: var(--ink-soft); }
+
+/* The consequence list behind a change of system of medicine. Derived from the
+   two capability rows, never a paragraph somebody wrote once. */
+.admin .consequences { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 7px; }
+.admin .consequences li { display: grid; grid-template-columns: 18px 1fr; gap: 8px;
+  align-items: baseline; font-size: 13px; }
+.admin .consequences .mark { font-weight: 800; text-align: center; }
+.admin .consequences .on { color: var(--primary-d); }
+.admin .consequences .off { color: var(--danger); }
+.admin .consequences .swap { color: var(--ink-soft); }
+.admin .consequences .detail { color: var(--ink-soft); }
+
 @media (max-width: 560px) {
   .admin-topbar { padding: 10px 14px; }
   .admin main { padding: 18px 12px 48px; }

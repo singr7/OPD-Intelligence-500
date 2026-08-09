@@ -42,6 +42,27 @@ async function post<T>(token: string, path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+/** PATCH, for the edits where an absent field means "leave it alone" rather than
+ *  "blank it" — the hospital identity card and the department editor (AYUR-1). */
+async function patch<T>(token: string, path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
 // -- filters (the five usage_events dimensions) -------------------------------
 
 export type Filters = {
@@ -305,6 +326,89 @@ export type DeactivationImpact = {
 };
 
 export type Department = { code: string; name: string };
+
+// -- the facility: hospital identity + departments (AYUR-1, doc 24 §7) --------
+//
+// The two facts a hospital owns about itself that were previously only editable
+// by editing `seeds/hospital.json` on the box. `Department` above is the
+// active-only picker the create-a-doctor form uses; `DepartmentRow` is the
+// editor's view, and it is the one that sees the closed departments.
+
+export type Hospital = {
+  hospital_id: string;
+  code: string;
+  name: string;
+  city: string | null;
+  district: string | null;
+  default_lang: string;
+};
+
+export type DepartmentRow = {
+  department_id: string;
+  code: string;
+  name: string;
+  icon: string | null;
+  /** The raw stored value. This console is the one surface where the system of
+   *  medicine *is* the data rather than something to branch on — every other
+   *  consumer reads capability flags (doc 24 §2). */
+  care_system: string;
+  active: boolean;
+  doctors: number;
+  published_trees: number;
+  /** False means opening this department would send a patient into an error
+   *  instead of into questions. The toggle is disabled on it. */
+  has_intake: boolean;
+};
+
+export type Facility = { hospital: Hospital; departments: DepartmentRow[] };
+
+export type CapabilityChange = {
+  flag: string;
+  before: string;
+  after: string;
+  /** The sentence an administrator reads, from the backend's capability
+   *  mapping — never composed here, so a third system of medicine needs no
+   *  change to this console. */
+  label: string;
+};
+
+export type CareSystemImpact = {
+  code: string;
+  name: string;
+  from_system: string;
+  to_system: string;
+  is_a_change: boolean;
+  changes: CapabilityChange[];
+  doctors: number;
+  published_trees: number;
+  active: boolean;
+};
+
+export const fetchFacility = (t: string) => get<Facility>(t, "/admin/facility");
+export const patchHospital = (
+  t: string,
+  body: { name?: string; city?: string; district?: string; default_lang?: string },
+) => patch<Hospital>(t, "/admin/hospital", body);
+export const createDepartment = (
+  t: string,
+  body: { code: string; name: string; icon?: string; care_system?: string; active?: boolean },
+) => post<DepartmentRow>(t, "/admin/departments", body);
+export const fetchCareSystemImpact = (t: string, code: string, to: string) =>
+  get<CareSystemImpact>(
+    t,
+    `/admin/departments/${encodeURIComponent(code)}/care-system-impact?to=${encodeURIComponent(to)}`,
+  );
+export const patchDepartment = (
+  t: string,
+  code: string,
+  body: {
+    name?: string;
+    icon?: string;
+    care_system?: string;
+    active?: boolean;
+    acknowledge?: boolean;
+  },
+) => patch<DepartmentRow>(t, `/admin/departments/${encodeURIComponent(code)}`, body);
 
 export const fetchPeople = (t: string) => get<Person[]>(t, "/admin/people");
 export const fetchDepartments = (t: string) => get<Department[]>(t, "/admin/departments");
