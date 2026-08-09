@@ -268,8 +268,9 @@ function Departments({
     <section>
       <h2>Departments</h2>
       <p className="muted">
-        A department is offered on the kiosk the moment it is open. One that has no published
-        intake tree cannot be opened — there would be nothing to ask the patient who chose it.
+        A department is offered on the kiosk the moment it is open. One with no intake tree
+        cannot be opened — there would be nothing to ask the patient who chose it. A tree comes
+        either from the editor (published) or from the tree bank this box shipped with.
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -279,7 +280,7 @@ function Departments({
             <th>Department</th>
             <th>System of medicine</th>
             <th className="num">Doctors</th>
-            <th className="num">Intake trees</th>
+            <th>Intake</th>
             <th>Patients can reach it</th>
             <th />
           </tr>
@@ -295,7 +296,7 @@ function Departments({
               </td>
               <td>{systemLabel(dept.care_system)}</td>
               <td className="num">{dept.doctors}</td>
-              <td className="num">{dept.published_trees}</td>
+              <td>{intakeSource(dept)}</td>
               <td>
                 {dept.active ? (
                   <span className="pill ok">open</span>
@@ -501,8 +502,7 @@ function EditDepartment({
                 {impact.data.doctors === 0
                   ? "No doctor works in this department yet."
                   : `${impact.data.doctors} doctor(s) work here — their console gains and loses these sections at their next sign-in.`}{" "}
-                {impact.data.published_trees > 0 &&
-                  `Its ${impact.data.published_trees} published intake tree(s) keep running; they were written for ${systemLabel(dept.care_system)} and nothing here rewrites them.`}{" "}
+                {`Its intake questions are unchanged by this — they keep asking what they ask, and they were written for ${systemLabel(dept.care_system)}.`}{" "}
                 Notes, prescriptions and visits already recorded are not reclassified.
               </p>
             </>
@@ -529,6 +529,23 @@ function EditDepartment({
       </div>
     </div>
   );
+}
+
+/** Where this department's questions come from.
+ *
+ *  Not a bare count of published rows. Nine of the ten seeded departments have
+ *  no published tree and are open anyway, because `resolve_tree` falls through
+ *  to the bank in `seeds/trees/` — so a column reading "0" beside "open" would
+ *  contradict the sentence above the table and describe an impossible state. It
+ *  reports what the activation guard actually checks. */
+function intakeSource(dept: api.DepartmentRow) {
+  if (dept.published_trees > 0) {
+    return `${dept.published_trees} published`;
+  }
+  if (dept.has_intake) {
+    return <span className="muted">from the tree bank</span>;
+  }
+  return <span className="muted">none yet</span>;
 }
 
 /** A flag that switches on, off, or swaps one named value for another. */
