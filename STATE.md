@@ -6,6 +6,36 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-AYUR-1):** A hospital became **configurable by the person who
+runs it** (doc 24 §7). `backend/app/facility.py` owns the two facts a hospital
+holds about itself that previously required editing `seeds/hospital.json` on the
+box and re-running the seed — what it is called, and which departments it runs —
+behind `PATCH /admin/hospital`, `POST`/`PATCH /admin/departments` and a new
+**Facility** tab in the console, every write audited and none of it versioned
+(the `app.people` stance: a hospital's name is not authored content with a review
+cycle). Three things are load-bearing. **Doc 24 §3.2 said to verify letterhead
+propagation rather than assume it, and half of it was false**: the prescription
+does read `Hospital.name`, but the kiosk brand bar and the *intake boarding pass*
+rendered a four-language constant that had already drifted from the seeded name —
+so a rename would have changed the prescription and not the paper in the
+patient's hand. The stored name now rides on `GET /kiosk/bundle` (**inside the
+ETag**, so a rename invalidates a cached offline bundle the way `care_system`
+does) and wins in every language, with the constant demoted to a
+never-fetched-a-bundle fallback. **A department can no longer be opened onto an
+error**: `_assert_has_intake` refuses to activate one for which `resolve_tree`
+finds nothing published and nothing in `seeds/trees/`, which is precisely the 500
+AYUR-0's handoff asked the next session to remember — AYUR is now held dark by
+code and opens by itself when AYUR-2's trees land. Closing is never blocked, and
+new departments are created closed. **The care-system change confirmation is
+derived, not authored**: `care_system.differences()` diffs two capability rows and
+one-sentence `FLAG_LABELS` supply the words, so the eight consequence lines are
+true by construction and a flag added later cannot flip silently under an
+administrator (a test fails if one lacks its sentence). `GET /admin/departments`
+is untouched and stays active-only — it feeds the create-a-doctor picker, and a
+console must not be able to hire somebody into a department no patient can reach.
+Gates: backend **1,803** (was 1,771), conformance 115, voice-gw 25, typecheck,
+lint, android; screenshots `web/screenshots/ayur1/`. **No migration.**
+
 **Built (SESSION-AYUR-0):** The platform's **second system of medicine** exists
 as a flag and a derivation, and nothing else — the opening session of doc 24.
 `Department.care_system` is stored **once** and read in exactly two places
@@ -1004,10 +1034,30 @@ the only gate right now.**
 ## Stubs & fakes
 - **The AYUR department is a row, not a department** (SESSION-AYUR-0, doc 24).
   Seeded **inactive** with no intake trees, no formulary entries, no prompt pack
-  and no console sections; nothing renders differently anywhere. **It must not be
-  activated until SESSION-AYUR-2 authors its trees** — the kiosk chooser offers a
+  and no console sections; nothing renders differently anywhere. It must stay
+  closed until SESSION-AYUR-2 authors its trees — the kiosk chooser offers a
   department the moment it is active, and `routes/kiosk.py` asserts a tree after
-  routing, so an active card is a 500 with a patient's finger on it.
+  routing, so an active card is a 500 with a patient's finger on it. **Since
+  SESSION-AYUR-1 that is enforced rather than remembered**: `app.facility`
+  refuses to activate a department for which `resolve_tree` finds nothing, and
+  the console disables the Open button on it. It opens by itself once the trees
+  exist.
+- **`make seed` reverts an administrator's console edits** (SESSION-AYUR-1).
+  `_upsert_hospital` and `_upsert_departments` overwrite `name`, `icon`, `active`
+  and `care_system` from `seeds/hospital.json` on every run, and `_upsert_user`
+  sets `active: True` unconditionally — so a hand-run `make seed` puts back a
+  renamed hospital, reopens a closed department and reactivates a deactivated
+  member of staff. Pre-existing and newly *reachable*, because before AYUR-1
+  nothing but the seed could write those rows. Left alone on purpose: changing it
+  means restating `test_seed_updates_in_place_when_reference_data_changes`, and
+  which way it should go is a policy question for the operator (HANDOFF →
+  Decisions needed). `make deploy` does not run the seed, so it only bites
+  someone running it by hand.
+- **The hospital has one name, in one language** (SESSION-AYUR-1). The kiosk
+  shows the stored `Hospital.name` untranslated to Hindi, Marathi and Telugu
+  speakers; the compiled-in four-language constant is now only a
+  never-fetched-a-bundle fallback. Per-language hospital names are a decision
+  for the operator, not an executor.
 - **Three ayurveda capability flags are strings nothing reads yet** (doc 24 §6):
   `formulary_scope` (`validate_meds` is untouched — scoping is AYUR-3),
   `guideline_pack` and `prompt_pack` (no prompt dispatch site consults them —
