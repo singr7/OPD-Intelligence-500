@@ -50,7 +50,29 @@ export type LocalSession = {
   caregiver: boolean;
   details: PatientDetails;
   startedAt: string;
+  /** What she said when the kiosk asked about allergies (SESSION-ALLERGY).
+   *  `undefined` until the screen is answered, and it stays `undefined` if the
+   *  patient never reaches it — which the sync payload then omits, so the server
+   *  records "never asked" rather than a negative nobody stated. */
+  allergies?: LocalAllergies;
 };
+
+export type LocalAllergies = {
+  none_known: boolean;
+  items: { substance: string; substance_en?: string | null }[];
+};
+
+/** Record the allergy answer on a local session.
+ *
+ *  The offline counterpart of `POST /kiosk/{sid}/allergies`, and deliberately
+ *  the *only* difference between the two paths: online the statement is on the
+ *  server the moment she taps, offline it waits in the session until the intake
+ *  is queued. Both end as the same rows. */
+export function setLocalAllergies(sessionId: string, allergies: LocalAllergies): void {
+  const session = sessions.get(sessionId);
+  if (session === undefined) return;
+  session.allergies = allergies;
+}
 
 /** Live local sessions, by id. In memory only: an intake is a person standing at
  *  the kiosk, and if the tab reloads mid-intake they are still standing there and
@@ -193,6 +215,7 @@ export async function confirmLocal(session: LocalSession): Promise<LocalConfirm>
     patientSex: session.details.sex,
     patientPhone: session.details.phone,
     patientExternalId: session.details.externalId,
+    allergies: session.allergies,
     completedAt: new Date().toISOString(),
     status: "pending",
     attempts: 0,

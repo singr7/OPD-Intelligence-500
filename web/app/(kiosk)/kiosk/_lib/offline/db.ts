@@ -69,6 +69,11 @@ export type QueuedIntake = {
    *  the coordinator a prior file for an arrival the offline kiosk could not
    *  match at the time. */
   patientExternalId?: string;
+  /** What she said about allergies during the outage (SESSION-ALLERGY). Like
+   *  `patientExternalId`: optional and un-indexed, so it needs no schema version
+   *  bump. Left `undefined` by a build that never asked — the server writes
+   *  nothing at all in that case rather than a "none" nobody stated. */
+  allergies?: { none_known: boolean; items: { substance: string; substance_en?: string | null }[] };
   completedAt: string;
   /** "pending" → not yet accepted; "synced" → the server has it; "rejected" →
    *  the server refused it and retrying will not help (a human must look). */

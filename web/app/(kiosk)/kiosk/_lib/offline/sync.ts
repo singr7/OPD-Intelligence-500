@@ -65,6 +65,9 @@ export async function syncPending(): Promise<SyncSummary> {
         patient_sex: row.patientSex ?? null,
         patient_phone: row.patientPhone || null,
         patient_external_id: row.patientExternalId || null,
+        // Absent, not `null`, when this intake never carried one: the server
+        // distinguishes "the kiosk did not ask" from "she said none".
+        ...(row.allergies ? { allergies: row.allergies } : {}),
         completed_at: row.completedAt,
       })),
     });

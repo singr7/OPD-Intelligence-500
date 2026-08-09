@@ -534,6 +534,88 @@ export const T = {
     mr: "तुमचा टोकन नंबर {n}",
     te: "మీ టోకెన్ నంబర్ {n}",
   } as Str,
+  // -- allergies (SESSION-ALLERGY) --------------------------------------------
+  //
+  // The one clinical question the kiosk asks outside a department's tree, so the
+  // wording lives here rather than in tree content. Two rules shape all of it:
+  //
+  //  * **It never uses the word "allergy" alone.** Half the patients at this
+  //    site would not name a drug reaction as an "एलर्जी"; they would say a
+  //    medicine "did not suit" them, or that they came out in a rash. So the
+  //    question is asked the way it gets answered.
+  //  * **"I don't know" is an offered answer, not a dead end.** A patient forced
+  //    to choose between yes and no about her own drug history will guess, and a
+  //    guessed "no" is the answer that reaches a prescribing doctor as a fact.
+  allergyTitle: {
+    hi: "क्या कोई दवा आपको नुक़सान करती है?",
+    en: "Does any medicine disagree with you?",
+    mr: "कोणतं औषध तुम्हाला त्रास देतं का?",
+    te: "ఏదైనా మందు మీకు పడదా?",
+  } as Str,
+  allergyHelp: {
+    hi: "जैसे — कोई दवा खाने पर चकत्ते, सूजन, साँस लेने में तकलीफ़।",
+    en: "For example — a rash, swelling, or trouble breathing after a medicine.",
+    mr: "उदाहरणार्थ — औषध घेतल्यावर पुरळ, सूज किंवा श्वास घ्यायला त्रास.",
+    te: "ఉదాహరణకు — మందు వాడిన తర్వాత దద్దుర్లు, వాపు లేదా ఊపిరి ఇబ్బంది.",
+  } as Str,
+  allergyYes: {
+    hi: "हाँ, है",
+    en: "Yes, there is",
+    mr: "होय, आहे",
+    te: "అవును, ఉంది",
+  } as Str,
+  allergyNo: {
+    hi: "नहीं, कोई नहीं",
+    en: "No, none",
+    mr: "नाही, काही नाही",
+    te: "లేదు, ఏదీ లేదు",
+  } as Str,
+  allergyUnsure: {
+    hi: "मुझे पता नहीं",
+    en: "I don't know",
+    mr: "मला माहीत नाही",
+    te: "నాకు తెలియదు",
+  } as Str,
+  allergyWhichTitle: {
+    hi: "कौन-सी दवा?",
+    en: "Which medicine?",
+    mr: "कोणतं औषध?",
+    te: "ఏ మందు?",
+  } as Str,
+  allergyWhichHelp: {
+    hi: "जितना याद है उतना ही बताइए — नाम पूरा ठीक न हो तो भी चलेगा।",
+    en: "Just as much as you remember — the exact name doesn't matter.",
+    mr: "जेवढं आठवतं तेवढंच सांगा — नाव अगदी बरोबर नसलं तरी चालेल.",
+    te: "గుర్తున్నంత చెప్పండి — పేరు సరిగ్గా లేకపోయినా పర్వాలేదు.",
+  } as Str,
+  allergyPlaceholder: {
+    hi: "दवा का नाम",
+    en: "Medicine name",
+    mr: "औषधाचं नाव",
+    te: "మందు పేరు",
+  } as Str,
+  allergyAddAnother: {
+    hi: "एक और जोड़िए",
+    en: "Add another",
+    mr: "आणखी एक जोडा",
+    te: "మరొకటి జోడించండి",
+  } as Str,
+  // Shown when the answer could not be saved (a server session that lost the
+  // network). It tells her what to do about it rather than what failed — doc 04
+  // law 8 — because the thing that matters is that the doctor still hears it.
+  allergyNotSaved: {
+    hi: "यह सहेजा नहीं जा सका — कृपया डॉक्टर को ख़ुद बता दीजिए।",
+    en: "We couldn't save that — please tell the doctor yourself.",
+    mr: "हे साठवता आलं नाही — कृपया डॉक्टरांना स्वतः सांगा.",
+    te: "ఇది భద్రపరచలేకపోయాం — దయచేసి డాక్టర్‌కు మీరే చెప్పండి.",
+  } as Str,
+  // The rail's label for this step.
+  allergyStep: {
+    hi: "दवा की तकलीफ़",
+    en: "Medicine reactions",
+    mr: "औषधाचा त्रास",
+    te: "మందుల ఇబ్బంది",
+  } as Str,
   offlineDeptUnavailable: {
     hi: "यह पर्ची कर्मचारी से लें — अभी ऑफ़लाइन सेवा उपलब्ध नहीं।",
     en: "Please see the staff desk — offline service is unavailable for this department.",

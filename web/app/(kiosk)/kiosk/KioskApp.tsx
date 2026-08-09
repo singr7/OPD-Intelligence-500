@@ -76,6 +76,7 @@ type Screen =
   | "complaint"
   | "chooser"
   | "question"
+  | "allergy"
   | "readback"
   | "token";
 
@@ -141,6 +142,11 @@ export function KioskApp() {
   // any) and how many voice attempts it has had — both reset when the node moves.
   const [clarify, setClarify] = useState<string | null>(null);
   const [voiceAttempt, setVoiceAttempt] = useState(0);
+  // Allergies (SESSION-ALLERGY). Two sub-steps on one screen — the yes/no, then
+  // the names — because they are one question to the patient even though they
+  // are two decisions to us. `allergyAsking` is which half is on screen.
+  const [allergyAsking, setAllergyAsking] = useState<"choice" | "which">("choice");
+  const [allergyItems, setAllergyItems] = useState<string[]>([""]);
   const [readback, setReadback] = useState("");
   const [token, setToken] = useState<ConfirmResult | null>(null);
 
@@ -202,6 +208,8 @@ export function KioskApp() {
     setDepartment(null);
     setDepts([]);
     setRedFlags([]);
+    setAllergyAsking("choice");
+    setAllergyItems([""]);
     setReadback("");
     setToken(null);
     setError(null);
@@ -320,7 +328,7 @@ export function KioskApp() {
       setRedFlags(res.red_flags);
       setClarify(null);
       if (res.complete || !res.node) {
-        await finish(sessionId);
+        askAllergies();
       } else {
         setNode(res.node);
       }
@@ -344,7 +352,7 @@ export function KioskApp() {
         setRedFlags(res.red_flags);
         setClarify(null);
         if (res.complete || !res.node) {
-          await finish(sessionId);
+          askAllergies();
         } else {
           setNode(res.node);
         }
@@ -366,6 +374,46 @@ export function KioskApp() {
     setClarify(null);
     setVoiceAttempt(0);
   }, [node?.id]);
+
+  /** The last question of every intake, asked after the tree has run out.
+   *
+   *  It sits here rather than before the walk because the session — and so the
+   *  visit the statement hangs off — does not exist until `/start`, which needs
+   *  a complaint and a department. Asking it last also puts it where the patient
+   *  is already answering questions rather than filling in a form, which is
+   *  where a drug name is most likely to be remembered. */
+  const askAllergies = () => {
+    setAllergyAsking("choice");
+    setAllergyItems([""]);
+    setScreen("allergy");
+  };
+
+  /** Record the answer and move on to the read-back.
+   *
+   *  Moving on is unconditional. If the statement could not be saved she is told
+   *  to tell the doctor herself, and the intake continues — a kiosk that trapped
+   *  a patient on this screen because the network blinked would cost her the
+   *  token she is queuing for, which is a worse outcome than a doctor asking
+   *  about allergies the way they do today.
+   */
+  const submitAllergies = (input: { none_known: boolean; items: string[] }) =>
+    withBusy(async () => {
+      if (!sessionId) return;
+      const items = input.items
+        .map((text) => text.trim())
+        .filter((text) => text.length > 0)
+        .map((text) => ({ substance: text }));
+      // A patient who tapped "yes" and then named nothing has told us nothing.
+      // Sending it would be asking the server to store an alarm with no
+      // substance in it, which it refuses anyway.
+      if (!input.none_known && items.length === 0) {
+        await finish(sessionId);
+        return;
+      }
+      const saved = await flow.allergies(sessionId, { none_known: input.none_known, items });
+      if (!saved) setError(t("allergyNotSaved", lang));
+      await finish(sessionId);
+    });
 
   const finish = (sid: string) =>
     withBusy(async () => {
@@ -738,6 +786,21 @@ export function KioskApp() {
         />
       )}
 
+      {screen === "allergy" && (
+        <AllergyScreen
+          lang={lang}
+          speaking={speaking}
+          busy={busy}
+          say={say}
+          summary={summary}
+          asking={allergyAsking}
+          items={allergyItems}
+          onItems={setAllergyItems}
+          onAsk={setAllergyAsking}
+          onSubmit={submitAllergies}
+        />
+      )}
+
       {screen === "readback" && (
         <ReadbackScreen
           lang={lang}
@@ -945,6 +1008,10 @@ function SummaryRail({
  *  client-side step counter that drifts the moment a branch is taken. */
 function stageLabel(lang: KioskLang, summary: IntakeSummary): string {
   if (summary.stage === "readback") return t("reviewStep", lang);
+  // Named rather than counted. It sits after the tree has run out, so the
+  // countdown below has nothing left to count and would render "last question"
+  // for a question the tree never contained.
+  if (summary.stage === "allergy") return t("allergyStep", lang);
   const lead = summary.leadSteps.indexOf(summary.stage);
   if (lead >= 0) {
     return t("stepProgress", lang)
@@ -1525,6 +1592,166 @@ function UrgentBanner({ lang }: { lang: KioskLang }) {
 }
 
 // -- readback -----------------------------------------------------------------
+
+/** The one clinical question the kiosk asks outside a department's tree.
+ *
+ *  ## Why it is not a tree node
+ *
+ *  An allergy is not a department's question. It has to be asked of the ENT
+ *  walk-in and the palliative review alike, on the tap-only tier, in every
+ *  language, and during an outage. Authored as a node it would need writing into
+ *  all eleven trees, where eleven copies drift apart, ten of them get reviewed by
+ *  nobody, and the twelfth tree ships without it.
+ *
+ *  ## Three answers, not two
+ *
+ *  "I don't know" is offered as loudly as the other two, and it is the reason
+ *  this screen can be trusted at all. A patient forced to choose between yes and
+ *  no about her own drug history will guess, and a guessed "no" reaches a
+ *  prescribing doctor looking exactly like a fact. Tapping it records **nothing**
+ *  — the doctor's spine goes on saying nobody has established this, which is both
+ *  true and the right instruction to give them.
+ *
+ *  ## It never says "allergy" on its own
+ *
+ *  Many patients at this site would not name a drug reaction as an एलर्जी; they
+ *  would say a medicine did not suit them, or that they came out in a rash. So
+ *  the question is asked the way it gets answered and the examples do the
+ *  defining (doc 04 law 7: plain, second person, never clinical to a patient).
+ */
+function AllergyScreen({
+  lang,
+  speaking,
+  busy,
+  say,
+  summary,
+  asking,
+  items,
+  onItems,
+  onAsk,
+  onSubmit,
+}: {
+  lang: KioskLang;
+  speaking: boolean;
+  busy: boolean;
+  say: (t: string) => void;
+  summary: IntakeSummary;
+  asking: "choice" | "which";
+  items: string[];
+  onItems: (items: string[]) => void;
+  onAsk: (asking: "choice" | "which") => void;
+  onSubmit: (input: { none_known: boolean; items: string[] }) => void;
+}) {
+  const title = asking === "choice" ? t("allergyTitle", lang) : t("allergyWhichTitle", lang);
+  const hint = asking === "choice" ? t("allergyHelp", lang) : t("allergyWhichHelp", lang);
+  const named = items.filter((text) => text.trim().length > 0);
+
+  return (
+    <Stage
+      lang={lang}
+      speaking={speaking}
+      promptText={title}
+      hint={hint}
+      onReplay={() => say(title)}
+      autoSpeak={title}
+      say={say}
+      summary={summary}
+    >
+      {asking === "choice" ? (
+        <div className={s.bigChoices} data-testid="allergy-choices">
+          <button
+            className={s.bigChoice}
+            disabled={busy}
+            onClick={() => onAsk("which")}
+            data-testid="allergy-yes"
+          >
+            <span className={s.bigChoiceIcon}>
+              <Icon name="alert" />
+            </span>
+            <span className={s.bigChoiceText}>{t("allergyYes", lang)}</span>
+          </button>
+          <button
+            className={s.bigChoice}
+            disabled={busy}
+            onClick={() => onSubmit({ none_known: true, items: [] })}
+            data-testid="allergy-no"
+          >
+            <span className={s.bigChoiceIcon}>
+              <Icon name="ok" />
+            </span>
+            <span className={s.bigChoiceText}>{t("allergyNo", lang)}</span>
+          </button>
+          {/* Third, and given the same weight as the other two on purpose. A
+              patient who does not know must have somewhere to say so that is not
+              styled as the lesser answer, or she takes the "no" instead. */}
+          <button
+            className={s.bigChoice}
+            disabled={busy}
+            onClick={() => onSubmit({ none_known: false, items: [] })}
+            data-testid="allergy-unsure"
+          >
+            <span className={s.bigChoiceIcon}>
+              <Icon name="question" />
+            </span>
+            <span className={s.bigChoiceText}>{t("allergyUnsure", lang)}</span>
+          </button>
+        </div>
+      ) : (
+        <div className={s.detailsForm} data-testid="allergy-names">
+          {items.map((text, index) => (
+            <label className={`${s.field} ${s.fieldWide}`} key={index}>
+              <span className={s.fieldLabel}>{t("allergyPlaceholder", lang)}</span>
+              <input
+                className={s.fieldInput}
+                value={text}
+                disabled={busy}
+                maxLength={200}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={t("allergyPlaceholder", lang)}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = e.target.value;
+                  onItems(next);
+                }}
+                data-testid={`allergy-name-${index}`}
+              />
+            </label>
+          ))}
+          {/* Capped at the server's own limit. A patient naming a seventh thing
+              has misunderstood the question, and the extra row would be dropped
+              at the boundary anyway — better never to offer it. */}
+          {items.length < 6 && (
+            <button
+              className={`${s.btn} ${s.btnGhost}`}
+              disabled={busy}
+              onClick={() => onItems([...items, ""])}
+              data-testid="allergy-add"
+            >
+              + {t("allergyAddAnother", lang)}
+            </button>
+          )}
+        </div>
+      )}
+
+      {asking === "which" && (
+        <div className={s.footer}>
+          <button className={`${s.btn} ${s.btnGhost}`} disabled={busy} onClick={() => onAsk("choice")}>
+            &larr; {t("back", lang)}
+          </button>
+          <button
+            className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+            disabled={busy || named.length === 0}
+            onClick={() => onSubmit({ none_known: false, items })}
+            data-testid="allergy-submit"
+          >
+            {t("next", lang)}
+          </button>
+        </div>
+      )}
+    </Stage>
+  );
+}
 
 function ReadbackScreen({
   lang,

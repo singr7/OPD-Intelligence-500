@@ -29,13 +29,14 @@ import type { NetMonitor } from "./net";
 import {
   canRunOffline,
   confirmLocal,
+  setLocalAllergies,
   currentWireNode,
   getLocalSession,
   isLocalSession,
   readback,
   startLocal,
 } from "./local";
-import type { LocalSession } from "./local";
+import type { LocalAllergies, LocalSession } from "./local";
 
 /** A network-level failure (offline), as opposed to a 4xx the server returned on
  *  purpose. Only the former falls back to local. */
@@ -122,6 +123,36 @@ export function makeFlow({ net }: FlowDeps) {
     return res;
   }
 
+  /** What she said about allergies (SESSION-ALLERGY). Reports whether it landed.
+   *
+   *  A local session always lands: the statement rides to the server inside the
+   *  queued intake. A *server* session that loses the network here does not —
+   *  its walk lives on the server, there is no local intake for the statement to
+   *  ride in, and `setLocalAllergies` would write it to a session that does not
+   *  exist in this tab. That is the same limitation `answer` documents, and the
+   *  same one S7 accepted: the offline-first guarantee is for intakes that
+   *  *started* offline.
+   *
+   *  So this returns `false` instead of pretending. The screen above says the
+   *  answer was not saved and asks her to tell the doctor — because a kiosk that
+   *  silently swallowed "penicillin" and then printed a token would leave the
+   *  hospital believing it had asked. */
+  async function allergies(sessionId: string, input: LocalAllergies): Promise<boolean> {
+    if (isLocalSession(sessionId)) {
+      setLocalAllergies(sessionId, input);
+      return true;
+    }
+    try {
+      await kioskApi.recordAllergies(sessionId, input);
+      net.observedSuccess();
+      return true;
+    } catch (error) {
+      if (!isOffline(error)) throw error;
+      net.observedFailure();
+      return false;
+    }
+  }
+
   async function finish(sessionId: string): Promise<FinishResult> {
     if (isLocalSession(sessionId)) return localFinish(sessionId);
     const res = await kioskApi.finish(sessionId);
@@ -136,7 +167,7 @@ export function makeFlow({ net }: FlowDeps) {
     return res;
   }
 
-  return { start, answer, finish, confirm };
+  return { start, answer, allergies, finish, confirm };
 }
 
 export type Flow = ReturnType<typeof makeFlow>;

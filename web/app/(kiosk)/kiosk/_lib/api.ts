@@ -131,6 +131,15 @@ export type LeaseResult = {
   }[];
 };
 
+/** The allergy answer, in the shape both the online route and sync take.
+ *  `none_known: true` with an empty list is her saying "none"; the two fields
+ *  are separate because "asked and told none" and "asked and named nothing"
+ *  are different answers and only the first is a statement. */
+export type AllergiesInput = {
+  none_known: boolean;
+  items: { substance: string; substance_en?: string | null }[];
+};
+
 export type SyncBody = {
   kiosk_id: string;
   intakes: {
@@ -147,6 +156,10 @@ export type SyncBody = {
     patient_sex: string | null;
     patient_phone: string | null;
     patient_external_id: string | null;
+    /** What she said when the kiosk asked about allergies (SESSION-ALLERGY).
+     *  Omitted entirely by a kiosk build that never asked — which the server
+     *  reads as "never asked", not as "she said none". */
+    allergies?: AllergiesInput;
     completed_at: string;
   }[];
 };
@@ -267,6 +280,9 @@ export const kioskApi = {
     }
   ) {
     return post<AnswerResult>(`/kiosk/${sessionId}/answer`, input);
+  },
+  recordAllergies(sessionId: string, input: AllergiesInput) {
+    return post<{ recorded: number }>(`/kiosk/${sessionId}/allergies`, input);
   },
   finish(sessionId: string) {
     return post<FinishResult>(`/kiosk/${sessionId}/finish`);
