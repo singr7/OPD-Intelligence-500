@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from dataclasses import fields as dc_fields
 from types import MappingProxyType
 from typing import Any
 
@@ -38,10 +39,12 @@ from app.models.enums import CareSystem
 
 __all__ = [
     "CAPABILITIES",
+    "FLAG_LABELS",
     "CareSystemCapabilities",
     "CareSystemError",
     "capabilities_for",
     "care_system_of",
+    "differences",
 ]
 
 
@@ -123,6 +126,65 @@ CAPABILITIES: Mapping[CareSystem, CareSystemCapabilities] = MappingProxyType(
         ),
     }
 )
+
+
+#: One plain sentence per flag, in an administrator's words rather than a
+#: developer's. This is the vocabulary the admin console's care-system change
+#: confirmation is written in (doc 24 §7: "confirmed with explicit copy about
+#: what changes"), and it lives here for the reason everything else about a
+#: system of medicine does — the module that decides what a flag *is* is the
+#: only one that can say what changing it does. `app.facility` diffs two rows
+#: and renders these; it never writes a sentence about ayurveda itself, so a
+#: third system's confirmation copy comes with its capabilities row.
+#:
+#: `tests/test_care_system.py` fails if a flag has no label, so a capability
+#: added later cannot flip silently under an admin who was never told.
+FLAG_LABELS: Mapping[str, str] = MappingProxyType(
+    {
+        "shows_cycles": "the treatment-cycle trendline on the doctor's console",
+        "shows_regimen_events": "regimen and cycle lines in the dictation panel",
+        "checkin_protocols": "the follow-up check-in protocols this department can draft",
+        "guideline_pack": "the guideline set the research assistant is framed against",
+        "formulary_scope": "which preparations a dictated drug is checked against",
+        "ayurveda_assessment": "the constitution / agni / nidana note fields",
+        "pathya_apathya": "the diet and lifestyle section of the prescription",
+        "prompt_pack": "the wording of the intake summary and dictation prompts",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityChange:
+    """One flag that a change of system would flip, and what it means."""
+
+    flag: str
+    before: Any
+    after: Any
+    #: `FLAG_LABELS[flag]` — carried alongside so a caller rendering this never
+    #: has to reach back into the mapping for the words.
+    label: str
+
+
+def differences(
+    before: CareSystemCapabilities, after: CareSystemCapabilities
+) -> tuple[CapabilityChange, ...]:
+    """Every flag on which two capability rows disagree, in declaration order.
+
+    The admin console's confirmation copy is *derived*, not authored: switching
+    a department's system of medicine changes exactly the flags this returns,
+    and an operator is shown that list rather than a paragraph somebody wrote
+    once and forgot to update when a flag was added.
+    """
+    return tuple(
+        CapabilityChange(
+            flag=field.name,
+            before=getattr(before, field.name),
+            after=getattr(after, field.name),
+            label=FLAG_LABELS[field.name],
+        )
+        for field in dc_fields(CareSystemCapabilities)
+        if getattr(before, field.name) != getattr(after, field.name)
+    )
 
 
 def care_system_of(value: CareSystem | str | None) -> CareSystem:

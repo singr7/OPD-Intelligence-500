@@ -29,7 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import admin as admin_svc
-from app import analytics, people, roster
+from app import analytics, facility, people, roster
 from app import channels as channel_svc
 from app.auth.rbac import Principal, require_admin
 from app.checkins import store as checkin_store
@@ -1439,6 +1439,237 @@ async def _person(session: AsyncSession, user_id: uuid.UUID) -> people.Person:
     if found is None:  # pragma: no cover - the row was just written
         raise HTTPException(status_code=404, detail="no such person")
     return found
+
+
+# -- the facility: hospital identity + departments (AYUR-1, doc 24 §7) ---------
+#
+# The two facts a hospital owns about itself that were previously only editable
+# by editing `seeds/hospital.json` on the box: what it is called, and which
+# departments it runs. Both are thin over `app.facility`; both audit.
+#
+# `GET /departments` above is left exactly as it was — active-only, feeding the
+# create-a-doctor picker. `GET /facility` is the editor's read, and it is the
+# one that sees the closed departments, because opening them is what it is for.
+
+
+class HospitalOut(BaseModel):
+    hospital_id: uuid.UUID
+    code: str
+    #: Printed on the prescription letterhead and on the intake boarding pass.
+    #: Renaming the hospital here is how "Ayurveda Hospital" reaches paper.
+    name: str
+    city: str | None
+    district: str | None
+    default_lang: Lang
+
+
+def _hospital_out(row: facility.HospitalIdentity) -> HospitalOut:
+    return HospitalOut(
+        hospital_id=row.hospital_id,
+        code=row.code,
+        name=row.name,
+        city=row.city,
+        district=row.district,
+        default_lang=row.default_lang,
+    )
+
+
+class DepartmentRowOut(BaseModel):
+    department_id: uuid.UUID
+    code: str
+    name: str
+    icon: str | None
+    #: The raw stored value, for the same reason `DepartmentOut` carries it: this
+    #: console's job is to show and edit the system of medicine (doc 24 §7), so
+    #: here it *is* the data. Every other consumer gets capability flags.
+    care_system: CareSystem
+    active: bool
+    doctors: int
+    published_trees: int
+    #: False means activating this department would send a patient into an error
+    #: rather than into questions — the console disables the toggle on it.
+    has_intake: bool
+
+
+def _department_row_out(row: facility.DepartmentRow) -> DepartmentRowOut:
+    return DepartmentRowOut(
+        department_id=row.department_id,
+        code=row.code,
+        name=row.name,
+        icon=row.icon,
+        care_system=row.care_system,
+        active=row.active,
+        doctors=row.doctors,
+        published_trees=row.published_trees,
+        has_intake=row.has_intake,
+    )
+
+
+class FacilityOut(BaseModel):
+    hospital: HospitalOut
+    departments: list[DepartmentRowOut]
+
+
+@router.get("/facility", response_model=FacilityOut)
+async def facility_overview(session: AsyncSession = Depends(get_session)) -> FacilityOut:
+    """The hospital and every department it runs, open or closed."""
+    return FacilityOut(
+        hospital=_hospital_out(await facility.identity(session)),
+        departments=[_department_row_out(d) for d in await facility.list_departments(session)],
+    )
+
+
+class HospitalPatch(BaseModel):
+    """Every field optional — an absent one is left alone, not blanked."""
+
+    name: str | None = None
+    city: str | None = None
+    district: str | None = None
+    default_lang: Lang | None = None
+
+
+@router.patch("/hospital", response_model=HospitalOut)
+async def patch_hospital(
+    body: HospitalPatch, session: AsyncSession = Depends(get_session)
+) -> HospitalOut:
+    try:
+        updated = await facility.update_identity(
+            session,
+            name=body.name,
+            city=body.city,
+            district=body.district,
+            default_lang=body.default_lang,
+        )
+    except facility.FacilityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _hospital_out(updated)
+
+
+class CreateDepartmentIn(BaseModel):
+    code: str
+    name: str
+    icon: str | None = None
+    #: Absent means allopathy, exactly as an unstated `care_system` does in a
+    #: seed file. Parsed by `app.facility` through `care_system_of`, so a
+    #: misspelling is a 422 rather than a department quietly practising the
+    #: wrong system of medicine.
+    care_system: str | None = None
+    #: Closed by default. A department created a second ago has no intake tree,
+    #: and `app.facility` refuses to open one that has nothing to ask.
+    active: bool = False
+
+
+@router.post("/departments", response_model=DepartmentRowOut, status_code=201)
+async def create_department(
+    body: CreateDepartmentIn, session: AsyncSession = Depends(get_session)
+) -> DepartmentRowOut:
+    try:
+        created = await facility.create_department(
+            session,
+            code=body.code,
+            name=body.name,
+            icon=body.icon,
+            care_system=body.care_system,
+            active=body.active,
+        )
+    except facility.FacilityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _department_row_out(created)
+
+
+class CapabilityChangeOut(BaseModel):
+    flag: str
+    before: str
+    after: str
+    #: The sentence an administrator reads. Comes from `app.care_system`, the
+    #: only module that knows what a flag means.
+    label: str
+
+
+class CareSystemImpactOut(BaseModel):
+    code: str
+    name: str
+    from_system: CareSystem
+    to_system: CareSystem
+    is_a_change: bool
+    changes: list[CapabilityChangeOut]
+    doctors: int
+    published_trees: int
+    active: bool
+
+
+def _care_system_impact_out(impact: facility.CareSystemImpact) -> CareSystemImpactOut:
+    return CareSystemImpactOut(
+        code=impact.code,
+        name=impact.name,
+        from_system=impact.from_system,
+        to_system=impact.to_system,
+        is_a_change=impact.is_a_change,
+        changes=[
+            CapabilityChangeOut(
+                flag=change.flag,
+                before=str(change.before),
+                after=str(change.after),
+                label=change.label,
+            )
+            for change in impact.changes
+        ],
+        doctors=impact.doctors,
+        published_trees=impact.published_trees,
+        active=impact.active,
+    )
+
+
+@router.get("/departments/{code}/care-system-impact", response_model=CareSystemImpactOut)
+async def department_care_system_impact(
+    code: str,
+    to: str = Query(description="the system of medicine being considered"),
+    session: AsyncSession = Depends(get_session),
+) -> CareSystemImpactOut:
+    """What would change if this department practised `to` instead (doc 24 §7).
+
+    Read before the write, the way `deactivation-impact` precedes a
+    deactivation. The list of changes is *derived* from the two capability rows,
+    so it cannot describe a state of affairs that stopped being true.
+    """
+    try:
+        impact = await facility.care_system_impact(session, code=code, to=to)
+    except facility.FacilityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _care_system_impact_out(impact)
+
+
+class PatchDepartmentIn(BaseModel):
+    name: str | None = None
+    icon: str | None = None
+    care_system: str | None = None
+    active: bool | None = None
+    #: Required to change the system of medicine, and ignored otherwise. The
+    #: console sets it after showing the impact above; a script that sets it
+    #: without reading one has still had to say the word.
+    acknowledge: bool = False
+
+
+@router.patch("/departments/{code}", response_model=DepartmentRowOut)
+async def patch_department(
+    code: str, body: PatchDepartmentIn, session: AsyncSession = Depends(get_session)
+) -> DepartmentRowOut:
+    try:
+        updated = await facility.update_department(
+            session,
+            code=code,
+            name=body.name,
+            icon=body.icon,
+            care_system=body.care_system,
+            active=body.active,
+            acknowledge=body.acknowledge,
+        )
+    except facility.FacilityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+    return _department_row_out(updated)
 
 
 # -- the roster: slot templates + import (S-GL.2) ------------------------------
