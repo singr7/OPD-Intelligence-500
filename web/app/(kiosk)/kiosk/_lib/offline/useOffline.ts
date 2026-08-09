@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { API_BASE, kioskApi } from "../api";
-import type { Dept } from "../api";
+import type { BundleHospital, Dept } from "../api";
 import { hasIndexedDb, kioskId, loadBundle, pendingCount, saveBlocks, saveBundle } from "./db";
 import { makeFlow, type Flow } from "./flow";
 import { healthProbe, NetMonitor } from "./net";
@@ -30,10 +30,11 @@ export type OfflineState = {
   pending: number;
   /** Departments from the cached bundle — the offline chooser's options. */
   cachedDepartments: Dept[];
-  /** The hospital's stored name, from the bundle (AYUR-1). `null` until one has
-   *  ever been fetched, which is the only case `hospitalName()` falls back to
-   *  the compiled-in four-language constant. */
-  hospitalName: string | null;
+  /** The hospital's stored names, from the bundle (AYUR-1) — English plus a
+   *  translation per language that has one. `null` until a bundle has ever been
+   *  fetched, which is the only case `hospitalName()` falls back to the
+   *  compiled-in constant. */
+  hospital: BundleHospital | null;
   ready: boolean;
   lastSync: SyncSummary | null;
 };
@@ -58,7 +59,7 @@ export function useOffline(): OfflineState {
   const [reachable, setReachable] = useState(true);
   const [pending, setPending] = useState(0);
   const [cachedDepartments, setCachedDepartments] = useState<Dept[]>([]);
-  const [hospitalName, setHospitalName] = useState<string | null>(null);
+  const [hospital, setHospital] = useState<BundleHospital | null>(null);
   const [ready, setReady] = useState(false);
   const [lastSync, setLastSync] = useState<SyncSummary | null>(null);
 
@@ -82,7 +83,12 @@ export function useOffline(): OfflineState {
       const cached = await loadBundle();
       if (cached && !cancelled) {
         setCachedDepartments(cached.departments);
-        if (cached.hospital) setHospitalName(cached.hospital.name);
+        // A bundle cached by a build that predates per-language names has no
+        // `name_i18n`; normalise rather than widen the type, so every reader
+        // downstream can assume the map is there.
+        if (cached.hospital) {
+          setHospital({ ...cached.hospital, name_i18n: cached.hospital.name_i18n ?? {} });
+        }
       }
       await refreshPending();
 
@@ -98,7 +104,7 @@ export function useOffline(): OfflineState {
         });
         if (!cancelled) {
           setCachedDepartments(bundle.departments);
-          if (bundle.hospital) setHospitalName(bundle.hospital.name);
+          if (bundle.hospital) setHospital(bundle.hospital);
         }
 
         const id = await kioskId();
@@ -169,7 +175,7 @@ export function useOffline(): OfflineState {
     reachable,
     pending,
     cachedDepartments,
-    hospitalName,
+    hospital,
     ready,
     lastSync,
   };

@@ -120,10 +120,13 @@ export class ApiError extends Error {
 
 // -- offline surface (S7) -----------------------------------------------------
 
-/** What this hospital calls itself (AYUR-1). One stored string, not four — see
- *  `hospitalName()` in `_lib/i18n.ts` for why it is shown in every language. */
+/** What this hospital calls itself (AYUR-1). English plus a translation per
+ *  pilot language that has one; see `hospitalName()` in `_lib/i18n.ts`. The
+ *  whole map comes down at once because the kiosk switches language with no
+ *  server round trip, and an outage must not catch it holding only one. */
 export type BundleHospital = {
   name: string;
+  name_i18n: Record<string, string>;
   city: string | null;
 };
 

@@ -372,7 +372,7 @@ async def send_invite(
         raise PeopleError(f"{user.name} is deactivated — reactivate before inviting")
 
     hospital = await _hospital(session)
-    body = INVITE_SMS[user.lang].format(name=user.name, hospital=hospital.name)
+    body = INVITE_SMS[user.lang].format(name=user.name, hospital=hospital.name_in(user.lang))
 
     detail = "sent"
     sent = True

@@ -328,7 +328,9 @@ async def _invite_on_whatsapp(session: AsyncSession, target: CampaignTarget) -> 
             session,
             appointment=appointment,
             patient=patient,
-            hospital_name=hospital.name if hospital is not None else "the hospital",
+            hospital_name=(
+                hospital.name_in(patient.lang) if hospital is not None else "the hospital"
+            ),
         )
     except Exception:  # noqa: BLE001 — one bad number must not stop the campaign
         logger.exception("campaign: whatsapp invite to patient %s failed", target.patient_id)
@@ -529,7 +531,9 @@ async def send_call_fallbacks(session: AsyncSession, *, limit: int = 100) -> lis
             session,
             appointment=appointment,
             patient=patient,
-            hospital_name=hospital.name if hospital is not None else "the hospital",
+            hospital_name=(
+                hospital.name_in(patient.lang) if hospital is not None else "the hospital"
+            ),
         )
         call.fallback_sent_at = datetime.now(UTC)
         call.state = OutboundCallState.FALLBACK_SENT

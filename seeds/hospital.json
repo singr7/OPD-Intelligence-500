@@ -1,6 +1,10 @@
 {
   "code": "ALWAR01",
   "name": "Alwar District Cancer Centre",
+  "_comment_name_i18n": "The hospital's name in each language it has been translated into. It is the first line of the kiosk, the letterhead of the patient's prescription copy and the top band of the boarding pass — a patient who chose हिंदी and is then shown a Latin-script name has been told in the first second that the screen is not really for her. English lives in `name` above and is the fallback for every language absent here, so this may be partial. Read through `Hospital.name_in()`, never directly. **Hindi only for now**, by the operator's decision: mr/te patient-facing text in this repo is model-drafted pending native review (S13/S21), and a facility's own name is the worst string to guess at — those two fall back to English until a native speaker supplies them. Widening it is one entry in `TRANSLATABLE_LANGUAGES` (backend/app/facility.py) plus the text. An administrator can edit this in the admin console without a deploy.",
+  "name_i18n": {
+    "hi": "अलवर जिला कैंसर केंद्र"
+  },
   "_comment_care_system": "doc 24 §3.4. `care_system` is stated explicitly on every department for readability; the seed loader defaults a missing one to `allopathy`, so a hospital.json written before doc 24 still loads. The value means something operationally — it selects intake trees, doctor-console sections, formulary scope and prompt pack — and it is derived in exactly two places (backend/app/care_system.py, web/app/_lib/careSystem.ts). Nothing else may branch on it.",
   "city": "Alwar",
   "district": "Alwar",

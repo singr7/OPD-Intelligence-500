@@ -315,7 +315,11 @@ async def me(
     from app.models.org import Hospital
 
     hospital = await session.get(Hospital, patient.hospital_id)
-    return _me(patient, via=principal.via, hospital=hospital.name if hospital else None)
+    return _me(
+        patient,
+        via=principal.via,
+        hospital=hospital.name_in(patient.lang) if hospital else None,
+    )
 
 
 # -- My Cancer Care File (doc 03 §1c.1) ----------------------------------------
@@ -346,7 +350,11 @@ async def care_file(
 
     hospital = await session.get(Hospital, file.patient.hospital_id)
     return CareFileOut(
-        patient=_me(file.patient, via=principal.via, hospital=hospital.name if hospital else None),
+        patient=_me(
+            file.patient,
+            via=principal.via,
+            hospital=hospital.name_in(file.patient.lang) if hospital else None,
+        ),
         revision=file.revision,
         entries=[
             FileEntryOut(
@@ -871,7 +879,7 @@ async def _confirm(session: AsyncSession, appointment: Appointment, *, kind: str
         session,
         appointment=appointment,
         patient=patient,
-        hospital_name=hospital.name if hospital else "the hospital",
+        hospital_name=hospital.name_in(patient.lang) if hospital else "the hospital",
         doctor_name=doctor.name if doctor else "",
         kind=kind,
     )

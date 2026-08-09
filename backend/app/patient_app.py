@@ -673,7 +673,7 @@ async def _ping_caregivers(session: AsyncSession, *, patient_id: uuid.UUID) -> b
 
     hospital = await session.get(Hospital, patient.hospital_id)
     body = MISSED_DOSE_SMS.get(patient.lang, MISSED_DOSE_SMS[Lang.EN]).format(
-        hospital=hospital.name if hospital else "OPD",
+        hospital=hospital.name_in(patient.lang) if hospital else "OPD",
         patient=patient.name,
     )
 

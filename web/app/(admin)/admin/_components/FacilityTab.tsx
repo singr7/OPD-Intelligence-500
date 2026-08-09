@@ -48,6 +48,14 @@ const LANGS = [
   { value: "te", label: "Telugu" },
 ];
 
+/** The languages the hospital's *name* can be translated into, mirroring the
+ *  backend's `TRANSLATABLE_LANGUAGES`. English is absent because it is the name
+ *  itself. Hindi only for now — Marathi and Telugu fall back to English rather
+ *  than carry a guess at a facility's own name, which is the first line of the
+ *  kiosk and the top band of the pass a patient carries out. Widening this is
+ *  one entry here and one in `app/facility.py`. */
+const TRANSLATED_LANGS = [{ value: "hi", label: "हिंदी", english: "Hindi" }];
+
 export function FacilityTab({ token, onError }: TabProps) {
   const facility = useLoad(() => api.fetchFacility(token), onError);
   const [flash, setFlash] = useState<string | null>(null);
@@ -101,15 +109,22 @@ function Identity({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(hospital.name);
+  const [translated, setTranslated] = useState<Record<string, string>>(hospital.name_i18n ?? {});
   const [city, setCity] = useState(hospital.city ?? "");
   const [district, setDistrict] = useState(hospital.district ?? "");
   const [lang, setLang] = useState(hospital.default_lang);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Which language the letterhead is previewing. The card is the point of this
+   *  screen, so the way to check a translation is to *see the page in it* —
+   *  not to read it back out of the field you just typed it into. */
+  const [preview, setPreview] = useState("en");
 
+  const editedNames: Record<string, string> = { en: name, ...translated };
+  const storedNames: Record<string, string> = { en: hospital.name, ...hospital.name_i18n };
   // While editing, the letterhead previews what is being typed — the point of
   // drawing it this way is that the operator watches the printed page change.
-  const shown = editing ? name : hospital.name;
+  const shown = (editing ? editedNames : storedNames)[preview] || (editing ? name : hospital.name);
   const shownAddress = [editing ? city : hospital.city, editing ? district : hospital.district]
     .map((part) => (part ?? "").trim())
     .filter(Boolean)
@@ -121,13 +136,15 @@ function Identity({
     try {
       const updated = await api.patchHospital(token, {
         name,
+        name_i18n: translated,
         city,
         district,
         default_lang: lang,
       });
       onFlash(
         `This facility is now “${updated.name}”. Prescriptions printed from here, ` +
-          "and every intake pass the kiosk hands out, carry the new name from now on. " +
+          "and every intake pass the kiosk hands out, carry the new name from now on — " +
+          "in the language the patient chose, where one has been given. " +
           "Paper already printed is unchanged.",
       );
       setEditing(false);
@@ -142,6 +159,7 @@ function Identity({
 
   function cancel() {
     setName(hospital.name);
+    setTranslated(hospital.name_i18n ?? {});
     setCity(hospital.city ?? "");
     setDistrict(hospital.district ?? "");
     setLang(hospital.default_lang);
@@ -153,17 +171,33 @@ function Identity({
     <section>
       <h2>This hospital</h2>
       <p className="muted">
-        The name below is printed on every prescription letterhead and on the intake pass the
-        kiosk hands a patient at the door. It is one name, shown in every language — this
-        platform was not given a translation of it, and inventing one would be worse than
-        showing the real one.
+        The name below is printed on the patient&rsquo;s copy of every prescription and on the
+        intake pass the kiosk hands them at the door, in the language they chose. A language
+        with no name of its own falls back to English — the real name of a real place, which
+        beats a guess at it.
       </p>
 
       <div className="letterhead" data-testid="letterhead">
-        <div className="facility">{shown || "—"}</div>
+        <div className="facility" lang={preview}>
+          {shown || "—"}
+        </div>
         {shownAddress && <div className="address">{shownAddress}</div>}
         <div className="rule" />
         <div className="caption">as it prints</div>
+        {/* The check that matters is seeing the page in the other language, not
+            re-reading the field you just typed into. */}
+        <div className="langs" style={{ marginTop: 12, display: "inline-flex" }}>
+          {[{ value: "en", label: "English" }, ...TRANSLATED_LANGS].map((l) => (
+            <button
+              key={l.value}
+              className={l.value === preview ? "on" : ""}
+              onClick={() => setPreview(l.value)}
+              data-testid={`preview-${l.value}`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {editing ? (
@@ -178,6 +212,22 @@ function Identity({
                 data-testid="hospital-name"
               />
             </label>
+            {TRANSLATED_LANGS.map((l) => (
+              <label key={l.value} className="field" style={{ flex: "2 1 260px" }}>
+                <span>
+                  Name in {l.english} ({l.label})
+                </span>
+                <input
+                  lang={l.value}
+                  value={translated[l.value] ?? ""}
+                  placeholder="leave empty to show the English name"
+                  onChange={(e) =>
+                    setTranslated((prev) => ({ ...prev, [l.value]: e.target.value }))
+                  }
+                  data-testid={`hospital-name-${l.value}`}
+                />
+              </label>
+            ))}
             <label className="field" style={{ flex: "1 1 140px" }}>
               <span>City</span>
               <input value={city} onChange={(e) => setCity(e.target.value)} />

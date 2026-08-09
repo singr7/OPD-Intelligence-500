@@ -68,6 +68,7 @@ from app.care_system import (
     care_system_of,
     differences,
 )
+from app.languages import looks_like_script
 from app.models.enums import AuditAction, CareSystem, Lang
 from app.models.org import Department, Doctor, Hospital
 from app.trees import store as tree_store
@@ -78,6 +79,22 @@ logger = logging.getLogger(__name__)
 #: trees, and is typed into seed files and tests. Upper-case ASCII keeps it
 #: legible in all of those; the length ceiling is the column's.
 _CODE = re.compile(r"^[A-Z][A-Z0-9]{1,31}$")
+
+#: The languages a hospital's name may be *translated* into today. English is
+#: absent because `Hospital.name` is the English name — two places to write it
+#: would be one place for them to disagree.
+#:
+#: Hindi only, by the operator's decision: the pilot's mr/te patient-facing text
+#: is model-drafted and awaiting native review (S13/S21), and a facility's name
+#: is the worst string in the system to guess at — it is the first line of the
+#: kiosk and the top band of a document the patient carries out of the building.
+#: A wrong hospital name in Telugu is worse than an English one somebody can ask
+#: a human to read.
+#:
+#: Widening it is **one entry here plus content**, the same shape as adding a
+#: system of medicine: the column is JSONB, the console renders whatever this
+#: tuple lists, and the kiosk falls back per language on its own.
+TRANSLATABLE_LANGUAGES: tuple[Lang, ...] = (Lang.HI,)
 
 
 class FacilityError(Exception):
@@ -93,10 +110,21 @@ class HospitalIdentity:
 
     hospital_id: uuid.UUID
     code: str
+    #: English, and the fallback for any language with no translation.
     name: str
+    #: `{lang: name}` for the pilot languages that have one. May be partial, and
+    #: is empty on a facility nobody has translated.
+    name_i18n: dict[str, str]
     city: str | None
     district: str | None
     default_lang: Lang
+
+    def name_in(self, lang: Lang | str | None) -> str:
+        """The same derivation `Hospital.name_in` does, for callers holding this
+        detached snapshot rather than the row."""
+        if lang is None:
+            return self.name
+        return self.name_i18n.get(str(lang)) or self.name
 
 
 def _identity(row: Hospital) -> HospitalIdentity:
@@ -104,10 +132,70 @@ def _identity(row: Hospital) -> HospitalIdentity:
         hospital_id=row.id,
         code=row.code,
         name=row.name,
+        name_i18n=dict(row.name_i18n or {}),
         city=row.city,
         district=row.district,
         default_lang=row.default_lang,
     )
+
+
+def parse_name_i18n(raw: object) -> dict[str, str]:
+    """One authored `{lang: name}` map — from the seed file or a JSON body.
+
+    Three refusals, each buying something:
+
+    * **A language not in `TRANSLATABLE_LANGUAGES` raises** — including `mr` and
+      `te`, which this pilot serves but has decided not to translate its own name
+      into yet. A key nobody renders would sit in the column looking correct
+      while the screen it was meant for kept showing English, with nothing
+      anywhere to explain why.
+    * **An entry whose text is in the wrong script raises.** Pasting the English
+      name into the Telugu field is the single most likely mistake here, and it
+      is invisible afterwards: the letterhead renders, it just renders in the
+      wrong language to the one person who needed it. `looks_like_script` asks
+      only that Indic text contain *one* character of its own script, so a name
+      that legitimately carries a Latin acronym still passes.
+    * **A blank entry is dropped rather than stored.** Absent and empty must mean
+      the same thing, or `name_in` has two ways to fall back and one of them will
+      eventually be got wrong.
+
+    English is not accepted as a key: `Hospital.name` *is* the English name, and
+    two places to write it is one place for them to disagree.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise FacilityError("the hospital's translated names must be a language-to-name mapping")
+
+    allowed = {str(lang) for lang in TRANSLATABLE_LANGUAGES}
+    parsed: dict[str, str] = {}
+    for key, value in raw.items():
+        code = str(key)
+        if code == str(Lang.EN):
+            raise FacilityError(
+                "the English name is the hospital's name itself, not a translation of it"
+            )
+        if code not in allowed:
+            raise FacilityError(
+                f"this hospital's name is not translated into {code!r} yet; "
+                f"expected one of {sorted(allowed)}"
+            )
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise FacilityError(f"the {code} name must be text")
+        cleaned = value.strip()
+        if not cleaned:
+            continue
+        if len(cleaned) > 200:
+            raise FacilityError(f"the {code} name is too long for the letterhead (200 characters)")
+        if not looks_like_script(cleaned, Lang(code)):
+            raise FacilityError(
+                f"the {code} name is not written in {code} script — "
+                "it looks like the English name was pasted into that field"
+            )
+        parsed[code] = cleaned
+    return parsed
 
 
 async def hospital_row(session: AsyncSession) -> Hospital:
@@ -127,6 +215,7 @@ async def update_identity(
     session: AsyncSession,
     *,
     name: str | None = None,
+    name_i18n: object | None = None,
     city: str | None = None,
     district: str | None = None,
     default_lang: Lang | None = None,
@@ -153,6 +242,15 @@ async def update_identity(
         if cleaned != row.name:
             row.name = cleaned
             changed["name"] = "set"
+    if name_i18n is not None:
+        parsed = parse_name_i18n(name_i18n)
+        if parsed != dict(row.name_i18n or {}):
+            # Replaced wholesale rather than merged: the console sends every
+            # language it showed, so a merge would make deleting a translation
+            # impossible — and a translation nobody can delete is one a hospital
+            # is stuck with after a rename.
+            row.name_i18n = parsed
+            changed["name_i18n"] = ",".join(sorted(parsed)) or "none"
     for field, value in (("city", city), ("district", district)):
         if value is None:
             continue

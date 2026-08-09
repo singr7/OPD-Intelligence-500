@@ -337,7 +337,12 @@ export type Department = { code: string; name: string };
 export type Hospital = {
   hospital_id: string;
   code: string;
+  /** English, and the fallback for every language absent from `name_i18n`. */
   name: string;
+  /** `{lang: name}` for the languages this hospital has translated itself into.
+   *  Hindi only today; the set the console offers comes from the backend's
+   *  `TRANSLATABLE_LANGUAGES`, mirrored in `TRANSLATED_LANGS` below. */
+  name_i18n: Record<string, string>;
   city: string | null;
   district: string | null;
   default_lang: string;
@@ -387,7 +392,15 @@ export type CareSystemImpact = {
 export const fetchFacility = (t: string) => get<Facility>(t, "/admin/facility");
 export const patchHospital = (
   t: string,
-  body: { name?: string; city?: string; district?: string; default_lang?: string },
+  body: {
+    name?: string;
+    /** Sent whole and replaces rather than merges, so a translation can be
+     *  deleted — which a hospital that has just renamed itself needs. */
+    name_i18n?: Record<string, string>;
+    city?: string;
+    district?: string;
+    default_lang?: string;
+  },
 ) => patch<Hospital>(t, "/admin/hospital", body);
 export const createDepartment = (
   t: string,

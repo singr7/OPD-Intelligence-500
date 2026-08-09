@@ -984,7 +984,12 @@ class BundleHospitalOut(BaseModel):
     is a fact it needs to have cached.
     """
 
+    #: English, and the fallback for a language with no translation.
     name: str
+    #: `{lang: name}` — the whole map, not the one language this request is in,
+    #: because the kiosk switches language client-side with no server round trip
+    #: and must not be caught mid-outage holding only the wrong one.
+    name_i18n: dict[str, str]
     city: str | None
 
 
@@ -1027,7 +1032,7 @@ async def bundle(
             # boarding pass, so a rename in the admin console must invalidate a
             # cached bundle or the kiosk keeps handing out paper with the old
             # name on it through the next outage.
-            "hospital": (hospital.name, hospital.city),
+            "hospital": (hospital.name, sorted(hospital.name_i18n.items()), hospital.city),
             # `care_system` is in the hash on purpose: it changes how the kiosk
             # draws the card, so a department switching system must invalidate
             # a cached bundle exactly the way a rename does.
@@ -1049,7 +1054,9 @@ async def bundle(
     return BundleOut(
         etag=etag,
         generated_at=datetime.now(UTC),
-        hospital=BundleHospitalOut(name=hospital.name, city=hospital.city),
+        hospital=BundleHospitalOut(
+            name=hospital.name, name_i18n=hospital.name_i18n, city=hospital.city
+        ),
         departments=[
             DeptOut(key=d.code, name=d.name, care_system=d.care_system) for d in departments
         ],

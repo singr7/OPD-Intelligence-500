@@ -398,4 +398,4 @@ async def _hospital_name(session: AsyncSession, *, patient: Patient) -> str:
     from app.models.org import Hospital
 
     hospital = await session.get(Hospital, patient.hospital_id)
-    return hospital.name if hospital is not None else "the hospital"
+    return hospital.name_in(patient.lang) if hospital is not None else "the hospital"

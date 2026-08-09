@@ -135,7 +135,7 @@ async def remind(
         _record(plan, rung=rung, channel="none", status="no phone")
         return False
     hospital = await session.get(Hospital, patient.hospital_id)
-    hospital_name = hospital.name if hospital is not None else "the hospital"
+    hospital_name = hospital.name_in(patient.lang) if hospital is not None else "the hospital"
 
     appointment = await _appointment_near(session, plan=plan)
     if appointment is not None:

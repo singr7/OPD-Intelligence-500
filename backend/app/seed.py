@@ -56,6 +56,7 @@ from faker import Faker
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import facility
 from app.audit import Actor, acting_as
 from app.care_system import care_system_of
 from app.checkins import protocols
@@ -197,6 +198,10 @@ async def _upsert_hospital(
     hospital = result.scalar_one_or_none()
     values = {
         "name": data["name"],
+        # Parsed through the same validator the admin console writes behind, so
+        # a seed file cannot put a name in this column that the console would
+        # have refused — an English placeholder sitting in the `hi` slot, say.
+        "name_i18n": facility.parse_name_i18n(data.get("name_i18n")),
         "city": data["city"],
         "district": data["district"],
         "default_lang": Lang(data["default_lang"]),

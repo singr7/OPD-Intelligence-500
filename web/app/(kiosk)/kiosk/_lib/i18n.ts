@@ -619,26 +619,33 @@ export function t(key: keyof typeof T, lang: KioskLang): string {
   return T[key][lang];
 }
 
-/** What to call this hospital on the brand bar and on the printed pass.
+/** What this hospital calls itself, to somebody reading in `lang`.
  *
- *  **The stored name wins, in every language.** `Hospital.name` is one free-text
- *  string an administrator edits (`PATCH /admin/hospital`, AYUR-1) and it is
- *  already what the prescription letterhead prints — so a facility renamed to
- *  "Ayurveda Hospital" has to say so here too, or the kiosk hands a patient
- *  paper that disagrees with their prescription. It is not translated at render
- *  time: a hospital's name is a proper noun this platform was not given four
- *  versions of, and inventing one would be worse than showing the real one.
+ *  **Stored, not compiled in.** An administrator sets the English name and a
+ *  translation per language in the admin console (`PATCH /admin/hospital`,
+ *  AYUR-1), and the same values are what the prescription letterhead prints — so
+ *  a facility renamed to "Ayurveda Hospital" says so here too, and the pass a
+ *  patient carries out cannot disagree with the prescription in the same hand.
  *
- *  The four-language constant below it is the **fallback**, used only before the
- *  first bundle has ever been fetched — a kiosk booting for the first time with
- *  no network. It is also, today, wrong: it says "Government Cancer Hospital,
- *  Alwar" while `seeds/hospital.json` says "Alwar District Cancer Centre". That
- *  drift is exactly what this function exists to stop mattering, and per-language
- *  hospital names are a question for the operator (HANDOFF), not a thing to
- *  guess at here. */
-export function hospitalName(stored: string | null | undefined, lang: KioskLang): string {
-  const trimmed = (stored ?? "").trim();
-  return trimmed || T.hospital[lang];
+ *  Three fallbacks, in order, and each one is a real state:
+ *
+ *  1. the translation for this language, when the hospital has one;
+ *  2. the English name, when it does not — the real name of a real place, which
+ *     is better than a blank letterhead;
+ *  3. `T.hospital`, only before any bundle has ever been fetched — a kiosk
+ *     booting for the very first time with no network. That constant is
+ *     otherwise unused, and it is *wrong*: it says "Government Cancer Hospital,
+ *     Alwar" while the seeded hospital is "Alwar District Cancer Centre". It is
+ *     kept because a first boot with no server still has to put something in the
+ *     brand bar, and it is the last resort rather than the default. */
+export function hospitalName(
+  hospital: { name: string; name_i18n?: Record<string, string> } | null | undefined,
+  lang: KioskLang
+): string {
+  const translated = (hospital?.name_i18n ?? {})[lang]?.trim();
+  if (translated) return translated;
+  const english = (hospital?.name ?? "").trim();
+  return english || T.hospital[lang];
 }
 
 // -- AR3: arrival identity + the staff strip ----------------------------------

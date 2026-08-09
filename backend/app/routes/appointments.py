@@ -181,7 +181,7 @@ async def _confirm(session: AsyncSession, appointment: Appointment, *, kind: str
         session,
         appointment=appointment,
         patient=patient,
-        hospital_name=hospital.name if hospital else "the hospital",
+        hospital_name=hospital.name_in(patient.lang) if hospital else "the hospital",
         doctor_name=doctor.name if doctor else "",
         kind=kind,
     )

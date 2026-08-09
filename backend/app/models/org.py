@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,13 +23,47 @@ from app.models.enums import CareSystem, Lang, Role
 class Hospital(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "hospitals"
 
+    #: The hospital's name in English, and the fallback for every language that
+    #: has no entry in `name_i18n`. Never null — a facility with no name has no
+    #: prescription letterhead and no intake pass.
     name: Mapped[str] = mapped_column(String(200))
     code: Mapped[str] = mapped_column(String(32), unique=True)  # natural key for seeds
     city: Mapped[str | None] = mapped_column(String(120))
     district: Mapped[str | None] = mapped_column(String(120))
     default_lang: Mapped[Lang] = mapped_column(enum_type(Lang, "lang"), default=Lang.HI)
 
+    #: `{"hi": "…", "mr": "…", "te": "…"}` — the hospital's name in each pilot
+    #: language it has one for. Read it through `name_in()`, never directly.
+    #:
+    #: A hospital's name is patient-facing in a way its city is not: it is the
+    #: first line of the kiosk, the letterhead of the prescription, and the top
+    #: band of the boarding pass a patient carries out of the building. A woman
+    #: who chose हिंदी at the kiosk and is then shown a Latin-script name has
+    #: been told, in the first second, that this screen is not really for her.
+    #:
+    #: JSONB rather than three columns for the reason the tree bank is JSON: the
+    #: set of languages is content, and adding a fifth must not be a migration.
+    #: Absent or empty means "this hospital has one name" — the honest state for
+    #: a facility nobody has translated yet, and what every row predating this
+    #: column genuinely is.
+    name_i18n: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default="{}")
+
     departments: Mapped[list[Department]] = relationship(back_populates="hospital")
+
+    def name_in(self, lang: Lang | str | None) -> str:
+        """What to call this hospital to somebody reading in `lang`.
+
+        The single derivation, and the reason there is no `hospital.name` left
+        at a call site that knows a language. Falls back to `name` — which is
+        always populated — so a language nobody has translated shows the real
+        name rather than a blank letterhead or a key.
+        """
+        if lang is None:
+            return self.name
+        translated = (self.name_i18n or {}).get(str(lang))
+        if isinstance(translated, str) and translated.strip():
+            return translated.strip()
+        return self.name
 
 
 class Department(Base, UUIDPrimaryKey, TimestampMixin, SoftDeleteMixin):

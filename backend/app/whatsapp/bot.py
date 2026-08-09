@@ -654,7 +654,9 @@ class WhatsAppBot:
                 session,
                 appointment=appointment,
                 patient=patient,
-                hospital_name=hospital.name if hospital is not None else "the hospital",
+                hospital_name=(
+                    hospital.name_in(patient.lang) if hospital is not None else "the hospital"
+                ),
                 doctor_name="",
                 kind="cancelled",
             )
@@ -693,7 +695,9 @@ class WhatsAppBot:
         hospital = await _hospital_of_visit(session, visit)
         lines = rx_svc.lines_of(prescription)
         text = rx_sheets.sms_body(
-            lines=lines, hospital=hospital.name if hospital else "", lang=patient.lang
+            lines=lines,
+            hospital=hospital.name_in(patient.lang) if hospital else "",
+            lang=patient.lang,
         )
         rx_svc.record_delivery(prescription, channel="whatsapp", status="sent", detail="resend")
         return self._say(conv, text)

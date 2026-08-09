@@ -27,6 +27,7 @@ import s from "./kiosk.module.css";
 import { KIOSK_LANGS, KioskLang, hospitalName, t, tb } from "./_lib/i18n";
 import {
   ApiError,
+  BundleHospital,
   ConfirmResult,
   Dept,
   KioskNode,
@@ -161,7 +162,7 @@ export function KioskApp() {
   // in the console is what the brand bar shows and what the boarding pass
   // prints, so a rename cannot leave the pass disagreeing with the patient's
   // prescription. It rides on the offline bundle, so it survives an outage.
-  const { flow, downtime, pending, cachedDepartments, hospitalName: hospital } = useOffline();
+  const { flow, downtime, pending, cachedDepartments, hospital } = useOffline();
 
   // --- audio: speak the current prompt whenever it changes -----------------
   const say = useCallback(
@@ -1066,8 +1067,8 @@ function TopBar({
   onRestart,
 }: {
   lang: KioskLang;
-  /** The stored hospital name, or null before a bundle has ever been fetched. */
-  hospital: string | null;
+  /** The hospital's stored names, or null before a bundle has ever been fetched. */
+  hospital: BundleHospital | null;
   onLang: (l: KioskLang) => void;
   onRestart?: () => void;
 }) {
@@ -1849,9 +1850,10 @@ function TokenScreen({
   say,
 }: {
   lang: KioskLang;
-  /** The stored hospital name — printed on the pass, so a rename in the admin
-   *  console reaches the paper and not only the prescription (AYUR-1). */
-  hospital: string | null;
+  /** The hospital's stored names — printed on the pass in the patient's own
+   *  language, so a rename in the admin console reaches the paper and not only
+   *  the prescription (AYUR-1). */
+  hospital: BundleHospital | null;
   token: ConfirmResult;
   details: PatientDetails;
   complaint: string;

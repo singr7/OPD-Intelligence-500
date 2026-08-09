@@ -1457,7 +1457,12 @@ class HospitalOut(BaseModel):
     code: str
     #: Printed on the prescription letterhead and on the intake boarding pass.
     #: Renaming the hospital here is how "Ayurveda Hospital" reaches paper.
+    #: This is the English name, and the fallback for every language below that
+    #: has none.
     name: str
+    #: `{lang: name}` for the pilot languages that have a translation. Partial is
+    #: normal and empty is honest — a facility nobody has translated has one name.
+    name_i18n: dict[str, str]
     city: str | None
     district: str | None
     default_lang: Lang
@@ -1468,6 +1473,7 @@ def _hospital_out(row: facility.HospitalIdentity) -> HospitalOut:
         hospital_id=row.hospital_id,
         code=row.code,
         name=row.name,
+        name_i18n=row.name_i18n,
         city=row.city,
         district=row.district,
         default_lang=row.default_lang,
@@ -1523,6 +1529,12 @@ class HospitalPatch(BaseModel):
     """Every field optional — an absent one is left alone, not blanked."""
 
     name: str | None = None
+    #: Sent whole when sent at all, and it **replaces** rather than merges: the
+    #: console shows every language, so a merge would leave a translation with no
+    #: way to delete it — which a hospital that has just renamed itself needs.
+    #: Validated in `app.facility` (known languages, right script, no English
+    #: key), so a 422 here names the field that is wrong.
+    name_i18n: dict[str, str | None] | None = None
     city: str | None = None
     district: str | None = None
     default_lang: Lang | None = None
@@ -1536,6 +1548,7 @@ async def patch_hospital(
         updated = await facility.update_identity(
             session,
             name=body.name,
+            name_i18n=body.name_i18n,
             city=body.city,
             district=body.district,
             default_lang=body.default_lang,

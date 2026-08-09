@@ -133,7 +133,11 @@ async def test_the_kiosk_bundle_carries_the_stored_name_so_the_pass_prints_it(
     )
 
     after = await client.get("/kiosk/bundle")
-    assert after.json()["hospital"] == {"name": "Alwar Ayurveda Hospital", "city": "Alwar"}
+    assert after.json()["hospital"] == {
+        "name": "Alwar Ayurveda Hospital",
+        "name_i18n": {},
+        "city": "Alwar",
+    }
 
 
 async def test_a_rename_invalidates_a_cached_offline_bundle(
@@ -155,6 +159,189 @@ async def test_a_rename_invalidates_a_cached_offline_bundle(
     )
 
     assert (await client.get("/kiosk/bundle")).json()["etag"] != first
+
+
+# -- 1b. the hospital's name in the language the reader chose -------------------
+
+
+async def test_the_stored_translation_wins_and_english_is_the_fallback(
+    session: AsyncSession,
+) -> None:
+    """`name_in` is the one derivation, and there is no call site left that reads
+    `hospital.name` while holding a language."""
+    hospital = await _one_hospital(session)
+    hospital.name_i18n = {"hi": "अलवर जिला कैंसर केंद्र"}
+    await session.flush()
+
+    assert hospital.name_in(Lang.HI) == "अलवर जिला कैंसर केंद्र"
+    # Untranslated languages show the real name, not a blank and not a key.
+    assert hospital.name_in(Lang.TE) == "Alwar District Cancer Centre"
+    assert hospital.name_in(Lang.EN) == "Alwar District Cancer Centre"
+    assert hospital.name_in(None) == "Alwar District Cancer Centre"
+
+
+async def test_a_hospital_nobody_has_translated_renders_exactly_as_before(
+    session: AsyncSession,
+) -> None:
+    """The migration ships no backfill, so this is every existing row. It has to
+    be indistinguishable from the behaviour before the column existed."""
+    hospital = await _one_hospital(session)
+
+    assert hospital.name_i18n == {}
+    assert {hospital.name_in(lang) for lang in (Lang.EN, Lang.HI, Lang.MR, Lang.TE)} == {
+        "Alwar District Cancer Centre"
+    }
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"gu": "કંઈક"},  # a language this hospital does not serve at all
+        {"hin": "अलवर"},  # a plausible typo for hi
+        {"en": "Alwar District Cancer Centre"},  # English lives in `name`
+        {"hi": "Alwar District Cancer Centre"},  # the English name pasted across
+        {"hi": 42},
+        "not a mapping",
+    ],
+)
+async def test_a_translation_that_would_never_render_is_refused(bad: object) -> None:
+    """Each of these stores fine and then fails silently at render time — the
+    letterhead simply keeps showing English to the one person who needed
+    otherwise, with nothing anywhere to say why."""
+    with pytest.raises(facility.FacilityError):
+        facility.parse_name_i18n(bad)
+
+
+@pytest.mark.parametrize("lang", ["mr", "te"])
+async def test_a_language_this_hospital_has_not_translated_itself_into_is_refused(
+    lang: str,
+) -> None:
+    """Hindi only for now, by the operator's decision — mr/te fall back to
+    English rather than carry a guess at a facility's own name.
+
+    Refused rather than quietly ignored: a Marathi name accepted here would sit
+    in the column, never render, and give an administrator every reason to
+    believe the job was done.
+    """
+    with pytest.raises(facility.FacilityError) as raised:
+        facility.parse_name_i18n({lang: "अलवर जिल्हा कर्करोग केंद्र"})
+
+    assert "not translated into" in str(raised.value)
+
+
+async def test_widening_the_languages_is_one_tuple_entry() -> None:
+    """The property that keeps "add Marathi later" from being a code change.
+
+    Everything downstream — the column, the console's fields, the kiosk's
+    per-language fallback — reads this tuple or the map it produces; nothing
+    names Hindi.
+    """
+    assert facility.TRANSLATABLE_LANGUAGES == (Lang.HI,)
+    assert Lang.EN not in facility.TRANSLATABLE_LANGUAGES, "English is `name` itself"
+
+
+async def test_a_blank_translation_is_dropped_rather_than_stored(session: AsyncSession) -> None:
+    """Absent and empty must mean the same thing, or `name_in` grows a second way
+    to fall back and one of them eventually gets it wrong."""
+    await _one_hospital(session)
+
+    updated = await facility.update_identity(session, name_i18n={"hi": "   "})
+
+    assert updated.name_i18n == {}
+
+
+async def test_a_translation_can_be_removed(session: AsyncSession) -> None:
+    """The map replaces rather than merges. A hospital that renames itself must
+    be able to drop a translation of the old name, not just add to it."""
+    await _one_hospital(session)
+    await facility.update_identity(session, name_i18n={"hi": "अलवर"})
+
+    updated = await facility.update_identity(session, name_i18n={})
+
+    assert updated.name_i18n == {}
+
+
+async def test_the_kiosk_bundle_carries_every_language_at_once(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """Not the one language this request is in: the kiosk switches language
+    client-side with no server round trip, and an outage must not catch it
+    holding only the language the last patient happened to pick."""
+    hospital = await _one_hospital(session)
+
+    await client.patch(
+        "/admin/hospital",
+        headers=await _admin(session, settings, hospital),
+        json={"name_i18n": {"hi": "अलवर जिला कैंसर केंद्र"}},
+    )
+
+    bundle = (await client.get("/kiosk/bundle")).json()["hospital"]
+    assert bundle["name"] == "Alwar District Cancer Centre"
+    assert bundle["name_i18n"] == {"hi": "अलवर जिला कैंसर केंद्र"}
+
+
+async def test_a_new_translation_invalidates_a_cached_offline_bundle(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    hospital = await _one_hospital(session)
+    first = (await client.get("/kiosk/bundle")).json()["etag"]
+
+    await client.patch(
+        "/admin/hospital",
+        headers=await _admin(session, settings, hospital),
+        json={"name_i18n": {"hi": "अलवर जिला कैंसर केंद्र"}},
+    )
+
+    assert (await client.get("/kiosk/bundle")).json()["etag"] != first
+
+
+async def test_the_patient_copy_of_a_prescription_is_headed_in_her_language(
+    client: AsyncClient, session: AsyncSession, settings: Settings
+) -> None:
+    """And the clinical copy is not.
+
+    The patient copy is hers; the clinical copy is the file's and the pharmacy's,
+    gets photocopied into a chart, and stays in the name everyone can read.
+    """
+    from app import prescription as rx
+    from tests.test_prescription import _headers, _signed
+
+    clinic, _visit, dictation = await _signed(session)
+    prescription = await rx.for_dictation(session, dictation_id=dictation.id)
+    assert prescription is not None
+    clinic["hospital"].name_i18n = {"hi": "अलवर जिला कैंसर केंद्र"}
+    await session.flush()
+    headers = _headers(settings, clinic["user"])
+
+    patient_copy = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=patient&lang=hi", headers=headers
+    )
+    clinical_copy = await client.get(
+        f"/prescriptions/{prescription.id}/print?copy=clinical", headers=headers
+    )
+
+    assert "अलवर जिला कैंसर केंद्र" in patient_copy.text
+    assert "अलवर जिला कैंसर केंद्र" not in clinical_copy.text
+    assert clinic["hospital"].name in clinical_copy.text
+
+
+async def test_a_staff_invite_names_the_hospital_in_the_reader_s_language(
+    session: AsyncSession, sms
+) -> None:
+    """One of sixteen call sites the sweep rewrote — asserted through the SMS a
+    person actually receives rather than through the helper."""
+    from app import people
+
+    hospital = await _one_hospital(session)
+    hospital.name_i18n = {"hi": "अलवर जिला कैंसर केंद्र"}
+    await session.flush()
+    user = f.make_user(hospital, role=Role.COORDINATOR, lang=Lang.HI)
+    session.add(user)
+    await session.flush()
+
+    await people.send_invite(session, user_id=user.id, settings=Settings())
+
+    assert "अलवर जिला कैंसर केंद्र" in sms.sent[-1].body
 
 
 # -- 2. a department cannot be opened onto an error ----------------------------

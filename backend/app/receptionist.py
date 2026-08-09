@@ -700,7 +700,7 @@ async def _confirm_by_message(
         session,
         appointment=appointment,
         patient=patient,
-        hospital_name=hospital.name if hospital is not None else "the hospital",
+        hospital_name=hospital.name_in(patient.lang) if hospital is not None else "the hospital",
         doctor_name=await _doctor_name(session, appointment.doctor_id),
         kind=kind,
     )

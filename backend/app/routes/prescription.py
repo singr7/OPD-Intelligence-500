@@ -325,7 +325,11 @@ def _render_sheet(
     lines = rx_svc.lines_of(prescription)
     resolved_lang = lang or ctx.patient.lang
     letterhead = rx_sheets.Letterhead(
-        hospital=ctx.hospital.name,
+        # The patient copy is the patient's, so it carries the hospital's name in
+        # the language they are reading. The clinical copy is the file's and the
+        # pharmacy's — `name_in(None)` is the English name, which is what a
+        # document that gets photocopied into a chart should say.
+        hospital=ctx.hospital.name_in(resolved_lang if copy == "patient" else None),
         city=ctx.hospital.city,
         district=ctx.hospital.district,
         department=ctx.department.name,
@@ -390,7 +394,9 @@ async def deliver(
     if not to:
         raise HTTPException(status_code=422, detail="no phone number on file for that recipient")
 
-    text = rx_sheets.sms_body(lines=lines, hospital=ctx.hospital.name, lang=ctx.patient.lang)
+    text = rx_sheets.sms_body(
+        lines=lines, hospital=ctx.hospital.name_in(ctx.patient.lang), lang=ctx.patient.lang
+    )
     with usage_scope(channel=ctx.visit.channel, visit_id=ctx.visit.id):
         try:
             if body.channel == "whatsapp":
@@ -429,7 +435,7 @@ async def _deliver_whatsapp(
         to=to,
         name="prescription_ready",
         lang=ctx.patient.lang,
-        variables=[ctx.patient.name, ctx.signer.name, ctx.hospital.name],
+        variables=[ctx.patient.name, ctx.signer.name, ctx.hospital.name_in(ctx.patient.lang)],
     )
     result = await provider.send(message, purpose=UsagePurpose.OTHER)
     return f"template:prescription_ready:{result.message_id}"
