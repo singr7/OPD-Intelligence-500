@@ -6,6 +6,35 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-AYUR-0):** The platform's **second system of medicine** exists
+as a flag and a derivation, and nothing else — the opening session of doc 24.
+`Department.care_system` is stored **once** and read in exactly two places
+(`backend/app/care_system.py`, `web/app/_lib/careSystem.ts`), which turn it into
+**eight named capability flags**; everything downstream consumes flags and never
+the value, so adding Unani later is one enum value, one capabilities row and
+content rather than a grep across every screen with a clinical consequence for
+each site missed. That property is not a convention, it is **two mutation-tested
+source tests** — an AST walk failing if any backend module outside the mapping
+names a `CareSystem` member, and a scan failing if any file under `web/app`
+compares against `"allopathy"`/`"ayurveda"`. The two mappings are held together
+by a golden fixture (`app/care_system_fixtures.py` →
+`web/e2e/care-system.spec.ts`) exactly the way the two tree walkers are, diffed
+in `make test`; the fixture exports the snake_case→camelCase rename rather than
+letting the TS side assume it, because a flag added in Python and forgotten in
+TypeScript would arrive as `undefined` — falsy, so the console section it gates
+would silently *disappear*. **The ALLOPATHY row is today's behaviour bit-for-bit**
+and is pinned as literals, so every existing surface is untouched: the payloads
+gained fields (`DayOut.capabilities`, `DeptOut.care_system`,
+`DepartmentOut.care_system`) that no component reads yet. `seeds/hospital.json`
+states the system on all ten departments and gains **AYUR — seeded `active:
+false`, and it must stay dark until SESSION-AYUR-2**: a department is offered on
+the kiosk chooser the moment it is active, and its intake trees do not exist, so
+an active card is a patient tapping it into a 500. Gates: backend **1,771**,
+conformance **115**, voice-gw 25, typecheck, lint; live doctor 12, kiosk 3, admin
+4, assign 3, allergy 6, notes 5. Migration `4ce8cb36a165` (additive, one column,
+server default, **no backfill** — every department predating doc 24 genuinely is
+allopathy) — **applied locally only.**
+
 **Built (SESSION-ALLERGY):** The doctor's spine finally holds a fact where it
 used to hold an apology. `patient_allergies` is a **log of statements, not a list
 of allergies**: one row is somebody being asked at a knowable moment and
@@ -568,6 +597,8 @@ make preflight           # build the api+voice-gw IMAGES and prove they import �
                          #   box deploy. `make test` runs in the venvs (pyproject); the images
                          #   install backend/requirements.txt, and the two have drifted twice.
 make migration m="..."   # autogenerate a revision from model changes
+make care-system-fixtures        # regenerate the Python->TS care-system fixture (doc 24)
+make check-care-system-fixtures  # fail if it is stale vs app/care_system.py (runs in `make test`)
 make eval-routing        # score the routing classifier (needs a real LLM key to mean anything)
 make app-demo            # give the first seeded patient a prescription, a cycle, a caregiver
 make checkin-demo        # sign a chemo note, approve the plan, answer D+2 red (S17)
@@ -971,6 +1002,17 @@ the only gate right now.**
   flickers the whole subtree to client rendering.
 
 ## Stubs & fakes
+- **The AYUR department is a row, not a department** (SESSION-AYUR-0, doc 24).
+  Seeded **inactive** with no intake trees, no formulary entries, no prompt pack
+  and no console sections; nothing renders differently anywhere. **It must not be
+  activated until SESSION-AYUR-2 authors its trees** — the kiosk chooser offers a
+  department the moment it is active, and `routes/kiosk.py` asserts a tree after
+  routing, so an active card is a 500 with a patient's finger on it.
+- **Three ayurveda capability flags are strings nothing reads yet** (doc 24 §6):
+  `formulary_scope` (`validate_meds` is untouched — scoping is AYUR-3),
+  `guideline_pack` and `prompt_pack` (no prompt dispatch site consults them —
+  AYUR-3/AYUR-4). They are derived correctly and delivered on the payloads; no
+  behaviour hangs off them yet.
 - **No printer has ever printed a boarding pass** (SESSION-PASS, doc 23 §11).
   The pass is rasterised end-to-end in a real browser and the `pass-ui` suite
   asserts 115,206 bytes of correctly-framed ESC/POS reaching a bridge — but the
@@ -1116,10 +1158,10 @@ the only gate right now.**
   for a phone number and a health ID, so the gap is recorded rather than papered
   over. Pending native review (doc 07 §4); when it arrives the keys move into `T`
   and `tb` disappears — the type makes that a compile-time move, not a search.
-- **Seven migrations are applied locally only** — `c6e3681f5ce1`,
+- **Eight migrations are applied locally only** — `c6e3681f5ce1`,
   `520d07f0b3e4`, `c063fd91e198`, `efb79a43afb3`, `02571a5c1871`,
-  `9f2ab41c77d3`, `8ef31aa60c55` (AR1 → SESSION-ALLERGY). Still pending on Omen,
-  and `make deploy` does not run migrations.
+  `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165` (AR1 → SESSION-AYUR-0). Still
+  pending on Omen, and `make deploy` does not run migrations.
 - **The consult-note recording meter has never met a real microphone**
   (Session C) — headless Chromium has none, so the E2E covers the elapsed-timer
   path only. The bars are real analyser samples and there are deliberately none
