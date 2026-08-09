@@ -19,6 +19,7 @@
 //   and when it finished — instead of one number nobody can calibrate.
 
 import type { PatientCard as Card } from "../_lib/doctor";
+import { shortDate, sourceLabel, substanceText } from "../_lib/allergies";
 import { Sparkline } from "./Sparkline";
 import type { WorkTab } from "./WorkTabs";
 
@@ -145,13 +146,42 @@ function History({ card }: { card: Card }) {
   const past = card.timeline.filter((v) => !v.is_current);
   return (
     <>
-      {/* Allergies appear here in full *and* in the spine (plan §4.3). Here the
-          full version is an honest statement of a gap rather than a list. */}
+      {/* Allergies appear here in full *and* in the spine (plan §4.3). The
+          spine's version is one line that cannot wrap; this is the full one —
+          every statement, who made it, when, and whether a clinician has stood
+          behind it. Withdrawn statements are shown in the panel rather than
+          here: this section answers "what does the record say", and the panel
+          answers "what has been said about it". */}
       <Section title="Allergies">
-        <p className="lines-note" data-testid="history-allergies">
-          Nothing in this system captures allergies yet — not the kiosk intake, not the consult
-          note. Treat this as unknown and ask, rather than as an empty list.
-        </p>
+        {card.allergies.state === "known" ? (
+          <ul className="lines" data-testid="history-allergies">
+            {card.allergies.entries.map((entry) => (
+              <li key={entry.id}>
+                <strong>{substanceText(entry)}</strong>
+                {entry.severity !== "unknown" && <> — {entry.severity}</>}
+                {entry.reaction && <> — {entry.reaction}</>}
+                <span className="lines-src">
+                  {" "}
+                  · {sourceLabel(entry)} · {shortDate(entry.stated_at)}
+                  {entry.confirmed_at
+                    ? `, confirmed${entry.confirmed_by_name ? ` by ${entry.confirmed_by_name}` : ""}`
+                    : ", not yet confirmed by a doctor"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : card.allergies.state === "none_stated" && card.allergies.none_statement ? (
+          <p className="lines-note" data-testid="history-allergies">
+            None stated — {sourceLabel(card.allergies.none_statement)} on{" "}
+            {shortDate(card.allergies.none_statement.stated_at)}. That is an answer somebody gave,
+            not a chart review; this record does not claim there are no known allergies.
+          </p>
+        ) : (
+          <p className="lines-note" data-testid="history-allergies">
+            Nobody has asked this patient yet. Treat this as unknown and ask, rather than as an
+            empty list.
+          </p>
+        )}
       </Section>
 
       {s.history_meds.length > 0 && (

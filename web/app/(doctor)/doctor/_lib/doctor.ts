@@ -144,6 +144,47 @@ export type PatientCard = {
   /** Whether this visit already has a signed note — read from the record rather
    *  than remembered per session, so a reload does not forget it. */
   note_signed: boolean;
+  /** What this record knows about what she reacts to (SESSION-ALLERGY). */
+  allergies: AllergyView;
+};
+
+/** One statement somebody made about this patient's allergies, with the
+ *  provenance that makes it readable. Every surface that renders one states who
+ *  said it and when; the shape carries that rather than leaving it optional. */
+export type AllergyEntry = {
+  id: string;
+  kind: "substance" | "none_known";
+  substance: string | null;
+  substance_en: string | null;
+  reaction: string | null;
+  severity: "unknown" | "mild" | "severe";
+  source: "patient_kiosk" | "caregiver_kiosk" | "doctor";
+  stated_at: string;
+  confirmed_at: string | null;
+  confirmed_by_name: string | null;
+  recorded_by_name: string | null;
+  retracted_at: string | null;
+  retracted_by_name: string | null;
+  retracted_reason: string | null;
+};
+
+/** The three states, and `state` is the only thing to branch on.
+ *
+ *  They must never collapse into each other:
+ *
+ *    never_asked   nobody has asked this patient. Not "no known allergies".
+ *    none_stated   somebody asked and was told none — rendered with its source
+ *                  and date, never bare.
+ *    known         one or more live substances.
+ *
+ *  The server derives it (`app.allergies.for_patient`); nothing here re-derives
+ *  it from `entries`, because two implementations of this would eventually
+ *  disagree about the most safety-critical line on the screen. */
+export type AllergyView = {
+  state: "never_asked" | "none_stated" | "known";
+  entries: AllergyEntry[];
+  none_statement: AllergyEntry | null;
+  retracted: AllergyEntry[];
 };
 
 /** How a consult ended, prescribing-wise. Two of the three leave this system
@@ -221,6 +262,63 @@ export async function concludeVisit(
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
     throw new Error(typeof detail?.detail === "string" ? detail.detail : `conclude ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Record an allergy, or record that the doctor asked and there are none.
+ *
+ *  Every one of these three returns the whole recomputed view rather than the
+ *  row it touched, so the console re-renders from the server's derivation
+ *  instead of patching its own copy. */
+export async function recordAllergy(
+  token: string,
+  visitId: string,
+  input: {
+    substance?: string | null;
+    reaction?: string | null;
+    severity?: "unknown" | "mild" | "severe";
+    none_known?: boolean;
+  },
+): Promise<AllergyView> {
+  return allergyWrite(token, `/doctor/visits/${visitId}/allergies`, input);
+}
+
+/** Stand behind a statement somebody else made — usually the patient's own. */
+export async function confirmAllergy(
+  token: string,
+  visitId: string,
+  allergyId: string,
+): Promise<AllergyView> {
+  return allergyWrite(token, `/doctor/visits/${visitId}/allergies/${allergyId}/confirm`, {});
+}
+
+/** Withdraw a statement. The row stays on file, struck out, with a name on it. */
+export async function retractAllergy(
+  token: string,
+  visitId: string,
+  allergyId: string,
+  reason?: string,
+): Promise<AllergyView> {
+  return allergyWrite(token, `/doctor/visits/${visitId}/allergies/${allergyId}/retract`, {
+    reason: reason?.trim() || null,
+  });
+}
+
+async function allergyWrite(
+  token: string,
+  path: string,
+  body: unknown,
+): Promise<AllergyView> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new AuthError();
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(typeof detail?.detail === "string" ? detail.detail : `allergy ${res.status}`);
   }
   return res.json();
 }

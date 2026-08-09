@@ -32,10 +32,20 @@ import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
 import { IMAGING_UNASKED, patientStudies, type ImagingLookup } from "@/app/_lib/imaging";
 import { patientDocuments, verifyDocument, type MedicalDocument } from "@/app/_lib/records";
 import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib/doctor";
-import { concludeVisit, fetchDay, fetchPatient, takePatient } from "../_lib/doctor";
+import {
+  concludeVisit,
+  confirmAllergy,
+  fetchDay,
+  fetchPatient,
+  recordAllergy,
+  retractAllergy,
+  takePatient,
+} from "../_lib/doctor";
 import { clearToken, getToken, setToken } from "../_lib/session";
+import { AllergyPanel } from "./AllergyPanel";
 import { ConcludeDialog } from "./ConcludeDialog";
 import {
+  ALLERGY_CSS,
   CONSOLE_CSS,
   DICTATION_CSS,
   IMAGING_CSS,
@@ -85,6 +95,13 @@ export function Console() {
   const [verifying, setVerifying] = useState<string | null>(null);
   // What the PACS has (M3). Fetched with the card, like the documents and for
   // the same reason: the spine states it before the doctor opens anything.
+  // Allergies (SESSION-ALLERGY). The panel is open or it is not; the view it
+  // renders lives on the card, so every write replaces the card's copy with the
+  // server's freshly derived one rather than patching a second copy here.
+  const [allergyOpen, setAllergyOpen] = useState(false);
+  const [allergyBusy, setAllergyBusy] = useState(false);
+  const [allergyError, setAllergyError] = useState<string | null>(null);
+
   const [imaging, setImaging] = useState<ImagingLookup>(IMAGING_UNASKED);
   const [imagingLoading, setImagingLoading] = useState(false);
   const selectedRef = useRef<string | null>(null);
@@ -187,6 +204,11 @@ export function Console() {
   const openPatient = useCallback(
     async (tok: string, visitId: string) => {
       setSelected(visitId);
+      // A panel left open across a patient switch would put one patient's
+      // allergies over another's record — the same rule the note dock and the
+      // research tab follow by being keyed on the visit.
+      setAllergyOpen(false);
+      setAllergyError(null);
       try {
         const next = await fetchPatient(tok, visitId);
         setCard(next);
@@ -230,6 +252,34 @@ export function Console() {
       }
     },
     [token, verifying],
+  );
+
+  /** Every allergy write goes through here.
+   *
+   *  All three routes return the whole recomputed view, so this replaces
+   *  `card.allergies` outright. Nothing in the console re-derives the state from
+   *  the entries — a second implementation of that rule would eventually
+   *  disagree with the server about the most safety-critical line on screen. */
+  const onAllergyWrite = useCallback(
+    async (write: (token: string, visitId: string) => Promise<Card["allergies"]>) => {
+      if (!token || !card || allergyBusy) return;
+      setAllergyBusy(true);
+      setAllergyError(null);
+      try {
+        const view = await write(token, card.visit_id);
+        setCard((prev) => (prev && prev.visit_id === card.visit_id ? { ...prev, allergies: view } : prev));
+      } catch (err) {
+        if (err instanceof AuthError) {
+          signOut();
+          return;
+        }
+        setAllergyError(err instanceof Error ? err.message : "Could not record that.");
+      } finally {
+        setAllergyBusy(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token, card, allergyBusy],
   );
 
   // First load: the day, and whoever is already in the room.
@@ -433,7 +483,13 @@ export function Console() {
     <div className="console">
       <style
         dangerouslySetInnerHTML={{ __html:
-            CONSOLE_CSS + DICTATION_CSS + REPORTS_CSS + NOTE_CSS + RESEARCH_CSS + IMAGING_CSS,
+            CONSOLE_CSS +
+            DICTATION_CSS +
+            REPORTS_CSS +
+            NOTE_CSS +
+            RESEARCH_CSS +
+            IMAGING_CSS +
+            ALLERGY_CSS,
         }}
       />
 
@@ -494,6 +550,10 @@ export function Console() {
                 documentsLoading={documentsLoading}
                 imaging={imaging}
                 onOpenReports={() => setTab("reports")}
+                onOpenAllergies={() => {
+                  setAllergyError(null);
+                  setAllergyOpen(true);
+                }}
               />
 
               <WorkTabs
@@ -563,6 +623,21 @@ export function Console() {
           make it. Keyed on the visit so a patient switch cannot leave one
           patient's half-finished observation open over another's record. */}
       {card && <NoteDock key={card.visit_id} token={token} visitId={card.visit_id} patientName={card.name} />}
+
+      {/* Over the console rather than inside a tab: recording an allergy takes
+          ten seconds and must not cost the doctor the tab they were reading. */}
+      {allergyOpen && card && (
+        <AllergyPanel
+          patientName={card.name}
+          view={card.allergies}
+          busy={allergyBusy}
+          error={allergyError}
+          onRecord={(input) => onAllergyWrite((t, v) => recordAllergy(t, v, input))}
+          onConfirm={(id) => onAllergyWrite((t, v) => confirmAllergy(t, v, id))}
+          onRetract={(id, reason) => onAllergyWrite((t, v) => retractAllergy(t, v, id, reason))}
+          onClose={() => setAllergyOpen(false)}
+        />
+      )}
 
       {concluding && card && (
         <ConcludeDialog

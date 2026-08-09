@@ -46,6 +46,7 @@ import { imagingSpineLine } from "@/app/_lib/imaging";
 import type { MedicalDocument } from "@/app/_lib/records";
 import { documentTally } from "@/app/_lib/records";
 import type { PatientCard as Card } from "../_lib/doctor";
+import { spineLine } from "../_lib/allergies";
 
 const SEX_SHORT: Record<string, string> = { male: "M", female: "F", other: "—" };
 
@@ -72,6 +73,7 @@ export function ContextSpine({
   documentsLoading,
   imaging,
   onOpenReports,
+  onOpenAllergies,
 }: {
   card: Card;
   isMine: boolean;
@@ -81,11 +83,13 @@ export function ContextSpine({
    *  see the note above about refusing a sixth. */
   imaging: ImagingLookup;
   onOpenReports: () => void;
+  onOpenAllergies: () => void;
 }) {
   const urgent = card.red_flags.filter((f) => f.severity === "urgent");
   const other = card.red_flags.filter((f) => f.severity !== "urgent");
   const tally = documentTally(documents);
   const scans = imagingSpineLine(imaging);
+  const allergy = spineLine(card.allergies);
 
   return (
     <section className="spine-ctx" data-testid="context-spine">
@@ -141,15 +145,27 @@ export function ContextSpine({
         )}
       </p>
 
-      {/* 3. allergies. This record has no allergy field yet — nothing captures
-          one, at the kiosk or in the note — so the spine says exactly that. It
-          does not say "no known allergies", which is a clinical statement
-          somebody would act on, and which this system is in no position to make.
-          Registered in STATE.md → Stubs & fakes. */}
-      <p className="cx-allergy" data-testid="spine-allergies">
-        <span className="cx-allergy-l">Allergies</span> not captured by this system yet — ask the
-        patient
-      </p>
+      {/* 3. allergies (SESSION-ALLERGY). For six sessions this line said
+          "not captured by this system yet", because nothing captured one and
+          saying so was the only honest thing available. It now renders a real
+          derivation — and keeps the refusal that made the old line right: it
+          never says "no known allergies", only who said what, and when.
+
+          A button rather than text, because the doctor can now do something
+          about it. It is the one control in the spine that opens over the
+          console instead of switching a tab: recording an allergy takes ten
+          seconds and must not cost the doctor the tab they were reading. */}
+      <button
+        className={`cx-allergy tone-${allergy.tone}`}
+        onClick={onOpenAllergies}
+        data-testid="spine-allergies"
+        data-state={card.allergies.state}
+        data-tone={allergy.tone}
+      >
+        <span className="cx-allergy-l">Allergies</span>
+        <span className="cx-allergy-t">{allergy.text}</span>
+        {allergy.note && <span className="cx-allergy-p">{allergy.note}</span>}
+      </button>
 
       {/* 4. red flags, above all routine content */}
       {card.red_flags.length > 0 ? (

@@ -182,9 +182,34 @@ export const CONSOLE_CSS = `
 .cx-dx-src { font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .cx-dx-none { font-weight: 500; color: var(--ink-soft); }
 
-.cx-allergy { margin: 6px 22px 0; font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+/* The spine's third slot (SESSION-ALLERGY). A control now, not a sentence —
+   the doctor can record one from here — but held to the spine's rules: one
+   line, never wrapping to two, and the tone is carried by a word as well as a
+   colour so it survives a photograph of this screen in a WhatsApp group.
+
+   Danger red is spent here, and this is the one place outside the red-flag lane
+   that spends it. That is deliberate and narrow: it appears only when a
+   clinician has marked a reaction severe. An unconfirmed kiosk statement is
+   amber, because painting every self-reported "dust" as an alarm is exactly
+   how a console teaches doctors to scroll past alarms. */
+.cx-allergy { display: flex; align-items: baseline; gap: 9px; width: calc(100% - 44px);
+  margin: 8px 22px 0; padding: 6px 10px; text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font: inherit; color: var(--ink-soft); line-height: 1.5; }
+.cx-allergy:hover { border-color: var(--line-strong); color: var(--ink); }
 .cx-allergy-l { font-weight: 800; color: var(--ink); text-transform: uppercase;
-  letter-spacing: .06em; font-size: 12px; margin-right: 4px; }
+  letter-spacing: .06em; font-size: 12px; flex: none; }
+.cx-allergy-t { font-size: 14px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-allergy-p { font-size: 12px; color: var(--text-muted); flex: none; margin-left: auto;
+  font-variant-numeric: tabular-nums; }
+.cx-allergy.tone-attn { background: var(--accent-soft); border-color: #e8c583; }
+.cx-allergy.tone-attn .cx-allergy-l, .cx-allergy.tone-attn .cx-allergy-t,
+.cx-allergy.tone-attn .cx-allergy-p { color: #7a4d0a; }
+.cx-allergy.tone-danger { background: var(--danger-soft); border-color: var(--danger); }
+.cx-allergy.tone-danger .cx-allergy-l, .cx-allergy.tone-danger .cx-allergy-t,
+.cx-allergy.tone-danger .cx-allergy-p { color: var(--danger); }
+.cx-allergy.tone-danger .cx-allergy-t { font-weight: 800; }
 
 /* No flags is a state, not an absence — it is said plainly, in a calm register,
    so that "nothing fired" and "the strip failed to render" cannot look alike. */
@@ -283,6 +308,10 @@ export const CONSOLE_CSS = `
 
 .lines { margin: 0; padding-left: 20px; }
 .lines li { font-size: 14px; line-height: 1.6; color: var(--ink); margin-bottom: 5px; }
+/* Provenance, riding on the same line as the fact it qualifies. Quieter than
+   the fact and never on a line of its own — an allergy whose source scrolled
+   out of view is an allergy the doctor reads as established. */
+.lines-src { font-size: 12.5px; color: var(--text-muted); font-weight: 500; }
 
 .answers { list-style: none; margin: 0; padding: 0; }
 .answers li { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: baseline;
@@ -335,6 +364,7 @@ export const CONSOLE_CSS = `
   .cx-id { padding: 14px 16px 0; }
   .cx-who h1 { font-size: 21px; }
   .cx-dx, .cx-allergy { margin-left: 16px; margin-right: 16px; }
+  .cx-allergy { width: calc(100% - 32px); }
   .concern, .own-words, .unclear, .wsec, .provenance { margin-left: 16px; margin-right: 16px; }
   .wtab-soon { margin-left: 0; }
   .timeline li { grid-template-columns: 1fr; gap: 3px; }
@@ -1263,5 +1293,87 @@ export const IMAGING_CSS = `
 @media (max-width: 900px) {
   .img-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .img-act { justify-content: flex-start; }
+}
+`;
+
+/* -- allergies (SESSION-ALLERGY) ---------------------------------------------
+   The panel behind the spine's third slot. It is a dialog rather than a tab
+   because recording an allergy takes ten seconds and must not cost the doctor
+   the tab they were reading.
+
+   Colour discipline, same as everywhere else on this console: `severe` is the
+   only thing that gets danger red, and it is always accompanied by the word.
+   An unconfirmed statement is amber and *quiet* — most of them are a patient
+   naming dust, and painting those as alarms is how alarms stop being read. */
+export const ALLERGY_CSS = `
+.alg-scrim { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  padding: 24px; background: rgba(23, 33, 31, .48); }
+.alg-panel { width: min(620px, 100%); max-height: 88vh; display: flex; flex-direction: column;
+  background: var(--surface); border-radius: var(--radius-dialog);
+  box-shadow: var(--shadow-popover); overflow: hidden; }
+.alg-head { position: relative; padding: 20px 24px 14px; border-bottom: 1px solid var(--line); }
+.alg-head h2 { margin: 0; font-size: 20px; line-height: 1.25; color: var(--ink); }
+.alg-head p { margin: 3px 0 0; font-size: 13.5px; color: var(--ink-soft); }
+.alg-x { position: absolute; top: 14px; right: 16px; width: 34px; height: 34px; font-size: 22px;
+  line-height: 1; border: none; background: none; color: var(--ink-soft); cursor: pointer;
+  border-radius: 8px; }
+.alg-x:hover { background: var(--bg); color: var(--ink); }
+.alg-err { margin: 12px 24px 0; font-size: 14px; font-weight: 700; color: var(--danger); }
+
+.alg-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px; }
+.alg-empty { margin: 0; padding: 13px 15px; background: var(--accent-soft); border-radius: 10px;
+  font-size: 13.5px; color: #7a4d0a; line-height: 1.55; }
+.alg-none { margin: 0; padding: 13px 15px; background: var(--bg); border-radius: 10px;
+  font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+.alg-none strong { color: var(--ink); }
+
+.alg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.alg-item { padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); }
+.alg-item.severe { border-color: var(--danger); background: var(--danger-soft); }
+.alg-item-main { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.alg-sub { font-size: 16px; font-weight: 800; color: var(--ink); }
+.alg-item.severe .alg-sub { color: var(--danger); }
+.alg-sev { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+  padding: 2px 7px; border-radius: 999px; }
+.alg-sev.sev-severe { background: var(--danger); color: #fff; }
+.alg-sev.sev-mild { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+.alg-rxn { font-size: 14px; color: var(--ink-soft); }
+.alg-prov { margin: 4px 0 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+.alg-ok { color: var(--primary-d); font-weight: 700; }
+.alg-unconf { color: #7a4d0a; font-weight: 700; }
+.alg-acts, .alg-retract { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.alg-retract .alg-input { flex: 1; }
+
+.alg-gone { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.alg-gone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-muted); }
+.alg-gone ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.alg-gone li { font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+
+.alg-add { border-top: 1px solid var(--line); background: var(--bg); padding: 16px 24px 20px; }
+.alg-add h3 { margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-muted); }
+.alg-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+.alg-input { flex: 1; min-width: 0; min-height: 42px; padding: 9px 12px; font: inherit;
+  font-size: 14.5px; border: 1px solid var(--line-strong); border-radius: 9px;
+  background: var(--surface); color: var(--ink); }
+.alg-sevpick { display: flex; gap: 6px; flex: 1; }
+.alg-chip { min-height: 38px; padding: 8px 13px; font: inherit; font-size: 13.5px; font-weight: 700;
+  border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface);
+  color: var(--ink-soft); cursor: pointer; }
+.alg-chip.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-d); }
+.alg-btn { min-height: 42px; padding: 10px 18px; font: inherit; font-size: 14.5px; font-weight: 800;
+  border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface);
+  color: var(--ink); cursor: pointer; }
+.alg-btn.primary { border: none; background: var(--primary); color: #fff; }
+.alg-btn.danger { border-color: var(--danger); color: var(--danger); }
+.alg-btn.ghost { border-color: var(--line); color: var(--ink-soft); }
+.alg-btn.wide { width: 100%; }
+.alg-btn:disabled, .alg-chip:disabled { opacity: .55; cursor: default; }
+
+@media (max-width: 1100px) {
+  .alg-row { flex-wrap: wrap; }
+  .alg-sevpick { flex-wrap: wrap; }
 }
 `;

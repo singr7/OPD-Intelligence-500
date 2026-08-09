@@ -21,7 +21,7 @@ export default defineConfig({
     // invariants. No browser, no server — they run in `make test`.
     {
       name: "conformance",
-      testMatch: /(conformance|offline-db|print|pass|pass-raster)\.spec\.ts/,
+      testMatch: /(conformance|offline-db|print|pass|pass-raster|allergy-line)\.spec\.ts/,
     },
     {
       name: "kiosk",
