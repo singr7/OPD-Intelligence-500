@@ -120,9 +120,17 @@ export class ApiError extends Error {
 
 // -- offline surface (S7) -----------------------------------------------------
 
+/** What this hospital calls itself (AYUR-1). One stored string, not four — see
+ *  `hospitalName()` in `_lib/i18n.ts` for why it is shown in every language. */
+export type BundleHospital = {
+  name: string;
+  city: string | null;
+};
+
 export type BundleResult = {
   etag: string;
   generated_at: string;
+  hospital: BundleHospital;
   departments: Dept[];
   trees: { department_key: string | null; tree: CanonicalTree }[];
 };

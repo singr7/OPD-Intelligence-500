@@ -619,6 +619,28 @@ export function t(key: keyof typeof T, lang: KioskLang): string {
   return T[key][lang];
 }
 
+/** What to call this hospital on the brand bar and on the printed pass.
+ *
+ *  **The stored name wins, in every language.** `Hospital.name` is one free-text
+ *  string an administrator edits (`PATCH /admin/hospital`, AYUR-1) and it is
+ *  already what the prescription letterhead prints — so a facility renamed to
+ *  "Ayurveda Hospital" has to say so here too, or the kiosk hands a patient
+ *  paper that disagrees with their prescription. It is not translated at render
+ *  time: a hospital's name is a proper noun this platform was not given four
+ *  versions of, and inventing one would be worse than showing the real one.
+ *
+ *  The four-language constant below it is the **fallback**, used only before the
+ *  first bundle has ever been fetched — a kiosk booting for the first time with
+ *  no network. It is also, today, wrong: it says "Government Cancer Hospital,
+ *  Alwar" while `seeds/hospital.json` says "Alwar District Cancer Centre". That
+ *  drift is exactly what this function exists to stop mattering, and per-language
+ *  hospital names are a question for the operator (HANDOFF), not a thing to
+ *  guess at here. */
+export function hospitalName(stored: string | null | undefined, lang: KioskLang): string {
+  const trimmed = (stored ?? "").trim();
+  return trimmed || T.hospital[lang];
+}
+
 // -- AR3: arrival identity + the staff strip ----------------------------------
 //
 // **English and Hindi only, deliberately.** This copy ships in the pilot's two

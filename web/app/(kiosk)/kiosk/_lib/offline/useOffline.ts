@@ -30,6 +30,10 @@ export type OfflineState = {
   pending: number;
   /** Departments from the cached bundle — the offline chooser's options. */
   cachedDepartments: Dept[];
+  /** The hospital's stored name, from the bundle (AYUR-1). `null` until one has
+   *  ever been fetched, which is the only case `hospitalName()` falls back to
+   *  the compiled-in four-language constant. */
+  hospitalName: string | null;
   ready: boolean;
   lastSync: SyncSummary | null;
 };
@@ -54,6 +58,7 @@ export function useOffline(): OfflineState {
   const [reachable, setReachable] = useState(true);
   const [pending, setPending] = useState(0);
   const [cachedDepartments, setCachedDepartments] = useState<Dept[]>([]);
+  const [hospitalName, setHospitalName] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [lastSync, setLastSync] = useState<SyncSummary | null>(null);
 
@@ -75,7 +80,10 @@ export function useOffline(): OfflineState {
       }
       // Whatever we already have, so an offline boot still has a chooser.
       const cached = await loadBundle();
-      if (cached && !cancelled) setCachedDepartments(cached.departments);
+      if (cached && !cancelled) {
+        setCachedDepartments(cached.departments);
+        if (cached.hospital) setHospitalName(cached.hospital.name);
+      }
       await refreshPending();
 
       // Best-effort refresh + lease while we can reach the server.
@@ -84,10 +92,14 @@ export function useOffline(): OfflineState {
         await saveBundle({
           etag: bundle.etag,
           fetchedAt: bundle.generated_at,
+          hospital: bundle.hospital,
           departments: bundle.departments,
           trees: bundle.trees.map((t) => t.tree),
         });
-        if (!cancelled) setCachedDepartments(bundle.departments);
+        if (!cancelled) {
+          setCachedDepartments(bundle.departments);
+          if (bundle.hospital) setHospitalName(bundle.hospital.name);
+        }
 
         const id = await kioskId();
         const lease = await kioskApi.leaseBlocks(id);
@@ -151,5 +163,14 @@ export function useOffline(): OfflineState {
     });
   }, []);
 
-  return { flow, downtime, reachable, pending, cachedDepartments, ready, lastSync };
+  return {
+    flow,
+    downtime,
+    reachable,
+    pending,
+    cachedDepartments,
+    hospitalName,
+    ready,
+    lastSync,
+  };
 }

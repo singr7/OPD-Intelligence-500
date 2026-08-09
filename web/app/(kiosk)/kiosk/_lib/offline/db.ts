@@ -32,6 +32,11 @@ export type BundleRow = {
   id: "current";
   etag: string;
   fetchedAt: string;
+  /** What the hospital is called (AYUR-1). Cached because the boarding pass is
+   *  printed during outages and the name is on it — a kiosk that forgot it
+   *  would print a different letterhead than the patient's prescription.
+   *  Optional so a bundle cached by an older build still loads. */
+  hospital?: { name: string; city: string | null };
   /** The chooser has to look the same during an outage, so the card's whole
    *  input comes down with the bundle — `care_system` included (doc 24 §5). */
   departments: Dept[];

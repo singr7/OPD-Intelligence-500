@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./kiosk.module.css";
-import { KIOSK_LANGS, KioskLang, t, tb } from "./_lib/i18n";
+import { KIOSK_LANGS, KioskLang, hospitalName, t, tb } from "./_lib/i18n";
 import {
   ApiError,
   ConfirmResult,
@@ -157,7 +157,11 @@ export function KioskApp() {
 
   // Offline lifecycle (S7): the flow that drives an intake online-or-local, plus
   // the downtime signal and the pending-sync count for the banner.
-  const { flow, downtime, pending, cachedDepartments } = useOffline();
+  // `hospitalName` is stored, not compiled in (AYUR-1): the name an admin sets
+  // in the console is what the brand bar shows and what the boarding pass
+  // prints, so a rename cannot leave the pass disagreeing with the patient's
+  // prescription. It rides on the offline bundle, so it survives an outage.
+  const { flow, downtime, pending, cachedDepartments, hospitalName: hospital } = useOffline();
 
   // --- audio: speak the current prompt whenever it changes -----------------
   const say = useCallback(
@@ -447,6 +451,7 @@ export function KioskApp() {
     >
       <TopBar
         lang={lang}
+        hospital={hospital}
         onLang={(l) => {
           setLang(l);
           cancelSpeech();
@@ -822,6 +827,7 @@ export function KioskApp() {
       {screen === "token" && token && (
         <TokenScreen
           lang={lang}
+          hospital={hospital}
           token={token}
           details={details}
           complaint={complaint}
@@ -1055,10 +1061,13 @@ function DowntimeBanner({ lang, pending }: { lang: KioskLang; pending: number })
 
 function TopBar({
   lang,
+  hospital,
   onLang,
   onRestart,
 }: {
   lang: KioskLang;
+  /** The stored hospital name, or null before a bundle has ever been fetched. */
+  hospital: string | null;
   onLang: (l: KioskLang) => void;
   onRestart?: () => void;
 }) {
@@ -1068,7 +1077,7 @@ function TopBar({
         <div className={s.brandMark} aria-hidden="true">
           <Icon name="stethoscope" />
         </div>
-        <div className={s.brandName}>{t("hospital", lang)}</div>
+        <div className={s.brandName}>{hospitalName(hospital, lang)}</div>
       </div>
       <div className={s.topbarRight}>
         <div className={s.langBar} role="group" aria-label={t("chooseLanguage", lang)}>
@@ -1830,6 +1839,7 @@ const PASS_AUTOPRINT = process.env.NEXT_PUBLIC_PASS_AUTOPRINT === "1";
 
 function TokenScreen({
   lang,
+  hospital,
   token,
   details,
   complaint,
@@ -1839,6 +1849,9 @@ function TokenScreen({
   say,
 }: {
   lang: KioskLang;
+  /** The stored hospital name — printed on the pass, so a rename in the admin
+   *  console reaches the paper and not only the prescription (AYUR-1). */
+  hospital: string | null;
   token: ConfirmResult;
   details: PatientDetails;
   complaint: string;
@@ -1878,7 +1891,7 @@ function TokenScreen({
           phone: details.phone,
           uhcId: details.externalId,
           department: token.department?.name ?? "",
-          hospital: t("hospital", lang),
+          hospital: hospitalName(hospital, lang),
           issuedAt,
           // The band says *show this at the desk*; the reasons stay off the
           // paper, same rule as the public board (doc 23 §8).
@@ -1895,7 +1908,7 @@ function TokenScreen({
         geometry,
         canvasMeasure()
       ),
-    [token, details, complaint, answers, lang, issuedAt, geometry]
+    [token, details, complaint, answers, lang, hospital, issuedAt, geometry]
   );
 
   // Rasterise as soon as the pass is on screen, so pressing Print is one local

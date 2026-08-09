@@ -57,6 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import allergies as allergy_svc
 from app import assignment as assignment_svc
+from app import facility
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import queue as queue_svc
@@ -965,10 +966,33 @@ class BundleTreeOut(BaseModel):
     tree: dict[str, Any]
 
 
+class BundleHospitalOut(BaseModel):
+    """What this hospital calls itself, as the kiosk must render it (AYUR-1).
+
+    Doc 24 §3.2 says the letterhead "already reads stored hospital facts, so
+    'Ayurveda Hospital' propagates for free — verify with the pass and Rx print
+    tests, **don't assume**." It did not. The prescription letterhead does read
+    `Hospital.name`; the kiosk's brand bar and the intake boarding pass rendered
+    a four-language constant compiled into the bundle
+    (`_lib/i18n.ts`, key `hospital`) that had already drifted from the seeded
+    name. So an admin renaming the hospital would have changed the prescription
+    and not the paper the patient is handed at the kiosk door.
+
+    It rides on the bundle rather than on `POST /kiosk/start` because the brand
+    bar is drawn before any intake begins and the pass must still print with the
+    name during an outage — the bundle is the kiosk's offline memory, and this
+    is a fact it needs to have cached.
+    """
+
+    name: str
+    city: str | None
+
+
 class BundleOut(BaseModel):
     #: Changes whenever the content does; the kiosk re-downloads only on a change.
     etag: str
     generated_at: datetime
+    hospital: BundleHospitalOut
     departments: list[DeptOut]
     trees: list[BundleTreeOut]
 
@@ -991,12 +1015,19 @@ async def bundle(
     it can be trusted (see app/tree_fixtures.py).
     """
     departments = await kiosk_svc._departments(session)
+    hospital = await facility.identity(session)
     trees = [tree.to_json() for tree in sorted(bank.load_bank().values(), key=lambda t: t.key)]
 
     # Content-addressed: the kiosk sends If-None-Match and skips the download
     # when nothing changed. A tree edit (S18) or a department rename changes it.
     payload = json.dumps(
         {
+            # The hospital's name is in the hash for the same reason a
+            # department's is: it is drawn on the brand bar and printed on the
+            # boarding pass, so a rename in the admin console must invalidate a
+            # cached bundle or the kiosk keeps handing out paper with the old
+            # name on it through the next outage.
+            "hospital": (hospital.name, hospital.city),
             # `care_system` is in the hash on purpose: it changes how the kiosk
             # draws the card, so a department switching system must invalidate
             # a cached bundle exactly the way a rename does.
@@ -1018,6 +1049,7 @@ async def bundle(
     return BundleOut(
         etag=etag,
         generated_at=datetime.now(UTC),
+        hospital=BundleHospitalOut(name=hospital.name, city=hospital.city),
         departments=[
             DeptOut(key=d.code, name=d.name, care_system=d.care_system) for d in departments
         ],
