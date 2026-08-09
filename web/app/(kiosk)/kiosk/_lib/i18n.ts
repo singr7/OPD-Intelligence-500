@@ -582,23 +582,14 @@ export const T = {
     mr: "कोणतं औषध?",
     te: "ఏ మందు?",
   } as Str,
+  // The mic on this step is the same one the chief complaint uses, so there is
+  // no placeholder and no "add another" — she says it, and what she says is
+  // stored as one statement rather than split into invented items.
   allergyWhichHelp: {
     hi: "जितना याद है उतना ही बताइए — नाम पूरा ठीक न हो तो भी चलेगा।",
     en: "Just as much as you remember — the exact name doesn't matter.",
     mr: "जेवढं आठवतं तेवढंच सांगा — नाव अगदी बरोबर नसलं तरी चालेल.",
     te: "గుర్తున్నంత చెప్పండి — పేరు సరిగ్గా లేకపోయినా పర్వాలేదు.",
-  } as Str,
-  allergyPlaceholder: {
-    hi: "दवा का नाम",
-    en: "Medicine name",
-    mr: "औषधाचं नाव",
-    te: "మందు పేరు",
-  } as Str,
-  allergyAddAnother: {
-    hi: "एक और जोड़िए",
-    en: "Add another",
-    mr: "आणखी एक जोडा",
-    te: "మరొకటి జోడించండి",
   } as Str,
   // Shown when the answer could not be saved (a server session that lost the
   // network). It tells her what to do about it rather than what failed — doc 04

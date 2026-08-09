@@ -143,10 +143,10 @@ export function KioskApp() {
   const [clarify, setClarify] = useState<string | null>(null);
   const [voiceAttempt, setVoiceAttempt] = useState(0);
   // Allergies (SESSION-ALLERGY). Two sub-steps on one screen — the yes/no, then
-  // the names — because they are one question to the patient even though they
-  // are two decisions to us. `allergyAsking` is which half is on screen.
+  // what she reacts to — because they are one question to the patient even
+  // though they are two decisions to us. `allergyAsking` is which half is up.
   const [allergyAsking, setAllergyAsking] = useState<"choice" | "which">("choice");
-  const [allergyItems, setAllergyItems] = useState<string[]>([""]);
+  const [allergyText, setAllergyText] = useState("");
   const [readback, setReadback] = useState("");
   const [token, setToken] = useState<ConfirmResult | null>(null);
 
@@ -209,7 +209,7 @@ export function KioskApp() {
     setDepts([]);
     setRedFlags([]);
     setAllergyAsking("choice");
-    setAllergyItems([""]);
+    setAllergyText("");
     setReadback("");
     setToken(null);
     setError(null);
@@ -384,7 +384,7 @@ export function KioskApp() {
    *  where a drug name is most likely to be remembered. */
   const askAllergies = () => {
     setAllergyAsking("choice");
-    setAllergyItems([""]);
+    setAllergyText("");
     setScreen("allergy");
   };
 
@@ -396,16 +396,19 @@ export function KioskApp() {
    *  token she is queuing for, which is a worse outcome than a doctor asking
    *  about allergies the way they do today.
    */
-  const submitAllergies = (input: { none_known: boolean; items: string[] }) =>
+  const submitAllergies = (input: { none_known: boolean; text: string }) =>
     withBusy(async () => {
       if (!sessionId) return;
-      const items = input.items
-        .map((text) => text.trim())
-        .filter((text) => text.length > 0)
-        .map((text) => ({ substance: text }));
+      // **Her words, unsplit.** If she says "penicillin and sulfa" that is what
+      // the doctor reads, because splitting a sentence into two clinical facts
+      // means inventing the boundary between them — and this module's whole
+      // rule is that it records statements rather than deriving conclusions
+      // from them. The wire still takes a list; other clients may have one.
+      const said = input.text.trim();
+      const items = said ? [{ substance: said }] : [];
       // A patient who tapped "yes" and then named nothing has told us nothing.
-      // Sending it would be asking the server to store an alarm with no
-      // substance in it, which it refuses anyway.
+      // Sending it would ask the server to store an alarm with no substance in
+      // it, which it refuses anyway.
       if (!input.none_known && items.length === 0) {
         await finish(sessionId);
         return;
@@ -794,8 +797,8 @@ export function KioskApp() {
           say={say}
           summary={summary}
           asking={allergyAsking}
-          items={allergyItems}
-          onItems={setAllergyItems}
+          text={allergyText}
+          onText={setAllergyText}
           onAsk={setAllergyAsking}
           onSubmit={submitAllergies}
         />
@@ -1626,8 +1629,8 @@ function AllergyScreen({
   say,
   summary,
   asking,
-  items,
-  onItems,
+  text,
+  onText,
   onAsk,
   onSubmit,
 }: {
@@ -1637,14 +1640,13 @@ function AllergyScreen({
   say: (t: string) => void;
   summary: IntakeSummary;
   asking: "choice" | "which";
-  items: string[];
-  onItems: (items: string[]) => void;
+  text: string;
+  onText: (text: string) => void;
   onAsk: (asking: "choice" | "which") => void;
-  onSubmit: (input: { none_known: boolean; items: string[] }) => void;
+  onSubmit: (input: { none_known: boolean; text: string }) => void;
 }) {
   const title = asking === "choice" ? t("allergyTitle", lang) : t("allergyWhichTitle", lang);
   const hint = asking === "choice" ? t("allergyHelp", lang) : t("allergyWhichHelp", lang);
-  const named = items.filter((text) => text.trim().length > 0);
 
   return (
     <Stage
@@ -1673,7 +1675,7 @@ function AllergyScreen({
           <button
             className={s.bigChoice}
             disabled={busy}
-            onClick={() => onSubmit({ none_known: true, items: [] })}
+            onClick={() => onSubmit({ none_known: true, text: "" })}
             data-testid="allergy-no"
           >
             <span className={s.bigChoiceIcon}>
@@ -1681,13 +1683,13 @@ function AllergyScreen({
             </span>
             <span className={s.bigChoiceText}>{t("allergyNo", lang)}</span>
           </button>
-          {/* Third, and given the same weight as the other two on purpose. A
-              patient who does not know must have somewhere to say so that is not
-              styled as the lesser answer, or she takes the "no" instead. */}
+          {/* Third, and the same size and treatment as the other two on purpose.
+              A patient who does not know must have somewhere to say so that is
+              not styled as the lesser answer, or she takes the "no" instead. */}
           <button
             className={s.bigChoice}
             disabled={busy}
-            onClick={() => onSubmit({ none_known: false, items: [] })}
+            onClick={() => onSubmit({ none_known: false, text: "" })}
             data-testid="allergy-unsure"
           >
             <span className={s.bigChoiceIcon}>
@@ -1697,57 +1699,37 @@ function AllergyScreen({
           </button>
         </div>
       ) : (
-        <div className={s.detailsForm} data-testid="allergy-names">
-          {items.map((text, index) => (
-            <label className={`${s.field} ${s.fieldWide}`} key={index}>
-              <span className={s.fieldLabel}>{t("allergyPlaceholder", lang)}</span>
-              <input
-                className={s.fieldInput}
-                value={text}
-                disabled={busy}
-                maxLength={200}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={t("allergyPlaceholder", lang)}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[index] = e.target.value;
-                  onItems(next);
-                }}
-                data-testid={`allergy-name-${index}`}
-              />
-            </label>
-          ))}
-          {/* Capped at the server's own limit. A patient naming a seventh thing
-              has misunderstood the question, and the extra row would be dropped
-              at the boundary anyway — better never to offer it. */}
-          {items.length < 6 && (
+        <>
+          {/* The same voice surface the chief complaint uses, and it has to be:
+              the first cut of this screen was a row of text inputs, which asks a
+              patient who may not read to type a drug name in Devanagari on a
+              tablet. Everything else the kiosk asks in words, it asks by voice.
+
+              What she says is stored **as one statement, unsplit**. "Penicillin
+              and sulfa" reaches the doctor as "penicillin and sulfa", because
+              splitting it means inventing the boundary between two clinical
+              facts — and this module records statements rather than deriving
+              conclusions from them. */}
+          <VoiceCapture lang={lang} value={text} onChange={onText} busy={busy} />
+          <div className={s.footer}>
             <button
               className={`${s.btn} ${s.btnGhost}`}
               disabled={busy}
-              onClick={() => onItems([...items, ""])}
-              data-testid="allergy-add"
+              onClick={() => onAsk("choice")}
             >
-              + {t("allergyAddAnother", lang)}
+              &larr; {t("back", lang)}
             </button>
-          )}
-        </div>
-      )}
-
-      {asking === "which" && (
-        <div className={s.footer}>
-          <button className={`${s.btn} ${s.btnGhost}`} disabled={busy} onClick={() => onAsk("choice")}>
-            &larr; {t("back", lang)}
-          </button>
-          <button
-            className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
-            disabled={busy || named.length === 0}
-            onClick={() => onSubmit({ none_known: false, items })}
-            data-testid="allergy-submit"
-          >
-            {t("next", lang)}
-          </button>
-        </div>
+            <div className={s.spacer} />
+            <button
+              className={`${s.btn} ${s.btnPrimary} ${s.btnBig}`}
+              disabled={busy || text.trim().length === 0}
+              onClick={() => onSubmit({ none_known: false, text })}
+              data-testid="allergy-submit"
+            >
+              {t("next", lang)}
+            </button>
+          </div>
+        </>
       )}
     </Stage>
   );

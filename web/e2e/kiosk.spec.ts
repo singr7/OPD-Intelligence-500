@@ -126,7 +126,23 @@ test("full hindi kiosk intake, welcome → token", async ({ page }) => {
     if (!stillGoing) break;
   }
 
-  // 6. Read-back + confirm.
+  // 6b. The allergy question (SESSION-ALLERGY) — asked after the tree runs out,
+  //     of every patient in every department, on every tier. Three answers, and
+  //     "I don't know" is one of them.
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "allergy", {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("allergy-unsure")).toBeVisible();
+  await shot(page, "06a-allergy-ask");
+
+  // Spoken, like every other thing this kiosk asks in words — headless has no
+  // Web Speech, so `typeInto` takes the "type instead" path the mic offers.
+  await page.getByTestId("allergy-yes").click();
+  await typeInto(page, "पेनिसिलिन");
+  await shot(page, "06b-allergy-which");
+  await page.getByTestId("allergy-submit").click();
+
+  // 7. Read-back + confirm.
   await expect(page.locator("main")).toHaveAttribute("data-screen", "readback", {
     timeout: 15_000,
   });

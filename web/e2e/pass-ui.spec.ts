@@ -82,6 +82,15 @@ async function intakeToToken(page: Page) {
     await page.waitForTimeout(350);
   }
 
+  // The allergy question (SESSION-ALLERGY) sits between the tree and the
+  // read-back now, and it is asked of every intake in every department. These
+  // walks tap "I don't know", which records nothing — the fastest way past a
+  // screen this suite is not about.
+  await expect(page.locator("main")).toHaveAttribute("data-screen", "allergy", {
+    timeout: 15_000,
+  });
+  await page.getByTestId("allergy-unsure").click();
+
   await expect(page.locator("main")).toHaveAttribute("data-screen", "readback", {
     timeout: 15_000,
   });
