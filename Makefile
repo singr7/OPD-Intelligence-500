@@ -15,7 +15,7 @@ HOST_DB_URL ?= postgresql+asyncpg://opd:opd_local_dev@localhost:5433/opd
         tf-validate build deploy venv clean migrate migration seed eval-routing \
         slots campaign-dryrun app-demo checkin-demo \
         android-test android-test-device android-apk android-emulator android-install \
-        tree-fixtures check-tree-fixtures
+        tree-fixtures check-tree-fixtures care-system-fixtures check-care-system-fixtures
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -78,7 +78,7 @@ test-backend: ## Backend pytest
 test-voicegw: ## voice-gw pytest (runs on the backend venv — voice-gw shares the engine, S14)
 	cd voice-gw && PYTHONPATH="$(CURDIR)/backend:$(CURDIR)/voice-gw" $(CURDIR)/$(BACKEND_PY) -m pytest -q
 
-test-web: check-tree-fixtures ## Web typecheck + lint + walker conformance (build is exercised in CI)
+test-web: check-tree-fixtures check-care-system-fixtures ## Web typecheck + lint + conformance (build is exercised in CI)
 	cd web && npm run typecheck && npm run lint && npm run conformance
 
 # --- Android (S16) ------------------------------------------------------------
@@ -113,6 +113,12 @@ tree-fixtures: ## Regenerate the Python→TS walker conformance fixtures (S7)
 
 check-tree-fixtures: ## Fail if the conformance fixtures are stale vs the Python walker
 	cd backend && .venv/bin/python -m app.tree_fixtures --check
+
+care-system-fixtures: ## Regenerate the Python→TS care-system capabilities fixture (doc 24)
+	cd backend && .venv/bin/python -m app.care_system_fixtures
+
+check-care-system-fixtures: ## Fail if the care-system fixture is stale vs app/care_system.py
+	cd backend && .venv/bin/python -m app.care_system_fixtures --check
 
 lint: ## Ruff (python) + next lint (web)
 	cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check .

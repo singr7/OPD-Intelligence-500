@@ -1,0 +1,85 @@
+{
+  "capabilities": {
+    "allopathy": {
+      "ayurveda_assessment": false,
+      "checkin_protocols": true,
+      "formulary_scope": "allopathy",
+      "guideline_pack": "nccn",
+      "pathya_apathya": false,
+      "prompt_pack": "oncology",
+      "shows_cycles": true,
+      "shows_regimen_events": true
+    },
+    "ayurveda": {
+      "ayurveda_assessment": true,
+      "checkin_protocols": false,
+      "formulary_scope": "ayurveda",
+      "guideline_pack": "ayush",
+      "pathya_apathya": true,
+      "prompt_pack": "ayurveda",
+      "shows_cycles": false,
+      "shows_regimen_events": false
+    }
+  },
+  "coerced": [
+    {
+      "expected": "allopathy",
+      "value": null
+    },
+    {
+      "expected": "allopathy",
+      "value": "allopathy"
+    },
+    {
+      "expected": "ayurveda",
+      "value": "ayurveda"
+    }
+  ],
+  "field_names": {
+    "ayurveda_assessment": "ayurvedaAssessment",
+    "checkin_protocols": "checkinProtocols",
+    "formulary_scope": "formularyScope",
+    "guideline_pack": "guidelinePack",
+    "pathya_apathya": "pathyaApathya",
+    "prompt_pack": "promptPack",
+    "shows_cycles": "showsCycles",
+    "shows_regimen_events": "showsRegimenEvents"
+  },
+  "generated_by": "backend/app/care_system_fixtures.py (make care-system-fixtures)",
+  "note": "The Python capabilities mapping, as the TS port must reproduce it. Do not hand-edit: regenerate with `make care-system-fixtures` when app/care_system.py changes.",
+  "refused": [
+    {
+      "reason": "unknown system of medicine ''; expected one of ['allopathy', 'ayurveda']",
+      "value": ""
+    },
+    {
+      "reason": "unknown system of medicine 'ayurved'; expected one of ['allopathy', 'ayurveda']",
+      "value": "ayurved"
+    },
+    {
+      "reason": "unknown system of medicine 'AYURVEDA'; expected one of ['allopathy', 'ayurveda']",
+      "value": "AYURVEDA"
+    },
+    {
+      "reason": "unknown system of medicine 'Allopathy'; expected one of ['allopathy', 'ayurveda']",
+      "value": "Allopathy"
+    },
+    {
+      "reason": "unknown system of medicine 'ayush'; expected one of ['allopathy', 'ayurveda']",
+      "value": "ayush"
+    },
+    {
+      "reason": "unknown system of medicine 'unani'; expected one of ['allopathy', 'ayurveda']",
+      "value": "unani"
+    },
+    {
+      "reason": "unknown system of medicine 'homeopathy'; expected one of ['allopathy', 'ayurveda']",
+      "value": "homeopathy"
+    }
+  ],
+  "systems": [
+    "allopathy",
+    "ayurveda"
+  ],
+  "version": 1
+}
