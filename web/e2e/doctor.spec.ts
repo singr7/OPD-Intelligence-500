@@ -168,7 +168,10 @@ test("the context spine leads the stage and survives every tab", async ({ page, 
   // Four things and no fifth: identity + token, diagnosis, allergies, red flags.
   await expect(spine.locator(".cx-tok-n")).toHaveText("12");
   await expect(page.getByTestId("spine-diagnosis")).toBeVisible();
-  await expect(page.getByTestId("spine-allergies")).toContainText("not captured");
+  // SESSION-ALLERGY: the seeded patient has never been asked, and the line says
+  // exactly that rather than going quiet or claiming there are none.
+  await expect(page.getByTestId("spine-allergies")).toContainText("ask the patient");
+  await expect(page.getByTestId("spine-allergies")).not.toContainText("no known");
   const strip = page.getByTestId("red-flag-strip");
   await expect(strip.locator(".stamp").first()).toContainText(
     "Fever 38°C+ within 14 days of chemotherapy",
@@ -213,7 +216,7 @@ test("the tabs carry the doc 03 §4 contract, and provenance instead of a percen
   await expect(page.locator(".answers li.flagged")).not.toHaveCount(0);
 
   await page.getByTestId("tab-history").click();
-  await expect(page.getByTestId("history-allergies")).toContainText("ask");
+  await expect(page.getByTestId("history-allergies")).toContainText("Nobody has asked");
   await expect(page.locator(".trends .spark")).toHaveCount(2);
   await page.screenshot({ path: `${SHOTS}/04-tabs.png`, fullPage: true });
 });

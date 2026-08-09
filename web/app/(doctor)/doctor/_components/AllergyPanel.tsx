@@ -110,14 +110,19 @@ export function AllergyPanel({
         )}
 
         <div className="alg-body">
-          {/* What is on file. `never_asked` says so in the same words the spine
-              does, rather than showing an empty list — an empty list reads as
-              "we checked and there are none", which is the claim this whole
-              module exists to refuse. */}
-          {view.state === "never_asked" && view.retracted.length === 0 ? (
+          {/* What is on file. `never_asked` says so in words rather than showing
+              an empty list — an empty list reads as "we checked and there are
+              none", which is the claim this whole module exists to refuse.
+
+              It is said in the withdrawn case too, and the screenshots are why:
+              striking out the only statement on file left this panel showing a
+              lone "Withdrawn" heading over a blank, which reads as an absence
+              rather than as the open question it actually is. */}
+          {view.state === "never_asked" ? (
             <p className="alg-empty" data-testid="allergy-empty">
-              Nobody has asked this patient yet. This is not the same as no known
-              allergies, and the record will not say that it is.
+              {view.retracted.length > 0
+                ? "Nothing stands on this record now — everything on file has been withdrawn. Ask the patient again; this is not the same as no known allergies."
+                : "Nobody has asked this patient yet. This is not the same as no known allergies, and the record will not say that it is."}
             </p>
           ) : null}
 

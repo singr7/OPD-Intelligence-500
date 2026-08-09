@@ -104,12 +104,21 @@ export function spineLine(view: AllergyView): AllergyLine {
   // `never_asked`, including the case where every statement on file has been
   // withdrawn — which is not reassurance, and reads as an instruction because
   // that is what it is.
-  return { tone: "attn", text: "not established — ask the patient", note: "" };
+  //
+  // **Quiet, not amber**, and the screenshots are what settled it. Every patient
+  // in the pilot is in this state until the kiosks have asked them, so an amber
+  // band here is an amber band on every console all day — which is how amber
+  // stops meaning anything by Thursday. Worse, it rendered *louder* than a
+  // severe allergy did, so the state where we know nothing outshouted the state
+  // where we know something dangerous. The instruction carries itself in words.
+  return { tone: "quiet", text: "not established — ask the patient", note: "" };
 }
 
-/** Whether the console should be nudging the doctor to do something about this.
- *  Used for the dot on the spine's control, and deliberately true for
- *  `never_asked`: an unasked allergy is the open item, not a blank. */
+/** Whether there is something here for the doctor to do — an unasked patient or
+ *  a statement no clinician has been through. Deliberately *not* wired to the
+ *  spine's colour (see `spineLine`): it is true for the state every patient
+ *  starts in, so painting it would paint every console. It exists for callers
+ *  that want to count or sort by it. */
 export function needsAttention(view: AllergyView): boolean {
   if (view.state === "known") return view.entries.some((entry) => entry.confirmed_at === null);
   return view.state === "never_asked";

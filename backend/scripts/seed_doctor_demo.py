@@ -59,7 +59,7 @@ from app.models.enums import (
     VisitStatus,
 )
 from app.models.org import Department, Doctor
-from app.models.patient import Patient
+from app.models.patient import Patient, PatientAllergy
 from app.models.scheduling import Queue, QueueEntry
 from app.trees import bank
 from app.trees.walker import Walk
@@ -411,6 +411,16 @@ async def _reset(session, hospital_id: uuid.UUID) -> None:
     if plan_ids:
         await session.execute(delete(Checkin).where(Checkin.plan_id.in_(plan_ids)))
         await session.execute(delete(CheckinPlan).where(CheckinPlan.id.in_(plan_ids)))
+    # Allergy statements (SESSION-ALLERGY) reference **both** a patient and —
+    # nullably — the visit they were stated at, so they block the visit delete
+    # below *and* the patient delete further down. Cleared by patient, which is
+    # the wider net: it also catches a statement a doctor recorded outside any
+    # visit, which has no `visit_id` to find it by.
+    if patient_ids:
+        await session.execute(
+            delete(PatientAllergy).where(PatientAllergy.patient_id.in_(patient_ids))
+        )
+
     if visit_ids:
         await session.execute(delete(QueueEntry).where(QueueEntry.visit_id.in_(visit_ids)))
         prescription_ids = (

@@ -71,9 +71,13 @@ test.describe("the spine's third slot", () => {
     expect(told.note).toMatch(/\d/);
   });
 
-  test("an unasked patient is an open item, not a blank", () => {
+  test("an unasked patient is an open item, but not a coloured alarm", () => {
+    // It is the state every patient starts in. Colouring it would put an amber
+    // band on every console all day, which is how amber stops being read — and
+    // it made the unknown state louder than a severe allergy. The words carry it.
     expect(needsAttention(view())).toBe(true);
-    expect(spineLine(view()).tone).toBe("attn");
+    expect(spineLine(view()).tone).toBe("quiet");
+    expect(spineLine(view()).text).toContain("ask the patient");
   });
 
   test("a substance nobody clinical has seen is amber, not red", () => {

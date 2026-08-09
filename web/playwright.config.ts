@@ -81,6 +81,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // Allergy capture (SESSION-ALLERGY). Same live stack + `seed_doctor_demo`
+      // as `doctor`; this project *is* the session AC — three states that never
+      // collapse into each other, on the one line a doctor prescribes from. Run
+      // explicitly (`npm run e2e:allergy`). It writes statements onto the seeded
+      // patient's record, so re-seed before re-running.
+      name: "allergy",
+      testMatch: /allergy\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // The S10 consult note (doc 03 §7). Same live stack + `seed_doctor_demo`
       // as `doctor`; this project *is* the session AC — the flag is seen, the
       // signature is refused, the drug keeps its name. Run explicitly

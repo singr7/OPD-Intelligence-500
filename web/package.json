@@ -13,6 +13,7 @@
     "e2e": "playwright test --project=kiosk",
     "e2e:queue": "playwright test --project=queue",
     "e2e:doctor": "playwright test --project=doctor",
+    "e2e:allergy": "playwright test --project=allergy",
     "e2e:dictation": "playwright test --project=dictation",
     "e2e:admin": "playwright test --project=admin",
     "e2e:channels": "playwright test --project=channels",

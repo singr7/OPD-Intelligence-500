@@ -206,7 +206,12 @@ export const CONSOLE_CSS = `
 .cx-allergy.tone-attn { background: var(--accent-soft); border-color: #e8c583; }
 .cx-allergy.tone-attn .cx-allergy-l, .cx-allergy.tone-attn .cx-allergy-t,
 .cx-allergy.tone-attn .cx-allergy-p { color: #7a4d0a; }
-.cx-allergy.tone-danger { background: var(--danger-soft); border-color: var(--danger); }
+/* Louder than amber, and it has to be: the first cut of this rendered a
+   penicillin anaphylaxis *paler* than "not established", which inverts the
+   whole point. It still does not take the red-flag lane's solid fill — that
+   stays the deterministic rules' — so it gets weight and a solid edge instead. */
+.cx-allergy.tone-danger { background: var(--danger-soft); border-color: var(--danger);
+  border-width: 1.5px; box-shadow: inset 5px 0 0 0 var(--danger); padding-left: 15px; }
 .cx-allergy.tone-danger .cx-allergy-l, .cx-allergy.tone-danger .cx-allergy-t,
 .cx-allergy.tone-danger .cx-allergy-p { color: var(--danger); }
 .cx-allergy.tone-danger .cx-allergy-t { font-weight: 800; }
