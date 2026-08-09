@@ -772,6 +772,14 @@ export function KioskApp() {
                 key={d.key}
                 text={d.name}
                 icon={deptIcon(d.key)}
+                // The value, not a flag, and not compared here: doc 24 §2 keeps
+                // the enum out of components, and `CareSystemCapabilities`
+                // deliberately excludes it because a card's styling is one of
+                // the two places the raw system genuinely *is* the data. It
+                // lands on the DOM and the stylesheet decides what it looks
+                // like, which is the same shape the admin console's selector
+                // uses.
+                careSystem={d.care_system}
                 onSelect={() => start(d)}
               />
             ))}
@@ -2037,6 +2045,10 @@ function deptIcon(code: string): string {
     ENT: "ear",
     PULM: "lungs",
     DERM: "skin",
+    // doc 24 §5 — Ayurveda's card. `seeds/hospital.json` names the same icon on
+    // the department row; this map is what the kiosk actually draws from, since
+    // the chooser payload carries key/name/care_system and not an icon.
+    AYUR: "leaf",
   };
   return map[code] ?? "stethoscope";
 }

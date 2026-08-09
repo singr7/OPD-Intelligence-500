@@ -179,6 +179,24 @@ const ICONS: Record<string, (p: P) => React.ReactNode> = {
       />,
       title
     ),
+  // doc 24 — the ayurveda department's own mark. A leaf rather than a mortar and
+  // pestle: the card has to read as "this is a different kind of medicine" from
+  // three metres away, to someone who may not read at all.
+  leaf: ({ title }) =>
+    wrap(
+      <>
+        <path
+          d="M36 12c0 14-8 24-20 26 0-14 8-24 20-26z"
+          fill={soft}
+          stroke={ink}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+        />
+        <path d="M32 16c-8 6-12 14-14 22" stroke={ink} strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M14 40c0-4 1-7 2-10" stroke={ink} strokeWidth="2.5" strokeLinecap="round" />
+      </>,
+      title
+    ),
   skin: ({ title }) =>
     wrap(
       <>

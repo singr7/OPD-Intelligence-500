@@ -325,6 +325,27 @@
   background: var(--bg);
 }
 .optionCardSelected .optionIcon { background: #fff; }
+/* doc 24 §5 — the ayurveda department's card. The chooser is the one screen
+   where a patient chooses a *system of medicine*, and it has to be legible as
+   that from three metres, so the card carries its own ground and edge rather
+   than only a different pictogram. Keyed off the attribute the card puts on the
+   DOM, which is what keeps the enum out of every component (doc 24 §2): a third
+   system is one more rule in this file. The palette stays inside doc 04's
+   family — a warmer, earthier green against the clinical teal, never a second
+   brand. */
+.optionCard[data-care-system="ayurveda"] {
+  border-color: #b6cbb2;
+  background: linear-gradient(180deg, #f4f9f1 0%, var(--surface) 72%);
+}
+.optionCard[data-care-system="ayurveda"]:hover { border-color: #4e7c3f; }
+.optionCard[data-care-system="ayurveda"] .optionIcon {
+  /* The duotone icons draw with `var(--primary)` / `var(--primary-soft)`, so
+     the leaf is tinted by redefining those on the tile rather than by teaching
+     the icon set a second palette. */
+  --primary: #3f6b32;
+  --primary-soft: #dcebd4;
+  background: #e8f2e2;
+}
 .optionText {
   min-width: 0;
   font-size: var(--fs-option);

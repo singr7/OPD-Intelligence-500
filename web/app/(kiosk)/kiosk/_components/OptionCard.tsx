@@ -8,11 +8,17 @@ export function OptionCard({
   text,
   icon,
   selected,
+  careSystem,
   onSelect,
 }: {
   text: string;
   icon?: string | null;
   selected?: boolean;
+  /** The department's system of medicine, when this card is a department (doc 24
+   *  §5). Passed straight to the DOM and never read in TypeScript — the
+   *  stylesheet keys off it, so no component compares against the value and the
+   *  card of a third system would style itself by adding one CSS rule. */
+  careSystem?: string;
   onSelect: () => void;
 }) {
   return (
@@ -20,6 +26,7 @@ export function OptionCard({
       className={`${s.optionCard} ${selected ? s.optionCardSelected : ""}`}
       onClick={onSelect}
       aria-pressed={selected}
+      data-care-system={careSystem}
       data-testid="option"
     >
       <span className={s.optionIcon}>
