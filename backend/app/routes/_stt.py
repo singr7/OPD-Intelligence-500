@@ -16,16 +16,20 @@ it does anywhere else in this system — it is the doctor thinking aloud.
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal, InvalidOperation
 
 from fastapi import HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.config import Settings
+from app.languages import script_problem
 from app.models.enums import Lang, UsagePurpose
 from app.providers import AudioClip, ProviderBadRequest, ProviderError, with_fallback
 from app.providers.metering import usage_scope
 from app.providers.registry import stt_chain
+
+logger = logging.getLogger(__name__)
 
 #: A consult note is a minute or two of speech, not a lecture. Generous enough
 #: for a long oncology plan, small enough that a stuck recorder cannot post a
@@ -74,6 +78,33 @@ async def transcribe_upload(
         raise HTTPException(status_code=422, detail=f"could not read that audio: {exc}") from exc
     except ProviderError as exc:
         raise HTTPException(status_code=503, detail="speech recognition is unavailable") from exc
+
+    # The script guard (`app.languages`), the same one `/kiosk/stt` has applied
+    # since the pilot hit it on day one: a recogniser handed Hindi audio can
+    # return **Urdu script** — the same spoken words in an alphabet nobody here
+    # reads. It was missed on this path, which is how it reached a doctor
+    # dictating in Hindi.
+    #
+    # The transcript is dropped rather than transliterated. Inventing characters
+    # over a clinical note is precisely what `validate_meds` refuses to do with a
+    # drug name, and the stakes are higher here: this text is what the mapper
+    # reads to produce a prescription, and `_was_said` checks a drug against it,
+    # so a transcript in the wrong script would silently flag every drug as
+    # unsaid. Both callers have a typed path behind them — the console's
+    # `POST /dictation/{id}/compose` opens the same editable fields with no model
+    # in the loop — so an empty, `uncertain` reply lands a doctor on the keyboard
+    # rather than on a note she cannot read.
+    if problem := script_problem(transcript.text, lang):
+        logger.warning(
+            "%s STT rejected: %s (provider %s)", purpose.value, problem, transcript.provider
+        )
+        return SttOut(
+            text="",
+            provider=transcript.provider,
+            lang=str(lang),
+            confidence=transcript.confidence,
+            uncertain=True,
+        )
 
     return SttOut(
         text=transcript.text,

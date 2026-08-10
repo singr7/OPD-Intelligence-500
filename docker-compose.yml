@@ -163,6 +163,13 @@ services:
         NEXT_PUBLIC_KIOSK_SERVER_STT: ${NEXT_PUBLIC_KIOSK_SERVER_STT:-0}
         NEXT_PUBLIC_KIOSK_SERVER_TTS: ${NEXT_PUBLIC_KIOSK_SERVER_TTS:-0}
         NEXT_PUBLIC_KIOSK_ADAPTIVE: ${NEXT_PUBLIC_KIOSK_ADAPTIVE:-0}
+        # The boarding pass (doc 23): roll80 | roll58, autoprint-on-mount for a
+        # kiosk with a printer attached, and the local ESC/POS bridge Print posts
+        # to. All three were read by the kiosk and passed by nobody.
+        NEXT_PUBLIC_PASS_GEOMETRY: ${NEXT_PUBLIC_PASS_GEOMETRY:-roll80}
+        NEXT_PUBLIC_PASS_AUTOPRINT: ${NEXT_PUBLIC_PASS_AUTOPRINT:-0}
+        NEXT_PUBLIC_PRINT_BRIDGE_URL: ${NEXT_PUBLIC_PRINT_BRIDGE_URL:-}
+        NEXT_PUBLIC_DOCTOR_COMING_SOON: ${NEXT_PUBLIC_DOCTOR_COMING_SOON:-0}
     <<: *restart
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}

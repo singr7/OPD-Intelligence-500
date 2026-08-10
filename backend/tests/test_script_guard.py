@@ -101,6 +101,16 @@ def test_the_problem_string_never_leaks_the_text() -> None:
 _GUARDED_BOUNDARIES: tuple[tuple[str, str], ...] = (
     # Transcription — the patient's own words. Rejected, never rewritten.
     ("app/routes/kiosk.py", "stt"),
+    # ...and the doctor's. This one was missed: `app/dictation.py` was exempted
+    # below on the reasoning that a consult note is English or Hinglish, and the
+    # Alwar box disproved it — a doctor dictating in Hindi got Urdu script back,
+    # the same substitution the kiosk had been rejecting since day one. The
+    # transcript matters more here than the reasoning allowed for: the mapper
+    # reads it to produce a prescription, and `_was_said` checks each drug name
+    # against it, so a transcript in the wrong script would have flagged every
+    # drug as unsaid. Guarded at the shared helper, which covers `/dictation/stt`
+    # and `/notes/stt` in one place.
+    ("app/routes/_stt.py", "transcribe_upload"),
     ("app/intake/engine.py", "IntakeEngine._hear"),
     ("app/whatsapp/bot.py", "WhatsAppBot._transcribe"),
     # Generation — replaced by something authored and deterministic.
@@ -161,12 +171,29 @@ def test_a_new_model_text_call_site_has_to_be_declared() -> None:
     after everybody has forgotten this bug.
     """
     root = _repo_root() / "app"
-    # Text that never reaches a patient: the doctor's own dictation (English /
-    # Hinglish, and its own `_was_said` provenance check), the department
-    # classifier (returns a key, not prose), and the staff-facing check-in and
-    # people helpers.
+    # Text that never reaches a patient: the department classifier (returns a
+    # key, not prose) and the staff-facing check-in and people helpers.
+    #
+    # `app/dictation.py` stays here, but on a narrower argument than it used to
+    # carry. Its *transcript* is now guarded upstream in `app/routes/_stt.py`,
+    # because the premise that a consult note is always English or Hinglish was
+    # wrong in the field. What is exempt is the mapping call, whose output is a
+    # structured field set rather than prose, and every drug in it is checked
+    # against the formulary and against the doctor's own words.
     exempt = {
         "app/dictation.py",
+        # Both routes delegate transcription to `app/routes/_stt.py`, which is in
+        # the guarded list above. They appear here only because they name the
+        # `UsagePurpose` when they call it.
+        "app/routes/dictation.py",
+        "app/routes/notes.py",
+        # The ambient note's mapping call, exempt on the same argument as
+        # `app/dictation.py`: its output is a small structured observation for
+        # the doctor's own screen, not prose anybody reads back to a patient, and
+        # a note cannot prescribe. Its *transcript* is guarded upstream.
+        "app/notes.py",
+        # Reads the purpose off `usage_events` to divide spend. No model, no text.
+        "app/analytics.py",
         "app/routing.py",
         "app/receptionist.py",
         "app/people.py",
@@ -182,7 +209,12 @@ def test_a_new_model_text_call_site_has_to_be_declared() -> None:
             continue  # the provider layer is the transport, not a boundary
         text = py.read_text(encoding="utf-8")
         # A call that returns model prose or a transcript for a patient turn.
-        if re.search(r"purpose=UsagePurpose\.(INTAKE_TURN|SUMMARY)", text):
+        # DICTATION and NOTE joined this list the day a doctor's Hindi came back
+        # in Urdu: the original pattern only watched the patient's own turns, so
+        # the two staff recorders could be added without this gate noticing.
+        if re.search(r"purpose=UsagePurpose\.(INTAKE_TURN|SUMMARY)", text) or re.search(
+            r"UsagePurpose\.(DICTATION|NOTE)\b", text
+        ):
             callers.add(str(py.relative_to(_repo_root())))
 
     undeclared = callers - guarded - exempt
@@ -222,6 +254,109 @@ async def test_the_kiosk_stt_route_drops_a_wrong_script_transcript(client, monke
     # Never transliterated: inventing characters over a clinical complaint is the
     # same failure this system refuses on drug names.
     assert URDU not in resp.text
+
+
+async def test_the_doctors_stt_route_drops_a_wrong_script_transcript(
+    client, session, settings, monkeypatch
+) -> None:
+    """The one the pilot actually hit, and the one this file originally missed.
+
+    A doctor dictating in Hindi got the recogniser's Urdu back. It matters more
+    here than at the kiosk, not less: `dictation_map` reads this text to produce
+    a **prescription**, and `_was_said` checks every drug name against it — so a
+    transcript in the wrong script would have flagged every drug as unsaid and
+    made the doctor acknowledge each one to sign. She gets an empty, uncertain
+    reply and the typed path (`POST /dictation/{id}/compose`), which opens the
+    same editable fields with no model in the loop.
+    """
+    from app.auth.tokens import create_access_token
+    from app.models.enums import Role
+    from app.providers.stt import FakeSTTProvider
+    from tests import factories as f
+
+    hospital = f.make_hospital()
+    session.add(hospital)
+    await session.flush()
+    user = f.make_user(hospital, role=Role.DOCTOR)
+    session.add(user)
+    await session.flush()
+    headers = {
+        "Authorization": "Bearer "
+        + create_access_token(
+            user_id=user.id,
+            role=user.role,
+            name=user.name,
+            settings=settings,
+            hospital_id=user.hospital_id,
+        ).token
+    }
+
+    monkeypatch.setattr(
+        "app.routes._stt.stt_chain", lambda settings=None: [FakeSTTProvider(script=[URDU])]
+    )
+    resp = await client.post(
+        "/dictation/stt",
+        headers=headers,
+        files={"file": ("clip.webm", b"\x00\x01\x02\x03fake-audio", "audio/webm")},
+        data={"lang": "hi", "duration_seconds": "4"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"] == ""
+    assert body["uncertain"] is True
+    assert URDU not in resp.text
+
+    # The same helper serves the floating dictation, so it is covered too.
+    resp = await client.post(
+        "/notes/stt",
+        headers=headers,
+        files={"file": ("clip.webm", b"\x00\x01\x02\x03fake-audio", "audio/webm")},
+        data={"lang": "hi"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["text"] == ""
+
+
+async def test_the_doctors_stt_route_keeps_devanagari_and_hinglish(
+    client, session, settings, monkeypatch
+) -> None:
+    """The check that must not over-fire on the surface where a doctor is
+    mid-consult: proper Hindi and romanised Hinglish both pass through."""
+    from app.auth.tokens import create_access_token
+    from app.models.enums import Role
+    from app.providers.stt import FakeSTTProvider
+    from tests import factories as f
+
+    hospital = f.make_hospital()
+    session.add(hospital)
+    await session.flush()
+    user = f.make_user(hospital, role=Role.DOCTOR)
+    session.add(user)
+    await session.flush()
+    headers = {
+        "Authorization": "Bearer "
+        + create_access_token(
+            user_id=user.id,
+            role=user.role,
+            name=user.name,
+            settings=settings,
+            hospital_id=user.hospital_id,
+        ).token
+    }
+
+    for text in (HINDI, HINGLISH):
+        monkeypatch.setattr(
+            "app.routes._stt.stt_chain", lambda settings=None, t=text: [FakeSTTProvider(script=[t])]
+        )
+        resp = await client.post(
+            "/dictation/stt",
+            headers=headers,
+            files={"file": ("clip.webm", b"\x00\x01fake", "audio/webm")},
+            data={"lang": "hi"},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["text"] == text
 
 
 async def test_the_kiosk_stt_route_keeps_romanised_hinglish(client, monkeypatch) -> None:

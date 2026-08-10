@@ -43,6 +43,9 @@ docker buildx build --platform "$PLATFORMS" --provenance=true --sbom=true \
   --build-arg NEXT_PUBLIC_KIOSK_SERVER_STT=1 \
   --build-arg NEXT_PUBLIC_KIOSK_SERVER_TTS=1 \
   --build-arg NEXT_PUBLIC_KIOSK_ADAPTIVE=1 \
+  --build-arg "NEXT_PUBLIC_PASS_GEOMETRY=${PASS_GEOMETRY:-roll80}" \
+  --build-arg "NEXT_PUBLIC_PASS_AUTOPRINT=${PASS_AUTOPRINT:-0}" \
+  --build-arg "NEXT_PUBLIC_PRINT_BRIDGE_URL=${PRINT_BRIDGE_URL:-}" \
   -t "$ECR_REGISTRY/opd-web:$SHA" --push web
 
 digest_of() {
