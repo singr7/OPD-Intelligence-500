@@ -19,12 +19,19 @@ running, and the previous SHA is what `rollback.sh` needs.
 
 | deployed (UTC) | release SHA | previous SHA | commits | migrations applied | notes |
 |---|---|---|---|---|---|
+| 2026-08-10 | `8fd588a81bb4f0e5612a8bbe476d93f91c2dad0a` | `036b6f313226b100176dfe777ad21b07fc32b1f6` | 4 | none | Field fixes off the first ayurveda deploy: the Urdu-script guard extended to the doctor's transcript, the boarding pass printing on one sheet instead of three, an unheard clip reporting itself, and the three `NEXT_PUBLIC_PASS_*` / `PRINT_BRIDGE_URL` build args that were unsettable in every image ever built. |
 | 2026-08-10 | `036b6f313226b100176dfe777ad21b07fc32b1f6` | `3e5dd8f9f872a803d5ef412ec54a6272787d65c5` | 68 | 6 | SESSION-AYUR-2. First cloud deploy carrying the ayurveda module (docs/24), MRD, clinical notes, the research assistant and the allergy log. |
 
-The six migrations in that jump — `efb79a43afb3`, `02571a5c1871`, `9f2ab41c77d3`,
+Newest first. The six migrations in the `036b6f31` jump — `efb79a43afb3`, `02571a5c1871`, `9f2ab41c77d3`,
 `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b` — are all additive, with server
 defaults and no backfill. `deploy.sh` applies them itself; there is no separate
-migration step on this path.
+migration step on this path. `8fd588a` is code only.
+
+If that kiosk has a printer attached, the three build args wired in `8fd588a`
+have to be exported **before** `build-local-release.sh` — Next inlines
+`NEXT_PUBLIC_*` at build time, so they cannot be set afterwards:
+`PRINT_BRIDGE_URL`, `PASS_AUTOPRINT=1`, and `PASS_GEOMETRY=roll58` for a 58mm
+roll.
 
 Whatever this table says, the box is the authority. Confirm before you deploy:
 

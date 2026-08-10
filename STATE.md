@@ -682,7 +682,12 @@ box).
 
 ## Deployed releases
 
-- **AWS (`https://opd-cloud.radpretation.ai`) — `036b6f31` since 2026-08-10**,
+- **AWS (`https://opd-cloud.radpretation.ai`) — `8fd588a` since 2026-08-10**, up
+  from `036b6f31`: four commits, **no migration**. The field fixes off the first
+  ayurveda deploy — the script guard extended to the doctor's transcript, the
+  pass printing on one sheet, an unheard clip reporting itself, and the
+  `NEXT_PUBLIC_PASS_*` build args that had never been wired.
+- Before it, **`036b6f31` from `3e5dd8f9`**,
   up from `3e5dd8f9`: 68 commits and **six** migrations (`efb79a43afb3`,
   `02571a5c1871`, `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b`),
   all additive with server defaults and no backfill, applied by `deploy.sh`
