@@ -76,6 +76,11 @@ export async function recordToServer(
   handlers: {
     onText: (text: string) => void;
     onError?: (err: string) => void;
+    /** The server heard something it is not sure about (low confidence). The
+     *  text is still delivered — it is the patient's words — but the caller
+     *  should put the keyboard in front of her rather than let a bad transcript
+     *  stand silently. */
+    onUncertain?: () => void;
     onDone?: () => void;
   },
   sessionId?: string | null
@@ -107,8 +112,24 @@ export async function recordToServer(
       if (sessionId) fd.append("session_id", sessionId);
       const res = await fetch(`${API_BASE}/kiosk/stt`, { method: "POST", body: fd });
       if (!res.ok) throw new Error(String(res.status));
-      const body = (await res.json()) as { text?: string };
-      handlers.onText((body.text ?? "").trim());
+      const body = (await res.json()) as { text?: string; uncertain?: boolean };
+      const text = (body.text ?? "").trim();
+      if (!text) {
+        // Nothing usable came back — silence, a clip the recogniser could not
+        // read, or a transcript the server *rejected* because it arrived in the
+        // wrong script (`app.languages`, which returns exactly this shape).
+        //
+        // This used to call `onText("")`, which cleared the field and left the
+        // mic looking as though it had simply not worked: no error, no
+        // explanation, and no way forward unless the patient found the "type
+        // instead" toggle by herself. An empty transcript is a failure to hear,
+        // and it is reported as one so the deterministic floor — tap-to-type,
+        // which doc 04 law 8 requires to be on this screen — actually appears.
+        handlers.onError?.("no-speech");
+        return;
+      }
+      handlers.onText(text);
+      if (body.uncertain) handlers.onUncertain?.();
     } catch {
       handlers.onError?.("stt-failed");
     } finally {

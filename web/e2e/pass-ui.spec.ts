@@ -212,6 +212,21 @@ test("the browser path prints one 80 x 200mm page, not a scaled A4", async ({ pa
   // 80mm = 226.77pt, 200mm = 566.93pt.
   expect(Number(media![1])).toBeCloseTo(226.77, 0);
   expect(Number(media![2])).toBeCloseTo(566.93, 0);
+
+  // ...and exactly ONE of them. This assertion was missing, and its absence is
+  // why the bug shipped: the page *size* was right while the browser laid down
+  // three pages, blank either side of the pass, because <body> kept the kiosk
+  // shell's viewport-height layout and a centred 200mm child inside a taller
+  // box starts on page two. A patient handed three sheets, two of them empty,
+  // on a thermal roll is the whole cost of the missing line.
+  const pages = raw.match(/\/Type\s*\/Page[^s]/g) ?? [];
+  expect(pages.length, "the pass must print on one sheet").toBe(1);
+
+  // The Print button lives inside the pass pane, so showing the pane showed the
+  // button — half-clipped, under the stub, on the patient's paper.
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByTestId("token-print")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
 });
 
 test("the token screen survives the tablet matrix with the pass on it", async ({ page }) => {

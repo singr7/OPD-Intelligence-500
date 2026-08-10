@@ -1638,6 +1638,25 @@
 }
 
 @media print {
+  /* The document is 80 x 200mm and contains one drawing. Everything below is
+     about making that literally true, because it was not: the browser printed
+     three pages — an empty one, the pass, and another empty one — since the
+     kiosk shell keeps `min-height: 100dvh` plus padding, and the token screen
+     is a *centred* fixed overlay. Both survive into print unless told
+     otherwise, and centring a 200mm child inside a taller box is exactly how
+     you get a blank leading page. */
+  /* The html/body half of this reset cannot live in a CSS module (a bare
+     element selector is not "pure"), and it must not be applied to every
+     printable page in the app. It is in `app/globals.css`, keyed off the
+     `pass-print` class the token screen puts on `<body>` while it is mounted. */
+  .shell {
+    min-height: 0 !important;
+    height: auto !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
   .shell > *:not(.tokenScreen) { display: none !important; }
   .downtimeBanner { display: none !important; }
   .tokenScreen {
@@ -1647,11 +1666,16 @@
     color: #000 !important;
     box-shadow: none !important;
     padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
     overflow: visible !important;
   }
   .tokenMain {
     display: block !important;
     gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
   /* The screen's half of the token screen is not the document. The numeral,
      the wait line and the buttons are furniture for a person standing at a
@@ -1659,14 +1683,36 @@
   .tokenPatient { display: none !important; }
   .tokenActions { display: none !important; }
   .passPaneLabel { display: none !important; }
-  .passPane { display: block !important; }
+  /* The Print button lives inside `.passPane`, so showing the pane showed the
+     button — it printed under the stub, half-clipped, on the paper the patient
+     walks out with. */
+  .passPrintBtn { display: none !important; }
+  .passPane {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
   .passPaper {
     box-shadow: none !important;
     border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
   }
   .passSvg {
+    display: block !important;
     width: 80mm !important;
     height: 200mm !important;
+    max-height: none !important;
+    margin: 0 !important;
+    /* One drawing, one sheet. Without this a sub-pixel rounding difference in
+       the driver is enough to start a second, blank page. */
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
   }
   /* The pass is the patient's. Staff never appears on it — least of all a
      candidate's name, which would print a second patient's identity onto a

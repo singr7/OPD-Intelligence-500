@@ -86,6 +86,26 @@
   box-sizing: border-box;
 }
 
+/* The kiosk boarding pass is the only thing in this app that prints at a
+   physical paper size (doc 23: 80 x 200mm on a thermal roll). The token screen
+   adds `pass-print` to <body> while it is mounted and takes it off again, so
+   these rules reach exactly one screen and no other printable page — the
+   prescription's letterhead and the downtime sheets are A4 and must stay so.
+   Without them the browser laid down three pages, a blank one either side of
+   the pass, because <body> keeps the viewport-height layout the kiosk shell
+   asks for and a centred 200mm child inside a taller box starts on page two. */
+@media print {
+  body.pass-print,
+  html:has(body.pass-print) {
+    width: 80mm;
+    height: 200mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    overflow: hidden;
+  }
+}
+
 html,
 body {
   margin: 0;

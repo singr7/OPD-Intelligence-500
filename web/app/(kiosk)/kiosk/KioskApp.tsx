@@ -1225,6 +1225,8 @@ function VoiceCapture({
           setTranscribing(false);
           setShowType(true);
         },
+        // Heard, but not confidently. She keeps her words and gets the keyboard.
+        onUncertain: () => setShowType(true),
         onDone: () => setTranscribing(false),
       }).then((stop) => {
         if (!stop) {
@@ -1889,6 +1891,15 @@ function TokenScreen({
    *  print, down to the issue time. */
   const [issuedAt] = useState(() => new Date().toISOString());
 
+  /* The pass prints at a physical paper size, and the rules that make <body>
+     80 x 200mm cannot live in a CSS module. This is the hook: the class is on
+     while this screen is, so no other printable page in the app inherits a
+     thermal-roll page box. */
+  useEffect(() => {
+    document.body.classList.add("pass-print");
+    return () => document.body.classList.remove("pass-print");
+  }, []);
+
   const geometry = useMemo(() => passGeometry(), []);
   const passLayout = useMemo(
     () =>
@@ -2009,7 +2020,7 @@ function TokenScreen({
           />
         </div>
         <button
-          className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost}`}
+          className={`${s.btn} ${s.btnBig} ${s.btnGhost} ${s.tokenGhost} ${s.passPrintBtn}`}
           data-testid="token-print"
           onClick={() => void print()}
         >
