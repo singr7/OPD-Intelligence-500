@@ -9,6 +9,15 @@ Use only non-PHI identifiers in the drill record.
 - AWS: `https://opd-cloud.radpretation.ai`
 - stable Android/pairing alias: `https://opd.radpretation.ai`
 
+**What AWS is running, and from which directory, is recorded in docs/18 §0** —
+the deploy ledger. Read it before a drill: a promotion onto a box several
+releases behind Omen is a promotion onto a different schema. Two things that bite
+on the live host and are documented there in full: `/opt/opd/current` is a
+symlink and there is **more than one checkout** under `/opt/opd/source` (derive
+the path with `readlink -f /opt/opd/current`, never type it), and neither the
+other checkout nor the previous release's images may be deleted, because
+`rollback.sh` needs both.
+
 ## Before the first drill
 
 1. Apply `infra/` and record the Terraform output. Confirm the security group has

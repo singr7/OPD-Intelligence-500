@@ -680,6 +680,27 @@ Live vendor impl (S14 wired the bridge, the vendor is still fake); an appointmen
 `/kiosk/stt` (S7 carryover → backlog); the V-OSS **GPU half** (S-OSS.1/.2/.3 — needs the GPU
 box).
 
+## Deployed releases
+
+- **AWS (`https://opd-cloud.radpretation.ai`) — `036b6f31` since 2026-08-10**,
+  up from `3e5dd8f9`: 68 commits and **six** migrations (`efb79a43afb3`,
+  `02571a5c1871`, `9f2ab41c77d3`, `8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b`),
+  all additive with server defaults and no backfill, applied by `deploy.sh`
+  itself. The ledger, and the exact command sequence, are **docs/18 §0**; update
+  that table at the end of every AWS deploy, because the previous SHA recorded
+  there is what `rollback.sh` takes as its argument.
+- **`/opt/opd/current` is a symlink and the host has two checkouts** —
+  `/opt/opd/source/repo` and `/opt/opd/source/repo-new`. On 2026-08-10 the live
+  one was `repo-new` and the path hard-coded in docs 19/20 was the stale one, so
+  a `git fetch` in the wrong directory produced `fatal: Invalid revision range`
+  and looked like a missing commit. Derive it:
+  `export SRC="$(readlink -f /opt/opd/current)"`. Do not delete the other
+  checkout and never `docker image prune -a` on that host; `rollback.sh` needs
+  both.
+- **Omen still has nine migrations pending** and `make deploy` still has no
+  migration step. That is a separate box from AWS and the two lists are not the
+  same — AWS applies migrations through `deploy/aws/deploy.sh`, Omen does not.
+
 ## How to run
 ```
 make dev                 # full stack (11 services)

@@ -47,6 +47,12 @@ real patient record.
 `deploy.sh` runs the migration profile itself (`compose --profile migration run
 --rm migrate`), so there is no separate alembic step on this host.
 
+> **The checkout path below is stale on the live host.** `/opt/opd/source/repo`
+> is one of two checkouts and was *not* the deployed one on 2026-08-10. Derive it
+> instead — `export SRC="$(readlink -f /opt/opd/current)"` — and `cd "$SRC"`
+> wherever this document says `cd /opt/opd/source/repo`. The current deployed SHA
+> is recorded in **docs/18 §0**, which is the ledger every AWS deploy updates.
+
 ```bash
 export RELEASE_SHA=$(git ls-remote origin refs/heads/main | cut -f1)
 echo "$RELEASE_SHA"       # 40 chars — sanity-check it before going further
@@ -55,8 +61,10 @@ echo "$RELEASE_SHA"       # 40 chars — sanity-check it before going further
 sudo cat /opt/opd/runtime/releases/current-sha
 sudo cat /opt/opd/runtime/releases/disposable-test-active   # expect mode=disposable-no-phi
 
-# 1. Pin the new commit (as the repo owner, not root)
-cd /opt/opd/source/repo
+# 1. Pin the new commit (as the repo owner, not root).
+#    `$SRC` is the LIVE checkout, derived from the symlink — see docs/18 §0.
+export SRC="$(readlink -f /opt/opd/current)"
+cd "$SRC"
 git fetch origin
 git checkout --detach "$RELEASE_SHA"
 test "$(git rev-parse HEAD)" = "$RELEASE_SHA"

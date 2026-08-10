@@ -60,6 +60,12 @@ this safe rather than hopeful, both read off the scripts:
 `deploy.sh` does not seed, and this release changes two tree versions, so step 4
 is the one that actually lands the content:
 
+> **The checkout path below is stale on the live host.** `/opt/opd/source/repo`
+> is one of two checkouts and was *not* the deployed one on 2026-08-10. Derive it
+> instead — `export SRC="$(readlink -f /opt/opd/current)"` — and `cd "$SRC"`
+> wherever this document says `cd /opt/opd/source/repo`. The current deployed SHA
+> is recorded in **docs/18 §0**, which is the ledger every AWS deploy updates.
+
 ```bash
 export RELEASE_SHA=<full-40-char-sha>
 
@@ -67,8 +73,10 @@ export RELEASE_SHA=<full-40-char-sha>
 sudo cat /opt/opd/runtime/releases/current-sha
 sudo cat /opt/opd/runtime/releases/disposable-test-active   # expect mode=disposable-no-phi
 
-# 1. Pin the new commit (as the repo owner, not root)
-cd /opt/opd/source/repo
+# 1. Pin the new commit (as the repo owner, not root).
+#    `$SRC` is the LIVE checkout, derived from the symlink — see docs/18 §0.
+export SRC="$(readlink -f /opt/opd/current)"
+cd "$SRC"
 git fetch origin
 git checkout --detach "$RELEASE_SHA"
 test "$(git rev-parse HEAD)" = "$RELEASE_SHA"

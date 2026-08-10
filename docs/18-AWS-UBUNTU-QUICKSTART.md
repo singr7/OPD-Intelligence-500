@@ -11,6 +11,58 @@ CPU-only Docker images locally, tags them with the full commit SHA, and deploys
 those retained images through the existing migration, health, writer, TLS, and
 rollback controls.
 
+## 0. Where the cloud box is right now
+
+**This section is the ledger. Update it at the end of every AWS deploy** — it is
+the only place that records what `https://opd-cloud.radpretation.ai` is actually
+running, and the previous SHA is what `rollback.sh` needs.
+
+| deployed (UTC) | release SHA | previous SHA | commits | migrations applied | notes |
+|---|---|---|---|---|---|
+| 2026-08-10 | `036b6f313226b100176dfe777ad21b07fc32b1f6` | `3e5dd8f9f872a803d5ef412ec54a6272787d65c5` | 68 | 6 | SESSION-AYUR-2. First cloud deploy carrying the ayurveda module (docs/24), MRD, clinical notes, the research assistant and the allergy log. |
+
+The six migrations in that jump — `efb79a43afb3`, `02571a5c1871`, `9f2ab41c77d3`,
+`8ef31aa60c55`, `4ce8cb36a165`, `28e0ff23658b` — are all additive, with server
+defaults and no backfill. `deploy.sh` applies them itself; there is no separate
+migration step on this path.
+
+Whatever this table says, the box is the authority. Confirm before you deploy:
+
+```bash
+sudo cat /opt/opd/runtime/releases/current-sha
+curl -fsS http://127.0.0.1:18080/environment | python3 -m json.tool
+```
+
+### Which checkout is live — read the symlink, never assume the path
+
+`/opt/opd/current` is a **symlink to a checkout**, and the host has accumulated
+more than one: `/opt/opd/source/repo` and `/opt/opd/source/repo-new` both exist,
+at different commits. Every other document in this repo hard-codes
+`/opt/opd/source/repo`, and on 2026-08-10 that was the **stale** one — the live
+checkout was `repo-new`. Running `git fetch` in the wrong directory produces
+`fatal: Invalid revision range`, which looks like a missing commit and is not.
+
+So derive the path instead of typing it:
+
+```bash
+export SRC="$(readlink -f /opt/opd/current)"
+git -C "$SRC" rev-parse HEAD                       # must equal current-sha
+git -C "$SRC" remote get-url origin                # singr7/OPD-Intelligence-500.git
+```
+
+`$SRC` is then the only directory you touch. If `rev-parse HEAD` does **not**
+match `current-sha`, stop: the symlink and the deployed images disagree, and
+`rollback.sh` will be reading scripts from a commit that was never deployed.
+
+Two related traps on this host:
+
+- **Do not delete the other checkout.** It is the rollback checkout until the new
+  release is verified. Likewise never `docker image prune -a` here — `rollback.sh`
+  refuses if the previous release's local image tags are gone.
+- **The origin is `OPD-Intelligence-500.git`**, even though the working copy on a
+  developer machine may be a directory named `OPD-Intelligence-Alwar`. The remote
+  on the box is correct as-is; do not "fix" it.
+
 ## 1. Preconditions
 
 Confirm:

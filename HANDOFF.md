@@ -11,6 +11,18 @@ only, and `make deploy` still does not run migrations.
 
 The ANDROID1/CLOUD1/VOICE1 external-release gate is unchanged and still open.
 
+**The AWS box was deployed to this commit on 2026-08-10** — `036b6f31`, up from
+`3e5dd8f9`, 68 commits and six migrations, which `deploy/aws/deploy.sh` applies
+itself. **docs/18 §0 is now the deploy ledger**: update that table at the end of
+every AWS deploy, and read it before one, because the previous SHA it records is
+`rollback.sh`'s argument. It also documents the trap that cost time this
+time — `/opt/opd/current` is a **symlink** and the host carries two checkouts
+(`repo` and `repo-new`); the live one was `repo-new` while docs 19/20 hard-coded
+`repo`, so `git fetch` in the wrong directory reported `fatal: Invalid revision
+range` and looked like a missing commit. Derive it with
+`export SRC="$(readlink -f /opt/opd/current)"`. Omen is a different box and its
+nine pending migrations are unchanged.
+
 **Where the build stands.** AYUR-0 stored a system of medicine, AYUR-1 made the
 hospital configurable, and AYUR-2 gave the ayurveda department **something to ask
 and a way to be reached**. Five trees (37 nodes, 14 red flags, four languages),
