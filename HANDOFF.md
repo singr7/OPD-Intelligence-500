@@ -1,6 +1,6 @@
 # HANDOFF — after SESSION-AYUR-2
 
-**Repo state:** branch `main`, last commit `f570bb1`. `make test` green, exit 0 —
+**Repo state:** branch `main`, session close `036b6f3` (pushed to `origin/main`). `make test` green, exit 0 —
 backend **1,899** (was 1,822), voice-gw 25, conformance **135** (was 115),
 typecheck, lint, android.
 
