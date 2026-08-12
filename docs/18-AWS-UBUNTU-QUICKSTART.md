@@ -27,6 +27,10 @@ Newest first. The six migrations in the `036b6f31` jump — `efb79a43afb3`, `025
 defaults and no backfill. `deploy.sh` applies them itself; there is no separate
 migration step on this path. `8fd588a` is code only.
 
+`deploy.sh` also **seeds reference data on a writer box** (§5), added
+2026-08-12 after doc 24's `AYUR` department turned out to be absent from a box
+whose images and migrations were both correct.
+
 If that kiosk has a printer attached, the three build args wired in `8fd588a`
 have to be exported **before** `build-local-release.sh` — Next inlines
 `NEXT_PUBLIC_*` at build time, so they cannot be set afterwards:
@@ -201,6 +205,33 @@ curl -fsS http://127.0.0.1:18080/health
 curl -fsS http://127.0.0.1:18080/environment | python3 -m json.tool
 curl -fsS http://127.0.0.1:13000/api/health
 ```
+
+### `deploy.sh` loads reference data — but only on a writer
+
+Since 2026-08-12 the last thing `deploy.sh` does is
+`python -m app.seed --patients 0`, and **on a read-only standby it is skipped**,
+which is why the command above still leaves this box clean. Seeding a standby
+would make it a second writer (doc 17). The reference data arrives when the box
+is promoted and the next deploy runs with `OPD_WRITER_ENABLED=1`.
+
+This step exists because a migration adds a *column* and only the seed adds a
+*row*. `4ce8cb36a165` gave `departments` its `care_system` column in the
+`036b6f31` deploy; doc 24's `AYUR` department itself was still missing from the
+console's Facility tab on 2026-08-12, because nothing on this path had ever run
+the seed. There was no error to find — the deploy, the images and the migration
+were all correct.
+
+It is safe on every subsequent deploy: `_console_owned` in `app/seed.py` creates
+what is missing and never overwrites a row an administrator can edit, so a
+department closed from the console stays closed. Trees seed as drafts and are
+not published, because publishing asserts a clinical review this script cannot
+make. `--patients 0` is load-bearing — the default generates 50 fake patients,
+and patients are exempt from the never-overwrite rule.
+
+The seed runs after the health checks and after `current-sha` is written, so a
+failed seed costs reference data and an exit code, never an outage. If it does
+fail, the release is still correctly recorded and re-running `deploy.sh` at the
+same SHA is the fix.
 
 The environment response must say `environment_id: aws` and return the deployed
 full SHA. Verify PostgreSQL remains read-only:

@@ -143,6 +143,39 @@ docker compose exec api alembic current                  # expect efb79a43afb3
 OBJECT_STORE=filesystem
 OBJECT_STORE_DIR=/data/records
 MRD_ENABLED=true
+MRD_EXTRACT_TIMEOUT_SECONDS=60
+```
+
+### How long one extraction may take, and why it is not 10 seconds
+
+Every provider call inherits `Provider.timeout_seconds = 10.0`, which is sized
+for a text completion. A vision call over a dozen scanned pages is a different
+kind of request, and on **2026-08-12 the AWS box proved it**: every extraction
+timed out at 10s, five consecutive failures opened the circuit breaker, and the
+document surfaced `could not be read by the model: all providers exhausted` —
+a vendor-outage message for a vendor that was healthy and answering
+`/v1/models` in 1.3 seconds. The error named the wrong culprit, which is most of
+why it took a session to find.
+
+`MRD_EXTRACT_TIMEOUT_SECONDS` overrides that ceiling for the extraction call
+only. The summary call keeps the 10s default: it is prose about numbers already
+extracted, with no images attached.
+
+> ⚠️ **Do not raise this past ~90.** One document's whole attempt chain has to
+> finish inside `mrd.CLAIM_TIMEOUT` (5 minutes), or a second worker treats the
+> document as abandoned and re-claims it while the first is still reading —
+> two vision calls, one answer, and a per-page vendor billed twice. With the
+> defaults: `3 × 60s` extract + `3 × 10s` summarise + backoff ≈ 211s against a
+> 300s window. `test_mrd_pipeline` asserts that arithmetic so a later edit to any
+> one of those knobs cannot quietly cross the line.
+
+If extraction still times out at 60s, check egress before raising it further —
+a box with no route to the vendor fails identically:
+
+```bash
+docker compose exec api sh -c '
+  curl -sS -o /dev/null -w "%{http_code} in %{time_total}s\n" --max-time 60 \
+    https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"'
 ```
 
 `MRD_ENABLED=false` is a real, safe operating mode and worth knowing: pages are

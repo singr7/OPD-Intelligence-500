@@ -87,6 +87,24 @@ class LLMRequest:
     # history is text, because re-sending a 4-page report on every turn of a
     # conversation is how a document pipeline gets expensive by accident.
     images: Sequence[ImagePart] = ()
+    # Wall-clock ceiling for **this** call, overriding `Provider.timeout_seconds`.
+    #
+    # The class default is 10s, sized for a text completion against an HTTP
+    # vendor API. A vision call over a dozen scanned pages is a different kind of
+    # request and routinely exceeds it: on 2026-08-12 every MRD extraction on the
+    # AWS box timed out at 10s, five in a row tripped the circuit breaker, and
+    # the document reported "could not be read by the model" — a vendor-outage
+    # message for a vendor that was healthy and answering in 1.3s.
+    #
+    # Per-request rather than a wider class default because the ceiling is a
+    # property of the *call*, not the vendor: raising it globally would also give
+    # a kiosk turn 60 seconds to answer a patient standing at a screen.
+    #
+    # Bounded by `mrd.CLAIM_TIMEOUT`, not by taste — see the note on
+    # `Settings.mrd_extract_timeout_seconds`. Applies to both the wire read and
+    # the surrounding attempt ceiling; setting only one leaves the shorter of the
+    # two in charge.
+    timeout_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +159,10 @@ class LLMProvider(Provider):
                 f"{self.name} ({self.model}) cannot read images; {len(request.images)} attached"
             )
         return await self._invoke(
-            purpose, lambda call: self._complete(request, call), model=self.model
+            purpose,
+            lambda call: self._complete(request, call),
+            model=self.model,
+            timeout=request.timeout_seconds,
         )
 
     @abstractmethod
@@ -492,6 +513,11 @@ class GeminiFlashProvider(LLMProvider):
                 f"/models/{self.model}:generateContent",
                 json=self._payload(request),
                 headers={"x-goog-api-key": self._api_key},
+                # As in OpenAIProvider: the per-request ceiling has to reach the
+                # socket, or the client's own 10s read timeout stays in charge.
+                # Gemini Flash is the documented vision provider for doc 21, so
+                # this path is as load-bearing as the OpenAI one.
+                timeout=request.timeout_seconds or self.timeout_seconds,
             )
         except httpx.HTTPError as exc:
             raise ProviderUnavailable(f"gemini transport error: {exc}") from exc
@@ -612,6 +638,11 @@ class OpenAIProvider(LLMProvider):
                 "/chat/completions",
                 json=self._payload(request),
                 headers=self._auth_headers(),
+                # The client was built with the class default. Without this the
+                # socket read still expires at 10s and `LLMRequest.timeout_seconds`
+                # buys nothing — the outer `asyncio.wait_for` would simply never
+                # be the thing that fired.
+                timeout=request.timeout_seconds or self.timeout_seconds,
             )
         except httpx.HTTPError as exc:
             raise ProviderUnavailable(f"{self.name} transport error: {exc}") from exc

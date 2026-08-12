@@ -27,9 +27,10 @@ from app.mrd.pipeline import (
     retry_document,
     start_document,
 )
+from app.providers.base import Provider
 from app.providers.llm import FakeLLMProvider, FakeLLMScript
 from app.providers.objectstore import FakeObjectStore
-from app.providers.resilience import ProviderUnavailable, UnsupportedCapability
+from app.providers.resilience import ProviderUnavailable, RetryPolicy, UnsupportedCapability
 from tests import factories as f
 
 JPEG = b"\xff\xd8\xff\xe0scanned-page-bytes"
@@ -484,3 +485,60 @@ async def _usage_rows(session: AsyncSession):
 
     result = await session.execute(select(UsageEvent))
     return list(result.scalars())
+
+
+# -- how long the vision call may take -----------------------------------------
+
+
+async def test_the_vision_call_gets_the_long_ceiling_and_the_summary_keeps_the_short_one(
+    session, patient, store, llm, mrd_settings
+):
+    """Extraction is a vision call over pages; the summary is prose about numbers
+    already extracted. Only the first needs more than the 10s class default, and
+    giving both the long one would put a document's worst case past
+    CLAIM_TIMEOUT — see the test below.
+    """
+    document = await _captured(session, patient, store, pages=3)
+    llm.queue(*_extract_then_summary())
+
+    await process_document(session, document, store=store, providers=[llm], settings=mrd_settings)
+
+    extract_call, summary_call = llm.calls
+    assert extract_call.timeout_seconds == mrd_settings.mrd_extract_timeout_seconds
+    assert summary_call.timeout_seconds is None
+
+
+def test_one_documents_attempt_chain_fits_inside_the_claim_timeout():
+    """**The bound on `mrd_extract_timeout_seconds`, asserted rather than
+    described.**
+
+    A document still in `extracting` after CLAIM_TIMEOUT is treated as abandoned
+    by a dead worker and re-claimed. If one worker's full attempt chain can
+    outlast that window, a second worker starts the same document while the first
+    is still running — two vision calls, one answer, a per-page vendor billed
+    twice, and both racing to write the same extraction row.
+
+    Every term here is a knob somebody may later raise in isolation, which is
+    exactly why the relationship is a test and not a comment.
+    """
+    settings = Settings(env="test", object_store="fake")
+    # `RetryPolicy` is a slots dataclass, so the defaults live on an instance.
+    policy = RetryPolicy()
+
+    extract = settings.mrd_extract_timeout_seconds * policy.attempts
+    summarise = Provider.timeout_seconds * policy.attempts
+    backoff = policy.max_delay_seconds * policy.attempts * 2
+
+    assert extract + summarise + backoff < CLAIM_TIMEOUT.total_seconds(), (
+        f"an extraction chain can run {extract + summarise + backoff:.0f}s, past the "
+        f"{CLAIM_TIMEOUT.total_seconds():.0f}s claim window — a second worker would "
+        "re-claim a document that is still being read"
+    )
+
+
+def test_the_long_ceiling_is_not_the_global_default():
+    """The document path is the exception, not the new normal. A kiosk turn has a
+    patient standing in front of it, and inheriting a 60s ceiling would let one
+    hung vendor call hold that screen for a minute."""
+    assert Provider.timeout_seconds == 10.0
+    assert Settings(env="test").mrd_extract_timeout_seconds > Provider.timeout_seconds

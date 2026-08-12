@@ -130,4 +130,43 @@ if grep -Eqi 'nvidia|cuda|vllm|whisper|local[_-]?tts' "$SCRIPT_DIR/compose.yml";
   echo "GPU or local-model reference leaked into AWS Compose" >&2
   exit 1
 fi
+
+# --- reference data reaches the box on every deploy --------------------------
+# A migration adds a *column*; only the seed adds a *row*. Doc 24's AYUR
+# department shipped in 8fd588a and never appeared in the console, because this
+# path applied `4ce8cb36a165` and then had no step that could load the
+# department the column exists for. Nothing errored — which is why it needs a
+# test rather than a docs line.
+grep -q 'python -m app.seed' "$SCRIPT_DIR/deploy.sh"
+
+# `--patients 0` is load-bearing on a live box: the seed defaults to generating
+# 50 fake patients, and patients are deliberately exempt from its
+# never-overwrite rule (app/seed.py).
+grep -q 'app.seed --patients 0' "$SCRIPT_DIR/deploy.sh"
+
+# Publishing a tree asserts a clinical review happened. A deploy script is not
+# entitled to make that claim (doc 03 §3).
+if grep -q -- '--publish-trees' "$SCRIPT_DIR/deploy.sh"; then
+  echo "deploy.sh must not publish trees: publishing is a clinical act (doc 03 §3)" >&2
+  exit 1
+fi
+
+seed_line="$(grep -n 'python -m app.seed' "$SCRIPT_DIR/deploy.sh" | head -n1 | cut -d: -f1)"
+sha_line="$(grep -n 'current-sha' "$SCRIPT_DIR/deploy.sh" | tail -n1 | cut -d: -f1)"
+
+# Writer boxes only. Seeding a standby would make it a second writer, which
+# doc 17 forbids outright — the two databases are never simultaneous writers.
+if ! sed -n "$((seed_line - 1))p" "$SCRIPT_DIR/deploy.sh" | grep -q 'OPD_WRITER_ENABLED'; then
+  echo "deploy.sh must seed only when this box is the writer (doc 17)" >&2
+  exit 1
+fi
+
+# The release is recorded *before* the seed runs, so a failed seed costs
+# reference data and an exit code — never an outage, and never a set of
+# deployed images that `current-sha` and `rollback.sh` cannot account for.
+if [[ -z "$sha_line" || -z "$seed_line" || "$sha_line" -ge "$seed_line" ]]; then
+  echo "deploy.sh must record current-sha before seeding" >&2
+  exit 1
+fi
+
 echo "AWS deployment contract: ok"

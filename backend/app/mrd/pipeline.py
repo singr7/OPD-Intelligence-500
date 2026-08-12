@@ -263,6 +263,10 @@ async def process_document(
         temperature=EXTRACT_TEMPERATURE,
         max_tokens=EXTRACT_MAX_TOKENS,
         images=images,
+        # The one call in this system that is a vision request over many pages,
+        # and the only one that needs more than the 10s class default. Bounded
+        # by CLAIM_TIMEOUT — see `Settings.mrd_extract_timeout_seconds`.
+        timeout_seconds=settings.mrd_extract_timeout_seconds,
     )
 
     try:

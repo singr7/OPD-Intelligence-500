@@ -786,3 +786,80 @@ async def test_unsupported_capability_falls_through_to_a_vision_provider(meter):
     result = await with_fallback([text_only, vision], lambda provider: provider.complete(request))
 
     assert result.text == "read it"
+
+
+# -- how long a vision call is allowed to take (doc 22 §4) ---------------------
+
+
+async def test_a_requests_ceiling_reaches_the_socket_not_just_the_wrapper(meter):
+    """The bug that made every MRD extraction fail on the AWS box on 2026-08-12.
+
+    `_invoke` wraps each attempt in `asyncio.wait_for`, but the httpx client is
+    built with the 10s class default, so the socket read expires first and a
+    longer outer ceiling buys nothing. The timeout has to be handed to httpx on
+    the request itself — which is what this asserts, at the transport, rather
+    than trusting that passing it along was enough.
+    """
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 900, "completion_tokens": 40},
+            },
+        )
+    )
+    llm = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
+
+    await llm.complete(
+        LLMRequest(
+            prompt="Extract the values",
+            images=[ImagePart(data=b"\xff\xd8jpeg")],
+            timeout_seconds=60.0,
+        )
+    )
+
+    assert seen[0].extensions["timeout"]["read"] == 60.0
+
+
+async def test_gemini_carries_the_same_ceiling_to_its_own_socket(meter):
+    """Gemini Flash is doc 21's documented vision provider, so the fix is only
+    half a fix if it lands on OpenAI alone."""
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+                "usageMetadata": {"promptTokenCount": 900, "candidatesTokenCount": 40},
+            },
+        )
+    )
+    llm = GeminiFlashProvider(
+        api_key="k", client=_client(handler, base_url=GeminiFlashProvider.BASE_URL)
+    )
+
+    await llm.complete(
+        LLMRequest(prompt="Extract", images=[ImagePart(data=b"page")], timeout_seconds=45.0)
+    )
+
+    assert seen[0].extensions["timeout"]["read"] == 45.0
+
+
+async def test_an_ordinary_completion_keeps_the_short_default(meter):
+    """A patient is standing at the kiosk while this one runs. The document
+    path's ceiling must not leak into every other call — the timeout is a
+    property of the request, not of the vendor."""
+    seen, handler = _captures(
+        httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 2},
+            },
+        )
+    )
+    llm = OpenAIProvider(api_key="k", client=_client(handler, base_url=OpenAIProvider.BASE_URL))
+
+    await llm.complete(LLMRequest(prompt="which department?"))
+
+    assert seen[0].extensions["timeout"]["read"] == OpenAIProvider.timeout_seconds == 10.0

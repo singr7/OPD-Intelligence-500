@@ -269,6 +269,29 @@ class Settings(BaseSettings):
     # How many times the sweep retries a failed extraction before it stops and
     # waits for a human. A vendor outage should not cost the daily budget.
     mrd_max_extract_attempts: int = 3
+    # Wall-clock ceiling for one extraction attempt, overriding the provider
+    # class default of 10s (`Provider.timeout_seconds`).
+    #
+    # 10s is sized for a text completion. A vision call over a dozen scanned
+    # pages is not one, and on 2026-08-12 every extraction on the AWS box timed
+    # out there — five in a row opened the circuit breaker, and the document
+    # reported "could not be read by the model" while the vendor was healthy and
+    # answering `/v1/models` in 1.3s. The failure named the wrong culprit, which
+    # is most of why it was slow to find.
+    #
+    # **The ceiling on this number is `mrd.CLAIM_TIMEOUT`, not preference.** A
+    # document sitting in `extracting` longer than that is treated as abandoned
+    # by a dead worker and re-claimed, so one attempt chain must finish inside
+    # it. `RetryPolicy.attempts` is 3 and the summary call that follows still
+    # uses the 10s default:
+    #
+    #     3 × 60s (extract) + 3 × 10s (summarise) + backoff ≈ 211s < 300s
+    #
+    # Raising this past ~90s re-opens that race, and two workers extracting the
+    # same document means paying a per-page vendor twice for one answer.
+    # `test_mrd_pipeline` asserts the arithmetic so a later edit cannot quietly
+    # cross the line.
+    mrd_extract_timeout_seconds: float = 60.0
 
     # -- research assistant (SESSION-M5, plan §4) --
     research_enabled: bool = True
