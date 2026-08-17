@@ -9,7 +9,107 @@ api **18080**, web **13000**, postgres **15432**.
 
 ---
 
-## 0. The one-paragraph version
+## 0. Standing facts about this box
+
+Four things are true of omen regardless of which release you are installing.
+They are here because each one used to be assumed the other way round, and each
+assumption made an upgrade more delicate than it needed to be.
+
+### 0.1 Omen carries no real patient data
+
+**Operator decision, 2026-08-17.** Everything in omen's database is seed and test
+data. It is therefore acceptable — and often the fastest path — to **rebuild the
+database and re-seed it** rather than preserve it across an upgrade.
+
+What this changes:
+
+- `make seed` is **allowed** on this box, not forbidden. Doc 20 §3's "do not run
+  `make seed` or `make slots` on Omen" was written when the box was treated as
+  holding pilot data; it no longer applies. Since AYUR-1 the loader's
+  `_console_owned` rule never overwrites a row an administrator can edit, so a
+  re-seed adds what is missing and leaves console edits alone.
+- A **failed migration is not a crisis.** Restore the checkpoint dump, or drop
+  and recreate the schema, whichever is quicker.
+- `omen-rollback.sh --with-db` carries **no data-loss argument against it here.**
+  §8's warning about discarding real intakes is about a box with patients on it.
+  It stays in this document because it will be true again the day omen takes a
+  real patient — but today, use it freely.
+
+**The day this stops being true, delete this subsection.** A box that quietly
+acquires real data while a document says it has none is worse than one that never
+said anything.
+
+### 0.2 Omen is a hybrid: local models, with a cloud model for vision only
+
+**Operator decision, 2026-08-17.** Omen no longer runs pure-local AI. The intake
+routing and summaries stay on the GPU; **the MRD extraction call goes to a cloud
+vision model.**
+
+This needs **no code change and no per-feature provider setting** — it is the
+existing fallback chain doing what it was built for:
+
+```
+LLM_PROVIDER=local_vllm          # unchanged: routing, summaries, research stay on the 4090
+LLM_FALLBACK_PROVIDER=gemini     # or openai
+GEMINI_API_KEY=<key>
+```
+
+The mechanism, worth understanding before you change it: `LLMProvider.
+supports_images` is `False` on the local vLLM, and `complete()` **refuses** a
+request carrying images rather than stripping them and answering anyway
+(`app/providers/llm.py`). The refusal is `UnsupportedCapability`, which subclasses
+`ProviderUnavailable` — so `with_fallback` treats it as an outage of that one
+provider and **walks to the next link in the chain**. MRD's extraction is the only
+call in the system that attaches images, so it is the only call that falls
+through. Every text call is answered by the GPU and never reaches the vendor.
+
+Consequences to accept deliberately:
+
+- **Scanned patient records leave the box.** That is the whole point of the
+  decision, but it is a change in the privacy posture doc 10 opens by claiming
+  ("zero cloud AI"). Doc 10 §1 is now wrong for omen; read this subsection as the
+  correction.
+- **The fallback is a real fallback, for text too.** If the GPU dies or vLLM
+  crash-loops, text completions now silently succeed against the cloud instead of
+  failing. Usually what you want; check `usage_events` rather than assuming the
+  GPU is healthy because the kiosk works.
+- **Gemini Flash is the documented vision provider** for doc 21 (see
+  `registry.py`'s Gemini→OpenAI pairing). Prefer it over OpenAI unless there is a
+  reason.
+- `MRD_EXTRACT_TIMEOUT_SECONDS=60` matters here. At the 10s class default every
+  extraction on the AWS box failed and five in a row opened the circuit breaker,
+  while the vendor was healthy and answering in 1.3s.
+
+### 0.3 There is no ledger of what omen runs — so make one
+
+Doc 18 §0 records the cloud box's deployed SHA and is the reason a rollback there
+has an argument to pass. Nothing records omen's. Until the table below has rows,
+**the box is the only authority**, and step one of any upgrade is:
+
+```bash
+cd ~/projects/opd
+git rev-parse HEAD                     # ← the previous SHA a rollback needs
+docker compose exec -T postgres psql -U opd -d opd -tAc "select version_num from alembic_version"
+```
+
+**Update this table at the end of every omen deploy.**
+
+| deployed (UTC) | release SHA | previous SHA | commits | alembic head after | notes |
+|---|---|---|---|---|---|
+| _(no deploy recorded — the rows above this line start here)_ | | | | | |
+
+As of 2026-08-17 omen's alembic revision is believed to be **`a4d5e6f7b801`**,
+inferred from the nine-pending-migration list in HANDOFF and confirmed by
+`c6e3681f5ce1.down_revision`. Believed, not known: verify on the box.
+
+### 0.4 Never `docker compose down`
+
+It removes the `opd_default` network and disconnects `opd-vllm` / `opd-stt`
+(doc 10 §2). `docker compose up -d` is the only thing you need.
+
+---
+
+## 0.5 The one-paragraph version
 
 The kiosk is what must not break. Everything in S-GL.1 and S-GL.2 is **additive** —
 two new database tables, two new admin tabs, no change to the kiosk, queue, board
@@ -17,10 +117,6 @@ or doctor path — so the risk is not the features, it is the *rebuild*: the web
 container that serves the kiosk gets replaced. So: checkpoint, **build before you
 switch**, migrate, verify, and keep a rollback that is a retag rather than a
 rebuild.
-
-**Never `docker compose down` on this box.** It removes the `opd_default` network
-and disconnects `opd-vllm` / `opd-stt` (doc 10 §2). `docker compose up -d` is the
-only thing you need.
 
 ---
 
@@ -264,13 +360,18 @@ That restores the **code** (checks out the checkpointed commit) and the
 **images** (retags the saved ones, no rebuild), then `docker compose up -d`.
 Takes under a minute.
 
-**It deliberately does not restore the database**, and you should not ask it to.
-The S-GL.1 migration only *adds* two tables; the old code never looks at them, so
-it runs against the migrated schema perfectly happily. Restoring the dump would
-throw away every intake, token and consult note recorded since the checkpoint —
-a far worse outcome than the one you are rolling back from.
+**It deliberately does not restore the database**, and by default you should not
+ask it to — every migration this repo ships is additive, so the old code runs
+against the migrated schema perfectly happily, and a restore is simply
+unnecessary work.
 
-Only if the *data* itself is wrong:
+> **The paragraph that used to be here no longer applies to omen.** It argued
+> that restoring the dump would throw away real intakes, tokens and consult
+> notes. Per §0.1 this box holds no real data, so `--with-db` costs nothing and
+> is a legitimate first move if anything about the database looks wrong.
+> **Restore this warning to full force the day omen sees a real patient.**
+
+If the *data* is wrong — or you simply want a clean slate:
 
 ```bash
 ./deploy/omen-rollback.sh <stamp> --with-db     # asks you to type RESTORE

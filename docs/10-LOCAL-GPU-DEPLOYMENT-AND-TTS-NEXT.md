@@ -6,6 +6,13 @@ Kiosk voice-in (Whisper) and department routing / summaries (Qwen3) run on the
 GPU; **zero cloud AI**. TTS (read-aloud) is still the browser's local voice — the
 next session makes it a natural, branded **Dhara** voice on-box.
 
+> **"Zero cloud AI" was superseded on 2026-08-17.** Omen is now a **hybrid**: the
+> MRD document-extraction call — the only call in the system that attaches images
+> — falls through to a cloud vision model, because the local vLLM refuses image
+> requests rather than answering from pages it never saw. Everything else still
+> runs on the GPU. One env line, no code change; the mechanism and its
+> consequences are **doc 13 §0.2**.
+
 Public URL: `https://opd.radpretation.ai` (kiosk `/kiosk`, board `/board`,
 coordinator `/coordinator`), fronted by the box's existing **nginx** (TLS) →
 web `:13000`, api `:18080` under `/api/` (prefix stripped). See §5.

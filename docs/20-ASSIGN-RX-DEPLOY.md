@@ -239,8 +239,10 @@ docker compose exec -it api python -m scripts.set_kiosk_pin \
 Use the real coordinator's phone number, not the seeded one, if the pilot has its
 own staff row. `--clear` and `--unlock` are the forgot-it and locked-out paths.
 
-Do **not** run `make seed` or `make slots` on Omen: no tree version changed and
-the box has its own data.
+~~Do **not** run `make seed` or `make slots` on Omen: no tree version changed and
+the box has its own data.~~ **Superseded 2026-08-17 (doc 13 §0.1):** omen holds
+no real patient data, so seeding and re-seeding it is allowed. Since AYUR-1 the
+loader never overwrites a console-editable row anyway.
 
 ### Rollback
 
