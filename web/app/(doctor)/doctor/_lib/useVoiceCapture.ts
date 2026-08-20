@@ -189,7 +189,13 @@ export function useVoiceCapture({
         onTranscript(text.trim());
       };
       rec.onerror = () => onError("Live transcription stopped — the recording is still running.");
-      rec.onend = () => setRecording(false);
+      // Deliberately NOT `setRecording(false)`. Web Speech ends on its own — on
+      // error, and spontaneously after a pause even with `continuous = true` —
+      // while the MediaRecorder below is still capturing. Letting the recogniser's
+      // lifecycle drive the recording state flipped the button to "stopped" mid
+      // dictation, directly contradicting the message above it, and lost the
+      // doctor the rest of the note. `stop()` owns this state; the recorder is
+      // the recording.
       speechRef.current = rec;
       rec.start();
     }
