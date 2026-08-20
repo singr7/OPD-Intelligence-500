@@ -149,6 +149,10 @@ export function KioskApp() {
   const [allergyAsking, setAllergyAsking] = useState<"choice" | "which">("choice");
   const [allergyText, setAllergyText] = useState("");
   const [readback, setReadback] = useState("");
+  /** The doctor-facing intake summary (doc 03 §4). Printed as the pass's
+   *  highlight above the answers, and only where there is room left after
+   *  every answer has been placed — see `layoutPass`. */
+  const [summaryMd, setSummaryMd] = useState<string | null>(null);
   const [token, setToken] = useState<ConfirmResult | null>(null);
 
   const [speaking, setSpeaking] = useState(false);
@@ -428,6 +432,7 @@ export function KioskApp() {
     withBusy(async () => {
       const res = await flow.finish(sid);
       setReadback(res.readback);
+      setSummaryMd(res.summary_md);
       setRedFlags(res.red_flags);
       setScreen("readback");
     });
@@ -840,6 +845,7 @@ export function KioskApp() {
           token={token}
           details={details}
           complaint={complaint}
+          summary={summaryMd}
           answers={summaryAnswers}
           // The strip talks to the server about *this* session. An offline
           // intake has no server session to settle against, which is the
@@ -1854,6 +1860,7 @@ function TokenScreen({
   token,
   details,
   complaint,
+  summary,
   answers,
   sessionId,
   onDone,
@@ -1867,6 +1874,9 @@ function TokenScreen({
   token: ConfirmResult;
   details: PatientDetails;
   complaint: string;
+  /** The doctor-facing summary, or null on an offline intake (no model ran) or
+   *  when the summarizer was unavailable. Null simply prints no highlight. */
+  summary: string | null;
   answers: SummaryAnswer[];
   /** Null when there is no server session to settle — an offline intake. */
   sessionId: string | null;
@@ -1919,6 +1929,7 @@ function TokenScreen({
           urgent: token.red_flags.length > 0,
           lang,
           complaint,
+          summary,
           answers,
           sexLabels: {
             male: t("sexMale", lang),
@@ -1929,7 +1940,7 @@ function TokenScreen({
         geometry,
         canvasMeasure()
       ),
-    [token, details, complaint, answers, lang, hospital, issuedAt, geometry]
+    [token, details, complaint, summary, answers, lang, hospital, issuedAt, geometry]
   );
 
   // Rasterise as soon as the pass is on screen, so pressing Print is one local

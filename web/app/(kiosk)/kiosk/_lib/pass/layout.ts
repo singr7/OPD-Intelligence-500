@@ -90,6 +90,10 @@ export type PassData = {
   urgent: boolean;
   lang: KioskLang;
   complaint: string;
+  /** The doctor-facing intake summary (doc 03 §4), markdown as the summarizer
+   *  wrote it. Optional on purpose: an offline intake never ran a model, and a
+   *  pass with no highlight is a complete pass. */
+  summary?: string | null;
   answers: PassAnswer[];
   /** Localised `male|female|other`, passed in so this file stays free of the
    *  kiosk's `T` table and the layout stays a pure function of its input. */
@@ -110,6 +114,34 @@ const HEADLINE_ROLES: SummaryRole[] = [
  *  mid-answer (§5.2). Two lines is the point where one talkative answer starts
  *  costing another answer its place on the pass. */
 const MAX_ANSWER_LINES = 2;
+
+/** The highlight never takes more of the pass than this, even on an intake with
+ *  room to spare. It is an orientation line for whoever picks the paper up, not
+ *  the record — the record is the answers below it, and the doctor's own copy of
+ *  this summary is on screen and is not truncated. */
+const MAX_SUMMARY_LINES = 4;
+
+/** The summarizer writes markdown (doc 03 §4); a thermal head prints glyphs.
+ *
+ *  Deliberately a flattener and not a renderer: heading levels, emphasis and
+ *  bullets carry no meaning once every line is the same 3.2mm weight, and a
+ *  half-implemented markdown renderer on a 72mm print head is how a `**` ends up
+ *  on a patient's paper. Newlines collapse to spaces because the highlight is
+ *  budgeted in whole lines and a hard break would spend one on nothing.
+ */
+function plainText(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}[-*+]\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/(?<!\w)[*_]([^*_]+)[*_](?!\w)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export function layoutPass(
   data: PassData,
@@ -384,7 +416,10 @@ export function layoutPass(
   // What is left, in whole lines. Everything below counts against this budget
   // and nothing may exceed it — the assertion at the end of this function is
   // what makes that a fact rather than an intention.
-  const budget = Math.max(0, Math.floor((bandBottom - cursor - cells.padMm) / ramp.bodyLine));
+  const bandBudget = Math.max(
+    0,
+    Math.floor((bandBottom - cursor - cells.padMm) / ramp.bodyLine)
+  );
   const ordered = orderAnswers(data.answers);
   const wrapped = ordered.map((answer) =>
     wrapLine(
@@ -398,6 +433,53 @@ export function layoutPass(
   );
 
   const total = wrapped.reduce((sum, lines) => sum + lines.length, 0);
+
+  // -- the highlight ---------------------------------------------------------
+  //
+  // The summary is printed *above* the answers and budgeted *after* them. That
+  // asymmetry is the whole rule: the pass is exactly `lengthMm` long (geometry.ts
+  // — "the pass is exactly this long, always"), so every line the highlight takes
+  // is a line an answer cannot have. An answer is the patient's own words and the
+  // record of what she was asked; the highlight is a convenience the doctor
+  // already has on screen. So the highlight gets only what is genuinely spare
+  // once every answer is placed, is capped even then, and disappears entirely on
+  // a long intake rather than pushing one question onto a "+ N more" line.
+  //
+  // One line is held back for the gap that separates the two.
+  const spare = bandBudget - total;
+  // Flattened first, then tested: markdown that is only structure ("##", "---")
+  // flattens to nothing, and `wrapLine` would spend a line printing it.
+  const highlight = data.summary ? plainText(data.summary) : "";
+  const summaryLines =
+    highlight && spare >= 2
+      ? wrapLine(
+          highlight,
+          inner,
+          ramp.body,
+          "normal",
+          Math.min(MAX_SUMMARY_LINES, spare - 1),
+          measure
+        )
+      : [];
+
+  summaryLines.forEach((line) => {
+    cursor += ramp.bodyLine;
+    out.push({
+      kind: "text",
+      band: "summary",
+      x: left,
+      y: cursor,
+      size: ramp.body,
+      weight: "normal",
+      align: "left",
+      text: line,
+    });
+  });
+  if (summaryLines.length > 0) cursor += ramp.bodyLine;
+
+  // `summaryLines.length <= spare - 1`, so this still leaves room for every
+  // answer. The assertion at the end of this function is what proves it.
+  const budget = Math.max(0, bandBudget - summaryLines.length - (summaryLines.length ? 1 : 0));
   const placed: string[] = [];
   let printedItems = 0;
   if (total <= budget) {
