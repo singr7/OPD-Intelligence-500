@@ -539,24 +539,28 @@ export const T = {
   // The one clinical question the kiosk asks outside a department's tree, so the
   // wording lives here rather than in tree content. Two rules shape all of it:
   //
-  //  * **It never uses the word "allergy" alone.** Half the patients at this
-  //    site would not name a drug reaction as an "एलर्जी"; they would say a
-  //    medicine "did not suit" them, or that they came out in a rash. So the
-  //    question is asked the way it gets answered.
+  //  * **It asks about allergy explicitly** (operator decision, 2026-08-20).
+  //    It used to avoid the word entirely — "does any medicine disagree with
+  //    you?" — on the grounds that half the patients here would not name a drug
+  //    reaction as an "एलर्जी". In use that read as a vague question about side
+  //    effects and confused more people than the indirection caught. The
+  //    recognition aid moved into `allergyHelp`, which still names the "did not
+  //    suit me" phrasing, so a patient who does not use the word can see what is
+  //    being asked. The kiosk asks *whether*; the doctor asks *what*.
   //  * **"I don't know" is an offered answer, not a dead end.** A patient forced
   //    to choose between yes and no about her own drug history will guess, and a
   //    guessed "no" is the answer that reaches a prescribing doctor as a fact.
   allergyTitle: {
-    hi: "क्या कोई दवा आपको नुक़सान करती है?",
-    en: "Does any medicine disagree with you?",
-    mr: "कोणतं औषध तुम्हाला त्रास देतं का?",
-    te: "ఏదైనా మందు మీకు పడదా?",
+    hi: "क्या आपको किसी एलर्जी की जानकारी है?",
+    en: "Are you aware of any allergies?",
+    mr: "तुम्हाला कोणत्या ऍलर्जीची माहिती आहे का?",
+    te: "మీకు ఏవైనా అలర్జీలు ఉన్నట్టు తెలుసా?",
   } as Str,
   allergyHelp: {
-    hi: "जैसे — कोई दवा खाने पर चकत्ते, सूजन, साँस लेने में तकलीफ़।",
-    en: "For example — a rash, swelling, or trouble breathing after a medicine.",
-    mr: "उदाहरणार्थ — औषध घेतल्यावर पुरळ, सूज किंवा श्वास घ्यायला त्रास.",
-    te: "ఉదాహరణకు — మందు వాడిన తర్వాత దద్దుర్లు, వాపు లేదా ఊపిరి ఇబ్బంది.",
+    hi: "जैसे — कोई दवा खाने पर चकत्ते, सूजन, साँस लेने में तकलीफ़, या कोई दवा जो आपको रास न आई हो।",
+    en: "For example — a rash, swelling, or trouble breathing after a medicine, or a medicine that did not suit you.",
+    mr: "उदाहरणार्थ — औषध घेतल्यावर पुरळ, सूज, श्वास घ्यायला त्रास, किंवा न मानवलेलं औषध.",
+    te: "ఉదాహరణకు — మందు వాడిన తర్వాత దద్దుర్లు, వాపు, ఊపిరి ఇబ్బంది, లేదా మీకు పడని మందు.",
   } as Str,
   allergyYes: {
     hi: "हाँ, है",
@@ -708,9 +712,14 @@ export const T2 = {
   // not* anything matched, which is the point. The kiosk is a public terminal;
   // a line that appears only on a hit tells whoever is standing behind the
   // patient that this hospital has a file on them. See app/assignment.py.
+  //
+  // The wording deliberately makes no claim about a file. It used to read "we
+  // may already have your file", which kept the privacy property above but
+  // landed as an assertion — and was wrong for every first-time patient, who is
+  // most of them. Confirming "your details" is true either way.
   arrivalAck: {
-    hi: "धन्यवाद — शायद आपकी फ़ाइल हमारे पास पहले से है। हमारे कर्मचारी अभी इसकी पुष्टि करेंगे।",
-    en: "Thank you — we may already have your file. Our staff will confirm it in a moment.",
+    hi: "धन्यवाद — हमारे कर्मचारी अभी आपका विवरण देख लेंगे।",
+    en: "Thank you — our staff will confirm your details in a moment.",
   } as Bi,
   keypadDelete: {
     hi: "मिटाएँ",
