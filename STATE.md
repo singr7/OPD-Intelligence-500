@@ -6,6 +6,40 @@ local gates are green. Production signing custody, public Omen/AWS hosting, and 
 physical-tablet acceptance matrix remain external release gates. CLOUD1 also remains
 unprovisioned, so the combined release must not be described as live.
 
+**Built (SESSION-AYUR-3/4):** The doctor console **reads the capability flags**,
+and doc 24 §6's "derive, don't fork" is now a property rather than a plan. There
+is no ayurveda route group and no second console: `Console` widens the flags off
+the day payload **once** and passes booleans down, so `PatientCard` hides the
+cycle trend, `DictationPanel` drops the regimen lines and gains the assessment
+and pathya–apathya fields, and `WorkTabs` names AYUSH instead of NCCN. The
+oncology console is unchanged, and that is asserted rather than asserted-to-be:
+the `dictation` (8) and `doctor` (12) E2E suites pass **untouched**, beside a new
+`ayurveda` suite (5) that walks a consult from worklist to prescription.
+
+Under it, three things changed shape. **The formulary is one book with two
+shelves** — `get_formulary(scope=...)` returns *one system of medicine's*
+formulary, so the fuzzy neighbour search cannot offer a cytotoxic as a
+did-you-mean in an ayurveda consult by construction rather than by filtering;
+89 classical and proprietary preparations were seeded onto the new shelf.
+**Prompts have packs** — `load_packed("summarize", "ayurveda")` finds
+`summarize_ayurveda` if it exists and the base prompt if it does not, which is
+right for `routing` and `mrd_extract` and enforced-wrong for the three doc 24
+§6.4 names by a test. **The note record gained two structured fields** —
+prakriti/vikriti/agni/koshtha/nidana, and pathya–apathya — on the existing
+record, with the existing edit trail and signature, printed on the clinical copy
+and (pathya only) on the patient's.
+
+Every one of these is derived **from the visit's own department row**, never from
+the request: a client that could choose its formulary scope could have an
+ayurveda consult validated against 189 cytotoxics. `checkin_protocols` is the
+sharpest of the eight — it stops `draft_from_dictation` before it reaches a bank
+of six chemo regimen families, because a chemotherapy-shaped follow-up put in
+front of a doctor who prescribed none is worse than no follow-up. The formulary
+entries and the three prompts are **model-drafted and UNREVIEWED**; doc 24 §9's
+BAMS sign-off is still a launch gate. Gates: backend **1,947**, voice-gw 25,
+conformance 135, typecheck, lint, android; screenshots `web/screenshots/ayur3/`.
+**No migration.**
+
 **Built (SESSION-AYUR-2):** The ayurveda department got **something to ask and a
 way to be reached** (doc 24 §5). Five trees in `seeds/trees/` — routing,
 digestion (pachan/agni), joint pain (sandhi-shool), lifestyle/prameha and
@@ -1169,11 +1203,11 @@ the only gate right now.**
   (SESSION-AYUR-1), even on a Marathi or Telugu page. Per-language headers need a
   `print_sheets` signature change; every language renders on one page under one
   header today.
-- **Three ayurveda capability flags are strings nothing reads yet** (doc 24 §6):
-  `formulary_scope` (`validate_meds` is untouched — scoping is AYUR-3),
-  `guideline_pack` and `prompt_pack` (no prompt dispatch site consults them —
-  AYUR-3/AYUR-4). They are derived correctly and delivered on the payloads; no
-  behaviour hangs off them yet.
+- **Every ayurveda capability flag now has a consumer** (SESSION-AYUR-3). What
+  remains unread is content, not code: `research_assist` has **no canned fake
+  reply in either pack**, so the Research tab answers "ok" on
+  `LLM_PROVIDER=fake` for oncology and ayurveda alike. Left symmetric on
+  purpose rather than giving the new system a better demo than the old one.
 - **No printer has ever printed a boarding pass** (SESSION-PASS, doc 23 §11).
   The pass is rasterised end-to-end in a real browser and the `pass-ui` suite
   asserts 115,206 bytes of correctly-framed ESC/POS reaching a bridge — but the

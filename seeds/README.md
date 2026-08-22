@@ -9,12 +9,32 @@ data change, and so the admin console (S18) can read and write the same files.
 
 | File | What |
 |---|---|
-| `hospital.json` | The pilot hospital + its departments (doc 03 §3). |
+| `hospital.json` | The pilot hospital + its departments (doc 03 §3), each with its `care_system` (doc 24 §3). |
 | `doctors.json` | Seed doctors and their login users. |
+| `formulary.json` | What a dictated drug name is checked against — **two shelves**, see below. |
 
 Patients are **generated**, not listed: 50 fake patients from a fixed Faker seed
 (`--patients N` to change the count). Fixed seed ⇒ the same 50 patients, with
 the same MRNs, on every machine — so a bug reproduces from a session log.
+
+### `formulary.json` has two shelves
+
+Each entry carries a `scope` — a system of medicine — and an entry with no
+`scope` is `allopathy`, which is why the 189 oncology generics were not re-tagged
+by hand when the field was added. `get_formulary(scope=...)` loads **one** shelf,
+so a department's `capabilities.formulary_scope` decides which preparations may
+be called known, in both directions: an ayurvedic churna is not flagged during an
+ayurveda consult, and a cytotoxic is not dictatable in one.
+
+A `scope` that is not a system of medicine **raises** rather than being filed
+somewhere nobody searches — where it would read as "not in formulary" forever,
+which on screen looks exactly like a doctor mis-dictating a name.
+
+The 89 `scope: ayurveda` entries are **model-drafted and UNREVIEWED**, as the
+file's own `_comment_ayurveda` says. A BAMS practitioner must review them before
+the module is enabled for real patients — the same gate the ayurveda trees and
+the oncology tree bank sit behind (doc 24 §9). `scope` is a filing decision, not
+a clinical claim: nothing in this file is a dose, an indication or an anupana.
 
 ## Idempotency
 

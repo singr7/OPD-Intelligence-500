@@ -143,6 +143,27 @@ network acceptance remain. The check-in protocol bank requires oncologist review
   booking.
 - Downgrade degrades capability; it never denies care or reports a fake success.
 - A missing provider must produce a visible unavailable/degraded state.
+- A department's system of medicine is stored once (`Department.care_system`),
+  derived once per side (`app/care_system.py`, `web/app/_lib/careSystem.ts`), and
+  consumed everywhere as named capability flags. No module outside those two
+  names a `CareSystem` member; two tests enforce it. Adding Unani must stay one
+  enum value, one capabilities row, and content.
+- Capabilities are derived from the visit's own department row, never accepted
+  from a request. They select the formulary shelf and the prompt pack, and a
+  client that could choose either could have an ayurveda consult validated
+  against the oncology book.
+- Red flags stay deterministic and stay allopathic. An ayurveda tree uses the
+  same rule engine, and a fired flag routes to urgent staffed care exactly as
+  before. A wellness framing never softens an emergency.
+- Formulary discipline is symmetric. A preparation is known only on its own
+  shelf, in both directions, and a fuzzy neighbour is never offered across
+  shelves — an ayurvedic name is not scored against 189 cytotoxics.
+- Dosha language is presentation and record, never triage. Prakriti, vikriti,
+  agni, koshtha and nidana are typed by the doctor; no model writes them, and
+  the prompts refuse to infer one.
+- All ayurveda content — trees, formulary entries, prompt packs, and any
+  patient-facing mr/te text — ships model-drafted and UNREVIEWED, and says so in
+  its own file. BAMS sign-off is a launch gate, not a code gate.
 
 ## Omen Operating Facts
 

@@ -62,3 +62,13 @@ web/playwright-report/
 android/.kotlin/
 android/app/release/
 android/release/
+
+# VaidyaSetu product material — lives in the private `vaidyasetu` repo, never here.
+# This repository is PUBLIC. `docs/vaidyasetu/portal-src/portal-inner.html` is the
+# plaintext of the investor deck that `03-INVESTOR-PORTAL.html` encrypts, so
+# committing it here would publish the thing the password gate exists to protect
+# and make the gate decorative. The build plan carries pricing and acquisition
+# strategy and is treated the same way. Both are kept on disk and tracked in the
+# fork (doc 26 §1).
+docs/vaidyasetu/
+docs/26-VAIDYASETU-BUILD-PLAN.md
