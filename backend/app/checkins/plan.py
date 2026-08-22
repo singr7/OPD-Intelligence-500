@@ -50,6 +50,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import facility
 from app.checkins import protocols as protocol_bank
 from app.checkins.store import resolve_bank
 from app.checkins.window import send_time_on
@@ -416,6 +417,21 @@ async def draft_from_dictation(
     returns it rather than drafting a second.
     """
     settings = settings or get_settings()
+
+    # doc 24 §6: `checkin_protocols` is the flag, and this is where it bites.
+    # The bank is six *chemo regimen* families — "how are you on day 3 after
+    # cycle 2" — and doc 24 puts panchakarma follow-up explicitly out of scope.
+    # Drafting from it for an ayurveda consult would not merely be empty: it
+    # would put a chemotherapy-shaped follow-up in front of a doctor who never
+    # prescribed chemotherapy, and every one of those questions is addressed to
+    # a patient who is not having it.
+    #
+    # Checked before the idempotency read, so a department switched to ayurveda
+    # stops drafting immediately rather than on the next empty bank lookup.
+    caps = await facility.capabilities_for_visit(session, dictation.visit_id)
+    if not caps.checkin_protocols:
+        return None
+
     existing = await session.scalar(
         select(CheckinPlan).where(
             CheckinPlan.dictation_id == dictation.id, CheckinPlan.deleted_at.is_(None)

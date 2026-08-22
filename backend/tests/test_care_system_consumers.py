@@ -418,3 +418,45 @@ def test_meds_are_still_replaced_wholesale_not_merged() -> None:
     source = inspect.getsource(apply_corrections)
     assert 'patch.get("assessment")' in source
     assert 'patch.get("meds")' not in source
+
+
+async def test_an_ayurveda_consult_drafts_no_chemo_follow_up(session: AsyncSession) -> None:
+    """`checkin_protocols` is false for ayurveda, and this is where it bites.
+
+    The bank is six chemo regimen families — "how are you on day 3 after cycle
+    2" — and doc 24 puts panchakarma follow-up explicitly out of scope. Drafting
+    from it here would not be merely empty: it would put a chemotherapy-shaped
+    follow-up in front of a doctor who never prescribed chemotherapy, addressed
+    to a patient who is not having it.
+
+    Asserted on the stored rows as well as the return value, because "drafted
+    nothing" and "drafted a plan and failed to return it" look identical from
+    the caller — and `draft_from_dictation` deliberately never raises.
+    """
+    from sqlalchemy import select
+
+    from app import dictation as dic
+    from app.checkins import plan as checkin_plan
+    from app.models.content import CheckinPlan
+    from app.models.enums import CareSystem
+    from app.models.org import Department
+
+    clinic, visit = await _clinic_with_visit(session)
+    dictation = await dic.start(session, visit_id=visit.id, doctor=clinic["doctor"], transcript="")
+    dictation = await dic.compose(session, dictation=dictation, doctor=clinic["doctor"])
+
+    department = await session.get(Department, visit.department_id)
+    assert department is not None
+    department.care_system = CareSystem.AYURVEDA
+    await session.flush()
+
+    drafted = await checkin_plan.draft_from_dictation(
+        session, dictation=dictation, doctor=clinic["doctor"]
+    )
+    assert drafted is None
+    stored = (
+        (await session.execute(select(CheckinPlan).where(CheckinPlan.dictation_id == dictation.id)))
+        .scalars()
+        .all()
+    )
+    assert stored == []
