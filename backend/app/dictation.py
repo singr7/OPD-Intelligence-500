@@ -67,11 +67,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import formulary as formulary_mod
+from app.care_system import DEFAULT_CAPABILITIES, CareSystemCapabilities
 from app.models.clinical import Dictation, Intake, Visit
 from app.models.enums import DictationStatus, UsagePurpose
 from app.models.org import Doctor
 from app.models.patient import Patient
-from app.prompts import load
+from app.prompts import load_packed
 from app.providers import LLMProvider, LLMRequest, ProviderError, with_fallback
 
 logger = logging.getLogger(__name__)
@@ -412,10 +413,21 @@ class DictationMapper:
     """
 
     def __init__(
-        self, providers: Sequence[LLMProvider], *, prompt_version: int | None = PROMPT_VERSION
+        self,
+        providers: Sequence[LLMProvider],
+        *,
+        prompt_version: int | None = PROMPT_VERSION,
+        capabilities: CareSystemCapabilities | None = None,
     ):
         self._providers = list(providers)
-        self._prompt = load("dictation_map", prompt_version)
+        # The department's system of medicine decides two things here and nothing
+        # else: which register the prompt is written in, and which shelf of the
+        # formulary a dictated name is checked against (doc 24 §6.3, §6.4).
+        # Defaulted rather than required so a caller with no department in
+        # hand — a script, a test written before doc 24 — gets exactly today's
+        # behaviour; the route derives it from the visit.
+        self._caps = capabilities or DEFAULT_CAPABILITIES
+        self._prompt = load_packed("dictation_map", self._caps.prompt_pack, prompt_version)
 
     async def map(self, transcript: str, *, patient: str, context: str) -> MapResult:
         """One transcript → validated structured fields. Raises `MappingUnavailable`."""
@@ -424,7 +436,7 @@ class DictationMapper:
 
         rendered = self._prompt.render(
             transcript=transcript,
-            formulary_hint=formulary_mod.get_formulary().prompt_hint(),
+            formulary_hint=formulary_mod.get_formulary().prompt_hint(self._caps.formulary_scope),
             patient=patient,
             context=context,
         )
@@ -446,7 +458,11 @@ class DictationMapper:
         except ProviderError as exc:
             raise MappingUnavailable(str(exc)) from exc
 
-        mapping = validate_meds(DictationMapping.parse(result.json()), transcript=transcript)
+        mapping = validate_meds(
+            DictationMapping.parse(result.json()),
+            transcript=transcript,
+            scope=self._caps.formulary_scope,
+        )
         return MapResult(mapping=mapping, model=result.model, prompt_ref=self._prompt.ref)
 
 
@@ -603,6 +619,7 @@ async def apply_corrections(
     dictation: Dictation,
     doctor: Doctor,
     patch: Mapping[str, Any],
+    capabilities: CareSystemCapabilities | None = None,
 ) -> Dictation:
     """The doctor's "tap to fix" (doc 03 §7).
 
@@ -611,6 +628,12 @@ async def apply_corrections(
     corruption. Every accepted patch is re-validated against the formulary, so a
     doctor typing a drug name gets the same verdict the model's output got — and
     the same refusal to be helpfully corrected.
+
+    "The same verdict" is why `capabilities` is here: the mapping was validated
+    against the department's formulary shelf, so a correction validated against a
+    different one would flag a preparation the model was allowed to write, and
+    the doctor would be looking at a flag that appeared because they touched the
+    field. The route derives it from the visit, the same as the mapping did.
     """
     _assert_unsigned(dictation)
     structured = dict(dictation.structured or empty_structured())
@@ -632,6 +655,7 @@ async def apply_corrections(
         # client sets: a note with no transcript cannot have been mapped, because
         # `map_transcript` refuses an empty one.
         check_unsaid=bool(transcript.strip()),
+        scope=(capabilities or DEFAULT_CAPABILITIES).formulary_scope,
     ).to_dict()
 
     edits = list(structured.get("edits") or [])

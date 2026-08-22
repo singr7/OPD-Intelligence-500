@@ -58,6 +58,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import allergies as allergy_svc
 from app import assignment as assignment_svc
 from app import facility
+from app import facility as facility_svc
 from app import kiosk as kiosk_svc
 from app import offline as offline_svc
 from app import queue as queue_svc
@@ -313,6 +314,10 @@ async def start(
         # already pruned to these, and every later turn reloads the tree from
         # the bank and must prune it the same way.
         open_departments=sorted(await tree_store.active_department_codes(session)),
+        # The register the intake summary is written in, pinned for the walk's
+        # life like the line above (doc 24 §6.4). From the tree's department, not
+        # from the request.
+        care_system=await facility_svc.care_system_of_department(session, routed.tree.department),
     )
 
     dispatcher = engine.dispatcher(state, routed.tree)

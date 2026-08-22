@@ -34,6 +34,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol
 
+from app.care_system import DEFAULT_CARE_SYSTEM
 from app.models.enums import Channel, IntakeTier, Lang
 from app.prompts.tools import TOOL_CONTRACT_VERSION
 from app.providers.profiles import VoiceProfileSnapshot
@@ -70,6 +71,16 @@ class SessionState:
     active_tier: IntakeTier
 
     department: str | None = None
+    #: The system of medicine `department` practises, resolved once when the walk
+    #: starts and pinned for its life — the same reasoning as `open_departments`
+    #: and `contract_version` below. It selects the register the intake summary
+    #: is written in (doc 24 §6.4) and nothing else: traversal, red flags and
+    #: routing never read it, because those are deterministic and must stay
+    #: identical in both systems.
+    #:
+    #: Stored as the plain string rather than the enum, because this state is
+    #: JSON in Redis; `capabilities_for` takes either.
+    care_system: str = str(DEFAULT_CARE_SYSTEM)
     intake_id: uuid.UUID | None = None
     visit_id: uuid.UUID | None = None
     #: Pinned at session start; a session that began on one tool contract keeps it
@@ -157,6 +168,7 @@ class SessionState:
             "configured_tier": str(self.configured_tier),
             "active_tier": str(self.active_tier),
             "department": self.department,
+            "care_system": self.care_system,
             "intake_id": str(self.intake_id) if self.intake_id else None,
             "visit_id": str(self.visit_id) if self.visit_id else None,
             "contract_version": self.contract_version,
@@ -190,7 +202,11 @@ class SessionState:
             tree_version=int(data["tree_version"]),
             configured_tier=IntakeTier(data["configured_tier"]),
             active_tier=IntakeTier(data["active_tier"]),
+            # A session opened before doc 24 has no such key, and its department
+            # genuinely is allopathy — the same reading `care_system_of(None)`
+            # takes. An in-flight intake must survive the deploy that adds this.
             department=data.get("department"),
+            care_system=data.get("care_system") or str(DEFAULT_CARE_SYSTEM),
             intake_id=as_uuid(data.get("intake_id")),
             visit_id=as_uuid(data.get("visit_id")),
             contract_version=data.get("contract_version", TOOL_CONTRACT_VERSION),

@@ -63,9 +63,10 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.care_system import DEFAULT_CAPABILITIES, CareSystemCapabilities
 from app.models.clinical import ResearchThread, ResearchTurn
 from app.models.enums import UsagePurpose
-from app.prompts import load
+from app.prompts import load_packed
 from app.providers import LLMProvider, LLMRequest, ProviderError, with_fallback
 from app.research.context import ResearchContext
 
@@ -119,10 +120,21 @@ class Assistant:
     """
 
     def __init__(
-        self, providers: Sequence[LLMProvider], *, prompt_version: int | None = PROMPT_VERSION
+        self,
+        providers: Sequence[LLMProvider],
+        *,
+        prompt_version: int | None = PROMPT_VERSION,
+        capabilities: CareSystemCapabilities | None = None,
     ):
         self._providers = list(providers)
-        self._prompt = load("research_assist", prompt_version)
+        # Framing only (doc 24 §6.4): the pack changes which literature the
+        # assistant is asked to reason from and cite, and nothing about what it
+        # is allowed to say. Every refusal in the base prompt — doses, urgency,
+        # a diagnosis this patient was not given, certainty it does not have —
+        # is repeated verbatim in every pack, because those are properties of
+        # the tool rather than of a system of medicine.
+        caps = capabilities or DEFAULT_CAPABILITIES
+        self._prompt = load_packed("research_assist", caps.prompt_pack, prompt_version)
 
     async def ask(
         self, question: str, *, context: str, history: Sequence[tuple[str, str]] = ()

@@ -851,10 +851,17 @@ def test_the_prompt_refuses_dosing_and_urgency_in_words() -> None:
 
 def test_the_prompt_version_is_pinned_not_latest() -> None:
     """A prompt edit must not quietly change the register of answers a doctor
-    has been reading all week."""
+    has been reading all week.
+
+    SESSION-AYUR-3 changed the call this asserts on, from `load` to
+    `load_packed`, because doc 24 §6.4 gives the assistant one prompt per system
+    of medicine. The property under test is unchanged and is still the point:
+    `prompt_version` is threaded through, so the pin holds — what must never
+    appear here is a call that omits it and takes whatever version is newest.
+    """
     source = Path(assist.__file__).read_text(encoding="utf-8")
     assert "PROMPT_VERSION = 1" in source
-    assert 'load("research_assist", prompt_version)' in source
+    assert 'load_packed("research_assist", caps.prompt_pack, prompt_version)' in source
 
 
 def test_sex_is_carried_but_never_a_missing_one_invented() -> None:

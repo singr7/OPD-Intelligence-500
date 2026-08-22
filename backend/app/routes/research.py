@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import doctor as doctor_svc
+from app import facility as facility_svc
 from app.auth.rbac import Principal, require_doctor
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -271,7 +272,12 @@ async def ask(
         depth=settings.research_history_turns,
     )
 
-    assistant = assist.Assistant(llm_chain(settings))
+    assistant = assist.Assistant(
+        llm_chain(settings),
+        # From the visit's department, like the dictation mapper's. Framing only —
+        # see `Assistant.__init__`; the refusals do not vary by pack.
+        capabilities=await facility_svc.capabilities_for_visit(session, visit_id),
+    )
     try:
         # Attributed to the visit, like the note mapper's: the S18 dashboard
         # wants this rupee amount next to the consult it belongs to.

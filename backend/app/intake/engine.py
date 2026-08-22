@@ -45,6 +45,7 @@ from typing import Any, Protocol, runtime_checkable
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.care_system import capabilities_for, care_system_of
 from app.intake import voicepack as voicepack_mod
 from app.intake.dispatch import ToolDispatcher
 from app.intake.interpret import Interpreter, LLMInterpreter
@@ -247,6 +248,7 @@ class IntakeEngine:
         chief_complaint_en: str | None = None,
         voice_profile: VoiceProfileSnapshot | None = None,
         open_departments: list[str] | None = None,
+        care_system: str | None = None,
     ) -> SessionState:
         """Open an intake and persist it. Active tier respects the cost guard from
         the first turn — a channel already over budget starts on the cheaper tier
@@ -263,6 +265,10 @@ class IntakeEngine:
             tree_key=tree.key,
             tree_version=tree.version,
             department=tree.department,
+            # Pinned here, resolved by the caller which has the session — see
+            # `SessionState.care_system`. `None` from a caller that predates doc
+            # 24 (or has no department) is allopathy, which is today's behaviour.
+            care_system=str(care_system_of(care_system)),
             intake_id=intake_id,
             visit_id=visit_id,
             configured_tier=configured_tier,
@@ -315,7 +321,16 @@ class IntakeEngine:
         chain = self._llm_chain(state)
         if not _has_real_llm(chain):
             return template
-        return _ResilientSummarizer(LLMSummarizer(chain), template)
+        return _ResilientSummarizer(
+            # The register the summary is written in, from the department whose
+            # doctor will read it (doc 24 §6.4). The *template* summarizer is
+            # deliberately not packed: it renders the questions and the patient's
+            # own answers with no prose of its own, so there is nothing in it
+            # written in either system's voice — and it is the offline tier, which
+            # must stay identical everywhere.
+            LLMSummarizer(chain, pack=capabilities_for(state.care_system).prompt_pack),
+            template,
+        )
 
     # -- the run loop ---------------------------------------------------------
 

@@ -35,7 +35,7 @@ from typing import Any, Protocol
 from app.intake.state import SessionState
 from app.languages import script_problem
 from app.models.enums import Lang, UsagePurpose
-from app.prompts import load
+from app.prompts import BASE_PACK, load_packed
 from app.providers import LLMProvider, LLMRequest, with_fallback
 from app.trees.schema import NodeType, SummaryRole, Tree
 from app.trees.walker import RedFlagHit, Walk
@@ -292,9 +292,17 @@ def _value_text(node, value: Any, lang: Lang | str) -> str:
 class LLMSummarizer:
     """V1/V2 path — the `summarize` prompt on the LLM chain (Gemini Flash → OpenAI)."""
 
-    def __init__(self, providers: Sequence[LLMProvider], *, prompt_version: int | None = None):
+    def __init__(
+        self,
+        providers: Sequence[LLMProvider],
+        *,
+        prompt_version: int | None = None,
+        pack: str = BASE_PACK,
+    ):
         self._providers = list(providers)
-        self._prompt = load("summarize", prompt_version)
+        # Which system of medicine's register this summary is written in (doc 24
+        # §6.4). Defaulted so every caller predating doc 24 gets today's prompt.
+        self._prompt = load_packed("summarize", pack, prompt_version)
 
     async def summarize(self, state: SessionState, tree: Tree, walk: Walk) -> IntakeSummary:
         flags = walk.red_flags()

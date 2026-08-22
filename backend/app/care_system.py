@@ -39,6 +39,8 @@ from app.models.enums import CareSystem
 
 __all__ = [
     "CAPABILITIES",
+    "DEFAULT_CAPABILITIES",
+    "DEFAULT_CARE_SYSTEM",
     "FLAG_LABELS",
     "CareSystemCapabilities",
     "CareSystemError",
@@ -185,6 +187,23 @@ def differences(
         for field in dc_fields(CareSystemCapabilities)
         if getattr(before, field.name) != getattr(after, field.name)
     )
+
+
+#: What a caller with no department in hand gets.
+#:
+#: Exists so that "today's behaviour, bit-for-bit" can be *named* by a service
+#: which must not name the enum — a `DictationMapper` built by a script, a
+#: summarizer for a tree with no department of its own. Writing
+#: `capabilities_for(CareSystem.ALLOPATHY)` at those sites would spell the same
+#: thing and cost the property doc 24 §2 asks for: `tests/test_care_system.py`
+#: fails the moment a module outside this one names a member, because that is the
+#: first step of the erosion it guards against, whether or not the line is a
+#: branch today.
+DEFAULT_CARE_SYSTEM: CareSystem = CareSystem.ALLOPATHY
+
+#: `capabilities_for(DEFAULT_CARE_SYSTEM)`, resolved once. The default argument
+#: for every service that takes capabilities and can be called without them.
+DEFAULT_CAPABILITIES: CareSystemCapabilities = CAPABILITIES[DEFAULT_CARE_SYSTEM]
 
 
 def care_system_of(value: CareSystem | str | None) -> CareSystem:

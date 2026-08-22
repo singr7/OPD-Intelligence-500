@@ -62,13 +62,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import record_admin_action
 from app.care_system import (
+    DEFAULT_CARE_SYSTEM,
     CapabilityChange,
+    CareSystemCapabilities,
     CareSystemError,
     capabilities_for,
     care_system_of,
     differences,
 )
 from app.languages import looks_like_script
+from app.models.clinical import Visit
 from app.models.enums import AuditAction, CareSystem, Lang
 from app.models.org import Department, Doctor, Hospital
 from app.trees import store as tree_store
@@ -588,3 +591,60 @@ async def update_department(
         logger.info("department %s edited from the console: %s", row.code, changed)
     await session.flush()
     return await _describe(session, row, await _doctor_counts(session))
+
+
+async def capabilities_for_visit(
+    session: AsyncSession, visit_id: uuid.UUID
+) -> CareSystemCapabilities:
+    """What this visit's department switches on (doc 24 §6).
+
+    The one derivation every clinical path uses to answer "which system of
+    medicine is this consult?" — the formulary shelf a dictated name is checked
+    against, and the register the prompts are written in.
+
+    **Derived from the visit's own department row, never from the request.** The
+    console is told its capabilities so it knows what to draw, and a client that
+    could also *send* them would let a dictation be validated against a shelf the
+    department does not use — by a bug as easily as by anything worse. The visit
+    already knows where it is; a doctor who re-homes it re-homes this with it.
+    That is the same reasoning `apply_corrections` uses to derive `check_unsaid`
+    from the record rather than take it from the caller.
+
+    A visit whose department has been deleted out from under it raises rather
+    than defaulting: an unknown system of medicine is `CareSystemError`'s whole
+    point, and a silent allopathy default here is an ayurveda consult validated
+    against 189 cytotoxics.
+    """
+    care_system = (
+        await session.execute(
+            select(Department.care_system)
+            .join(Visit, Visit.department_id == Department.id)
+            .where(Visit.id == visit_id)
+        )
+    ).scalar_one_or_none()
+    if care_system is None:
+        raise CareSystemError(f"no department on record for visit {visit_id}")
+    return capabilities_for(care_system)
+
+
+async def care_system_of_department(session: AsyncSession, code: str | None) -> CareSystem:
+    """One department code as its system of medicine, for the intake path.
+
+    The kiosk resolves this once when a walk starts, rather than per turn, for
+    the reason `SessionState.open_departments` is pinned at start: an intake that
+    began under one configuration must finish under it. A department whose system
+    an administrator switches mid-walk would otherwise have its first three
+    answers summarised in one register and the rest in another.
+
+    A code that names no department — or no code at all, which is a tree with no
+    department of its own — is allopathy. That is not the silent-default this
+    module otherwise refuses: it is the same reading `care_system_of(None)`
+    takes, and the alternative is a kiosk that cannot open an intake because a
+    department row was renamed.
+    """
+    if not code:
+        return DEFAULT_CARE_SYSTEM
+    row = (
+        await session.execute(select(Department.care_system).where(Department.code == code))
+    ).scalar_one_or_none()
+    return care_system_of(row)

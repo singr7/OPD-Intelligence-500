@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import dictation as dictation_svc
 from app import doctor as doctor_svc
+from app import facility as facility_svc
 from app.auth.rbac import Principal, require_doctor
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -246,7 +247,14 @@ async def map_fields(
     """
     doctor = await _doctor(session, principal)
     dictation = await _load(session, dictation_id, doctor)
-    mapper = dictation_svc.DictationMapper(llm_chain(settings))
+    mapper = dictation_svc.DictationMapper(
+        llm_chain(settings),
+        # From the visit's own department, never from the request (doc 24 §6):
+        # this picks the prompt's register and the formulary shelf, and a client
+        # that could choose those could have an ayurveda consult mapped against
+        # the oncology book.
+        capabilities=await facility_svc.capabilities_for_visit(session, dictation.visit_id),
+    )
     try:
         # Attributed to the visit, not to a channel: dictation is not a patient
         # channel, and the S18 dashboard wants this rupee amount next to the
@@ -293,7 +301,11 @@ async def correct(
     dictation = await _load(session, dictation_id, doctor)
     try:
         dictation = await dictation_svc.apply_corrections(
-            session, dictation=dictation, doctor=doctor, patch=body.patch()
+            session,
+            dictation=dictation,
+            doctor=doctor,
+            patch=body.patch(),
+            capabilities=await facility_svc.capabilities_for_visit(session, dictation.visit_id),
         )
     except dictation_svc.DictationError as exc:
         raise _fail(exc) from exc

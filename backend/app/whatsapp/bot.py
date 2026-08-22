@@ -35,6 +35,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import facility as facility_svc
 from app import kiosk as kiosk_svc
 from app import prescription as rx_svc
 from app import queue as queue_svc
@@ -399,6 +400,10 @@ class WhatsAppBot:
             visit_id=visit.id,
             chief_complaint=complaint,
             open_departments=sorted(await tree_store.active_department_codes(session)),
+            # The register the intake summary is written in, pinned for the walk's
+            # life like the line above (doc 24 §6.4). From the tree's department, not
+            # from the request.
+            care_system=await facility_svc.care_system_of_department(session, tree.department),
         )
         conv.session_id = state.session_id
         conv.patient_id = patient.id

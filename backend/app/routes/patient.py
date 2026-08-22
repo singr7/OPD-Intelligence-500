@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import facility as facility_svc
 from app import kiosk as kiosk_svc
 from app import patient_app, scheduling
 from app.auth.rbac import PatientPrincipal, current_patient, require_patient_self
@@ -503,6 +504,10 @@ async def intake_start(
         visit_id=visit.id,
         chief_complaint=payload.chief_complaint,
         open_departments=sorted(await tree_store.active_department_codes(session)),
+        # The register the intake summary is written in, pinned for the walk's
+        # life like the line above (doc 24 §6.4). From the tree's department, not
+        # from the request.
+        care_system=await facility_svc.care_system_of_department(session, routed.tree.department),
     )
     dispatcher = engine.dispatcher(state, routed.tree)
     first = await dispatcher.get_next_node()
