@@ -73,6 +73,18 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      // SESSION-AYUR-3: the same console under a department whose care system is
+      // ayurveda (doc 24 §6). Live stack + `seed_ayurveda_demo`; this project
+      // *is* half the session AC — the other half is that `dictation` and
+      // `doctor` still pass untouched. Run explicitly (`npm run e2e:ayurveda`).
+      name: "ayurveda",
+      testMatch: /ayurveda-console\.spec\.ts/,
+      // Against a dev server the first compile of `/doctor` can outlast the file
+      // default on its own — the same trap `pass-ui` documents above.
+      timeout: 180_000,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // The S9 doctor console (doc 03 §4/§5). Live stack + `seed_doctor_demo`;
       // this project *is* the session AC — a doctor working a full morning.
       // Screenshots for doc 04 §5 self-critique. Run explicitly

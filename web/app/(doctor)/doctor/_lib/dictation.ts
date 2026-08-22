@@ -163,10 +163,21 @@ export async function mapFields(token: string, dictationId: string): Promise<Dic
   );
 }
 
+/** What "tap to fix" may send.
+ *
+ *  `Partial<MappedFields>` everywhere except `assessment`, which is a
+ *  **partial of a partial**: the five lines are edited one at a time and the
+ *  server merges them by key, so a commit carries only the line that changed.
+ *  Sending the whole object would spread the other four from state one round
+ *  trip old and blank whichever the doctor filled in just before this one. */
+export type NotePatch = Omit<Partial<MappedFields>, "assessment"> & {
+  assessment?: Partial<Assessment>;
+};
+
 export async function correct(
   token: string,
   dictationId: string,
-  patch: Partial<MappedFields>,
+  patch: NotePatch,
 ): Promise<Dictation> {
   return unwrap(
     await fetch(`${API_BASE}/dictation/${dictationId}`, {

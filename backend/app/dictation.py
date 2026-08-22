@@ -734,6 +734,28 @@ async def apply_corrections(
         raise DictationError(f"not editable: {sorted(unknown)}")
 
     merged = {**before, **patch}
+
+    # `assessment` is the one field merged key-by-key rather than replaced, and
+    # the exception is deliberate rather than a softening of the rule above.
+    #
+    # The rule exists for `meds`: merging `meds[2].dose` into a list the doctor
+    # just reordered is a silent corruption, because the index means something
+    # different than it did. A flat map of five independent strings has no such
+    # hazard — but it does have the opposite one. The five lines are edited as
+    # five fields and travel as one object, so a client that commits Agni while
+    # holding a copy of Prakriti from before the last round trip replaces the
+    # whole object and erases a sibling nobody touched. That is not theoretical:
+    # it is what a doctor filling the fields faster than the network does, and it
+    # is what `ayurveda-console.spec.ts` caught the first time it ran.
+    #
+    # Merging by key makes each of the five its own whole-field replacement,
+    # which is what they always were on screen.
+    if isinstance(patch.get("assessment"), Mapping):
+        existing = before.get("assessment")
+        merged["assessment"] = {
+            **(existing if isinstance(existing, Mapping) else {}),
+            **patch["assessment"],
+        }
     transcript = dictation.transcript or ""
     after = validate_meds(
         DictationMapping.parse(merged),

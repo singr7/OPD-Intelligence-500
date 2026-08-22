@@ -16,12 +16,14 @@ from __future__ import annotations
 import json
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import formulary as formulary_mod
 from app.care_system import capabilities_for
 from app.dictation import DictationMapping, MedLine, validate_meds
 from app.prompts import BASE_PACK, load_packed, packed_id
 from app.prompts.loader import PROMPTS_DIR
+from tests.test_dictation import _clinic_with_visit
 
 # -- the two shelves ----------------------------------------------------------
 
@@ -254,3 +256,165 @@ def test_the_ayurveda_demo_orders_no_treatment_cycles() -> None:
     from app.providers.llm import _CANNED_JSON
 
     assert json.loads(_CANNED_JSON["dictation_map_ayurveda"])["treatment_events"] == []
+
+
+# -- the two ayurveda note fields survive the round trip ----------------------
+
+
+def test_the_patch_contract_accepts_every_field_the_service_allows() -> None:
+    """The bug this test exists for, found by looking at a screenshot.
+
+    `PatchIn` is a Pydantic model and `apply_corrections` has its own allowlist,
+    and the two have to agree. When `assessment` and `pathya_apathya` were added
+    to the service's `_EDITABLE_TOP_LEVEL` but not to the route's model, Pydantic
+    dropped them *before* the allowlist was ever consulted — so the request
+    succeeded, the response was a valid note, and the five fields the doctor had
+    just filled in were silently gone. Nothing raised, and nothing on the screen
+    said so until the note was signed and the print showed five dashes.
+
+    Asserted as a set equality rather than by naming the two new fields, so the
+    next field added to either side fails here rather than three sessions later.
+    """
+    from app.dictation import _EDITABLE_TOP_LEVEL
+    from app.routes.dictation import PatchIn
+
+    assert set(PatchIn.model_fields) == _EDITABLE_TOP_LEVEL
+
+
+def test_an_assessment_survives_being_written_and_read_back() -> None:
+    """Round-trips through the same `parse`/`to_dict` the stored note uses."""
+    written = DictationMapping.parse(
+        {
+            "assessment": {"prakriti": "vata-pitta", "agni": "tikshna"},
+            "pathya_apathya": ["Purana chawal, moong dal", "Teekha aur tala hua band"],
+        }
+    )
+    assert written.assessment.prakriti == "vata-pitta"
+    assert written.assessment.recorded is True
+    assert len(written.pathya_apathya) == 2
+
+    reread = DictationMapping.parse(written.to_dict())
+    assert reread.assessment == written.assessment
+    assert reread.pathya_apathya == written.pathya_apathya
+
+
+def test_a_note_with_no_assessment_says_so_rather_than_looking_normal() -> None:
+    """`recorded` is what keeps an empty block off the printed prescription.
+
+    A labelled "Assessment" heading with five dashes under it, on a sheet a
+    patient carries to a pharmacy, reads as a finding of normal rather than as a
+    blank — which is why the renderer omits it entirely.
+    """
+    empty = DictationMapping.parse({})
+    assert empty.assessment.recorded is False
+    assert empty.assessment.to_dict() == {
+        "prakriti": "",
+        "vikriti": "",
+        "agni": "",
+        "koshtha": "",
+        "nidana": "",
+    }
+
+
+def test_validate_meds_does_not_erase_the_fields_it_does_not_check() -> None:
+    """It rebuilds the mapping, and a field it forgot to copy would be wiped
+    every time a doctor corrected an unrelated drug line."""
+    before = DictationMapping.parse(
+        {
+            "meds": [{"name": AYURVEDIC}],
+            "assessment": {"prakriti": "vata-pitta"},
+            "pathya_apathya": ["Chhaas ke saath"],
+        }
+    )
+    after = validate_meds(before, transcript=AYURVEDIC, scope="ayurveda")
+    assert after.assessment == before.assessment
+    assert after.pathya_apathya == before.pathya_apathya
+
+
+def test_the_printed_clinical_copy_carries_only_the_lines_the_doctor_wrote() -> None:
+    """Five labelled dashes is worse than four missing lines."""
+    from app.rx_sheets import _assessment_block
+
+    assert _assessment_block(None) == ""
+    assert _assessment_block({"prakriti": "", "agni": ""}) == ""
+
+    rendered = _assessment_block({"prakriti": "vata-pitta", "agni": "", "koshtha": "krura"})
+    assert "vata-pitta" in rendered
+    assert "krura" in rendered
+    assert "Agni" not in rendered
+
+
+def test_the_printed_assessment_escapes_what_the_doctor_typed() -> None:
+    """It is free text off a keyboard, on a page rendered as HTML."""
+    from app.rx_sheets import _assessment_block
+
+    rendered = _assessment_block({"nidana": "<script>alert(1)</script>"})
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+
+
+def test_the_response_model_returns_every_field_the_record_holds() -> None:
+    """The second half of the same bug, and the more insidious half.
+
+    A Pydantic response model is a *filter* as well as a contract. With
+    `assessment` and `pathya_apathya` allowed in by `PatchIn` but not declared on
+    `MappingOut`, the note stored them correctly and the API returned them as
+    nothing — so the doctor typed five fields, the request succeeded, the record
+    was right, and the console lost them on its next refetch. Every layer was
+    individually defensible and the note was still wrong on screen.
+
+    Pinned as set equality against the stored shape, so a field added to the
+    record fails here rather than going quietly missing over the wire.
+    """
+    from app.routes.dictation import MappingOut
+
+    assert set(MappingOut.model_fields) == set(DictationMapping().to_dict())
+
+
+async def test_two_assessment_edits_in_flight_do_not_erase_each_other(
+    session: AsyncSession,
+) -> None:
+    """A doctor filling the fields faster than the network keeps both answers.
+
+    The five assessment lines are edited as five fields and travel as one
+    object, so a client committing Agni while still holding a pre-round-trip
+    copy of Prakriti sends the whole object with Prakriti blank. Replacing would
+    erase it. `apply_corrections` merges this one field by key, so each line
+    behaves as the independent field it looks like on screen.
+
+    Written as two sequential patches each carrying only its own key, which is
+    exactly what a stale client sends.
+    """
+    from app import dictation as dic
+
+    clinic, visit = await _clinic_with_visit(session)
+    dictation = await dic.start(session, visit_id=visit.id, doctor=clinic["doctor"], transcript="")
+    dictation = await dic.compose(session, dictation=dictation, doctor=clinic["doctor"])
+
+    for patch in ({"prakriti": "vata-pitta"}, {"agni": "tikshna"}):
+        dictation = await dic.apply_corrections(
+            session,
+            dictation=dictation,
+            doctor=clinic["doctor"],
+            patch={"assessment": patch},
+        )
+
+    stored = dictation.structured["fields"]["assessment"]
+    assert stored["prakriti"] == "vata-pitta", "the second edit erased the first"
+    assert stored["agni"] == "tikshna"
+
+
+def test_meds_are_still_replaced_wholesale_not_merged() -> None:
+    """The exception above is for `assessment` alone.
+
+    Merging a `meds` patch into a list the doctor just reordered is a silent
+    corruption, because an index means something different than it did — which
+    is the reason whole-field replacement is the rule everywhere else.
+    """
+    import inspect
+
+    from app.dictation import apply_corrections
+
+    source = inspect.getsource(apply_corrections)
+    assert 'patch.get("assessment")' in source
+    assert 'patch.get("meds")' not in source

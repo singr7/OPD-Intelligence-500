@@ -15,6 +15,7 @@
     "e2e:doctor": "playwright test --project=doctor",
     "e2e:allergy": "playwright test --project=allergy",
     "e2e:dictation": "playwright test --project=dictation",
+    "e2e:ayurveda": "playwright test --project=ayurveda",
     "e2e:admin": "playwright test --project=admin",
     "e2e:channels": "playwright test --project=channels",
     "e2e:people": "playwright test --project=people",

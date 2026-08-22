@@ -588,6 +588,10 @@ export const DICTATION_CSS = `
   color: var(--ink-soft); font-weight: 700; }
 .prov-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .prov-written { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.45; }
+/* One item per line stays one item per line on a signed note (doc 24 §6.2):
+   the pathya-apathya field holds "favour these" and "avoid these" as separate
+   rules, and collapsed whitespace runs them into a single instruction. */
+.prov-written.is-lines { white-space: pre-line; }
 .prov-spoken { font-size: 14px; color: var(--ink-soft); line-height: var(--line-indic); }
 
 .dict-advice { padding-top: 4px; }

@@ -88,6 +88,17 @@ class FollowUpOut(BaseModel):
     instructions: str = ""
 
 
+class AssessmentOut(BaseModel):
+    """The doctor's ayurvedic assessment (doc 24 §6.1). Empty on every
+    allopathic note, which is why every field defaults to ""."""
+
+    prakriti: str = ""
+    vikriti: str = ""
+    agni: str = ""
+    koshtha: str = ""
+    nidana: str = ""
+
+
 class MappingOut(BaseModel):
     diagnosis: str | None = None
     treatment_events: list[TreatmentEventOut] = []
@@ -95,6 +106,12 @@ class MappingOut(BaseModel):
     advice: list[str] = []
     follow_up: FollowUpOut = FollowUpOut()
     unclear: list[str] = []
+    #: doc 24 §6.1/§6.2. A response model is a filter as well as a contract:
+    #: a field the record holds and this model does not declare is stored
+    #: correctly, returned as nothing, and therefore lost the moment the console
+    #: refetches — which is what happened the first time these two shipped.
+    assessment: AssessmentOut = AssessmentOut()
+    pathya_apathya: list[str] = []
 
 
 class EditOut(BaseModel):
@@ -137,6 +154,13 @@ class PatchIn(BaseModel):
     advice: list[str] | None = None
     follow_up: dict[str, Any] | None = None
     unclear: list[str] | None = None
+    #: doc 24 §6.1/§6.2. The only way either of these is ever written: no model
+    #: produces them, so `apply_corrections` — the doctor typing — is the whole
+    #: input path. `dictation._EDITABLE_TOP_LEVEL` allows them; without them
+    #: declared *here* too, Pydantic drops them before that check is reached and
+    #: the note saves silently minus the fields the doctor just filled in.
+    assessment: dict[str, Any] | None = None
+    pathya_apathya: list[str] | None = None
 
     def patch(self) -> dict[str, Any]:
         return self.model_dump(exclude_unset=True)

@@ -43,7 +43,7 @@
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
-import type { Assessment, Dictation, MappedFields, Med } from "../_lib/dictation";
+import type { Assessment, Dictation, MappedFields, Med, NotePatch } from "../_lib/dictation";
 import { EMPTY_ASSESSMENT } from "../_lib/dictation";
 import { RxPanel } from "./RxPanel";
 import {
@@ -86,21 +86,27 @@ type Props = {
  *  constitution, then what is wrong in *this* illness, then the digestive and
  *  bowel findings that decide the treatment, then what is driving it.
  *
- *  Labels carry the familiar English word beside the Sanskrit — doc 24 §5's tone
- *  rule, where the term appears and the everyday word does the work. The
- *  placeholders are examples rather than instructions, because the honest answer
- *  is often "vata-pitta, pitta rising" and a field that implies a single word
+ *  **The label is the term alone.** The first cut glossed each one — "Prakriti
+ *  (constitution)" — and the screenshot showed why that was wrong: this panel
+ *  lays labels in a fixed gutter, so a three-line label does not just wrap, it
+ *  widens the column for *every* field on the note, including Impression and
+ *  Advice. The reader here is a BAMS physician who does not need "koshtha"
+ *  translated; the gloss belongs on the printed clinical copy, which is read by
+ *  the file and by whoever the patient is referred on to, and which has the room.
+ *
+ *  The placeholders are examples rather than instructions, because the honest
+ *  answer is often "vata-pitta, pitta rising" and a field implying a single word
  *  would make a doctor round to one. */
 const ASSESSMENT_FIELDS: {
   key: keyof Assessment;
   label: string;
   placeholder: string;
 }[] = [
-  { key: "prakriti", label: "Prakriti (constitution)", placeholder: "e.g. vata-pitta" },
-  { key: "vikriti", label: "Vikriti (dosha involvement)", placeholder: "e.g. pitta vriddhi" },
-  { key: "agni", label: "Agni (digestion)", placeholder: "e.g. tikshna / manda / sama" },
-  { key: "koshtha", label: "Koshtha (bowel tendency)", placeholder: "e.g. krura / mridu / madhya" },
-  { key: "nidana", label: "Nidana (aggravating factors)", placeholder: "What is driving it" },
+  { key: "prakriti", label: "Prakriti", placeholder: "Constitution — e.g. vata-pitta" },
+  { key: "vikriti", label: "Vikriti", placeholder: "Dosha involvement — e.g. pitta vriddhi" },
+  { key: "agni", label: "Agni", placeholder: "Digestion — tikshna / manda / sama" },
+  { key: "koshtha", label: "Koshtha", placeholder: "Bowel tendency — krura / mridu / madhya" },
+  { key: "nidana", label: "Nidana", placeholder: "What is aggravating it" },
 ];
 
 export function DictationPanel({
@@ -217,10 +223,27 @@ export function DictationPanel({
     await run("opening", () => composeNote(token, current.id));
   }, [run, token, visitId, transcript]);
 
+  /** Corrections are saved **one at a time, in the order they were made.**
+   *
+   *  Every commit is a blur, and a doctor moving down the note blurs the next
+   *  field before the last save has answered. Fired concurrently, two PATCHes
+   *  both read the stored note before either has written it, and the second
+   *  reply overwrites the first — so the doctor watches a line they filled in
+   *  come back empty. The chain is what makes "whole-field replacement" mean
+   *  what it says: each save starts from the record the one before it produced.
+   *
+   *  A queue rather than a lock: a lock would *drop* the second edit, which is
+   *  the same lost answer arrived at more quietly. */
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
   const patch = useCallback(
-    async (next: Partial<MappedFields>) => {
+    async (next: NotePatch) => {
       if (!dictation) return;
-      await run("saving", () => correct(token, dictation.id, next));
+      const queued = saving.current.then(() =>
+        run("saving", () => correct(token, dictation.id, next)),
+      );
+      // Never let one failed save wedge the queue behind a rejected promise.
+      saving.current = queued.catch(() => undefined);
+      await queued;
     },
     [run, token, dictation],
   );
@@ -537,7 +560,15 @@ export function DictationPanel({
               because nobody spoke it, and a provenance quote under a field the
               doctor typed would be a claim about a transcript. */}
           {ayurvedaAssessment &&
-            ASSESSMENT_FIELDS.map(({ key, label, placeholder }) => (
+            ASSESSMENT_FIELDS.filter(
+              // Once signed the note is a record, so it shows what was recorded.
+              // An empty line reads as "—" next to a label, and five of those
+              // under an Assessment heading look like five findings of normal
+              // rather than a doctor who noted one thing. While the note is open
+              // every field shows, because a field you cannot see is a field you
+              // cannot fill in.
+              ({ key }) => !signed || (fields.assessment ?? EMPTY_ASSESSMENT)[key],
+            ).map(({ key, label, placeholder }) => (
               <EditableField
                 key={key}
                 label={label}
@@ -545,11 +576,13 @@ export function DictationPanel({
                 spoken=""
                 locked={signed}
                 placeholder={placeholder}
-                onCommit={(v) =>
-                  patch({
-                    assessment: { ...(fields.assessment ?? EMPTY_ASSESSMENT), [key]: v },
-                  })
-                }
+                // **Only the line that changed.** Sending the whole object —
+                // which is what this did first — spreads the other four from a
+                // copy of `fields` that is one round trip old, so saving Agni
+                // writes Prakriti back as "" and the doctor watches their own
+                // answer disappear. The server merges this field by key for
+                // exactly that reason; see `apply_corrections`.
+                onCommit={(v) => patch({ assessment: { [key]: v } })}
               />
             ))}
 
@@ -580,7 +613,7 @@ export function DictationPanel({
               `advice` lines, because it prints under its own heading on both
               copies — and because in an ayurveda consult this is half of the
               treatment, not a footnote to it. */}
-          {pathyaApathya && (
+          {pathyaApathya && !(signed && !(fields.pathya_apathya ?? []).length) && (
             <EditableField
               label="Pathya – Apathya"
               value={(fields.pathya_apathya ?? []).join("\n")}
@@ -940,7 +973,10 @@ function EditableField({
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
 
-  if (locked) return <Provenance label={label} spoken={spoken} written={value || "—"} />;
+  if (locked)
+    return (
+      <Provenance label={label} spoken={spoken} written={value || "—"} multiline={multiline} />
+    );
 
   const commit = () => draft !== value && onCommit(draft);
 
@@ -980,16 +1016,23 @@ function Provenance({
   label,
   spoken,
   written,
+  multiline,
 }: {
   label: string;
   spoken: string;
   written: string;
+  /** Keep the line breaks in `written` (doc 24 §6.2). A field holding one item
+   *  per line — the pathya-apathya rules — collapses into a single run-on
+   *  sentence once signed, so "favour these foods" and "avoid these" are read as
+   *  one instruction. Off by default, so every field that was rendering here
+   *  before renders exactly as it did. */
+  multiline?: boolean;
 }) {
   return (
     <div className="prov">
       <span className="prov-label">{label}</span>
       <div className="prov-body">
-        <span className="prov-written">{written}</span>
+        <span className={`prov-written${multiline ? " is-lines" : ""}`}>{written}</span>
         {spoken && <span className="prov-spoken">“{spoken}”</span>}
       </div>
     </div>
