@@ -363,10 +363,10 @@ def validate_meds(
     flag on the request, for the same reason `check_unsaid` is derived from the
     record below.
     """
-    book = formulary_mod.get_formulary()
+    book = formulary_mod.get_formulary(scope=scope)
     checked = []
     for med in mapping.meds:
-        verdict = book.lookup(med.name, scope=scope)
+        verdict = book.lookup(med.name)
         checked.append(
             MedLine(
                 name=med.name,  # verbatim, always
@@ -436,7 +436,9 @@ class DictationMapper:
 
         rendered = self._prompt.render(
             transcript=transcript,
-            formulary_hint=formulary_mod.get_formulary().prompt_hint(self._caps.formulary_scope),
+            formulary_hint=formulary_mod.get_formulary(
+                scope=self._caps.formulary_scope
+            ).prompt_hint(),
             patient=patient,
             context=context,
         )

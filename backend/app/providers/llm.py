@@ -308,6 +308,67 @@ _CANNED_JSON: dict[str, str] = {
             "unclear": [],
         }
     ),
+    # The same screen for an ayurveda consult (doc 24 §6.4). Keyed by the packed
+    # prompt id, which is what makes packs work here for free: `dictation_map`
+    # and `dictation_map_ayurveda` are different ids, so each gets the demo its
+    # own console needs, and neither has to know the other exists.
+    #
+    # It carries the same lesson as its oncology sibling — one preparation that
+    # is deliberately **off** the ayurveda shelf, so the demo shows the flag
+    # rather than a screen where nothing is ever questioned. `treatment_events`
+    # is empty because ayurveda treatment here is not given in numbered cycles
+    # and the console does not draw those lines for this department; a fixture
+    # that volunteered one would be teaching a shape the capability flags
+    # switch off. The advice lines are where anupana and pathya-apathya live,
+    # which is the contract the ayurveda prompt asks for.
+    "dictation_map_ayurveda": json.dumps(
+        {
+            "diagnosis": "Amlapitta (hyperacidity), pitta-predominant, 3 months",
+            "treatment_events": [],
+            "meds": [
+                {
+                    "name": "Avipattikar Churna",
+                    "dose": "3 g",
+                    "route": "PO",
+                    "freq": "BD",
+                    "duration": "14 days",
+                    "known": True,
+                    "as_spoken": "Avipattikar churna teen gram BD do hafte",
+                },
+                {
+                    "name": "Kamdudha Ras",
+                    "dose": "125 mg",
+                    "route": "PO",
+                    "freq": "BD",
+                    "duration": "14 days",
+                    "known": True,
+                    "as_spoken": "Kamdudha ras BD",
+                },
+                # Off-formulary on purpose, exactly as in the oncology fixture.
+                {
+                    "name": "Shankh Bhasma Vishesh",
+                    "dose": "250 mg",
+                    "route": "PO",
+                    "freq": "OD",
+                    "duration": "10 days",
+                    "known": True,
+                    "as_spoken": "Shankh bhasma vishesh OD",
+                },
+            ],
+            "advice": [
+                "Garam paani ke saath khane ke baad lein",
+                "Pathya: purana chawal, moong dal, lauki, tori, chhaas",
+                "Apathya: mirch-masala, khatta, dahi raat ko, chai khali pet",
+                "Raat ka khana sote se do ghante pehle",
+            ],
+            "follow_up": {
+                "when": None,
+                "as_spoken": "do hafte baad",
+                "instructions": "Review after two weeks",
+            },
+            "unclear": [],
+        }
+    ),
     # An ambient consult note (M4). Here for the reason `mrd_extract` is: without
     # it the fake answers "ok" to a strict-JSON prompt and `make dev` can only
     # ever demonstrate the mapping-failure state.

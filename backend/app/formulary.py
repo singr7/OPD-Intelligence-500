@@ -231,61 +231,51 @@ class Lookup:
 
 @dataclass(slots=True)
 class Formulary:
-    """The loaded book. Immutable in practice; rebuilt only by reloading the file."""
+    """One shelf of the book, loaded. Immutable in practice; rebuilt by reloading.
+
+    A `Formulary` is **one system of medicine's formulary**, not the whole file.
+    The file holds every shelf and `get_formulary(scope=...)` hands back the one
+    a consult is entitled to, so the index, the fuzzy neighbour search, the
+    prompt hint and `names` are all scoped by construction rather than by
+    remembering to filter. That is the point: the neighbour search walks the
+    whole index, and a shared index filtered afterwards would score a dictated
+    ayurvedic name against 189 cytotoxics and then drop the winners — the right
+    answer by luck, and one refactor away from offering them as did-you-mean.
+    """
 
     version: int
     drugs: tuple[Drug, ...]
-    #: scope -> normalised name -> (name as written in the book, its drug).
-    #:
-    #: Indexed per shelf rather than filtered at lookup time, because the fuzzy
-    #: neighbour search walks the whole index: a shared index filtered afterwards
-    #: would score a dictated ayurvedic name against every cytotoxic in the book
-    #: and then drop the winners, which is the same answer by luck rather than by
-    #: construction, and one refactor away from offering them.
-    _index: dict[str, dict[str, tuple[str, Drug]]] = field(default_factory=dict, repr=False)
+    #: normalised name -> (name as written in the book, its drug)
+    _index: dict[str, tuple[str, Drug]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if not self._index:
             for drug in self.drugs:
-                shelf = self._index.setdefault(drug.scope, {})
                 for name in drug.names:
                     key = normalise(name)
                     # First writer wins: a brand that collides with another
                     # product's normalised key keeps the earlier entry rather than
-                    # silently re-pointing it at a different generic. Per shelf, so
-                    # a collision across two systems of medicine is not a collision.
-                    shelf.setdefault(key, (name, drug))
-
-    @property
-    def scopes(self) -> tuple[str, ...]:
-        """Every shelf the loaded book has entries on, in file order."""
-        return tuple(self._index)
+                    # silently re-pointing it at a different generic.
+                    self._index.setdefault(key, (name, drug))
 
     @property
     def names(self) -> tuple[str, ...]:
         """Every dictatable name in the book, generics and brands, in file order.
 
-        Deliberately unscoped — this is the whole book, and its callers ask about
-        the file rather than about a consult. What a *doctor* may dictate is
-        `lookup(..., scope=...)`; there is no scoped variant of this because a
-        flat list of names is not a thing any clinical path should be reading.
+        This shelf's names, because a `Formulary` is one shelf — see the class
+        docstring. There is deliberately no all-shelves variant: a flat list
+        spanning two systems of medicine is not a thing any clinical path should
+        be reading.
         """
         return tuple(name for drug in self.drugs for name in drug.names)
 
-    def lookup(self, name: str, *, scope: str = DEFAULT_SCOPE) -> Lookup:
-        """Is this dictated name on this shelf? Never rewrites `name`.
-
-        `scope` defaults to allopathy so that a caller which has no department in
-        hand — a test, a script — gets exactly today's behaviour. The live path
-        never takes the default: `validate_meds` is handed the scope its
-        department's capabilities derived.
-        """
+    def lookup(self, name: str) -> Lookup:
+        """Is this dictated name on this shelf? Never rewrites `name`."""
         key = normalise(name)
         if not key:
             return Lookup(query=name, normalized=key, known=False)
 
-        shelf = self._index.get(scope, {})
-        if hit := shelf.get(key):
+        if hit := self._index.get(key):
             matched, drug = hit
             return Lookup(
                 query=name,
@@ -296,7 +286,7 @@ class Formulary:
                 drug_class=drug.drug_class,
             )
 
-        suggestions = self._neighbours(key, scope)
+        suggestions = self._neighbours(key)
         return Lookup(
             query=name,
             normalized=key,
@@ -305,9 +295,9 @@ class Formulary:
             ambiguous=len({s.generic for s in suggestions}) > 1,
         )
 
-    def _neighbours(self, key: str, scope: str) -> tuple[Suggestion, ...]:
+    def _neighbours(self, key: str) -> tuple[Suggestion, ...]:
         scored: list[Suggestion] = []
-        for indexed, (name, drug) in self._index.get(scope, {}).items():
+        for indexed, (name, drug) in self._index.items():
             score = SequenceMatcher(None, key, indexed).ratio()
             if score >= SUGGEST_THRESHOLD:
                 scored.append(Suggestion(name=name, generic=drug.generic, score=score))
@@ -317,18 +307,18 @@ class Formulary:
         scored.sort(key=lambda s: (-s.score, s.name))
         return tuple(scored[:MAX_SUGGESTIONS])
 
-    def prompt_hint(self, scope: str = DEFAULT_SCOPE) -> str:
-        """One shelf as the mapping prompt sees it — one line per generic.
+    def prompt_hint(self) -> str:
+        """This shelf as the mapping prompt sees it — one line per generic.
 
         Handed to the model for the `known` flag only; the prompt says so in
         capitals and this module overrides whatever it claims anyway. Ordering is
         file order, so the rendered prompt (and therefore the prompt cache) is
         stable across processes.
 
-        Scoped for a reason beyond tidiness: the hint is the list of names the
-        model is told exist, so an ayurveda consult whose hint carried 189
-        cytotoxics would be a transcript of "shatavari" sitting next to a prompt
-        full of plausible-looking oncology names. `validate_meds` would still
+        One shelf and not the file, for a reason beyond tidiness: the hint is the
+        list of names the model is told exist, so an ayurveda consult whose hint
+        carried 189 cytotoxics would be a transcript of "shatavari" sitting next
+        to a prompt full of plausible-looking oncology names. `validate_meds` would still
         throw the model's verdict away, but the *name it echoes back* is the one
         thing this system takes from the model verbatim.
         """
@@ -337,7 +327,6 @@ class Formulary:
             if drug.brands
             else f"{drug.generic} [{drug.drug_class}]"
             for drug in self.drugs
-            if drug.scope == scope
         )
 
 
@@ -364,30 +353,45 @@ def _scope_of(row: dict[str, Any], known: frozenset[str]) -> str:
     return scope
 
 
-def _parse(payload: dict[str, Any]) -> Formulary:
+def _parse(payload: dict[str, Any], scope: str = DEFAULT_SCOPE) -> Formulary:
+    """One shelf of the file, as a `Formulary`.
+
+    **Every** row is validated, not only the ones kept: a typo in an ayurveda
+    row must fail when the oncology book is loaded too, or it stays invisible
+    until the morning somebody opens the ayurveda OPD.
+    """
     # The shelves are exactly the systems of medicine the platform has. Derived
     # from the enum rather than listed here, so a third system cannot be added to
     # `CareSystem` and leave this file quietly rejecting its formulary.
     known = frozenset(member.value for member in CareSystem)
+    rows = [(row, _scope_of(row, known)) for row in payload.get("drugs", ())]
     drugs = tuple(
         Drug(
             generic=str(row["generic"]),
             drug_class=str(row.get("class", "other")),
             forms=tuple(str(f) for f in row.get("forms", ())),
             brands=tuple(str(b) for b in row.get("brands", ())),
-            scope=_scope_of(row, known),
+            scope=row_scope,
         )
-        for row in payload.get("drugs", ())
+        for row, row_scope in rows
+        if row_scope == scope
     )
     return Formulary(version=int(payload.get("version", 1)), drugs=drugs)
 
 
 @cache
-def get_formulary(path: Path | None = None) -> Formulary:
-    """The loaded formulary. Cached — the file is data that changes at deploy time."""
-    return _parse(json.loads((path or FORMULARY_FILE).read_text(encoding="utf-8")))
+def get_formulary(path: Path | None = None, scope: str = DEFAULT_SCOPE) -> Formulary:
+    """One system of medicine's formulary. Cached per shelf — the file is data
+    that changes at deploy time.
+
+    `scope` defaults to allopathy so a caller with no department in hand — a
+    script, a test written before doc 24 — gets exactly today's book. The live
+    paths never take the default; they pass the scope their department's
+    capabilities derived.
+    """
+    return _parse(json.loads((path or FORMULARY_FILE).read_text(encoding="utf-8")), scope)
 
 
 def lookup(name: str, *, scope: str = DEFAULT_SCOPE) -> Lookup:
-    """Convenience for the common case: look one name up in the default book."""
-    return get_formulary().lookup(name, scope=scope)
+    """Convenience for the common case: look one name up on one shelf."""
+    return get_formulary(scope=scope).lookup(name)
