@@ -205,6 +205,12 @@ async def _context(session: AsyncSession, prescription: Prescription, fallback: 
                     "follow_up": _readable_when(mapping.follow_up.when)
                     or mapping.follow_up.instructions
                     or None,
+                    # doc 24 §6.1/§6.2. Read off the signed note like everything
+                    # else here, so the sheet is a rendering of the record rather
+                    # than a second place the consult is described. Empty for
+                    # every allopathic note, and the renderer omits empty blocks.
+                    "assessment": mapping.assessment.to_dict(),
+                    "pathya_apathya": mapping.pathya_apathya,
                 }
     return _Context(
         visit=visit,
@@ -352,13 +358,20 @@ def _render_sheet(
         "diagnosis": ctx.extras.get("diagnosis"),
         "advice": tuple(ctx.extras.get("advice") or ()),
         "follow_up": ctx.extras.get("follow_up"),
+        "pathya_apathya": tuple(ctx.extras.get("pathya_apathya") or ()),
     }
     if copy == "patient":
         return (
             rx_sheets.render_patient_copy(lang=resolved_lang, **common),
             str(resolved_lang),
         )
-    return rx_sheets.render_clinical_copy(**common), str(resolved_lang)
+    # The assessment is the clinical copy's alone — prakriti and agni are the
+    # doctor's shorthand for the file, and the patient copy exists to be acted
+    # on. See `render_patient_copy`.
+    return (
+        rx_sheets.render_clinical_copy(assessment=ctx.extras.get("assessment"), **common),
+        str(resolved_lang),
+    )
 
 
 @router.post("/{prescription_id}/deliver", response_model=PrescriptionOut)

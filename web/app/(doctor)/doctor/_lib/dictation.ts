@@ -38,6 +38,20 @@ export type TreatmentEvent = {
 
 export type FollowUp = { when: string | null; as_spoken: string; instructions: string };
 
+/** The doctor's own ayurvedic assessment (doc 24 §6.1).
+ *
+ *  Five free-text lines, and every one of them is typed by the doctor: no model
+ *  writes these, the prompts are told never to infer a prakriti or a dosha, and
+ *  there is no server path that fills them from a mapping. Optional on the wire
+ *  so a note stored before doc 24 parses. */
+export type Assessment = {
+  prakriti: string;
+  vikriti: string;
+  agni: string;
+  koshtha: string;
+  nidana: string;
+};
+
 export type MappedFields = {
   diagnosis: string | null;
   treatment_events: TreatmentEvent[];
@@ -45,6 +59,21 @@ export type MappedFields = {
   advice: string[];
   follow_up: FollowUp;
   unclear: string[];
+  assessment?: Assessment;
+  /** Diet & lifestyle lines (doc 24 §6.2). Kept apart from `advice` because they
+   *  print under their own heading, and in an ayurveda consult they are half of
+   *  the treatment rather than a footnote to it. */
+  pathya_apathya?: string[];
+};
+
+/** An assessment with every line blank — what a note that has none looks like,
+ *  and the starting point for one a doctor is about to fill in. */
+export const EMPTY_ASSESSMENT: Assessment = {
+  prakriti: "",
+  vikriti: "",
+  agni: "",
+  koshtha: "",
+  nidana: "",
 };
 
 export type Dictation = {

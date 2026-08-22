@@ -43,7 +43,8 @@
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "@/app/_lib/queue";
-import type { Dictation, MappedFields, Med } from "../_lib/dictation";
+import type { Assessment, Dictation, MappedFields, Med } from "../_lib/dictation";
+import { EMPTY_ASSESSMENT } from "../_lib/dictation";
 import { RxPanel } from "./RxPanel";
 import {
   composeNote,
@@ -63,12 +64,44 @@ type Props = {
   visitDate: string;
   doctorName: string;
   departmentName: string;
+  /** doc 24 §6: whether treatment here is given in numbered cycles. When false
+   *  the regimen/cycle provenance lines go — not because they would be empty,
+   *  but because a "Treatment: cycle 4 · AC-T" line under an ayurveda consult is
+   *  a claim about a record that does not exist. */
+  showsRegimenEvents: boolean;
+  /** The prakriti / vikriti / agni / koshtha / nidana fields (doc 24 §6.1).
+   *  Structured note fields on the existing record — same `fields`/`edits`
+   *  trail, same signature, no new note type and no new table. */
+  ayurvedaAssessment: boolean;
+  /** The diet & lifestyle section of the Rx composer and the print (§6.2). */
+  pathyaApathya: boolean;
   onClose: () => void;
   onSigned?: () => void;
   /** Opens the conclusion dialog. Owned by the console, because concluding ends
    *  the encounter and moves the queue — it is not a note-level act. */
   onConclude: () => void;
 };
+
+/** The five assessment lines, in the order an ayurveda physician records them:
+ *  constitution, then what is wrong in *this* illness, then the digestive and
+ *  bowel findings that decide the treatment, then what is driving it.
+ *
+ *  Labels carry the familiar English word beside the Sanskrit — doc 24 §5's tone
+ *  rule, where the term appears and the everyday word does the work. The
+ *  placeholders are examples rather than instructions, because the honest answer
+ *  is often "vata-pitta, pitta rising" and a field that implies a single word
+ *  would make a doctor round to one. */
+const ASSESSMENT_FIELDS: {
+  key: keyof Assessment;
+  label: string;
+  placeholder: string;
+}[] = [
+  { key: "prakriti", label: "Prakriti (constitution)", placeholder: "e.g. vata-pitta" },
+  { key: "vikriti", label: "Vikriti (dosha involvement)", placeholder: "e.g. pitta vriddhi" },
+  { key: "agni", label: "Agni (digestion)", placeholder: "e.g. tikshna / manda / sama" },
+  { key: "koshtha", label: "Koshtha (bowel tendency)", placeholder: "e.g. krura / mridu / madhya" },
+  { key: "nidana", label: "Nidana (aggravating factors)", placeholder: "What is driving it" },
+];
 
 export function DictationPanel({
   token,
@@ -78,6 +111,9 @@ export function DictationPanel({
   visitDate,
   doctorName,
   departmentName,
+  showsRegimenEvents,
+  ayurvedaAssessment,
+  pathyaApathya,
   onClose,
   onSigned,
   onConclude,
@@ -477,20 +513,45 @@ export function DictationPanel({
             onCommit={(v) => patch({ diagnosis: v || null })}
           />
 
-          {fields.treatment_events.map((ev, i) => (
-            <Provenance
-              key={i}
-              label="Treatment"
-              spoken={ev.as_spoken}
-              written={[
-                ev.regimen,
-                ev.cycle != null ? `cycle ${ev.cycle}` : "",
-                ev.next_due ? `next due ${ev.next_due}` : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          ))}
+          {showsRegimenEvents &&
+            fields.treatment_events.map((ev, i) => (
+              <Provenance
+                key={i}
+                label="Treatment"
+                spoken={ev.as_spoken}
+                written={[
+                  ev.regimen,
+                  ev.cycle != null ? `cycle ${ev.cycle}` : "",
+                  ev.next_due ? `next due ${ev.next_due}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            ))}
+
+          {/* The doctor's own assessment (doc 24 §6.1). Above the advice and
+              below the impression, which is the order it is thought in. Nothing
+              here is ever machine-written: no model produces these fields, and
+              the ayurveda prompts are told in as many words not to infer a
+              prakriti. So every one is `spoken=""` — there is no "as spoken"
+              because nobody spoke it, and a provenance quote under a field the
+              doctor typed would be a claim about a transcript. */}
+          {ayurvedaAssessment &&
+            ASSESSMENT_FIELDS.map(({ key, label, placeholder }) => (
+              <EditableField
+                key={key}
+                label={label}
+                value={(fields.assessment ?? EMPTY_ASSESSMENT)[key]}
+                spoken=""
+                locked={signed}
+                placeholder={placeholder}
+                onCommit={(v) =>
+                  patch({
+                    assessment: { ...(fields.assessment ?? EMPTY_ASSESSMENT), [key]: v },
+                  })
+                }
+              />
+            ))}
 
           <EditableField
             label="Follow-up"
@@ -514,6 +575,29 @@ export function DictationPanel({
               patch({ advice: v.split("\n").map((s) => s.trim()).filter(Boolean) })
             }
           />
+
+          {/* Diet & lifestyle (doc 24 §6.2). Its own field rather than more
+              `advice` lines, because it prints under its own heading on both
+              copies — and because in an ayurveda consult this is half of the
+              treatment, not a footnote to it. */}
+          {pathyaApathya && (
+            <EditableField
+              label="Pathya – Apathya"
+              value={(fields.pathya_apathya ?? []).join("\n")}
+              spoken=""
+              locked={signed}
+              multiline
+              placeholder="One line each — what to favour, what to avoid"
+              onCommit={(v) =>
+                patch({
+                  pathya_apathya: v
+                    .split("\n")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          )}
 
           {fields.unclear.length > 0 && (
             <p className="dict-unclear">

@@ -36,12 +36,25 @@ const LANG_NAME: Record<string, string> = {
   te: "Telugu",
 };
 
-export function PatientCard({ card, tab }: { card: Card; tab: WorkTab }) {
+export function PatientCard({
+  card,
+  tab,
+  showsCycles,
+}: {
+  card: Card;
+  tab: WorkTab;
+  /** doc 24 §6: whether treatment here happens in numbered cycles. The check-in
+   *  trend is "symptom across cycles" (doc 03 §5) — a sparkline whose x-axis is
+   *  a cycle number. In a department with no cycles it is not a chart with an
+   *  empty axis, it is a chart about the wrong thing, so the section goes rather
+   *  than degrades. A flag, never the system of medicine's name. */
+  showsCycles: boolean;
+}) {
   return (
     <article className="work" data-testid="patient-card">
       {tab === "overview" && <Overview card={card} />}
       {tab === "answers" && <Answers card={card} />}
-      {tab === "history" && <History card={card} />}
+      {tab === "history" && <History card={card} showsCycles={showsCycles} />}
     </article>
   );
 }
@@ -141,7 +154,7 @@ function Answers({ card }: { card: Card }) {
   );
 }
 
-function History({ card }: { card: Card }) {
+function History({ card, showsCycles }: { card: Card; showsCycles: boolean }) {
   const s = card.summary;
   const past = card.timeline.filter((v) => !v.is_current);
   return (
@@ -211,7 +224,7 @@ function History({ card }: { card: Card }) {
         )}
       </Section>
 
-      {card.trends.length > 0 && (
+      {showsCycles && card.trends.length > 0 && (
         <Section title="Check-in trend">
           <ul className="trends">
             {card.trends.map((t) => {

@@ -71,13 +71,28 @@ const TABS: { id: WorkTab; label: string }[] = [
   { id: "consult", label: "Consult" },
 ];
 
-const SOON: { name: string; line: string }[] = [
+/** What the guideline lookup would be looking *up* (doc 24 §6).
+ *
+ *  Framing, and only framing: the tab is not live in either system, and what the
+ *  Research tab is allowed to say does not change with the label. It is here
+ *  because "NCCN Guidelines" on an ayurveda console is not a coming-soon
+ *  promise, it is a promise about the wrong body — and a doctor reading it would
+ *  reasonably conclude this console was built for somebody else.
+ *
+ *  Keyed by `capabilities.guidelinePack`, so a third system of medicine is one
+ *  more row here and nothing else. */
+const GUIDELINE_LABEL: Record<string, string> = {
+  nccn: "NCCN Guidelines",
+  ayush: "AYUSH Guidelines",
+};
+
+const soonFor = (guidelinePack: string): { name: string; line: string }[] => [
   {
     name: "Lab reports ordered here",
     line: "Results delivered electronically from the hospital lab. Not live yet — lab work ordered here still comes back on paper, and that paper is scanned into the Reports tab at the desk.",
   },
   {
-    name: "NCCN Guidelines",
+    name: GUIDELINE_LABEL[guidelinePack] ?? GUIDELINE_LABEL.nccn,
     line: "Guideline reference looked up against the published source, with citations. Not live yet — the Research tab answers from a model's own knowledge and says where that is thin, which is a different thing from a guideline lookup.",
   },
 ];
@@ -93,6 +108,7 @@ export function WorkTabs({
   noteSigned,
   reportCount,
   reportsUnverified,
+  guidelinePack,
 }: {
   tab: WorkTab;
   onTab: (tab: WorkTab) => void;
@@ -104,8 +120,13 @@ export function WorkTabs({
   /** Any reading nobody has checked against the pages. Amber, not red: red on
    *  this console belongs to the deterministic red-flag lane. */
   reportsUnverified: boolean;
+  /** Which guideline body the not-yet-live lookup names. Framing only — see
+   *  `GUIDELINE_LABEL`. A string from the capabilities row, never the system of
+   *  medicine's own name. */
+  guidelinePack: string;
 }) {
   const [soonOpen, setSoonOpen] = useState(false);
+  const soon = soonFor(guidelinePack);
 
   return (
     <div className="worktabs-wrap">
@@ -144,14 +165,14 @@ export function WorkTabs({
             onClick={() => setSoonOpen((v) => !v)}
             data-testid="coming-soon"
           >
-            <span aria-hidden="true">⌄</span> Coming soon ({SOON.length})
+            <span aria-hidden="true">⌄</span> Coming soon ({soon.length})
           </button>
         )}
       </div>
 
       {SHOW_SOON && soonOpen && (
         <div className="soon-panel" data-testid="coming-soon-panel">
-          {SOON.map((item) => (
+          {soon.map((item) => (
             <p key={item.name}>
               <strong>{item.name}</strong> — {item.line}
             </p>

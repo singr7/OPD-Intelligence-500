@@ -31,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError, callNext, setEntryState } from "@/app/_lib/queue";
 import { IMAGING_UNASKED, patientStudies, type ImagingLookup } from "@/app/_lib/imaging";
 import { patientDocuments, verifyDocument, type MedicalDocument } from "@/app/_lib/records";
+import { fromPayload } from "@/app/_lib/careSystem";
 import type { Day, DayRow, DayScope, PatientCard as Card, RxMode } from "../_lib/doctor";
 import {
   concludeVisit,
@@ -479,6 +480,19 @@ export function Console() {
 
   const isMine = card ? card.assigned_doctor_id === day?.doctor_id : true;
 
+  /* What this doctor's console switches on (doc 24 §6) — derived **once**, here,
+     from the flags the day payload carries, and passed down as booleans.
+     Components never see the system of medicine's name: that is what keeps
+     adding Unani one enum value and one capabilities row instead of a sweep of
+     every screen. `fromPayload` is the only widener, so a flag added on the
+     server and forgotten here fails to compile rather than arriving `undefined`
+     — which is falsy, and would silently *hide* a section rather than say so.
+
+     Before the day lands there is nothing to render anyway (the stage shows a
+     loading line), so the allopathy row is the honest placeholder: it is today's
+     behaviour, and it is what every department that exists actually is. */
+  const caps = day ? fromPayload(day.capabilities) : null;
+
   return (
     <div className="console">
       <style
@@ -563,6 +577,7 @@ export function Console() {
                 noteSigned={signedNotes.has(card.visit_id)}
                 reportCount={documents.length}
                 reportsUnverified={documents.some((d) => d.extraction && !d.extraction.verified)}
+                guidelinePack={caps?.guidelinePack ?? "nccn"}
               />
 
               {tab === "reports" ? (
@@ -596,6 +611,9 @@ export function Console() {
                   visitDate={card.visit_date}
                   doctorName={day?.doctor_name ?? "Doctor"}
                   departmentName={card.department_name}
+                  showsRegimenEvents={caps?.showsRegimenEvents ?? true}
+                  ayurvedaAssessment={caps?.ayurvedaAssessment ?? false}
+                  pathyaApathya={caps?.pathyaApathya ?? false}
                   onClose={() => setTab("overview")}
                   onSigned={() => setSignedNotes((prev) => new Set(prev).add(card.visit_id))}
                   onConclude={() => {
@@ -604,7 +622,7 @@ export function Console() {
                   }}
                 />
               ) : (
-                <PatientCard card={card} tab={tab} />
+                <PatientCard card={card} tab={tab} showsCycles={caps?.showsCycles ?? true} />
               )}
             </>
           ) : (

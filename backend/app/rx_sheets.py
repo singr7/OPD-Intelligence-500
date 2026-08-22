@@ -28,6 +28,7 @@ inventing one is inventing a dose.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from html import escape
@@ -59,6 +60,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "mrn": "MRN",
         "age_sex": "Age / Sex",
         "diagnosis": "Diagnosis",
+        # doc 24 §6.2. Named for what it is rather than transliterated: a
+        # patient who cannot read "Pathya-Apathya" can read "food and daily
+        # routine", and this sheet is the one they carry home.
+        "pathya": "Food and daily routine",
     },
     "hi": {
         "title": "आपकी दवाइयाँ",
@@ -77,6 +82,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "mrn": "एमआरएन",
         "age_sex": "उम्र / लिंग",
         "diagnosis": "निदान",
+        "pathya": "खान-पान और दिनचर्या",
     },
     "mr": {
         "title": "तुमची औषधे",
@@ -95,6 +101,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "mrn": "एमआरएन",
         "age_sex": "वय / लिंग",
         "diagnosis": "निदान",
+        "pathya": "आहार आणि दिनचर्या",
     },
     "te": {
         "title": "మీ మందులు",
@@ -112,6 +119,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "patient": "రోగి",
         "mrn": "ఎంఆర్ఎన్",
         "age_sex": "వయస్సు / లింగం",
+        "pathya": "ఆహారం మరియు దినచర్య",
         "diagnosis": "నిర్ధారణ",
     },
 }
@@ -277,6 +285,39 @@ def _field(label: str, value: str) -> str:
 # -- clinical copy ------------------------------------------------------------
 
 
+#: The five assessment lines, in the order an ayurveda physician records them —
+#: constitution first, then what is wrong in *this* illness, then the digestive
+#: and bowel findings that decide the treatment, then what is driving it. The
+#: labels carry the familiar English word beside the Sanskrit, doc 24 §5's tone
+#: rule: the term appears, the everyday word does the work.
+_ASSESSMENT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("prakriti", "Prakriti (constitution)"),
+    ("vikriti", "Vikriti (dosha involvement)"),
+    ("agni", "Agni (digestion)"),
+    ("koshtha", "Koshtha (bowel tendency)"),
+    ("nidana", "Nidana (aggravating factors)"),
+)
+
+
+def _assessment_block(assessment: Mapping[str, str] | None) -> str:
+    """The doctor's ayurvedic assessment, or "" when they recorded none.
+
+    Only the lines they actually wrote — a doctor who noted agni and nothing else
+    gets one line, not five with four blanks. Every value is `escape`d like every
+    other free-text field on this sheet; these arrive from a doctor's keyboard.
+    """
+    if not assessment:
+        return ""
+    rows = "".join(
+        f"<div class='label'>{escape(label)}</div><div class='value'>{escape(value)}</div>"
+        for key, label in _ASSESSMENT_FIELDS
+        if (value := (assessment.get(key) or "").strip())
+    )
+    if not rows:
+        return ""
+    return f"<div class='block'><h3>Assessment</h3><div class='who'>{rows}</div></div>"
+
+
 def render_clinical_copy(
     *,
     lines: tuple[RxLine, ...],
@@ -290,8 +331,17 @@ def render_clinical_copy(
     diagnosis: str | None = None,
     advice: tuple[str, ...] = (),
     follow_up: str | None = None,
+    assessment: Mapping[str, str] | None = None,
+    pathya_apathya: tuple[str, ...] = (),
 ) -> str:
-    """The letterhead copy — for the file, the desk and the pharmacy."""
+    """The letterhead copy — for the file, the desk and the pharmacy.
+
+    `assessment` and `pathya_apathya` are doc 24 §6.1/§6.2 and default to
+    nothing, which is what every allopathic prescription passes and why this
+    renderer's output for one is unchanged to the byte. Both are omitted rather
+    than printed empty: a labelled block with nothing under it reads, on a sheet
+    a patient carries to a pharmacy, as a finding rather than as a blank.
+    """
     rows = "".join(_clinical_row(line) for line in lines)
     body = [
         "<div class='sheet'>",
@@ -316,9 +366,14 @@ def render_clinical_copy(
         + (rows or "<tr><td colspan='5'>No medicines prescribed.</td></tr>")
         + "</tbody></table>"
     )
+    if rendered := _assessment_block(assessment):
+        body.append(rendered)
     if advice:
         items = "".join(f"<li>{escape(item)}</li>" for item in advice)
         body.append(f"<div class='block'><h3>Advice</h3><ul>{items}</ul></div>")
+    if pathya_apathya:
+        items = "".join(f"<li>{escape(item)}</li>" for item in pathya_apathya)
+        body.append(f"<div class='block'><h3>Pathya &ndash; Apathya</h3><ul>{items}</ul></div>")
     if follow_up:
         body.append(f"<div class='block'><h3>Follow-up</h3><div>{escape(follow_up)}</div></div>")
     qualification = (
@@ -376,8 +431,14 @@ def render_patient_copy(
     diagnosis: str | None = None,
     advice: tuple[str, ...] = (),
     follow_up: str | None = None,
+    pathya_apathya: tuple[str, ...] = (),
 ) -> str:
     """The large-type, icon-led copy the patient carries home.
+
+    The ayurvedic *assessment* deliberately does not appear here — prakriti and
+    agni are the doctor's clinical shorthand, and a patient copy exists to be
+    acted on. The pathya-apathya lines do appear, because in an ayurveda consult
+    the food and the routine are half of the treatment, not a footnote to it.
 
     Every drug is one band: name big enough to match against the strip in their
     hand, then the schedule as icons when — and only when — the dictation said
@@ -406,6 +467,12 @@ def render_patient_copy(
         items = "".join(f"<li>{escape(item)}</li>" for item in advice)
         body.append(
             f"<div class='block'><h3>{escape(_s(lang, 'advice'))}</h3>"
+            f"<ul class='p-note'>{items}</ul></div>"
+        )
+    if pathya_apathya:
+        items = "".join(f"<li>{escape(item)}</li>" for item in pathya_apathya)
+        body.append(
+            f"<div class='block'><h3>{escape(_s(lang, 'pathya'))}</h3>"
             f"<ul class='p-note'>{items}</ul></div>"
         )
     if follow_up:

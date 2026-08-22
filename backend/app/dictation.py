@@ -85,7 +85,19 @@ STRUCTURED_VERSION = 1
 #: dictations map (see `app.prompts.loader`).
 PROMPT_VERSION = 1
 
-_EDITABLE_TOP_LEVEL = {"diagnosis", "advice", "follow_up", "treatment_events", "meds", "unclear"}
+#: The fields "tap to fix" may replace. `assessment` and `pathya_apathya` are
+#: here because they are *only* ever written this way — no model produces them
+#: (doc 24 §6.1), so the doctor typing is the only path in.
+_EDITABLE_TOP_LEVEL = {
+    "diagnosis",
+    "advice",
+    "follow_up",
+    "treatment_events",
+    "meds",
+    "unclear",
+    "assessment",
+    "pathya_apathya",
+}
 
 
 class DictationError(Exception):
@@ -178,6 +190,63 @@ class FollowUp:
 
 
 @dataclass(frozen=True, slots=True)
+class AyurvedaAssessment:
+    """The doctor's own clinical judgement, in their own words (doc 24 §6.1).
+
+    Five optional free-text lines that an ayurveda OPD records and an allopathic
+    one does not: prakriti (constitution), vikriti (the dosha involvement in
+    *this* illness), agni (digestive fire), koshtha (bowel tendency) and nidana
+    (what is aggravating it).
+
+    **Nothing here is ever machine-decided.** The prompts are told in as many
+    words never to infer a prakriti or a dosha, and there is no code path that
+    writes these from a model's output: they arrive only through
+    `apply_corrections`, which is the doctor typing. That is the same rule doc 24
+    §4 states for dosha language generally — presentation and record, never
+    triage — and it is why these are plain strings with no vocabulary attached.
+    A constitution is decided by examining a patient, and the model has not.
+
+    Free text rather than an enum of the seven prakriti types on purpose: an
+    enum here would be a dropdown a doctor has to make their judgement fit, and
+    the honest answers include "vata-pitta, pitta rising" and "unclear today".
+    """
+
+    prakriti: str = ""
+    vikriti: str = ""
+    agni: str = ""
+    koshtha: str = ""
+    nidana: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prakriti": self.prakriti,
+            "vikriti": self.vikriti,
+            "agni": self.agni,
+            "koshtha": self.koshtha,
+            "nidana": self.nidana,
+        }
+
+    @property
+    def recorded(self) -> bool:
+        """Whether the doctor wrote anything at all. An assessment nobody filled
+        in is not rendered, in the console or on the print — an empty labelled
+        block on a prescription reads as a finding of "normal"."""
+        return any((self.prakriti, self.vikriti, self.agni, self.koshtha, self.nidana))
+
+    @classmethod
+    def parse(cls, payload: Any) -> AyurvedaAssessment:
+        if not isinstance(payload, Mapping):
+            return cls()
+        return cls(
+            prakriti=_text(payload.get("prakriti")),
+            vikriti=_text(payload.get("vikriti")),
+            agni=_text(payload.get("agni")),
+            koshtha=_text(payload.get("koshtha")),
+            nidana=_text(payload.get("nidana")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class DictationMapping:
     """doc 03 §7's structured contract. Built only through `parse`."""
 
@@ -187,6 +256,14 @@ class DictationMapping:
     advice: tuple[str, ...] = ()
     follow_up: FollowUp = field(default_factory=FollowUp)
     unclear: tuple[str, ...] = ()
+    #: doc 24 §6.1. Empty for every allopathic consult, which is what makes this
+    #: additive: the console does not render it, `to_dict` writes an empty block,
+    #: and no existing note changes shape in a way anything reads.
+    assessment: AyurvedaAssessment = field(default_factory=AyurvedaAssessment)
+    #: doc 24 §6.2 — the diet & lifestyle lines, `advice`-shaped and kept apart
+    #: from it because they print under their own heading and in an ayurveda
+    #: consult they are half of the treatment rather than a footnote to it.
+    pathya_apathya: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -196,6 +273,8 @@ class DictationMapping:
             "advice": list(self.advice),
             "follow_up": self.follow_up.to_dict(),
             "unclear": list(self.unclear),
+            "assessment": self.assessment.to_dict(),
+            "pathya_apathya": list(self.pathya_apathya),
         }
 
     @property
@@ -247,6 +326,8 @@ class DictationMapping:
             diagnosis=diagnosis,
             treatment_events=events,
             meds=meds,
+            assessment=AyurvedaAssessment.parse(payload.get("assessment")),
+            pathya_apathya=_str_tuple(payload.get("pathya_apathya")),
             advice=_str_tuple(payload.get("advice")),
             follow_up=follow,
             unclear=_str_tuple(payload.get("unclear")),
@@ -391,6 +472,11 @@ def validate_meds(
         advice=mapping.advice,
         follow_up=mapping.follow_up,
         unclear=mapping.unclear,
+        # Carried through untouched. This function's whole job is the drug
+        # verdicts; a field it rebuilt without copying would be silently erased
+        # every time a doctor corrected an unrelated line.
+        assessment=mapping.assessment,
+        pathya_apathya=mapping.pathya_apathya,
     )
 
 
