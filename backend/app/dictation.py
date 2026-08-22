@@ -333,7 +333,11 @@ def _was_said(med: MedLine, transcript: str) -> bool:
 
 
 def validate_meds(
-    mapping: DictationMapping, *, transcript: str = "", check_unsaid: bool = True
+    mapping: DictationMapping,
+    *,
+    transcript: str = "",
+    check_unsaid: bool = True,
+    scope: str = formulary_mod.DEFAULT_SCOPE,
 ) -> DictationMapping:
     """Replace every drug verdict with this system's own (doc 03 §7).
 
@@ -350,11 +354,18 @@ def validate_meds(
     nothing and trains people to clear flags without reading them. The formulary
     check is untouched and still blocks the signature; that one is about the drug,
     not about who wrote it down.
+
+    `scope` is the department's `capabilities.formulary_scope` (doc 24 §6.3) —
+    which shelf of the book counts as known here. It defaults to allopathy so
+    that every caller predating doc 24 gets exactly today's verdicts; the live
+    paths pass the scope derived from the note's own department, never from a
+    flag on the request, for the same reason `check_unsaid` is derived from the
+    record below.
     """
     book = formulary_mod.get_formulary()
     checked = []
     for med in mapping.meds:
-        verdict = book.lookup(med.name)
+        verdict = book.lookup(med.name, scope=scope)
         checked.append(
             MedLine(
                 name=med.name,  # verbatim, always

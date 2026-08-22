@@ -44,6 +44,28 @@ the form word (`Tab`, `Inj`, `Syp`, …) and the strength tokens (`625`, `500mg`
 query, so "Tab. Augmentin 625" and "augmentin" are the same key. It does **not**
 touch brand suffixes: `Orofer XT` and `Neurobion Forte` are real, distinct
 products, and dropping the suffix would silently merge them with their siblings.
+
+## Scope: one book, two shelves (doc 24 §6.3)
+
+A department's system of medicine decides which entries this module may call
+known — `care_system.capabilities_for(...).formulary_scope`. The rule is
+symmetric and runs in both directions: an ayurvedic preparation dictated in an
+ayurveda consult must not come back "not in formulary", and a cytotoxic must not
+become dictatable in one. The first direction is the one that would annoy a
+doctor into ignoring the flag; the second is the one that would hurt a patient.
+
+Scope filters **which shelf is searched**, and nothing else. It does not touch
+normalisation, it does not lower the exact-match bar, and it does not turn a
+fuzzy neighbour into a written name — a drug off the wrong shelf is simply not
+found, which is the same `known=False` verdict, carrying the same verbatim
+characters, that an invented name gets. There is deliberately no "search the
+other shelf and warn": that path ends in a console offering a cytotoxic as a
+did-you-mean during an ayurveda consult.
+
+An entry with no `scope` in the seed file is allopathy — the same reading
+`care_system.care_system_of(None)` takes of a department that predates doc 24.
+The 189 oncology generics were authored before scopes existed and genuinely are
+allopathic, so they are not re-tagged by hand.
 """
 
 from __future__ import annotations
@@ -55,6 +77,8 @@ from difflib import SequenceMatcher
 from functools import cache
 from pathlib import Path
 from typing import Any
+
+from app.models.enums import CareSystem
 
 SEEDS_DIR = Path(__file__).resolve().parents[2] / "seeds"
 FORMULARY_FILE = SEEDS_DIR / "formulary.json"
@@ -143,6 +167,12 @@ def normalise(name: str) -> str:
     return " ".join(kept)
 
 
+#: The shelf an entry with no `scope` sits on. Not a fallback for a *wrong*
+#: scope — `_parse` raises on one of those, for the reason `CareSystemError`
+#: exists — but the reading of an entry authored before scopes did.
+DEFAULT_SCOPE = "allopathy"
+
+
 @dataclass(frozen=True, slots=True)
 class Drug:
     """One generic and the brands it is dictated as."""
@@ -151,6 +181,10 @@ class Drug:
     drug_class: str
     forms: tuple[str, ...]
     brands: tuple[str, ...]
+    #: Which system of medicine may call this entry known — matched against a
+    #: department's `capabilities.formulary_scope`. Not a display field and not a
+    #: clinical claim about the drug; purely which shelf it is filed on.
+    scope: str = DEFAULT_SCOPE
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -201,31 +235,57 @@ class Formulary:
 
     version: int
     drugs: tuple[Drug, ...]
-    #: normalised name -> (name as written in the book, its drug)
-    _index: dict[str, tuple[str, Drug]] = field(default_factory=dict, repr=False)
+    #: scope -> normalised name -> (name as written in the book, its drug).
+    #:
+    #: Indexed per shelf rather than filtered at lookup time, because the fuzzy
+    #: neighbour search walks the whole index: a shared index filtered afterwards
+    #: would score a dictated ayurvedic name against every cytotoxic in the book
+    #: and then drop the winners, which is the same answer by luck rather than by
+    #: construction, and one refactor away from offering them.
+    _index: dict[str, dict[str, tuple[str, Drug]]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if not self._index:
             for drug in self.drugs:
+                shelf = self._index.setdefault(drug.scope, {})
                 for name in drug.names:
                     key = normalise(name)
                     # First writer wins: a brand that collides with another
                     # product's normalised key keeps the earlier entry rather than
-                    # silently re-pointing it at a different generic.
-                    self._index.setdefault(key, (name, drug))
+                    # silently re-pointing it at a different generic. Per shelf, so
+                    # a collision across two systems of medicine is not a collision.
+                    shelf.setdefault(key, (name, drug))
+
+    @property
+    def scopes(self) -> tuple[str, ...]:
+        """Every shelf the loaded book has entries on, in file order."""
+        return tuple(self._index)
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Every dictatable name, generics and brands, in file order."""
+        """Every dictatable name in the book, generics and brands, in file order.
+
+        Deliberately unscoped — this is the whole book, and its callers ask about
+        the file rather than about a consult. What a *doctor* may dictate is
+        `lookup(..., scope=...)`; there is no scoped variant of this because a
+        flat list of names is not a thing any clinical path should be reading.
+        """
         return tuple(name for drug in self.drugs for name in drug.names)
 
-    def lookup(self, name: str) -> Lookup:
-        """Is this dictated name in the book? Never rewrites `name`."""
+    def lookup(self, name: str, *, scope: str = DEFAULT_SCOPE) -> Lookup:
+        """Is this dictated name on this shelf? Never rewrites `name`.
+
+        `scope` defaults to allopathy so that a caller which has no department in
+        hand — a test, a script — gets exactly today's behaviour. The live path
+        never takes the default: `validate_meds` is handed the scope its
+        department's capabilities derived.
+        """
         key = normalise(name)
         if not key:
             return Lookup(query=name, normalized=key, known=False)
 
-        if hit := self._index.get(key):
+        shelf = self._index.get(scope, {})
+        if hit := shelf.get(key):
             matched, drug = hit
             return Lookup(
                 query=name,
@@ -236,7 +296,7 @@ class Formulary:
                 drug_class=drug.drug_class,
             )
 
-        suggestions = self._neighbours(key)
+        suggestions = self._neighbours(key, scope)
         return Lookup(
             query=name,
             normalized=key,
@@ -245,9 +305,9 @@ class Formulary:
             ambiguous=len({s.generic for s in suggestions}) > 1,
         )
 
-    def _neighbours(self, key: str) -> tuple[Suggestion, ...]:
+    def _neighbours(self, key: str, scope: str) -> tuple[Suggestion, ...]:
         scored: list[Suggestion] = []
-        for indexed, (name, drug) in self._index.items():
+        for indexed, (name, drug) in self._index.get(scope, {}).items():
             score = SequenceMatcher(None, key, indexed).ratio()
             if score >= SUGGEST_THRESHOLD:
                 scored.append(Suggestion(name=name, generic=drug.generic, score=score))
@@ -257,29 +317,65 @@ class Formulary:
         scored.sort(key=lambda s: (-s.score, s.name))
         return tuple(scored[:MAX_SUGGESTIONS])
 
-    def prompt_hint(self) -> str:
-        """The formulary as the mapping prompt sees it — one line per generic.
+    def prompt_hint(self, scope: str = DEFAULT_SCOPE) -> str:
+        """One shelf as the mapping prompt sees it — one line per generic.
 
         Handed to the model for the `known` flag only; the prompt says so in
         capitals and this module overrides whatever it claims anyway. Ordering is
         file order, so the rendered prompt (and therefore the prompt cache) is
         stable across processes.
+
+        Scoped for a reason beyond tidiness: the hint is the list of names the
+        model is told exist, so an ayurveda consult whose hint carried 189
+        cytotoxics would be a transcript of "shatavari" sitting next to a prompt
+        full of plausible-looking oncology names. `validate_meds` would still
+        throw the model's verdict away, but the *name it echoes back* is the one
+        thing this system takes from the model verbatim.
         """
         return "\n".join(
             f"{drug.generic} [{drug.drug_class}]: {', '.join(drug.brands)}"
             if drug.brands
             else f"{drug.generic} [{drug.drug_class}]"
             for drug in self.drugs
+            if drug.scope == scope
         )
 
 
+class FormularyError(ValueError):
+    """A malformed entry. Never a silent repair.
+
+    Same stance as `CareSystemError`: a typo in a `scope` must not file a drug on
+    a shelf nobody searches (where it reads as "not in formulary" forever, and
+    looks like the doctor mis-dictated) or on the wrong one (where it becomes
+    dictatable in the wrong consult). Both are invisible on every screen.
+    """
+
+
+def _scope_of(row: dict[str, Any], known: frozenset[str]) -> str:
+    raw = row.get("scope")
+    if raw is None:
+        return DEFAULT_SCOPE
+    scope = str(raw)
+    if scope not in known:
+        raise FormularyError(
+            f"{row.get('generic', '?')!r}: unknown formulary scope {scope!r}; "
+            f"expected one of {sorted(known)}"
+        )
+    return scope
+
+
 def _parse(payload: dict[str, Any]) -> Formulary:
+    # The shelves are exactly the systems of medicine the platform has. Derived
+    # from the enum rather than listed here, so a third system cannot be added to
+    # `CareSystem` and leave this file quietly rejecting its formulary.
+    known = frozenset(member.value for member in CareSystem)
     drugs = tuple(
         Drug(
             generic=str(row["generic"]),
             drug_class=str(row.get("class", "other")),
             forms=tuple(str(f) for f in row.get("forms", ())),
             brands=tuple(str(b) for b in row.get("brands", ())),
+            scope=_scope_of(row, known),
         )
         for row in payload.get("drugs", ())
     )
@@ -292,6 +388,6 @@ def get_formulary(path: Path | None = None) -> Formulary:
     return _parse(json.loads((path or FORMULARY_FILE).read_text(encoding="utf-8")))
 
 
-def lookup(name: str) -> Lookup:
+def lookup(name: str, *, scope: str = DEFAULT_SCOPE) -> Lookup:
     """Convenience for the common case: look one name up in the default book."""
-    return get_formulary().lookup(name)
+    return get_formulary().lookup(name, scope=scope)

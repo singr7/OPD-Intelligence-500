@@ -158,6 +158,52 @@ def load(prompt_id: str, version: int | None = None, *, root: Path | None = None
     return _parse(versions[chosen])
 
 
+#: The pack whose prompts are the plain, unsuffixed directories. Every prompt in
+#: `backend/prompts/` was written for the oncology OPD, so the oncology pack is
+#: the file layout that already exists rather than a copy of it under a new name.
+BASE_PACK = "oncology"
+
+
+def packed_id(prompt_id: str, pack: str, *, root: Path | None = None) -> str:
+    """The prompt id one pack uses for a given prompt (doc 24 §6.4).
+
+    `capabilities.prompt_pack` selects the register a prompt is written in:
+    `load_packed("summarize", "ayurveda")` finds `summarize_ayurveda` if that
+    directory exists, and `summarize` if it does not.
+
+    **The fallback is the point, not a leak.** Most prompts here are about the
+    task and not about the system of medicine — `routing` classifies a chief
+    complaint into a department, `mrd_extract` reads numbers off a lab report —
+    and forcing every pack to fork every prompt would mean four identical copies
+    drifting apart, which is how a fix reaches one system and not the other. A
+    pack forks only the prompts whose *wording* is care-system-specific, which
+    doc 24 §6.4 names as three: the intake summary, the dictation mapping and
+    the research assistant. `tests/test_prompts.py` asserts those three exist for
+    every non-base pack, so the fallback can never quietly become the reason an
+    ayurveda consult is summarised in oncology language.
+
+    Either way the resolved id is what lands in `Prompt.ref` and therefore in the
+    audit trail on the LLM call, so which text produced an output stays
+    answerable months later — which is the whole reason prompts are versioned.
+    """
+    if pack == BASE_PACK:
+        return prompt_id
+    candidate = f"{prompt_id}_{pack}"
+    return candidate if ((root or PROMPTS_DIR) / candidate).is_dir() else prompt_id
+
+
+def load_packed(
+    prompt_id: str, pack: str, version: int | None = None, *, root: Path | None = None
+) -> Prompt:
+    """Load a prompt in one pack's register. See `packed_id`.
+
+    `version` pins within the resolved pack, not across packs: `summarize` is at
+    v3 and `summarize_ayurveda` starts at v1, and they version independently
+    because they are different texts with different review histories.
+    """
+    return load(packed_id(prompt_id, pack, root=root), version, root=root)
+
+
 def all_prompts(*, root: Path | None = None) -> list[Prompt]:
     """Every version of every prompt. Used by the library test and, in S18, the admin console."""
     directory = root or PROMPTS_DIR

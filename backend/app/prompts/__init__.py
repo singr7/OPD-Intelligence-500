@@ -5,7 +5,15 @@
 Neither imports a vendor SDK — that is the point of both.
 """
 
-from app.prompts.loader import Prompt, PromptError, all_prompts, load
+from app.prompts.loader import (
+    BASE_PACK,
+    Prompt,
+    PromptError,
+    all_prompts,
+    load,
+    load_packed,
+    packed_id,
+)
 from app.prompts.tools import (
     CHECK_RED_FLAGS,
     FINISH_AND_SUMMARIZE,
@@ -29,5 +37,8 @@ __all__ = [
     "ToolSpec",
     "all_prompts",
     "load",
+    "load_packed",
+    "packed_id",
+    "BASE_PACK",
     "tool",
 ]
